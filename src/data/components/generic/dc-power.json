@@ -1,0 +1,13 @@
+{
+  "id": "dc-power",
+  "name": "DC Power",
+  "category": "dc-power",
+  "package": { "type": "two-lead", "defaultSpan": 1, "minSpan": 1, "blocksBetween": false },
+  "pins": [
+    { "number": 1, "name": "+", "role": "vcc-source" },
+    { "number": 2, "name": "-", "role": "gnd-source" }
+  ],
+  "internalConnections": [],
+  "defaultProps": { "voltage": 5 },
+  "logic": null
+}

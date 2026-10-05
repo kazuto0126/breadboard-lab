@@ -1,0 +1,13 @@
+{
+  "id": "led",
+  "name": "LED",
+  "category": "led",
+  "package": { "type": "two-lead", "defaultSpan": 1, "minSpan": 1, "blocksBetween": false },
+  "pins": [
+    { "number": 1, "name": "A", "role": "anode" },
+    { "number": 2, "name": "K", "role": "cathode" }
+  ],
+  "internalConnections": [],
+  "defaultProps": { "color": "red" },
+  "logic": null
+}

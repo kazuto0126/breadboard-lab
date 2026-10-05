@@ -1,0 +1,25 @@
+{
+  "id": "74LS74",
+  "name": "74LS74",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "1/CLR", "role": "input" },
+    { "number": 2, "name": "1D", "role": "input" },
+    { "number": 3, "name": "1CLK", "role": "input" },
+    { "number": 4, "name": "1/PRE", "role": "input" },
+    { "number": 5, "name": "1Q", "role": "output" },
+    { "number": 6, "name": "1/Q", "role": "output" },
+    { "number": 7, "name": "GND", "role": "ground" },
+    { "number": 8, "name": "2/Q", "role": "output" },
+    { "number": 9, "name": "2Q", "role": "output" },
+    { "number": 10, "name": "2/PRE", "role": "input" },
+    { "number": 11, "name": "2CLK", "role": "input" },
+    { "number": 12, "name": "2D", "role": "input" },
+    { "number": 13, "name": "2/CLR", "role": "input" },
+    { "number": 14, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": null
+}

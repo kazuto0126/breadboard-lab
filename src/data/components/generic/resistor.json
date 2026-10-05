@@ -1,0 +1,13 @@
+{
+  "id": "resistor",
+  "name": "Resistor",
+  "category": "resistor",
+  "package": { "type": "two-lead", "defaultSpan": 4, "minSpan": 1, "blocksBetween": true },
+  "pins": [
+    { "number": 1, "name": "1", "role": "passive" },
+    { "number": 2, "name": "2", "role": "passive" }
+  ],
+  "internalConnections": [],
+  "defaultProps": { "resistance": 1000 },
+  "logic": null
+}

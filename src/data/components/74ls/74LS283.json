@@ -1,0 +1,27 @@
+{
+  "id": "74LS283",
+  "name": "74LS283",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "S2", "role": "output" },
+    { "number": 2, "name": "B2", "role": "input" },
+    { "number": 3, "name": "A2", "role": "input" },
+    { "number": 4, "name": "S1", "role": "output" },
+    { "number": 5, "name": "A1", "role": "input" },
+    { "number": 6, "name": "B1", "role": "input" },
+    { "number": 7, "name": "C0", "role": "input" },
+    { "number": 8, "name": "GND", "role": "ground" },
+    { "number": 9, "name": "C4", "role": "output" },
+    { "number": 10, "name": "S4", "role": "output" },
+    { "number": 11, "name": "B4", "role": "input" },
+    { "number": 12, "name": "A4", "role": "input" },
+    { "number": 13, "name": "S3", "role": "output" },
+    { "number": 14, "name": "A3", "role": "input" },
+    { "number": 15, "name": "B3", "role": "input" },
+    { "number": 16, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": null
+}

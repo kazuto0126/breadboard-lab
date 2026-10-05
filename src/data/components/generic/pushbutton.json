@@ -1,0 +1,15 @@
+{
+  "id": "pushbutton",
+  "name": "Push Button",
+  "category": "pushbutton",
+  "package": { "type": "tactile4" },
+  "pins": [
+    { "number": 1, "name": "1", "role": "passive" },
+    { "number": 2, "name": "2", "role": "passive" },
+    { "number": 3, "name": "3", "role": "passive" },
+    { "number": 4, "name": "4", "role": "passive" }
+  ],
+  "internalConnections": [[1, 2], [3, 4]],
+  "defaultProps": {},
+  "logic": null
+}

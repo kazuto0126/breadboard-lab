@@ -1,0 +1,10 @@
+{
+  "id": "gnd",
+  "name": "GND",
+  "category": "gnd",
+  "package": { "type": "single" },
+  "pins": [{ "number": 1, "name": "GND", "role": "gnd-source" }],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": null
+}

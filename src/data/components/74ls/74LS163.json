@@ -1,0 +1,27 @@
+{
+  "id": "74LS163",
+  "name": "74LS163",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "/CLR", "role": "input" },
+    { "number": 2, "name": "CLK", "role": "input" },
+    { "number": 3, "name": "A", "role": "input" },
+    { "number": 4, "name": "B", "role": "input" },
+    { "number": 5, "name": "C", "role": "input" },
+    { "number": 6, "name": "D", "role": "input" },
+    { "number": 7, "name": "ENP", "role": "input" },
+    { "number": 8, "name": "GND", "role": "ground" },
+    { "number": 9, "name": "/LOAD", "role": "input" },
+    { "number": 10, "name": "ENT", "role": "input" },
+    { "number": 11, "name": "QD", "role": "output" },
+    { "number": 12, "name": "QC", "role": "output" },
+    { "number": 13, "name": "QB", "role": "output" },
+    { "number": 14, "name": "QA", "role": "output" },
+    { "number": 15, "name": "RCO", "role": "output" },
+    { "number": 16, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": null
+}

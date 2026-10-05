@@ -1,0 +1,27 @@
+{
+  "id": "74LS175",
+  "name": "74LS175",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "/CLR", "role": "input" },
+    { "number": 2, "name": "1Q", "role": "output" },
+    { "number": 3, "name": "1/Q", "role": "output" },
+    { "number": 4, "name": "1D", "role": "input" },
+    { "number": 5, "name": "2D", "role": "input" },
+    { "number": 6, "name": "2/Q", "role": "output" },
+    { "number": 7, "name": "2Q", "role": "output" },
+    { "number": 8, "name": "GND", "role": "ground" },
+    { "number": 9, "name": "CLK", "role": "input" },
+    { "number": 10, "name": "3Q", "role": "output" },
+    { "number": 11, "name": "3/Q", "role": "output" },
+    { "number": 12, "name": "3D", "role": "input" },
+    { "number": 13, "name": "4D", "role": "input" },
+    { "number": 14, "name": "4/Q", "role": "output" },
+    { "number": 15, "name": "4Q", "role": "output" },
+    { "number": 16, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": null
+}
