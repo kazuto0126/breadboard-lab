@@ -84,7 +84,7 @@ src/
     routing/             A*、Net 樹建構、協商迴圈、合法性檢查、評分、套用結果
   index.ts               對外 API
 tests/
-  fixtures/              固定測試電路（JSON）
+  fixtures/              固定測試電路（用 TypeScript 建構函式產生純資料 Circuit，可直接 JSON 化）
 scripts/
   demo.ts                ASCII 預覽
 ```
@@ -141,7 +141,7 @@ Circuit（boards、components、wires）
 | 完整孔位名稱 | `{boardId}:{孔位名稱}` | `b1:A12` |
 | 導通群組 ID | 中央區 `{boardId}:c{欄}-top` / `-bot`；電源軌 `{boardId}:rail-{軌}` | `b1:c12-top`、`b1:rail-T+` |
 
-`holeName(point)` 與 `parseHoleName(name)` 必須能互相轉換。`B12`（B 排）和 `B+12`（下方 + 軌）靠 `+`/`-` 區分。
+`holeName(board, point)` 與 `parseHoleName(board, name)` 必須能互相轉換（孔位名稱要知道版型才能解析，所以都帶 board）。`B12`（B 排）和 `B+12`（下方 + 軌）靠 `+`/`-` 區分。
 
 ### 4.4 導通群組
 
@@ -378,7 +378,8 @@ interface CircuitError {
 | Congestion | 經過任何終端群組的可用端點孔（會佔掉別人可能要用的端點） | 20 |
 | Aesthetic | 形成「非第一段、非最後一段、長度只有 1 格」的小折角 | 10 |
 
-- 估計函式：`min over 終點 (曼哈頓距離 + (dx ≠ 0 且 dy ≠ 0 ? Bend : 0))`。這個值不會高估實際成本。
+- 估計函式：`min over 終點 (曼哈頓距離) × Distance 權重`。不加轉彎估計，因為狀態裡的方向會讓「加轉彎」的估計失去一致性；純曼哈頓距離既不高估、也保持一致，A* 第一次取出終點時就是最佳解。
+- 協商階段，每經過一個格點還會加上該格點的歷史成本 `history(r)`（見 8.4），讓線自動避開過去常塞車的位置。
 - 同一個 Net 的兩條線也適用重疊與交叉規則。
 
 ### 8.3 Net 樹建構
@@ -391,7 +392,7 @@ interface CircuitError {
 
 1. **排序**：`routingPriorityScore(net)` = `isPower × 1000 + 範圍半周長 × 10 + 100 ÷ (最少可用端點數 + 1)`。分數高的先排，同分依 Net ID 排序。
 2. **第 1 輪**：依序排所有 Net，允許重疊。
-3. **重疊成本**：`(overlapBase + history(r)) × (1 + presentFactor × 其他線在 r 上的使用數)`。資源 r 是格點、邊或端點孔。
+3. **重疊成本**：`(overlapBase + history(r)) × (1 + presentFactor × 其他線在 r 上的使用數)`。資源 r 是格點：共用一段邊必然共用兩端的格點，端點孔本身也是格點，所以只追蹤格點就涵蓋了所有重疊情況。
 4. **每輪結束後**：有衝突的資源 `history += historyIncrement`；`presentFactor *= presentFactorGrowth`；把所有涉及衝突的 Net 拆掉重排。
 5. **重疊歸零後進入改善階段**：依序把每個 Net 拿掉，在其他線完全不可碰的條件下重排，若總成本下降就採用。重複到一整輪都沒有改善，或達到 `maxImprovementPasses`。
 6. **停止條件**：達到 `maxIterations` 或 `timeBudgetMs`。
@@ -428,6 +429,10 @@ interface RoutingConfig {
   };
   timeBudgetMs: 5000;
   priority: { power: 1000; spread: 10; scarcity: 100 };
+  scoring: {
+    overlap: 30; crossing: 8; lengthMax: 20;
+    extraBend: 1.5; extraBendMax: 15; shortJog: 2; shortJogMax: 10;
+  };
 }
 ```
 
@@ -498,8 +503,9 @@ interface RoutingMetrics {
 // 麵包板
 MB102_LAYOUT: BoardLayout
 buildBoard(layout: BoardLayout, boardId: string): Breadboard
-holeName(point: GridPoint): string | null
-parseHoleName(name: string): GridPoint | null
+holeName(board: Breadboard, point: GridPoint): string | null
+parseHoleName(board: Breadboard, name: string): GridPoint | null   // 接受 "A12"、"b1:A12"、"B−30"
+getBoard(layoutId: string, boardId: string): Breadboard              // 有快取，回傳的物件不可修改
 
 // 元件
 getComponentDefinitions(): ComponentDefinition[]
