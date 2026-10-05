@@ -1,0 +1,70 @@
+import type { GridPoint } from './geometry';
+
+export type PinRole =
+  | 'input'
+  | 'output'
+  | 'bidir'
+  | 'power'
+  | 'ground'
+  | 'nc'
+  | 'passive'
+  | 'anode'
+  | 'cathode'
+  | 'vcc-source'
+  | 'gnd-source';
+
+export type ComponentCategory = 'ic' | 'resistor' | 'led' | 'vcc' | 'gnd' | 'dc-power' | 'dip-switch' | 'pushbutton';
+
+export type PackageSpec =
+  | { type: 'dip'; pinCount: number; rowSpacing: 3 | 6 }
+  | { type: 'two-lead'; defaultSpan: number; minSpan: number; blocksBetween: boolean }
+  | { type: 'single' }
+  | { type: 'tactile4' };
+
+export interface PinDefinition {
+  number: number;
+  name: string;
+  role: PinRole;
+}
+
+export type LedColor = 'red' | 'green' | 'yellow' | 'blue';
+
+export interface ComponentProps {
+  resistance?: number;
+  color?: LedColor;
+  voltage?: number;
+  switchStates?: boolean[];
+}
+
+export interface ComponentDefinition {
+  id: string;
+  name: string;
+  category: ComponentCategory;
+  package: PackageSpec;
+  pins: PinDefinition[];
+  internalConnections: number[][];
+  defaultProps: ComponentProps;
+  logic: null;
+}
+
+export type Rotation = 0 | 90 | 180 | 270;
+
+export interface ComponentInstance {
+  id: string;
+  defId: string;
+  boardId: string;
+  anchor: { x: number; y: number };
+  rotation: Rotation;
+  span?: number;
+  props: ComponentProps;
+}
+
+export interface ResolvedPin {
+  pinNumber: number;
+  point: GridPoint;
+}
+
+export interface Footprint {
+  pins: ResolvedPin[];
+  blocked: GridPoint[];
+}

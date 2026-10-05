@@ -1,0 +1,29 @@
+export type { Direction, GridPoint } from './types/geometry';
+export type {
+  BoardLayout, Breadboard, BreadboardGroup, BreadboardInstance, BreadboardNode, LayoutRow, NodeKind, RailLabel,
+} from './types/board';
+export type {
+  ComponentCategory, ComponentDefinition, ComponentInstance, ComponentProps, Footprint, LedColor, PackageSpec,
+  PinDefinition, PinRole, ResolvedPin, Rotation,
+} from './types/component';
+export type { Circuit, CircuitError, CircuitErrorCode, Net, NodeState, PinRef, Wire } from './types/circuit';
+export type {
+  DeepPartial, FailedNet, FailureReason, LegalityCode, LegalityViolation, RoutingConfig, RoutingMetrics, RoutingNode,
+  RoutingPath, RoutingResult, RoutingWeights,
+} from './types/routing';
+
+export { MB102_LAYOUT } from './core/breadboard/layouts';
+export { buildBoard } from './core/breadboard/buildBoard';
+export { getBoard } from './core/breadboard/registry';
+export { getNode, holeName, nodeIdOf, parseHoleName, parseNodeId } from './core/breadboard/naming';
+export { getComponentDefinition, getComponentDefinitions, parseDefinition, RESISTOR_PRESETS } from './core/circuit/library';
+export { resolveFootprint } from './core/circuit/footprint';
+export { getNodeState } from './core/circuit/nodeState';
+export { extractNets } from './core/circuit/nets';
+export { validateCircuit } from './core/circuit/validate';
+export { DEFAULT_ROUTING_CONFIG, mergeConfig } from './core/routing/config';
+export { autoRoute } from './core/routing/autoRoute';
+export { checkRoutingLegality } from './core/routing/legality';
+export { scoreRouting } from './core/routing/score';
+export { applyRouting } from './core/routing/apply';
+export { renderAscii } from './debug/ascii';

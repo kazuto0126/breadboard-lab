@@ -1,0 +1,10 @@
+{
+  "id": "vcc",
+  "name": "VCC",
+  "category": "vcc",
+  "package": { "type": "single" },
+  "pins": [{ "number": 1, "name": "VCC", "role": "vcc-source" }],
+  "internalConnections": [],
+  "defaultProps": { "voltage": 5 },
+  "logic": null
+}

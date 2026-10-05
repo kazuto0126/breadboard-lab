@@ -1,0 +1,19 @@
+{
+  "id": "dipsw-4",
+  "name": "DIP Switch (4)",
+  "category": "dip-switch",
+  "package": { "type": "dip", "pinCount": 8, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "1", "role": "passive" },
+    { "number": 2, "name": "2", "role": "passive" },
+    { "number": 3, "name": "3", "role": "passive" },
+    { "number": 4, "name": "4", "role": "passive" },
+    { "number": 5, "name": "5", "role": "passive" },
+    { "number": 6, "name": "6", "role": "passive" },
+    { "number": 7, "name": "7", "role": "passive" },
+    { "number": 8, "name": "8", "role": "passive" }
+  ],
+  "internalConnections": [],
+  "defaultProps": { "switchStates": [false, false, false, false] },
+  "logic": null
+}

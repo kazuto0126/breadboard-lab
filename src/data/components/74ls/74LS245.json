@@ -1,0 +1,31 @@
+{
+  "id": "74LS245",
+  "name": "74LS245",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 20, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "DIR", "role": "input" },
+    { "number": 2, "name": "A1", "role": "bidir" },
+    { "number": 3, "name": "A2", "role": "bidir" },
+    { "number": 4, "name": "A3", "role": "bidir" },
+    { "number": 5, "name": "A4", "role": "bidir" },
+    { "number": 6, "name": "A5", "role": "bidir" },
+    { "number": 7, "name": "A6", "role": "bidir" },
+    { "number": 8, "name": "A7", "role": "bidir" },
+    { "number": 9, "name": "A8", "role": "bidir" },
+    { "number": 10, "name": "GND", "role": "ground" },
+    { "number": 11, "name": "B8", "role": "bidir" },
+    { "number": 12, "name": "B7", "role": "bidir" },
+    { "number": 13, "name": "B6", "role": "bidir" },
+    { "number": 14, "name": "B5", "role": "bidir" },
+    { "number": 15, "name": "B4", "role": "bidir" },
+    { "number": 16, "name": "B3", "role": "bidir" },
+    { "number": 17, "name": "B2", "role": "bidir" },
+    { "number": 18, "name": "B1", "role": "bidir" },
+    { "number": 19, "name": "/G", "role": "input" },
+    { "number": 20, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": null
+}

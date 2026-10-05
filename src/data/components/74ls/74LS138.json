@@ -1,0 +1,27 @@
+{
+  "id": "74LS138",
+  "name": "74LS138",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "A", "role": "input" },
+    { "number": 2, "name": "B", "role": "input" },
+    { "number": 3, "name": "C", "role": "input" },
+    { "number": 4, "name": "/G2A", "role": "input" },
+    { "number": 5, "name": "/G2B", "role": "input" },
+    { "number": 6, "name": "G1", "role": "input" },
+    { "number": 7, "name": "/Y7", "role": "output" },
+    { "number": 8, "name": "GND", "role": "ground" },
+    { "number": 9, "name": "/Y6", "role": "output" },
+    { "number": 10, "name": "/Y5", "role": "output" },
+    { "number": 11, "name": "/Y4", "role": "output" },
+    { "number": 12, "name": "/Y3", "role": "output" },
+    { "number": 13, "name": "/Y2", "role": "output" },
+    { "number": 14, "name": "/Y1", "role": "output" },
+    { "number": 15, "name": "/Y0", "role": "output" },
+    { "number": 16, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": null
+}

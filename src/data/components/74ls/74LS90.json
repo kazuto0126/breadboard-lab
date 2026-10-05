@@ -1,0 +1,25 @@
+{
+  "id": "74LS90",
+  "name": "74LS90",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "CKB", "role": "input" },
+    { "number": 2, "name": "R0(1)", "role": "input" },
+    { "number": 3, "name": "R0(2)", "role": "input" },
+    { "number": 4, "name": "NC", "role": "nc" },
+    { "number": 5, "name": "VCC", "role": "power" },
+    { "number": 6, "name": "R9(1)", "role": "input" },
+    { "number": 7, "name": "R9(2)", "role": "input" },
+    { "number": 8, "name": "QC", "role": "output" },
+    { "number": 9, "name": "QB", "role": "output" },
+    { "number": 10, "name": "GND", "role": "ground" },
+    { "number": 11, "name": "QD", "role": "output" },
+    { "number": 12, "name": "QA", "role": "output" },
+    { "number": 13, "name": "NC", "role": "nc" },
+    { "number": 14, "name": "CKA", "role": "input" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": null
+}
