@@ -15,6 +15,7 @@ npm run dev          # http://localhost:5173
 npm run typecheck    # 四份 tsconfig：核心 / 畫面 / store 測試 / e2e
 npm test             # Vitest 單元測試
 npm run build
+npm run build:single # 單一 HTML 離線版 dist-single/breadboard-lab.html
 npm run e2e          # Playwright；雲端容器不能下載瀏覽器，要加 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium
 npm run demo         # 終端機 ASCII 預覽佈線前後
 ```

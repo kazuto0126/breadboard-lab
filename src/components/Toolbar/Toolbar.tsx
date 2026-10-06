@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import logoUrl from '../../assets/logo.svg';
 import { MAX_BOARDS } from '../../editor/boards';
 import { EXAMPLES } from '../../editor/examples';
 import { redoLabel, undoLabel } from '../../editor/history';
@@ -179,7 +180,7 @@ export function Toolbar() {
   return (
     <header ref={barRef} className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-900 px-3">
       <div className="mr-2 flex items-center gap-2">
-        <img src="/favicon.svg" alt="" className="h-6 w-6" />
+        <img src={logoUrl} alt="" className="h-6 w-6" />
         <div className="leading-tight">
           <div className="text-sm font-bold text-slate-50">Breadboard Lab</div>
           <div className="max-w-[180px] truncate text-[11px] text-slate-400" title={projectName ?? '未命名電路'}>

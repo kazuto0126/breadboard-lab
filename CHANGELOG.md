@@ -3,6 +3,23 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 單一 HTML 離線版（移植自 feat/core-engine）
+
+### 新增
+
+- 設計規格：`docs/superpowers/specs/2026-10-06-single-file-build-design.md`。
+- `npm run build:single`：用 `vite-plugin-singlefile` 把整個工具包成一個 HTML 檔（`dist-single/breadboard-lab.html`，約 540 KB），
+  複製到任何電腦雙擊就能用，不需要伺服器或網路；自動儲存、匯入匯出、AI 標準佈線、模擬都能用。
+- CI 每次建置離線版並上傳成 Artifact（`breadboard-lab-offline`，保留 30 天）。
+- 端對端測試 `e2e/single-file.spec.ts`：用 `file://` 開啟離線版、載入範例並完成 AI 標準佈線，
+  檢查沒有外部 `<script>` / `<link>`、沒有任何對外請求、沒有頁面錯誤。
+
+### 變更
+
+- 佈線 Worker 改用 Vite 的 `?worker&inline`（Worker 程式碼內嵌、用 blob URL 啟動的 classic worker），網站版與離線版共用。
+- `base` 改成相對路徑 `./`；網頁圖示改由 `vite.config.ts` 的小 plugin 內嵌成 data URI，
+  工具列 logo 改成 import（`public/favicon.svg` 移到 `src/assets/logo.svg`）。
+
 ## [未發布] — 進度同步流程（避免用量上限中斷時遺失進度）
 
 ### 新增

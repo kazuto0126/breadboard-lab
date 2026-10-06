@@ -22,6 +22,9 @@ npm install
 npm run dev        # 開啟 http://localhost:5173
 ```
 
+**離線版**：`npm run build:single` 會產生 `dist-single/breadboard-lab.html` 一個檔案，複製到任何電腦雙擊就能用，
+不需要伺服器或網路。每次 CI 也會建置一份，可以在 GitHub 的 Actions 頁面下載（Artifacts → `breadboard-lab-offline`）。
+
 第一次打開時，畫面上方有操作說明，也可以直接載入範例電路（檔案 → 範例電路）：
 74LS00 + LED 驗收電路、74LS93 按鈕計數器、74LS161 + 時脈（模擬示範）、兩塊麵包板（Board Group 示範）、74LS283 4 位元加法器。
 
@@ -54,6 +57,7 @@ AI 標準佈線**不會移動元件**，只保留你的接線所定義的電氣�
 |---|---|
 | `npm run dev` | 開發伺服器 |
 | `npm run build` / `npm run preview` | 建置靜態網站到 `dist/` / 預覽建置結果 |
+| `npm run build:single` | 建置單一 HTML 離線版 `dist-single/breadboard-lab.html`（用 `file://` 直接開啟） |
 | `npm test` | 單元測試（Vitest） |
 | `npm run typecheck` | TypeScript 型別檢查（核心、畫面、測試四份設定） |
 | `npm run e2e` | 端對端測試（Playwright），用真實滑鼠操作走完需求文件第三十四章的驗收流程，以及第三十八章的多麵包板吸附與跨板接線 |
@@ -62,7 +66,8 @@ AI 標準佈線**不會移動元件**，只保留你的接線所定義的電氣�
 第一次執行 e2e 前需要安裝瀏覽器：`npx playwright install chromium`。
 已經有 Chromium 的環境可以改設 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chrome`。
 
-GitHub Actions（`.github/workflows/ci.yml`）在每個 Pull Request 與 push 到 `main` 時自動執行型別檢查、單元測試、建置與 e2e。
+GitHub Actions（`.github/workflows/ci.yml`）在每個 Pull Request 與 push 到 `main` 時自動執行型別檢查、單元測試、建置與 e2e，
+並上傳離線版 HTML。
 給 Claude Code 的專案說明（架構、指令、慣例、工作流程）在 [`CLAUDE.md`](CLAUDE.md)，目前進度與下一步在
 [`docs/PROGRESS.md`](docs/PROGRESS.md)。`.claude/settings.json` 設定了兩個 hook：對話開始時自動安裝相依套件、
 從 GitHub 同步並顯示進度；每次回覆結束或中斷時，把工作分支上還沒推送的修改存成 WIP commit 推上 GitHub。
