@@ -78,6 +78,7 @@ export function Toolbar() {
   const hasWires = useStore((s) => s.circuit.wires.length > 0);
   const simulating = useStore((s) => s.simulation !== null);
   const boardCount = useStore((s) => s.circuit.boards.length);
+  const drawer = useStore((s) => s.drawer);
   const store = useStore.getState();
 
   useEffect(() => {
@@ -178,10 +179,29 @@ export function Toolbar() {
   ];
 
   return (
-    <header ref={barRef} className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-900 px-3">
+    <header ref={barRef} className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-800 bg-slate-900 px-3 py-1">
+      {/* 窄螢幕（< 1024 px）：左右面板收成抽屜，用這兩個按鈕開關。 */}
+      <div className="flex gap-1 lg:hidden">
+        {(
+          [
+            ['library', '元件庫'],
+            ['info', '資訊'],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={drawer === id}
+            onClick={() => store.toggleDrawer(id)}
+            className={`rounded-md border px-2.5 py-1 text-sm ${drawer === id ? 'border-sky-500 bg-sky-900/60 text-white' : 'border-slate-700 text-slate-200 hover:bg-slate-800'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="mr-2 flex items-center gap-2">
         <img src={logoUrl} alt="" className="h-6 w-6" />
-        <div className="leading-tight">
+        <div className="hidden leading-tight sm:block">
           <div className="text-sm font-bold text-slate-50">Breadboard Lab</div>
           <div className="max-w-[180px] truncate text-[11px] text-slate-400" title={projectName ?? '未命名電路'}>
             {projectName ?? '未命名電路'}

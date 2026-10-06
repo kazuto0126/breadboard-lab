@@ -9,11 +9,11 @@ function Cell({ label, value, tone, onClick, testId }: { label: string; value: s
     </>
   );
   return onClick ? (
-    <button type="button" onClick={onClick} className="border-l border-slate-800 px-3 hover:bg-slate-800">
+    <button type="button" onClick={onClick} className="shrink-0 border-l border-slate-800 px-3 hover:bg-slate-800">
       {content}
     </button>
   ) : (
-    <span className="border-l border-slate-800 px-3">{content}</span>
+    <span className="shrink-0 border-l border-slate-800 px-3">{content}</span>
   );
 }
 
@@ -49,7 +49,7 @@ export function StatusBar() {
   const nets = analysis.nets.filter((n) => n.pins.length > 1).length;
   const score = analysis.routing.score;
   return (
-    <footer className="flex h-7 shrink-0 items-center border-t border-slate-800 bg-slate-900 text-xs">
+    <footer className="flex min-h-7 shrink-0 items-center overflow-x-auto whitespace-nowrap border-t border-slate-800 bg-slate-900 text-xs">
       <span className={`min-w-[220px] px-3 ${statusTone}`} data-testid="status">
         {status}
       </span>

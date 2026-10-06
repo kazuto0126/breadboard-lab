@@ -14,10 +14,11 @@ export function App() {
   useShortcuts();
   useEffect(() => startAutosave(), []);
   const view = useStore((s) => s.view);
+  const drawer = useStore((s) => s.drawer);
   return (
     <div className="flex h-full flex-col bg-slate-950 text-slate-200">
       <Toolbar />
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
         <ComponentLibrary />
         <main className="relative min-w-0 flex-1">
           {/* 畫布一直保留（不卸載），切到 Compare 時只是蓋在上面，縮放與平移狀態不會遺失。 */}
@@ -29,6 +30,10 @@ export function App() {
           )}
         </main>
         <PropertyPanel />
+        {/* 窄螢幕：抽屜打開時，點旁邊的暗色區域關閉。 */}
+        {drawer && (
+          <div className="absolute inset-0 z-20 bg-black/40 lg:hidden" data-testid="drawer-backdrop" onClick={() => useStore.getState().toggleDrawer(null)} />
+        )}
       </div>
       <StatusBar />
       <Dialogs />

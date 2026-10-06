@@ -6,20 +6,19 @@
 ## 目前狀態
 
 - `main`：子專案 1–4 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬），GitHub Actions CI 已設定。
-- 測試：317 個單元測試、9 個 Playwright 端對端測試。
+- 測試：317 個單元測試、11 個 Playwright 端對端測試。
 
 ## 進行中
 
 | 分支 | 內容 | PR | 狀態 |
 |---|---|---|---|
-| `claude/affectionate-sagan-kmclr0` | 接線清單、單一 HTML 離線版、平板觸控第 1 步（畫布手勢）（皆移植自 `feat/core-engine`）、進度同步流程（hooks、本檔） | [#3](https://github.com/kazuto0126/breadboard-lab/pull/3) | 每個推上去的 commit 都完整可合併；平板觸控還剩第 2、3 步 |
+| `claude/affectionate-sagan-kmclr0` | 接線清單、單一 HTML 離線版、平板觸控（畫布手勢、窄螢幕抽屜、44 px 觸控目標）（皆移植自 `feat/core-engine`）、進度同步流程（hooks、本檔） | [#3](https://github.com/kazuto0126/breadboard-lab/pull/3) | 每個推上去的 commit 都完整可合併；正在做平板觸控的多角度審查 |
 
 ## 接下來（依優先順序）
 
-1. 平板觸控第 2 步：寬度 < 1024 px 時左右面板改成抽屜（工具列的「元件庫」「資訊」按鈕開關）、工具列換行
-2. 平板觸控第 3 步：觸控裝置（`pointer: coarse`）上按鈕、分頁、勾選框至少 44 × 44 px，加 e2e 檢查
-3. 部署到 GitHub Pages（`base` 已經是相對路徑）
-4. 子專案 5：AI 解說（Claude API；靜態網站不能放 API 金鑰，需要後端或讓使用者自己填金鑰）
+1. 修正平板觸控審查（workflow）確認的問題
+2. 部署到 GitHub Pages（`base` 已經是相對路徑）
+3. 子專案 5：AI 解說（Claude API；靜態網站不能放 API 金鑰，需要後端或讓使用者自己填金鑰）
 
 ## 注意事項
 

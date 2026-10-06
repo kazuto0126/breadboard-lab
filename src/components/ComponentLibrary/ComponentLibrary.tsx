@@ -236,13 +236,17 @@ export function ComponentLibrary() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const sections = useMemo(() => searchLibrary(librarySections(), query), [query]);
   const placingKey = useStore((s) => s.placing?.item.key);
+  const open = useStore((s) => s.drawer === 'library');
   const searching = query.trim().length > 0;
   const jump = (id: string) => {
     setCollapsed((c) => ({ ...c, [id]: false }));
     requestAnimationFrame(() => document.getElementById(`library-${id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   };
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-slate-800 bg-slate-900">
+    <aside
+      aria-label="元件庫"
+      className={`${open ? 'flex' : 'hidden'} absolute inset-y-0 left-0 z-30 w-72 max-w-[85vw] shrink-0 flex-col border-r border-slate-800 bg-slate-900 shadow-2xl lg:static lg:z-auto lg:flex lg:h-full lg:w-64 lg:shadow-none`}
+    >
       <div className="border-b border-slate-800 p-3 pb-2">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">元件庫 Parts</div>
         <input

@@ -641,13 +641,15 @@ function ChecklistTab({ circuit }: { circuit: Circuit }) {
                 data-checklist-row={row.wireId}
                 className={`flex items-center gap-2 rounded px-1.5 py-1 ${active ? 'bg-sky-900/60 ring-1 ring-sky-500' : 'hover:bg-slate-800'}`}
               >
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 shrink-0 accent-emerald-500"
-                  checked={row.done}
-                  onChange={(e) => store.setWireChecked(row.wireId, e.target.checked)}
-                  aria-label={`${row.from} → ${row.to} 已插好`}
-                />
+                <label className="flex shrink-0 items-center justify-center">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-emerald-500"
+                    checked={row.done}
+                    onChange={(e) => store.setWireChecked(row.wireId, e.target.checked)}
+                    aria-label={`${row.from} → ${row.to} 已插好`}
+                  />
+                </label>
                 <button
                   type="button"
                   onClick={() => focus(row.wireId)}
@@ -682,13 +684,17 @@ export function PropertyPanel() {
   const circuit = useStore((s) => s.circuit);
   const selection = useStore((s) => s.selection);
   const tab = useStore((s) => s.rightTab);
+  const open = useStore((s) => s.drawer === 'info');
   const analysis = useMemo(() => analyzeCircuit(circuit), [circuit]);
   const problems = analysis.errorCount + analysis.warningCount;
   // 選擇器要回傳穩定的參照（zustand v5），進度在這裡用 useMemo 算。
   const checklist = useStore((s) => s.checklist);
   const progress = useMemo(() => checklistProgress(checklist, circuit), [checklist, circuit]);
   return (
-    <aside className="flex h-full w-80 shrink-0 flex-col border-l border-slate-800 bg-slate-900">
+    <aside
+      aria-label="資訊"
+      className={`${open ? 'flex' : 'hidden'} absolute inset-y-0 right-0 z-30 w-80 max-w-[90vw] shrink-0 flex-col border-l border-slate-800 bg-slate-900 shadow-2xl lg:static lg:z-auto lg:flex lg:h-full lg:shadow-none`}
+    >
       <div className="flex border-b border-slate-800" role="tablist">
         {TABS.map(([id, label]) => (
           <button

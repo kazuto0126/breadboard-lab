@@ -64,6 +64,8 @@ export interface PlacingTool {
 export type Mode = 'manual' | 'auto' | 'compare';
 export type RightTab = 'inspect' | 'nets' | 'check' | 'checklist';
 export type Dialog = 'open' | 'save-as' | 'confirm-new' | 'help' | null;
+/** 窄螢幕（寬度 < 1024 px，例如直放的平板）時，左右面板改成可以開關的抽屜。 */
+export type Drawer = 'library' | 'info' | null;
 
 export interface Comparison {
   /** 佈線當時使用者的導線。 */
@@ -122,6 +124,7 @@ export interface AppState {
   canvasSize: { width: number; height: number };
   rightTab: RightTab;
   dialog: Dialog;
+  drawer: Drawer;
   toasts: Toast[];
   storageWarned: boolean;
   simulation: SimulationRun | null;
@@ -182,6 +185,8 @@ export interface AppActions {
   deleteProject(name: string): void;
   importJson(text: string): void;
   openDialog(dialog: Dialog): void;
+  /** 打開某個抽屜；再按一次同一個（或傳 null）就關閉。寬螢幕時兩側面板一直顯示，不受影響。 */
+  toggleDrawer(drawer: Drawer): void;
   closeDialog(): void;
   toast(kind: Toast['kind'], message: string): void;
   dismissToast(id: number): void;
@@ -305,6 +310,7 @@ export function initialState(): AppState {
     canvasSize: { width: 1200, height: 700 },
     rightTab: 'inspect',
     dialog: null,
+    drawer: null,
     toasts: [],
     storageWarned: false,
     simulation: null,
@@ -414,7 +420,8 @@ export const useStore = create<Store>()((set, get) => {
 
     startPlacing(item, dragging, origin) {
       if (guardEdit() || !getComponentDefinition(item.defId)) return;
-      set({ placing: { item, rotation: 0, dragging, origin: origin ?? null }, selection: null, view: 'edit' });
+      // 從抽屜裡的元件庫拿起元件時收起抽屜，才點得到麵包板。
+      set({ placing: { item, rotation: 0, dragging, origin: origin ?? null }, selection: null, view: 'edit', drawer: null });
     },
 
     setPlacingDragging(dragging) {
@@ -822,6 +829,10 @@ export const useStore = create<Store>()((set, get) => {
 
     openDialog(dialog) {
       set({ dialog });
+    },
+
+    toggleDrawer(drawer) {
+      set({ drawer: drawer === null || get().drawer === drawer ? null : drawer });
     },
 
     closeDialog() {
