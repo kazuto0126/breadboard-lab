@@ -1,3 +1,4 @@
+import type { ChecklistState } from '../editor/checklist';
 import { parseCircuitData, toCircuitFile, type CircuitFile, type ParseResult } from '../editor/fileFormat';
 import type { Circuit } from '../types/circuit';
 
@@ -28,22 +29,22 @@ export function storageAvailable(): boolean {
 }
 
 /** 自動儲存的電路（重新整理後還原）。沒有或格式錯誤時回傳 null。 */
-export function loadAutosave(): { circuit: Circuit; name: string | null } | null {
+export function loadAutosave(): { circuit: Circuit; name: string | null; checklist: ChecklistState } | null {
   const text = storage()?.getItem(AUTOSAVE_KEY);
   if (!text) return null;
   try {
     const result = parseCircuitData(JSON.parse(text));
-    return result.ok ? { circuit: result.circuit, name: result.name } : null;
+    return result.ok ? { circuit: result.circuit, name: result.name, checklist: result.checklist ?? {} } : null;
   } catch {
     return null;
   }
 }
 
-export function writeAutosave(circuit: Circuit, name: string | null): boolean {
+export function writeAutosave(circuit: Circuit, name: string | null, checklist?: ChecklistState): boolean {
   const s = storage();
   if (!s) return false;
   try {
-    s.setItem(AUTOSAVE_KEY, JSON.stringify(toCircuitFile(circuit, name ?? '')));
+    s.setItem(AUTOSAVE_KEY, JSON.stringify(toCircuitFile(circuit, name ?? '', undefined, checklist)));
     return true;
   } catch {
     return false;
@@ -83,9 +84,9 @@ export function listProjects(): ProjectSummary[] {
     .sort((a, b) => (a.savedAt < b.savedAt ? 1 : a.savedAt > b.savedAt ? -1 : 0));
 }
 
-export function saveProject(name: string, circuit: Circuit): boolean {
+export function saveProject(name: string, circuit: Circuit, checklist?: ChecklistState): boolean {
   const projects = readProjects();
-  projects[name] = toCircuitFile(circuit, name);
+  projects[name] = toCircuitFile(circuit, name, undefined, checklist);
   return writeProjects(projects);
 }
 

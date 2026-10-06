@@ -76,6 +76,16 @@ describe('circuit files', () => {
     expect(parseCircuitText(serializeCircuitFile(c, 'two'))).toEqual({ ok: true, circuit: c, name: 'two' });
   });
 
+  it('keeps the wiring checklist in saved files and ignores broken entries', () => {
+    const circuit = acceptanceCircuit();
+    const file = toCircuitFile(circuit, 'list', new Date('2026-10-06T00:00:00Z'), { w1: 'b1:6,2>b1:10,4|8|#888888' });
+    expect(parseCircuitText(JSON.stringify(file))).toEqual({ ok: true, circuit, name: 'list', checklist: file.checklist });
+    expect(toCircuitFile(circuit, 'empty', undefined, {})).not.toHaveProperty('checklist');
+    const broken = parseCircuitData({ ...toCircuitFile(circuit, 'x'), checklist: { w1: 3, w2: 'ok' } });
+    expect(broken.ok && broken.checklist).toEqual({ w2: 'ok' });
+    expect(parseCircuitData({ ...toCircuitFile(circuit, 'x'), checklist: ['nope'] })).toEqual({ ok: true, circuit, name: 'x' });
+  });
+
   it('drops unknown props instead of keeping junk', () => {
     const good = acceptanceCircuit();
     const raw = { ...good, components: [{ ...good.components[3], props: { resistance: 330, flavour: 'mint' } }] };

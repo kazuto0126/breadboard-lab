@@ -4,6 +4,7 @@ import { getComponentDefinition, RESISTOR_PRESETS } from '../../core/circuit/lib
 import { netColor } from '../../core/routing/colors';
 import { analyzeCircuit, netOfPin, type CircuitAnalysis } from '../../editor/analysis';
 import { boardRect, crossBoardWires, groupMembers, MAX_BOARDS } from '../../editor/boards';
+import { checklistProgress, checklistRows, type ChecklistRow } from '../../editor/checklist';
 import { formatResistance, LED_COLOR_NAMES, LED_COLORS } from '../../editor/library';
 import { WIRE_COLORS } from '../../editor/manualWire';
 import { deriveMode, isComparisonFresh, useStore, type RightTab, type Selection } from '../../state/store';
@@ -577,10 +578,103 @@ function CheckTab({ analysis }: { analysis: CircuitAnalysis }) {
   );
 }
 
+const KIND_TITLES: Record<NonNullable<ChecklistRow['kind']> | 'none', string> = {
+  power: '① 電源（VCC）',
+  ground: '② 接地（GND）',
+  signal: '③ 訊號',
+  none: '其他（沒有接到元件腳）',
+};
+
+/** 接線清單：照著插實體麵包板的順序，插好一條勾一條。 */
+function ChecklistTab({ circuit }: { circuit: Circuit }) {
+  const checklist = useStore((s) => s.checklist);
+  const selection = useStore((s) => s.selection);
+  const mode = useStore((s) => deriveMode(s));
+  const rows = useMemo(() => checklistRows(circuit, checklist), [circuit, checklist]);
+  const store = useStore.getState();
+  if (rows.length === 0) {
+    return (
+      <Section title="接線清單">
+        <p className="text-xs leading-5 text-slate-400">還沒有導線。手動接線或執行 AI 標準佈線後，這裡會列出照著插實體麵包板的順序。</p>
+      </Section>
+    );
+  }
+  const done = rows.filter((r) => r.done).length;
+  const focus = (id: string) => {
+    const s = useStore.getState();
+    const active = s.selection?.kind === 'wire' && s.selection.id === id;
+    s.select(active ? null : { kind: 'wire', id }, { keepTab: true });
+    const wire = s.circuit.wires.find((w) => w.id === id);
+    if (!active && wire) s.focusPoints(wire.path);
+  };
+  return (
+    <Section
+      title="接線清單"
+      right={
+        <SmallButton onClick={() => store.clearChecklist()} title="清除所有勾選">
+          全部清除
+        </SmallButton>
+      }
+    >
+      <div className="mb-1 flex items-center justify-between text-sm text-slate-200">
+        <span data-testid="checklist-progress">
+          已完成 {done} / {rows.length}
+        </span>
+        {done === rows.length && <span className="text-xs text-emerald-300">✓ 全部插好了</span>}
+      </div>
+      <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-slate-800">
+        <div className="h-full rounded-full bg-emerald-500 transition-[width]" style={{ width: `${(done / rows.length) * 100}%` }} />
+      </div>
+      <p className="mb-2 text-xs leading-5 text-slate-400">
+        {mode === 'auto' ? '依照 AI 標準佈線，' : '這是你的手動接線（執行 AI 標準佈線後會換成標準接法）；'}
+        先接電源、再接地、最後接訊號。點一列可以在板上找到那條線，插好就打勾。
+      </p>
+      <ol className="space-y-0.5">
+        {rows.map((row, i) => {
+          const active = selection?.kind === 'wire' && selection.id === row.wireId;
+          const group = row.kind ?? 'none';
+          const header = i === 0 || (rows[i - 1].kind ?? 'none') !== group;
+          return (
+            <li key={row.wireId}>
+              {header && <div className="mb-0.5 mt-2 text-[11px] font-semibold text-slate-400 first:mt-0">{KIND_TITLES[group]}</div>}
+              <div
+                data-checklist-row={row.wireId}
+                className={`flex items-center gap-2 rounded px-1.5 py-1 ${active ? 'bg-sky-900/60 ring-1 ring-sky-500' : 'hover:bg-slate-800'}`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 accent-emerald-500"
+                  checked={row.done}
+                  onChange={(e) => store.setWireChecked(row.wireId, e.target.checked)}
+                  aria-label={`${row.from} → ${row.to} 已插好`}
+                />
+                <button
+                  type="button"
+                  onClick={() => focus(row.wireId)}
+                  title={`導線 ${row.wireId}${row.netName ? ` · ${row.netName}` : ''}`}
+                  className={`flex min-w-0 flex-1 items-center gap-2 text-left text-xs ${row.done ? 'opacity-50 line-through' : ''}`}
+                >
+                  <span className="inline-block h-3 w-3 shrink-0 rounded-sm border border-slate-500" style={{ background: row.color }} />
+                  <span className="w-6 shrink-0 text-slate-300">{row.colorName}</span>
+                  <span className="min-w-0 flex-1 truncate font-mono text-slate-100">
+                    {row.from} → {row.to}
+                  </span>
+                  <span className="shrink-0 tabular-nums text-slate-400">{row.length} 格</span>
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
+    </Section>
+  );
+}
+
 const TABS: Array<[RightTab, string]> = [
   ['inspect', '屬性'],
   ['nets', 'Nets'],
   ['check', '檢查'],
+  ['checklist', '接線清單'],
 ];
 
 /** 右側資訊面板：選取項目、Nets、檢查結果。 */
@@ -590,6 +684,9 @@ export function PropertyPanel() {
   const tab = useStore((s) => s.rightTab);
   const analysis = useMemo(() => analyzeCircuit(circuit), [circuit]);
   const problems = analysis.errorCount + analysis.warningCount;
+  // 選擇器要回傳穩定的參照（zustand v5），進度在這裡用 useMemo 算。
+  const checklist = useStore((s) => s.checklist);
+  const progress = useMemo(() => checklistProgress(checklist, circuit), [checklist, circuit]);
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-l border-slate-800 bg-slate-900">
       <div className="flex border-b border-slate-800" role="tablist">
@@ -600,13 +697,18 @@ export function PropertyPanel() {
             role="tab"
             aria-selected={tab === id}
             onClick={() => useStore.getState().setRightTab(id)}
-            className={`flex-1 px-3 py-2 text-sm ${tab === id ? 'border-b-2 border-sky-500 text-slate-50' : 'text-slate-400 hover:text-slate-200'}`}
+            className={`flex-1 whitespace-nowrap px-2 py-2 text-sm ${tab === id ? 'border-b-2 border-sky-500 text-slate-50' : 'text-slate-400 hover:text-slate-200'}`}
           >
             {label}
             {id === 'check' && problems > 0 && (
               <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${analysis.errorCount > 0 ? 'bg-red-600 text-white' : 'bg-amber-500 text-black'}`}>{problems}</span>
             )}
             {id === 'nets' && <span className="ml-1.5 text-[10px] text-slate-500">{analysis.nets.filter((n) => n.pins.length > 1).length}</span>}
+            {id === 'checklist' && progress.total > 0 && (
+              <span className="ml-1.5 text-[10px] tabular-nums text-slate-500">
+                {progress.done}/{progress.total}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -614,6 +716,7 @@ export function PropertyPanel() {
         {tab === 'inspect' && <Inspector selection={selection} circuit={circuit} analysis={analysis} />}
         {tab === 'nets' && <NetsTab circuit={circuit} analysis={analysis} />}
         {tab === 'check' && <CheckTab analysis={analysis} />}
+        {tab === 'checklist' && <ChecklistTab circuit={circuit} />}
       </div>
     </aside>
   );

@@ -4,6 +4,7 @@ import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance, ComponentProps, LedColor, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
 import { boardRects, MAX_BOARDS, normalizeBoardGroups, rectsOverlap } from './boards';
+import type { ChecklistState } from './checklist';
 
 export const FILE_FORMAT = 'breadboard-lab/circuit';
 export const FILE_VERSION = 1;
@@ -15,16 +16,20 @@ export interface CircuitFile {
   name: string;
   savedAt: string;
   circuit: Circuit;
+  /** 接線清單的勾選進度（選填；自動儲存與專案存檔才有，匯出 JSON 不含）。 */
+  checklist?: ChecklistState;
 }
 
-export type ParseResult = { ok: true; circuit: Circuit; name: string | null } | { ok: false; error: string };
+export type ParseResult = { ok: true; circuit: Circuit; name: string | null; checklist?: ChecklistState } | { ok: false; error: string };
 
 export function emptyCircuit(): Circuit {
   return { version: 1, boards: [{ id: 'b1', layoutId: 'MB102', x: 0, y: 0, groupId: null }], components: [], wires: [] };
 }
 
-export function toCircuitFile(circuit: Circuit, name: string, now: Date = new Date()): CircuitFile {
-  return { format: FILE_FORMAT, version: FILE_VERSION, name, savedAt: now.toISOString(), circuit };
+export function toCircuitFile(circuit: Circuit, name: string, now: Date = new Date(), checklist?: ChecklistState): CircuitFile {
+  const file: CircuitFile = { format: FILE_FORMAT, version: FILE_VERSION, name, savedAt: now.toISOString(), circuit };
+  if (checklist && Object.keys(checklist).length > 0) file.checklist = checklist;
+  return file;
 }
 
 export function serializeCircuitFile(circuit: Circuit, name: string, now?: Date): string {
@@ -191,6 +196,13 @@ function parseCircuit(raw: unknown): Circuit {
   return normalizeBoardGroups({ version: 1, boards, components, wires });
 }
 
+/** 勾選進度只是輔助資訊：格式不對的項目直接略過，不讓整個檔案打不開。 */
+function parseChecklist(raw: unknown): ChecklistState | undefined {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined;
+  const entries = Object.entries(raw as Obj).filter((e): e is [string, string] => typeof e[1] === 'string');
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 /** 接受 CircuitFile（Save / Export 的格式），也接受直接貼上的 Circuit 物件。 */
 export function parseCircuitData(raw: unknown): ParseResult {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return { ok: false, error: '檔案內容必須是 JSON 物件' };
@@ -200,7 +212,8 @@ export function parseCircuitData(raw: unknown): ParseResult {
       if (top.format !== FILE_FORMAT) fail('format', `不是 Breadboard Lab 的電路檔（${String(top.format)}）`);
       if (top.version !== FILE_VERSION) fail('version', `不支援的檔案版本 ${String(top.version)}`);
       const name = typeof top.name === 'string' && top.name.trim() ? top.name.trim() : null;
-      return { ok: true, circuit: parseCircuit(top.circuit), name };
+      const checklist = parseChecklist(top.checklist);
+      return checklist ? { ok: true, circuit: parseCircuit(top.circuit), name, checklist } : { ok: true, circuit: parseCircuit(top.circuit), name };
     }
     return { ok: true, circuit: parseCircuit(top), name: null };
   } catch (err) {

@@ -8,6 +8,7 @@ import { analyzeCircuit, groupIdAt, netOfPin, occupancyOf } from '../../editor/a
 import { groupMembers, moveBoards, snapBoardMove, snapUnits, type BoardMovePlan } from '../../editor/boards';
 import { boardFrames, fromWorld, PITCH, toWorld, type BoardFrame, type GridHit } from '../../editor/geometry';
 import { nextComponentId } from '../../editor/ids';
+import { isChecked } from '../../editor/checklist';
 import { defaultWireColor, isFreeHoleWith, planWirePath, type Axis } from '../../editor/manualWire';
 import { centeredAnchor, findPlacement } from '../../editor/placement';
 import { panBy, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
@@ -141,12 +142,14 @@ const WiresLayer = memo(function WiresLayer({
   frames,
   animation,
   faded,
+  dimmed,
   levels,
 }: {
   wires: Wire[];
   frames: BoardFrame[];
   animation: WireAnimation | null;
   faded: boolean;
+  dimmed: Set<string>;
   levels: Map<string, Level> | null;
 }) {
   return (
@@ -154,7 +157,17 @@ const WiresLayer = memo(function WiresLayer({
       {wires.map((w) => {
         const delay = animation?.delays[w.id];
         const anim = animation && delay !== undefined ? { delay, duration: animation.drawMs } : undefined;
-        return <WireGraphic key={anim ? `${w.id}@${animation!.key}` : w.id} wire={w} frames={frames} anim={anim} faded={faded} level={levels?.get(w.id)} />;
+        return (
+          <WireGraphic
+            key={anim ? `${w.id}@${animation!.key}` : w.id}
+            wire={w}
+            frames={frames}
+            anim={anim}
+            faded={faded}
+            dim={dimmed.has(w.id)}
+            level={levels?.get(w.id)}
+          />
+        );
       })}
     </g>
   );
@@ -175,6 +188,8 @@ export function BreadboardCanvas() {
   const simPressed = useStore((s) => s.simulation?.pressed ?? null);
   const pressedButton = useRef<{ id: string; pointerId: number } | null>(null);
   const wireColor = useStore((s) => s.wireColor);
+  const checklist = useStore((s) => s.checklist);
+  const checklistOpen = useStore((s) => s.rightTab === 'checklist');
 
   const boards = circuit.boards;
   const baseFrames = useMemo(() => boardFrames({ boards }), [boards]);
@@ -671,13 +686,15 @@ export function BreadboardCanvas() {
   };
 
   // ---------- 高亮 ----------
+  // 在接線清單裡點選的導線：只標出那一條，不高亮整個 Net。
+  const checklistFocus = checklistOpen && selection?.kind === 'wire' ? selection.id : null;
   const selectedNet: Net | null = useMemo(() => {
     if (!selection) return null;
     switch (selection.kind) {
       case 'pin':
         return netOfPin(analysis, selection) ?? null;
       case 'wire':
-        return analysis.netByWire.get(selection.id) ?? null;
+        return checklistFocus ? null : (analysis.netByWire.get(selection.id) ?? null);
       case 'net':
         return analysis.netById.get(selection.netId) ?? null;
       case 'hole': {
@@ -687,7 +704,7 @@ export function BreadboardCanvas() {
       default:
         return null;
     }
-  }, [selection, analysis, circuit]);
+  }, [selection, analysis, circuit, checklistFocus]);
 
   const shownIssues = useMemo(() => {
     const list = showCheck ? analysis.issues.filter((i) => i.severity !== 'info') : [];
@@ -702,6 +719,12 @@ export function BreadboardCanvas() {
   const hoverFree = hover?.kind === 'hole' && isFreeHoleWith(occupancyOf(circuit, hover.point.boardId), hover.point);
   const movingId = drag?.kind === 'move' && drag.started ? drag.id : undefined;
   const wiresById = useMemo(() => new Map(circuit.wires.map((w) => [w.id, w])), [circuit.wires]);
+  // 接線清單：已打勾的線變淡；在清單裡點了一條線時，其他線都變淡，方便在板上找到它。
+  const dimmedWires = useMemo(() => {
+    const set = new Set<string>();
+    for (const w of circuit.wires) if (checklistFocus ? w.id !== checklistFocus : isChecked(checklist, w)) set.add(w.id);
+    return set;
+  }, [circuit.wires, checklist, checklistFocus]);
   const componentsById = useMemo(() => new Map(circuit.components.map((c) => [c.id, c])), [circuit.components]);
 
   const preview = drag?.kind === 'move' && drag.started ? drag.preview : ghost?.instance ?? null;
@@ -785,7 +808,7 @@ export function BreadboardCanvas() {
             )}
           </g>
 
-          <WiresLayer wires={circuit.wires} frames={frames} animation={animation} faded={routing !== null} levels={wireLevels} />
+          <WiresLayer wires={circuit.wires} frames={frames} animation={animation} faded={routing !== null} dimmed={dimmedWires} levels={wireLevels} />
 
           <g data-ui="over">
             <PinTargets components={circuit.components} frames={frames} hiddenId={movingId} />

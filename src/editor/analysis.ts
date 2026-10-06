@@ -1,4 +1,4 @@
-import { getNode } from '../core/breadboard/naming';
+import { getNode, holeName } from '../core/breadboard/naming';
 import { getBoard } from '../core/breadboard/registry';
 import { extractNets, pinKey } from '../core/circuit/nets';
 import { validateCircuit } from '../core/circuit/validate';
@@ -27,6 +27,14 @@ export interface CircuitAnalysis {
 
 const analysisCache = new WeakMap<Circuit, CircuitAnalysis>();
 const occupancyCache = new WeakMap<Circuit, Map<string, Occupancy>>();
+
+/** 孔位名稱；有多塊板時加上板子 ID（例如 b2:A12）。 */
+export function holeLabel(circuit: Pick<Circuit, 'boards'>, p: GridPoint): string {
+  const instance = circuit.boards.find((b) => b.id === p.boardId);
+  if (!instance) return `(${p.x}, ${p.y})`;
+  const name = holeName(getBoard(instance.layoutId, instance.id), p) ?? `(${p.x}, ${p.y})`;
+  return circuit.boards.length > 1 ? `${p.boardId}:${name}` : name;
+}
 
 export function groupIdAt(circuit: Circuit, p: GridPoint): string | null {
   const instance = circuit.boards.find((b) => b.id === p.boardId);

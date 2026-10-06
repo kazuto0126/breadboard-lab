@@ -14,6 +14,7 @@ import {
 } from '../core/simulation/simulate';
 import { analyzeCircuit } from '../editor/analysis';
 import { addBoard, boardMoveProblem, crossBoardWires, detachBoard, groupMembers, MAX_BOARDS, moveBoards, removeBoard } from '../editor/boards';
+import { pruneChecklist, setChecked, type ChecklistState } from '../editor/checklist';
 import {
   addComponent,
   addWire,
@@ -61,7 +62,7 @@ export interface PlacingTool {
 }
 
 export type Mode = 'manual' | 'auto' | 'compare';
-export type RightTab = 'inspect' | 'nets' | 'check';
+export type RightTab = 'inspect' | 'nets' | 'check' | 'checklist';
 export type Dialog = 'open' | 'save-as' | 'confirm-new' | 'help' | null;
 
 export interface Comparison {
@@ -124,12 +125,15 @@ export interface AppState {
   toasts: Toast[];
   storageWarned: boolean;
   simulation: SimulationRun | null;
+  /** 接線清單的勾選進度（不進 Undo；隨自動儲存與專案存檔保存）。 */
+  checklist: ChecklistState;
 }
 
 export interface AppActions {
   undo(): void;
   redo(): void;
-  select(selection: Selection): void;
+  /** 選取；keepTab 為 true 時不切換右側面板的分頁（例如從接線清單點選導線）。 */
+  select(selection: Selection, options?: { keepTab?: boolean }): void;
   startPlacing(item: LibraryItem, dragging: boolean, origin?: { x: number; y: number }): void;
   setPlacingDragging(dragging: boolean): void;
   rotatePlacing(): void;
@@ -172,7 +176,7 @@ export interface AppActions {
   restoreManualWires(): void;
   setCompareLayout(layout: 'side' | 'stacked'): void;
   newCircuit(): void;
-  loadCircuit(circuit: Circuit, name: string | null, message?: string): void;
+  loadCircuit(circuit: Circuit, name: string | null, message?: string, checklist?: ChecklistState): void;
   saveProject(name?: string): void;
   openProject(name: string): void;
   deleteProject(name: string): void;
@@ -188,6 +192,8 @@ export interface AppActions {
   resetSimulation(): void;
   pressButton(id: string, down: boolean): void;
   tickSimulation(dtMs: number): void;
+  setWireChecked(id: string, checked: boolean): void;
+  clearChecklist(): void;
 }
 
 export type Store = AppState & AppActions;
@@ -302,6 +308,7 @@ export function initialState(): AppState {
     toasts: [],
     storageWarned: false,
     simulation: null,
+    checklist: restored?.checklist ?? {},
   };
 }
 
@@ -400,8 +407,9 @@ export const useStore = create<Store>()((set, get) => {
       get().toast('info', `已重做：${step.label}`);
     },
 
-    select(selection) {
-      set({ selection, rightTab: selection && selection.kind !== 'issue' ? 'inspect' : get().rightTab });
+    select(selection, options) {
+      const inspect = selection !== null && selection.kind !== 'issue' && !options?.keepTab;
+      set({ selection, rightTab: inspect ? 'inspect' : get().rightTab });
     },
 
     startPlacing(item, dragging, origin) {
@@ -750,11 +758,12 @@ export const useStore = create<Store>()((set, get) => {
       get().loadCircuit(emptyCircuit(), null, '已建立新電路');
     },
 
-    loadCircuit(circuit, name, message) {
+    loadCircuit(circuit, name, message, checklist) {
       if (guardRouting()) return;
       clearAnimationTimer();
       set({
         simulation: null,
+        checklist: checklist ?? {},
         circuit,
         history: emptyHistory(),
         projectName: name,
@@ -780,7 +789,7 @@ export const useStore = create<Store>()((set, get) => {
         set({ dialog: 'save-as' });
         return;
       }
-      if (!persistence.saveProject(target, s.circuit)) {
+      if (!persistence.saveProject(target, s.circuit, pruneChecklist(s.checklist, s.circuit))) {
         get().toast('error', '無法儲存：瀏覽器不允許使用本機儲存空間。請改用「匯出 JSON」。');
         return;
       }
@@ -794,7 +803,7 @@ export const useStore = create<Store>()((set, get) => {
         get().toast('error', result.error);
         return;
       }
-      get().loadCircuit(result.circuit, name, `已開啟「${name}」`);
+      get().loadCircuit(result.circuit, name, `已開啟「${name}」`, result.checklist);
     },
 
     deleteProject(name) {
@@ -808,7 +817,7 @@ export const useStore = create<Store>()((set, get) => {
         get().toast('error', `匯入失敗：${result.error}`);
         return;
       }
-      get().loadCircuit(result.circuit, result.name, `已匯入${result.name ? `「${result.name}」` : ' JSON'}`);
+      get().loadCircuit(result.circuit, result.name, `已匯入${result.name ? `「${result.name}」` : ' JSON'}`, result.checklist);
     },
 
     openDialog(dialog) {
@@ -889,6 +898,16 @@ export const useStore = create<Store>()((set, get) => {
       set({ simulation: resimulate(s.circuit, { ...run, pressed: { ...run.pressed, [id]: down } }) });
     },
 
+    setWireChecked(id, checked) {
+      const s = get();
+      const wire = s.circuit.wires.find((w) => w.id === id);
+      if (wire) set({ checklist: setChecked(s.checklist, wire, checked) });
+    },
+
+    clearChecklist() {
+      if (Object.keys(get().checklist).length > 0) set({ checklist: {} });
+    },
+
     tickSimulation(dtMs) {
       const s = get();
       const run = s.simulation;
@@ -905,14 +924,14 @@ export const useStore = create<Store>()((set, get) => {
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** 電路或專案名稱改變後 400 ms 寫入 localStorage；第一次失敗時提示一次。 */
+/** 電路、專案名稱或接線清單的勾選改變後 400 ms 寫入 localStorage；第一次失敗時提示一次。 */
 export function startAutosave(): () => void {
   return useStore.subscribe((s, prev) => {
-    if (s.circuit === prev.circuit && s.projectName === prev.projectName) return;
+    if (s.circuit === prev.circuit && s.projectName === prev.projectName && s.checklist === prev.checklist) return;
     if (autosaveTimer) clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
       const now = useStore.getState();
-      if (!persistence.writeAutosave(now.circuit, now.projectName) && !now.storageWarned) {
+      if (!persistence.writeAutosave(now.circuit, now.projectName, pruneChecklist(now.checklist, now.circuit)) && !now.storageWarned) {
         useStore.setState({ storageWarned: true });
         now.toast('warning', '瀏覽器不允許使用本機儲存空間，無法自動儲存。請記得「匯出 JSON」。');
       }

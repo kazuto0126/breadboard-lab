@@ -3,6 +3,26 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 接線清單（移植自 feat/core-engine）
+
+### 新增
+
+- 設計規格：`docs/superpowers/specs/2026-10-06-wiring-checklist-design.md`（移植 `feat/core-engine` 編輯器設計第 9 節，改成主線的架構）。
+- **接線清單**（右側面板「接線清單」分頁）：照著畫面插實體麵包板時，一條一條打勾。
+  - 列出目前電路的所有導線（AI 標準佈線或手動接線都可以），依「① 電源 → ② 接地 → ③ 訊號 → 其他」分段，
+    同類依 Net 名稱與導線 ID 的自然順序（`NET_2` 在 `NET_10` 前面）。
+  - 每一列：勾選框、色塊與中文色名、`起點 → 終點`（多塊板時含板子 ID）、長度；上方有「已完成 / 總數」、進度條與「全部清除」，分頁標籤也顯示進度。
+  - 點一列：選取那條導線並把畫面移過去，其他導線變淡，只標出這一條；已打勾的導線在板上畫成半透明。
+  - 勾選記錄「勾選當時這條線的樣子」（兩端孔位、長度、顏色）：重新佈線或改色後自動變回未完成；Undo 回到同一條線時勾選又出現。
+  - 打勾不進 Undo、不算未儲存的修改；勾選進度跟著自動儲存與「儲存」的專案保存（`CircuitFile.checklist` 選填欄位，舊檔照樣能開），匯出 JSON 不含。
+- `src/editor/checklist.ts`（不依賴 DOM）：`checklistRows`、`wireKey`、`isChecked`、`setChecked`、`pruneChecklist`、`checklistProgress`、`colorName`、`naturalCompare`。
+- store：`checklist` 狀態、`setWireChecked`、`clearChecklist`；`select(selection, { keepTab })` 讓清單點選時停留在同一個分頁。
+- 測試：接線清單 7 個、存檔格式 1 個、store 3 個單元測試；Playwright「接線清單」：AI 標準佈線 → 打勾 → 點選定位 → 重新整理後進度仍在 → 全部清除。
+
+### 變更
+
+- `holeLabel`（孔位名稱，多板時含板子 ID）移到 `src/editor/analysis.ts`，畫面與接線清單共用。
+
 ## [未發布] — 開發流程
 
 ### 新增

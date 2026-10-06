@@ -53,5 +53,6 @@ src/data/components/  元件定義 JSON（74ls/、generic/），IC 行為寫在 
 
 ## 目前狀態
 
-子專案 1–4 已完成（2–4 在 PR #2）。`feat/core-engine` 分支有另一套子專案 2 實作（`src/app/`，含接線清單、單一 HTML 離線版、
-平板觸控），尚未決定要不要移植；不要同時在兩套程式碼上開發。下一步見 README 的路線圖。
+子專案 1–4 已完成並合併到 main（PR #2）。主線就是這套程式碼；`feat/core-engine` 分支是另一套子專案 2 實作（`src/app/`），
+只拿來參考、把它獨有的功能分批移植過來：接線清單已移植，還剩單一 HTML 離線版、平板觸控。不要再在 `feat/core-engine` 上開發。
+下一步見 README 的路線圖。

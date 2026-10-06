@@ -20,13 +20,15 @@ interface Props {
   /** 自動佈線動畫：延遲與描線時間（ms）。 */
   anim?: { delay: number; duration: number };
   faded?: boolean;
+  /** 變淡：接線清單裡已打勾，或正在看另一條線。 */
+  dim?: boolean;
   interactive?: boolean;
   /** 模擬中這條線所在節點的電位：兩端插針上色，HIGH / X 時線身中央加一條亮線。 */
   level?: Level;
 }
 
 /** 平貼板面的跳線：深色外框 + 彩色線身 + 兩端金屬插針。 */
-export const WireGraphic = memo(function WireGraphic({ wire, frames, anim, faded, interactive = true, level }: Props) {
+export const WireGraphic = memo(function WireGraphic({ wire, frames, anim, faded, dim, interactive = true, level }: Props) {
   const points = wirePoints(frames, wire);
   if (points.length < 2) return null;
   const attr = pointsAttr(points);
@@ -36,7 +38,7 @@ export const WireGraphic = memo(function WireGraphic({ wire, frames, anim, faded
     : undefined;
   const fadeStyle = anim ? ({ '--bbl-delay': `${anim.delay + anim.duration * 0.6}ms` } as CSSProperties) : undefined;
   return (
-    <g data-wire-id={interactive ? wire.id : undefined} opacity={faded ? 0.18 : 1} style={interactive ? { cursor: 'pointer' } : undefined}>
+    <g data-wire-id={interactive ? wire.id : undefined} opacity={faded ? 0.18 : dim ? 0.3 : 1} style={interactive ? { cursor: 'pointer' } : undefined}>
       <polyline
         points={attr}
         fill="none"

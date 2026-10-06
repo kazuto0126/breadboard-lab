@@ -1,5 +1,5 @@
 import { buildLattice } from '../../core/breadboard/lattice';
-import { getNode, holeName } from '../../core/breadboard/naming';
+import { getNode } from '../../core/breadboard/naming';
 import { getBoard } from '../../core/breadboard/registry';
 import { countBends } from '../../core/circuit/wireGeometry';
 import { describeGroup } from '../../core/routing/problem';
@@ -35,13 +35,7 @@ export const FAILURE_NAMES: Record<FailureReason, string> = {
   LEGALITY_CHECK: '沒有通過合法性檢查',
 };
 
-/** 孔位名稱；有多塊板時加上板子 ID（例如 b2:A12）。 */
-export function holeLabel(circuit: Pick<Circuit, 'boards'>, p: GridPoint): string {
-  const instance = circuit.boards.find((b) => b.id === p.boardId);
-  if (!instance) return `(${p.x}, ${p.y})`;
-  const name = holeName(getBoard(instance.layoutId, instance.id), p) ?? `(${p.x}, ${p.y})`;
-  return circuit.boards.length > 1 ? `${p.boardId}:${name}` : name;
-}
+export { holeLabel } from '../../editor/analysis';
 
 /** 導通群組的說明；withBoard 為 true 時加上板子 ID（多塊板時使用）。 */
 export function groupLabel(groupId: string | null, withBoard = false): string {
