@@ -56,7 +56,15 @@ export const WireLayer = memo(function WireLayer({ wires, invalidIds = EMPTY, di
   return (
     <>
       {fading.map((w) => (
-        <path key={`fade-${w.id}`} d={wirePathD(w.path)} stroke={w.color} strokeWidth={5.6} {...LINE} style={{ animation: 'bbl-fade 300ms linear forwards' }} />
+        <path
+          key={`fade-${w.id}`}
+          data-fading=""
+          d={wirePathD(w.path)}
+          stroke={w.color}
+          strokeWidth={5.6}
+          {...LINE}
+          style={{ animation: 'bbl-fade 300ms linear forwards' }}
+        />
       ))}
       {wires.map((w) => {
         const d = wirePathD(w.path);
