@@ -31,6 +31,12 @@ describe('bootstrapEditor', () => {
     expect(state().dirty).toBe(false);
   });
 
+  it('still asks before discarding work that was never saved before the reload', () => {
+    writeAutosave(getBrowserStore(), { ...createProject('沒存的'), circuit: acceptanceCircuit() }, null, true);
+    bootstrapEditor();
+    expect(state().dirty).toBe(true);
+  });
+
   it('starts with an empty board when the autosave is damaged', () => {
     localStorage.setItem(STORAGE_KEYS.autosave, '{ broken');
     bootstrapEditor();
@@ -63,6 +69,7 @@ describe('App', () => {
     expect(readAutosave(getBrowserStore())).toBeNull();
     act(() => vi.advanceTimersByTime(850));
     expect(readAutosave(getBrowserStore())?.doc.circuit.wires).toHaveLength(1);
+    expect(readAutosave(getBrowserStore())?.dirty).toBe(true);
   });
 
   it('saves with Ctrl+S through the name dialog', async () => {

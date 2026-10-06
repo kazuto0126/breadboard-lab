@@ -105,8 +105,15 @@ describe('file names', () => {
 describe('browser storage', () => {
   it('writes and restores the autosave', () => {
     const store = new MemoryStore();
-    expect(writeAutosave(store, doc(), 'p_1')).toEqual({ ok: true, value: undefined });
-    expect(readAutosave(store)).toEqual({ doc: doc(), projectId: 'p_1' });
+    expect(writeAutosave(store, doc(), 'p_1', false)).toEqual({ ok: true, value: undefined });
+    expect(readAutosave(store)).toEqual({ doc: doc(), projectId: 'p_1', dirty: false });
+  });
+
+  it('remembers across reloads that the work was never saved', () => {
+    const store = new MemoryStore();
+    writeAutosave(store, doc(), null, true);
+    expect(readAutosave(store)?.dirty).toBe(true);
+    expect(restoreAutosave(new MemoryStore()).dirty).toBe(false);
   });
 
   it('falls back to a blank circuit when the autosave is corrupted', () => {

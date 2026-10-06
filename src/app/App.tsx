@@ -17,16 +17,18 @@ import { resetEditor, useEditor } from './store/editorStore';
 export const ANALYSIS_DELAY_MS = 150;
 export const AUTOSAVE_DELAY_MS = 1000;
 
-/** 第一次繪製前呼叫：有可用的自動存檔就載入，沒有或損毀就用空白電路。 */
+/** 第一次繪製前呼叫：有可用的自動存檔就載入，沒有或損毀就用空白電路。沒存過的修改在重新整理後仍算「未儲存」。 */
 export function bootstrapEditor(): void {
-  const { doc, projectId } = restoreAutosave(getBrowserStore());
+  const { doc, projectId, dirty } = restoreAutosave(getBrowserStore());
   resetEditor(doc, projectId);
+  if (dirty) useEditor.setState({ dirty: true });
 }
 
 /** 規格第 4.5 節：電路改變後 150 ms 重算即時檢查與狀態列，文件改變後 1 秒自動存檔。回傳自動存檔的錯誤訊息。 */
 function useBackgroundWork(): string | null {
   const doc = useEditor((s) => s.doc);
   const projectId = useEditor((s) => s.projectId);
+  const dirty = useEditor((s) => s.dirty);
   const [autosaveError, setAutosaveError] = useState<string | null>(null);
   useEffect(() => {
     const timer = setTimeout(() => useEditor.getState().refreshAnalysis(), ANALYSIS_DELAY_MS);
@@ -34,11 +36,11 @@ function useBackgroundWork(): string | null {
   }, [doc.circuit]);
   useEffect(() => {
     const timer = setTimeout(() => {
-      const result = writeAutosave(getBrowserStore(), doc, projectId);
+      const result = writeAutosave(getBrowserStore(), doc, projectId, dirty);
       setAutosaveError(result.ok ? null : result.reason);
     }, AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [doc, projectId]);
+  }, [doc, projectId, dirty]);
   return autosaveError;
 }
 

@@ -59,26 +59,33 @@ function read(store: KeyValueStore | null, key: string): string | null {
   }
 }
 
-export function writeAutosave(store: KeyValueStore | null, doc: ProjectFile, projectId: string | null): StorageResult<void> {
-  return write(store, STORAGE_KEYS.autosave, JSON.stringify({ projectId, project: doc }));
+export interface Autosave {
+  doc: ProjectFile;
+  projectId: string | null;
+  /** 上次「儲存」之後是否有修改；重新整理後仍要記得，開新電路或開啟專案前才會先確認。 */
+  dirty: boolean;
 }
 
-export function readAutosave(store: KeyValueStore | null): { doc: ProjectFile; projectId: string | null } | null {
+export function writeAutosave(store: KeyValueStore | null, doc: ProjectFile, projectId: string | null, dirty = false): StorageResult<void> {
+  return write(store, STORAGE_KEYS.autosave, JSON.stringify({ projectId, dirty, project: doc }));
+}
+
+export function readAutosave(store: KeyValueStore | null): Autosave | null {
   const text = read(store, STORAGE_KEYS.autosave);
   if (text === null) return null;
   try {
-    const data = JSON.parse(text) as { projectId?: unknown; project?: unknown };
+    const data = JSON.parse(text) as { projectId?: unknown; dirty?: unknown; project?: unknown };
     const parsed = parseProjectFile(JSON.stringify(data.project));
     if (!parsed.ok) return null;
-    return { doc: parsed.doc, projectId: typeof data.projectId === 'string' ? data.projectId : null };
+    return { doc: parsed.doc, projectId: typeof data.projectId === 'string' ? data.projectId : null, dirty: data.dirty === true };
   } catch {
     return null;
   }
 }
 
 /** 啟動時使用：有可用的自動存檔就載入，否則給一個空白電路。 */
-export function restoreAutosave(store: KeyValueStore | null): { doc: ProjectFile; projectId: string | null } {
-  return readAutosave(store) ?? { doc: createProject(), projectId: null };
+export function restoreAutosave(store: KeyValueStore | null): Autosave {
+  return readAutosave(store) ?? { doc: createProject(), projectId: null, dirty: false };
 }
 
 export function listProjects(store: KeyValueStore | null): ProjectEntry[] {
