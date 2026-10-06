@@ -6,12 +6,12 @@ import { resolveFootprint } from '../../core/circuit/footprint';
 import { getComponentDefinition } from '../../core/circuit/library';
 import { analyzeCircuit, groupIdAt, netOfPin, occupancyOf } from '../../editor/analysis';
 import { groupMembers, moveBoards, snapBoardMove, snapUnits, type BoardMovePlan } from '../../editor/boards';
-import { boardFrames, fromWorld, PITCH, toWorld, type BoardFrame, type GridHit } from '../../editor/geometry';
+import { boardFrames, fromWorld, PITCH, toWorld, type BoardFrame, type GridHit, type Point } from '../../editor/geometry';
 import { nextComponentId } from '../../editor/ids';
 import { isChecked } from '../../editor/checklist';
 import { defaultWireColor, isFreeHoleWith, planWirePath, type Axis } from '../../editor/manualWire';
 import { centeredAnchor, findPlacement } from '../../editor/placement';
-import { panBy, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
+import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
 import { UI } from '../../render/theme';
 import { useStore, type WireAnimation } from '../../state/store';
 import type { Circuit, Net, Wire } from '../../types/circuit';
@@ -70,7 +70,9 @@ type BoardDrag = {
   started: boolean;
   plan: BoardMovePlan | null;
 };
-type Drag = PanDrag | MoveDrag | WireDrag | BoardDrag;
+/** 觸控：兩指縮放與平移。pointerId 是第一指（和其他拖曳共用欄位）。 */
+type PinchDrag = { kind: 'pinch'; pointerId: number; ids: [number, number]; origin: Viewport; a0: Point; b0: Point };
+type Drag = PanDrag | MoveDrag | WireDrag | BoardDrag | PinchDrag;
 
 interface Ghost {
   instance: ComponentInstance;
@@ -251,6 +253,12 @@ export function BreadboardCanvas() {
     setGhostState(g);
   }, []);
   const [menu, setMenu] = useState<MenuState | null>(null);
+  /** 放置中：計算某個螢幕位置的 ghost（並更新畫面）。 */
+  const ghostAtRef = useRef<((clientX: number, clientY: number) => Ghost | null) | null>(null);
+  /** 目前按在畫布上的觸控點（螢幕座標），用來偵測兩指手勢。 */
+  const touches = useRef(new Map<number, Point>());
+  /** 觸控放置：按下時先記住，放開時才放（中途滑動變成平移、第二指變成縮放）。 */
+  const pendingTap = useRef<{ pointerId: number; x: number; y: number; origin: Viewport } | null>(null);
   const [spaceDown, setSpaceDown] = useState(false);
   const spaceRef = useRef(false);
   const pointerInside = useRef(false);
@@ -380,15 +388,15 @@ export function BreadboardCanvas() {
     }
     const def = getComponentDefinition(placing.item.defId);
     if (!def) return;
-    const compute = (clientX: number, clientY: number) => {
+    const compute = (clientX: number, clientY: number): Ghost | null => {
       const svg = svgRef.current;
-      if (!svg) return;
+      if (!svg) return null;
       const rect = svg.getBoundingClientRect();
       const inside = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
       const hit = inside ? clientToHit(clientX, clientY) : null;
       if (!hit) {
         setGhost(null);
-        return;
+        return null;
       }
       const c = circuitRef.current;
       const base: ComponentInstance = {
@@ -400,8 +408,11 @@ export function BreadboardCanvas() {
         props: { ...placing.item.props },
       };
       const snapped = findPlacement(c, base, { ignoreId: base.id });
-      setGhost({ instance: snapped ?? base, valid: snapped !== null });
+      const ghost = { instance: snapped ?? base, valid: snapped !== null };
+      setGhost(ghost);
+      return ghost;
     };
+    ghostAtRef.current = compute;
     const onMove = (e: PointerEvent) => {
       lastPointer.current = { x: e.clientX, y: e.clientY };
       compute(e.clientX, e.clientY);
@@ -419,12 +430,20 @@ export function BreadboardCanvas() {
         store.cancelPlacing();
       }
     };
+    // 觸控從元件庫往上下滑是在捲動清單：瀏覽器接手後會送 pointercancel，這時取消拿起的元件。
+    const onCancel = () => {
+      const store = useStore.getState();
+      if (store.placing?.dragging) store.cancelPlacing();
+    };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
     if (lastPointer.current) compute(lastPointer.current.x, lastPointer.current.y);
     return () => {
+      ghostAtRef.current = null;
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
     };
   }, [placing, clientToHit, setGhost]);
 
@@ -433,8 +452,42 @@ export function BreadboardCanvas() {
     setDrag({ kind: 'pan', pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, origin: useStore.getState().viewport });
   };
 
+  /** 畫布座標（相對於 svg 左上角）。 */
+  const canvasPoint = (p: Point): Point => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    return rect ? { x: p.x - rect.left, y: p.y - rect.top } : p;
+  };
+
+  /** 第二指按下：放棄第一指正在做的事（還沒完成的接線、移動、平移），改成兩指縮放與平移。 */
+  const startPinch = (svg: SVGSVGElement) => {
+    const [[idA, a], [idB, b]] = [...touches.current.entries()];
+    pendingTap.current = null;
+    const held = pressedButton.current;
+    if (held) {
+      pressedButton.current = null;
+      useStore.getState().pressButton(held.id, false);
+    }
+    for (const id of [idA, idB]) {
+      try {
+        svg.setPointerCapture(id);
+      } catch {
+        // 指標已經放開
+      }
+    }
+    setHover(null);
+    setDrag({ kind: 'pinch', pointerId: idA, ids: [idA, idB], origin: useStore.getState().viewport, a0: canvasPoint(a), b0: canvasPoint(b) });
+  };
+
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     setMenu(null);
+    if (e.pointerType === 'touch') {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.current.size === 2) {
+        startPinch(e.currentTarget);
+        return;
+      }
+      if (touches.current.size > 2) return;
+    }
     const store = useStore.getState();
     if (store.routing) return;
     if (store.simulation) {
@@ -442,6 +495,11 @@ export function BreadboardCanvas() {
       return;
     }
     if (store.placing) {
+      if (e.pointerType === 'touch' && !store.placing.dragging) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        pendingTap.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, origin: store.viewport };
+        return;
+      }
       if (e.button === 0 && !store.placing.dragging) {
         const g = ghostRef.current;
         if (g?.valid) store.placeComponent(store.placing.item, g.instance.rotation, g.instance.boardId, g.instance.anchor);
@@ -607,7 +665,19 @@ export function BreadboardCanvas() {
   };
 
   const onPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (touches.current.has(e.pointerId)) touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     const d = dragRef.current;
+    if (d?.kind === 'pinch') {
+      const [a, b] = d.ids.map((id) => touches.current.get(id));
+      if (a && b) useStore.getState().setViewport(pinchViewport(d.origin, d.a0, d.b0, canvasPoint(a), canvasPoint(b)));
+      return;
+    }
+    const tap = pendingTap.current;
+    if (tap && tap.pointerId === e.pointerId && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) >= DRAG_THRESHOLD * 2) {
+      pendingTap.current = null;
+      setDrag({ kind: 'pan', pointerId: e.pointerId, startX: tap.x, startY: tap.y, origin: tap.origin });
+      return;
+    }
     if (d) {
       if (d.kind === 'pan') {
         useStore.getState().setViewport(panBy(d.origin, e.clientX - d.startX, e.clientY - d.startY));
@@ -628,9 +698,29 @@ export function BreadboardCanvas() {
   };
 
   const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+    touches.current.delete(e.pointerId);
+    const tap = pendingTap.current;
+    if (tap && tap.pointerId === e.pointerId) {
+      pendingTap.current = null;
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+      const store = useStore.getState();
+      if (store.placing && !store.placing.dragging) {
+        const g = ghostAtRef.current?.(e.clientX, e.clientY) ?? null;
+        if (g?.valid) store.placeComponent(store.placing.item, g.instance.rotation, g.instance.boardId, g.instance.anchor);
+        else store.toast('warning', '這裡放不下：腳必須插在空孔上，而且不能和其他元件重疊');
+      }
+      return;
+    }
     if (releaseButton(e)) return;
     const d = dragRef.current;
     if (!d) return;
+    if (d.kind === 'pinch') {
+      // 任一指放開就結束兩指手勢；剩下的那一指不再做任何事。
+      if (!d.ids.includes(e.pointerId)) return;
+      for (const id of d.ids) if (e.currentTarget.hasPointerCapture(id)) e.currentTarget.releasePointerCapture(id);
+      setDrag(null);
+      return;
+    }
     if (e.currentTarget.hasPointerCapture(d.pointerId)) e.currentTarget.releasePointerCapture(d.pointerId);
     setDrag(null);
     const store = useStore.getState();
@@ -761,6 +851,8 @@ export function BreadboardCanvas() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={(e) => {
+          touches.current.delete(e.pointerId);
+          if (pendingTap.current?.pointerId === e.pointerId) pendingTap.current = null;
           releaseButton(e);
           setDrag(null);
         }}

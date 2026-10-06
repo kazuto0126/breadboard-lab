@@ -100,7 +100,7 @@ function startDrag(item: LibraryItem, e: ReactPointerEvent<HTMLButtonElement>) {
   useStore.getState().startPlacing(item, true, { x: e.clientX, y: e.clientY });
 }
 
-const TOOLTIP = '拖曳到麵包板上放置，或點一下後再點麵包板。';
+const TOOLTIP = '拖曳到麵包板上放置，或點一下後再點麵包板（平板：點一下元件、再點麵包板）。';
 
 /** 描述中括號裡的英文（例如「Quad 2-input NAND」），給小格子用。 */
 function shortDescription(item: LibraryItem): string {
@@ -123,6 +123,7 @@ function LibraryTile({ item, active }: { item: LibraryItem; active: boolean }) {
       type="button"
       data-library-item={item.key}
       onPointerDown={(e) => startDrag(item, e)}
+      style={{ touchAction: 'pan-y' }}
       title={`${item.name}：${item.description}\n${TOOLTIP}`}
       className={`flex min-w-0 cursor-grab items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors active:cursor-grabbing ${
         active ? 'bg-sky-900/60 ring-1 ring-sky-500' : 'bg-slate-800/40 hover:bg-slate-800'
@@ -146,6 +147,7 @@ function LibraryRow({ item, active }: { item: LibraryItem; active: boolean }) {
       type="button"
       data-library-item={item.key}
       onPointerDown={(e) => startDrag(item, e)}
+      style={{ touchAction: 'pan-y' }}
       title={`${item.name}：${item.description}\n${TOOLTIP}`}
       className={`flex w-full cursor-grab items-center gap-2 rounded-md px-2 py-1 text-left transition-colors active:cursor-grabbing ${
         active ? 'bg-sky-900/60 ring-1 ring-sky-500' : 'hover:bg-slate-800'

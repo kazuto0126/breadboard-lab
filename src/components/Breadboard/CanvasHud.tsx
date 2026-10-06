@@ -521,7 +521,9 @@ function ZoomControls() {
       <button type="button" className={btn} onClick={() => store.zoomBy(1 / 1.25)} title="縮小（-）">
         −
       </button>
-      <span className="w-12 text-center text-xs tabular-nums text-slate-400">{Math.round(scale * 100)}%</span>
+      <span className="w-12 text-center text-xs tabular-nums text-slate-400" data-testid="zoom">
+        {Math.round(scale * 100)}%
+      </span>
       <button type="button" className={btn} onClick={() => store.zoomBy(1.25)} title="放大（+）">
         +
       </button>

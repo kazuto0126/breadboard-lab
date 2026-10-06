@@ -3,6 +3,15 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 平板觸控（移植自 feat/core-engine，第 1 步：畫布手勢）
+
+### 新增
+
+- 兩指縮放與平移（`pinchViewport`）：第二指按下時放棄第一指還沒完成的接線 / 移動 / 平移，兩指中點底下的位置跟著手指移動。
+- 觸控放置：點一下元件庫、再點麵包板，放開手指時才放置；拿著元件時一指滑動是平移畫面、兩指是縮放，不會誤放。
+- 元件庫在觸控時可以上下滑動捲動清單（`touch-action: pan-y`），往畫布方向拖曳仍然是拖放；捲動時自動放下拿起的元件。
+- 測試：`pinchViewport` 2 個單元測試；Playwright `e2e/touch.spec.ts`（觸控事件）2 個：點選放置 + 手指接線 + 兩指縮放約兩倍、拿著元件時平移不誤放。
+
 ## [未發布] — 單一 HTML 離線版（移植自 feat/core-engine）
 
 ### 新增
