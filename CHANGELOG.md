@@ -30,6 +30,16 @@
   - `builder.ts`、`examples.ts`：電路建構工具與 3 個範例電路（原本在 `tests/fixtures/`，
     改由 `src/editor` 提供，測試沿用同一份，保證範例一定佈得出來）。
 
+- `src/workers/`：佈線 Web Worker（`routing.worker.ts`）與用戶端（`routingClient.ts`）：
+  每次佈線一個 module Worker、可取消（terminate）、沒有 Worker 時退回主執行緒。
+- `src/state/store.ts`：Zustand store——可 Undo 的編輯動作、選取、元件放置工具、
+  AI 標準佈線生命週期（計算 → 套用 → 描線動畫 → 結果）、MANUAL / AUTO ROUTE / COMPARE 模式
+  （由資料推導，與 Undo 一致）、提示訊息；`persistence.ts`：自動儲存與瀏覽器專案庫（localStorage）。
+- `src/render/theme.ts`：麵包板與元件配色、電阻色環計算。
+- SVG 繪圖元件：麵包板底圖（830 孔、電源軌色線、凹槽、排標籤與欄號）、
+  74LS IC / 指撥開關 / 電阻（依阻值畫色環）/ LED（陰極切平、標 + −）/ VCC / GND / DC Power / 按鈕、
+  跳線（外框、端點插針、描線動畫）。
+
 ### 變更
 
 - 元件定義 JSON 新增 `description` 欄位（28 個元件都有中文說明），`parseDefinition` 會驗證其型別。
