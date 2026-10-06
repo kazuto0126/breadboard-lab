@@ -18,6 +18,7 @@ import { scoreRouting } from '../../src/core/routing/score';
 import { compileSimulation, initialSimState, settle } from '../../src/core/simulation/simulate';
 import { DEFAULT_ROUTING_CONFIG } from '../../src/core/routing/config';
 import type { Wire } from '../../src/types/circuit';
+import { EXAMPLES } from '../../src/editor/examples';
 import { board, circuit, comp, holeOn, latticeWire } from '../fixtures/build';
 
 /** b2 在 b1 正下方（上下貼合）。 */
@@ -145,6 +146,17 @@ describe('需求文件 38.19：Board Group 的電氣與佈線規則', () => {
   it('names holes with their board when there is more than one board', () => {
     const c = circuit([comp('D1', 'led', 'H11'), comp('D9', 'led', 'H12')], [], STACKED);
     expect(validateCircuit(c).find((e) => e.code === 'PIN_COLLISION')?.message).toContain('b1:H12');
+  });
+
+  it('ships a two-board example: routed across the seam, clean and lighting its LED', () => {
+    const example = EXAMPLES.find((e) => e.id === 'two-boards')!.build();
+    expect(example.boards.map((b) => b.groupId)).toEqual(['g-b1', 'g-b1']);
+    expect(example.wires.every((w) => w.source === 'auto')).toBe(true);
+    expect(crossingWires(example.wires)).toHaveLength(2);
+    expect(validateCircuit(example).filter((e) => e.severity === 'error')).toEqual([]);
+    expect(scoreRouting(example).score).toBeGreaterThanOrEqual(90);
+    const sim = compileSimulation(example);
+    expect(settle(sim, initialSimState(sim), { pressed: {}, clocks: {} }).result.litLeds).toEqual(['D1']);
   });
 
   it('simulates across boards: VCC on b1 lights an LED on b2', () => {

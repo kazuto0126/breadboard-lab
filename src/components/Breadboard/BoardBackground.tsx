@@ -7,8 +7,11 @@ const P = PITCH;
 const HOLE = 0.42 * P;
 const COLUMN_LABELS = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
 
-/** 麵包板底圖：板身、電源軌色線、中央凹槽、830 個孔與標籤。靜態圖層，不隨互動重繪。 */
-export const BoardBackground = memo(function BoardBackground({ frame }: { frame: BoardFrame }) {
+/**
+ * 麵包板底圖：板身、電源軌色線、中央凹槽、830 個孔與標籤。靜態圖層，不隨互動重繪。
+ * 有多塊板時，左上角印出板子 ID（label）。
+ */
+export const BoardBackground = memo(function BoardBackground({ frame, label }: { frame: BoardFrame; label?: string }) {
   const { board, width, height } = frame;
   const layout = MB102_LAYOUT;
   const rails = layout.rows.filter((r) => r.kind === 'rail');
@@ -22,6 +25,12 @@ export const BoardBackground = memo(function BoardBackground({ frame }: { frame:
     <g transform={`translate(${frame.x} ${frame.y})`} data-board={frame.id}>
       <rect x={3} y={5} width={width} height={height} rx={0.55 * P} fill={BOARD.shadow} fillOpacity={0.35} />
       <rect x={0} y={0} width={width} height={height} rx={0.55 * P} fill={BOARD.body} stroke={BOARD.edge} strokeWidth={1.5} />
+
+      {label && (
+        <text x={0.3 * P} y={0.62 * P} fill={BOARD.label} fontSize={0.55 * P} fontWeight={700} dominantBaseline="central" data-board-label={label}>
+          {label}
+        </text>
+      )}
 
       {/* 中央凹槽 */}
       <rect x={xLeft} y={channelTop} width={xRight - xLeft} height={channelBottom - channelTop} rx={2} fill={BOARD.channel} />

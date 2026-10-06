@@ -3,6 +3,7 @@ import { resolveFootprint, effectiveSpan } from '../../core/circuit/footprint';
 import { getComponentDefinition, RESISTOR_PRESETS } from '../../core/circuit/library';
 import { netColor } from '../../core/routing/colors';
 import { analyzeCircuit, netOfPin, type CircuitAnalysis } from '../../editor/analysis';
+import { boardRect, crossBoardWires, groupMembers, MAX_BOARDS } from '../../editor/boards';
 import { formatResistance, LED_COLOR_NAMES, LED_COLORS } from '../../editor/library';
 import { WIRE_COLORS } from '../../editor/manualWire';
 import { deriveMode, isComparisonFresh, useStore, type RightTab, type Selection } from '../../state/store';
@@ -11,7 +12,7 @@ import type { LedColor } from '../../types/component';
 import { groupIdAt } from '../../editor/analysis';
 import { LEVEL_COLORS } from '../../render/theme';
 import type { Level } from '../../types/logic';
-import { LevelTag } from '../Breadboard/CanvasHud';
+import { boardGroupText, LevelTag } from '../Breadboard/CanvasHud';
 import {
   FAILURE_NAMES,
   groupLabel,
@@ -121,6 +122,16 @@ function CircuitSummary({ circuit, analysis }: { circuit: Circuit; analysis: Cir
     <>
       <Section title="電路">
         <Row label="名稱">{projectName ?? '未命名電路'}</Row>
+        <Row label="麵包板">
+          <span className="inline-flex items-center gap-2">
+            {circuit.boards.length} 塊
+            {circuit.boards.length < MAX_BOARDS && (
+              <SmallButton onClick={() => useStore.getState().addBoard()} title="新增一塊 MB-102 麵包板">
+                ＋ 新增
+              </SmallButton>
+            )}
+          </span>
+        </Row>
         <Row label="元件">{circuit.components.length}</Row>
         <Row label="導線">{circuit.wires.length}</Row>
         <Row label="Electrical Nets">{analysis.nets.filter((n) => n.pins.length > 1).length}</Row>
@@ -132,6 +143,7 @@ function CircuitSummary({ circuit, analysis }: { circuit: Circuit; analysis: Cir
           <li>從左側拖曳元件到麵包板，放置時自動吸附到合法孔位。</li>
           <li>從空孔拖曳到另一個空孔建立導線；滑鼠停在孔上會高亮整個導通群組。</li>
           <li>點元件腳或導線，會高亮整個 Net。</li>
+          <li>電路太大時可以新增麵包板；拖曳板子沒有孔的地方，靠近另一塊板的邊會自動吸附並組成群組，同一群組可以跨板接線。</li>
           <li>
             <kbd className="rounded bg-slate-700 px-1">R</kbd> 旋轉、<kbd className="rounded bg-slate-700 px-1">Del</kbd> 刪除、
             <kbd className="rounded bg-slate-700 px-1">Ctrl+Z</kbd> 復原、滾輪縮放、Space + 拖曳平移。
@@ -287,6 +299,51 @@ function ComponentInspector({ id, circuit, analysis }: { id: string; circuit: Ci
   );
 }
 
+function BoardInspector({ id, circuit }: { id: string; circuit: Circuit }) {
+  const instance = circuit.boards.find((b) => b.id === id);
+  if (!instance) return null;
+  const store = useStore.getState();
+  const rect = boardRect(instance);
+  const grouped = groupMembers(circuit, id).length > 1;
+  const crossing = crossBoardWires(circuit, [id]);
+  const parts = circuit.components.filter((c) => c.boardId === id).length;
+  const wires = circuit.wires.filter((w) => w.path.some((p) => p.boardId === id)).length;
+  const last = circuit.boards.length <= 1;
+  return (
+    <Section
+      title="麵包板"
+      right={
+        <div className="flex gap-1">
+          {grouped && (
+            <SmallButton onClick={() => store.detachBoard(id)} title="把這塊板移到旁邊，離開目前的群組">
+              移出群組
+            </SmallButton>
+          )}
+          {!last && (
+            <SmallButton onClick={() => store.removeBoard(id)} danger title="刪除這塊板（連同板上的元件與導線，可 Undo）">
+              刪除麵包板
+            </SmallButton>
+          )}
+        </div>
+      }
+    >
+      <div className="text-base font-semibold text-slate-50">
+        {id} <span className="text-slate-300">· MB-102（830 孔）</span>
+      </div>
+      <Row label="位置（格）">{`x ${rect.x} · y ${rect.y}`}</Row>
+      <Row label="大小（格）">{`${rect.width} × ${rect.height}`}</Row>
+      <Row label="所屬群組">{boardGroupText(circuit, id) ?? '—（單獨一塊）'}</Row>
+      <Row label="元件">{parts}</Row>
+      <Row label="導線">{wires}</Row>
+      {crossing.length > 0 && <Row label="跨板導線">{crossing.map((w) => w.id).join('、')}</Row>}
+      <p className="mt-2 text-xs leading-5 text-slate-400">
+        貼在一起的麵包板只是放在同一個群組，孔與孔之間<b className="text-slate-300">不會自動導通</b>，要用導線連接才會形成同一個 Net。
+        {circuit.boards.length > 1 && ' 拖曳板子沒有孔的地方可以移動整個群組；按住 Alt 或 Shift 拖曳只移動這一塊。'}
+      </p>
+    </Section>
+  );
+}
+
 function NetInspector({ net, circuit, analysis }: { net: Net; circuit: Circuit; analysis: CircuitAnalysis }) {
   const wires = circuit.wires.filter((w) => analysis.netByWire.get(w.id) === net);
   const store = useStore.getState();
@@ -344,7 +401,7 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
             </Row>
             {pin && <Row label="功能">{ROLE_NAMES[pin.role]}</Row>}
             {at && <Row label="孔位">{holeLabel(circuit, at)}</Row>}
-            {at && <Row label="導通群組">{groupLabel(groupOf(circuit, at))}</Row>}
+            {at && <Row label="導通群組">{groupLabel(groupOf(circuit, at), circuit.boards.length > 1)}</Row>}
             {at && <LevelRow groupId={groupOf(circuit, at)} />}
             <Row label="Net">
               <NetLink net={net} analysis={analysis} />
@@ -369,7 +426,7 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
           <div className="text-base font-semibold text-slate-50">{w.id}</div>
           <Row label="來源">{w.source === 'auto' ? 'AI 標準佈線' : '手動接線'}</Row>
           <Row label="起點 → 終點">{`${holeLabel(circuit, w.start)} → ${holeLabel(circuit, w.end)}`}</Row>
-          <Row label="長度">{wireSummary(w)}</Row>
+          <Row label="長度">{wireSummary(w, circuit)}</Row>
           <LevelRow groupId={groupIdAt(circuit, w.start)} />
           <Row label="Net">
             <NetLink net={analysis.netByWire.get(w.id)} analysis={analysis} />
@@ -397,7 +454,7 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
         <>
           <Section title="孔位">
             <div className="text-base font-semibold text-slate-50">{holeLabel(circuit, selection.point)}</div>
-            <Row label="導通群組">{groupLabel(g)}</Row>
+            <Row label="導通群組">{groupLabel(g, circuit.boards.length > 1)}</Row>
             <LevelRow groupId={g} />
             <Row label="Net">
               <NetLink net={net} analysis={analysis} />
@@ -413,6 +470,8 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
         </>
       );
     }
+    case 'board':
+      return <BoardInspector id={selection.id} circuit={circuit} />;
     case 'net': {
       const net = analysis.netById.get(selection.netId);
       return net ? <NetInspector net={net} circuit={circuit} analysis={analysis} /> : null;

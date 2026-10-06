@@ -13,6 +13,7 @@ import {
   type SimState,
 } from '../core/simulation/simulate';
 import { analyzeCircuit } from '../editor/analysis';
+import { addBoard, boardMoveProblem, crossBoardWires, detachBoard, groupMembers, MAX_BOARDS, moveBoards, removeBoard } from '../editor/boards';
 import {
   addComponent,
   addWire,
@@ -31,6 +32,7 @@ import { emptyHistory, record, redo, undo, type History } from '../editor/histor
 import type { LibraryItem } from '../editor/library';
 import { DEFAULT_WIRE_COLOR, defaultWireColor } from '../editor/manualWire';
 import { centerOn, DEFAULT_VIEWPORT, fitRect, zoomAt, type Viewport } from '../editor/viewport';
+import type { BreadboardInstance } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance, ComponentProps, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
@@ -43,6 +45,7 @@ export type Selection =
   | { kind: 'pin'; componentId: string; pinNumber: number }
   | { kind: 'wire'; id: string }
   | { kind: 'hole'; point: GridPoint }
+  | { kind: 'board'; id: string }
   | { kind: 'net'; netId: string }
   | { kind: 'issue'; index: number }
   | null;
@@ -66,8 +69,9 @@ export interface Comparison {
   beforeWires: Wire[];
   beforeScore: { metrics: RoutingMetrics; score: number };
   result: RoutingResult;
-  /** 佈線當時的元件陣列（參照）；元件一改變，這份對照就過期。 */
+  /** 佈線當時的元件與麵包板陣列（參照）；元件或板子一改變，這份對照就過期。 */
   components: ComponentInstance[];
+  boards: BreadboardInstance[];
 }
 
 export interface WireAnimation {
@@ -131,13 +135,18 @@ export interface AppActions {
   rotatePlacing(): void;
   cancelPlacing(): void;
   placeComponent(item: LibraryItem, rotation: Rotation, boardId: string, anchor: { x: number; y: number }): void;
-  moveComponent(id: string, anchor: { x: number; y: number }, rotation?: Rotation): void;
+  moveComponent(id: string, anchor: { x: number; y: number }, rotation?: Rotation, boardId?: string): void;
   rotateComponent(id: string): void;
   rotateSelection(): void;
   deleteSelection(): void;
   deleteComponent(id: string): void;
   deleteWire(id: string): void;
   addWire(path: GridPoint[]): void;
+  addBoard(): void;
+  /** 移動麵包板（位移以格為單位，呼叫端先用 snapBoardMove 算好吸附與檢查）。 */
+  moveBoards(ids: string[], dx: number, dy: number): void;
+  removeBoard(id: string): void;
+  detachBoard(id: string): void;
   updateProps(id: string, patch: ComponentProps): void;
   setSpan(id: string, span: number): void;
   toggleSwitch(id: string, index: number): void;
@@ -193,11 +202,12 @@ export function deriveMode(s: Pick<AppState, 'view' | 'circuit'>): Mode {
 }
 
 export function isComparisonFresh(s: Pick<AppState, 'comparison' | 'circuit'>): boolean {
-  return s.comparison !== null && s.comparison.components === s.circuit.components;
+  return s.comparison !== null && s.comparison.components === s.circuit.components && s.comparison.boards === s.circuit.boards;
 }
 
 export function isDirty(s: Pick<AppState, 'circuit' | 'savedCircuit'>): boolean {
-  return s.circuit !== s.savedCircuit && (s.circuit.components.length > 0 || s.circuit.wires.length > 0);
+  const c = s.circuit;
+  return c !== s.savedCircuit && (c.components.length > 0 || c.wires.length > 0 || c.boards.length > 1);
 }
 
 function pruneSelection(selection: Selection, circuit: Circuit): Selection {
@@ -209,6 +219,8 @@ function pruneSelection(selection: Selection, circuit: Circuit): Selection {
       return circuit.components.some((c) => c.id === selection.componentId) ? selection : null;
     case 'wire':
       return circuit.wires.some((w) => w.id === selection.id) ? selection : null;
+    case 'board':
+      return circuit.boards.some((b) => b.id === selection.id) ? selection : null;
     case 'net':
       return analyzeCircuit(circuit).netById.has(selection.netId) ? selection : null;
     case 'issue':
@@ -418,10 +430,10 @@ export const useStore = create<Store>()((set, get) => {
       commit(`放置 ${item.name} ${id}`, circuit, { selection: { kind: 'component', id }, placing: null });
     },
 
-    moveComponent(id, anchor, rotation) {
+    moveComponent(id, anchor, rotation, boardId) {
       if (guardEdit()) return;
       const s = get();
-      commit(`移動 ${componentName(s.circuit, id)}`, moveComponent(s.circuit, id, anchor, rotation));
+      commit(`移動 ${componentName(s.circuit, id)}`, moveComponent(s.circuit, id, anchor, rotation, boardId));
     },
 
     rotateComponent(id) {
@@ -448,6 +460,7 @@ export const useStore = create<Store>()((set, get) => {
       if (sel?.kind === 'component') get().deleteComponent(sel.id);
       else if (sel?.kind === 'pin') get().deleteComponent(sel.componentId);
       else if (sel?.kind === 'wire') get().deleteWire(sel.id);
+      else if (sel?.kind === 'board') get().removeBoard(sel.id);
     },
 
     deleteComponent(id) {
@@ -469,6 +482,66 @@ export const useStore = create<Store>()((set, get) => {
       const color = defaultWireColor(s.circuit, path[0], path[path.length - 1], s.wireColor);
       const { circuit, id } = addWire(s.circuit, path, color);
       commit(`接線 ${id}`, circuit, { selection: { kind: 'wire', id } });
+    },
+
+    addBoard() {
+      if (guardEdit()) return;
+      const added = addBoard(get().circuit);
+      if (!added) {
+        get().toast('warning', `最多只能放 ${MAX_BOARDS} 塊麵包板`);
+        return;
+      }
+      commit(`新增麵包板 ${added.id}`, added.circuit, { selection: { kind: 'board', id: added.id }, view: 'edit' });
+      get().fitToScreen();
+      get().toast('info', `已新增麵包板 ${added.id}。拖曳它沒有孔的地方，靠近另一塊板的邊就會自動吸附成群組。`);
+    },
+
+    moveBoards(ids, dx, dy) {
+      if (guardEdit()) return;
+      const s = get();
+      const problem = boardMoveProblem(s.circuit, ids, Math.round(dx), Math.round(dy));
+      if (problem === 'overlap') {
+        get().toast('warning', '麵包板不能重疊，已放回原位');
+        return;
+      }
+      if (problem === 'wires') {
+        const wires = crossBoardWires(s.circuit, ids);
+        get().toast('warning', `有 ${wires.length} 條導線（${wires.map((w) => w.id).join('、')}）連到群組裡的其他麵包板，不能把這塊板拆開。請先刪除這些導線，或拖曳整個群組。`);
+        return;
+      }
+      const label = ids.length === 1 ? `移動麵包板 ${ids[0]}` : `移動麵包板群組（${ids.join('、')}）`;
+      commit(label, moveBoards(s.circuit, ids, dx, dy));
+    },
+
+    removeBoard(id) {
+      if (guardEdit()) return;
+      const s = get();
+      const next = removeBoard(s.circuit, id);
+      if (!next) {
+        if (s.circuit.boards.some((b) => b.id === id)) get().toast('warning', '至少要保留一塊麵包板');
+        return;
+      }
+      const parts = s.circuit.components.length - next.components.length;
+      const wires = s.circuit.wires.length - next.wires.length;
+      commit(`刪除麵包板 ${id}`, next, { selection: null });
+      const extra = parts + wires > 0 ? `（連同 ${parts} 個元件、${wires} 條導線）` : '';
+      get().toast('info', `已刪除麵包板 ${id}${extra}，可以按 Ctrl+Z 復原`);
+    },
+
+    detachBoard(id) {
+      if (guardEdit()) return;
+      const s = get();
+      if (groupMembers(s.circuit, id).length < 2) {
+        get().toast('info', `${id} 沒有和其他麵包板貼在一起`);
+        return;
+      }
+      const wires = crossBoardWires(s.circuit, [id]);
+      if (wires.length > 0) {
+        get().toast('warning', `${id} 有 ${wires.length} 條導線（${wires.map((w) => w.id).join('、')}）連到群組裡的其他麵包板，請先刪除這些導線再移出群組`);
+        return;
+      }
+      const next = detachBoard(s.circuit, id);
+      if (next) commit(`移出群組 ${id}`, next);
     },
 
     updateProps(id, patch) {
@@ -582,6 +655,7 @@ export const useStore = create<Store>()((set, get) => {
             beforeScore: analyzeCircuit(circuit).routing,
             result,
             components: circuit.components,
+            boards: circuit.boards,
           };
           if (result.status === 'success' && result.wires.length === 0) {
             set({ comparison: null });
@@ -661,7 +735,7 @@ export const useStore = create<Store>()((set, get) => {
       if (guardSimulation()) return;
       const s = get();
       if (!s.comparison || !isComparisonFresh(s)) {
-        get().toast('info', '找不到佈線前的手動導線（元件已經變動）。可以用 Undo 回到之前的狀態。');
+        get().toast('info', '找不到佈線前的手動導線（元件或麵包板已經變動）。可以用 Undo 回到之前的狀態。');
         return;
       }
       commit('切回手動接線', replaceWires(s.circuit, s.comparison.beforeWires), { view: 'edit', selection: null });

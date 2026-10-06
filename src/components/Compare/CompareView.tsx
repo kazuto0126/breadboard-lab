@@ -101,7 +101,7 @@ export function CompareView() {
     <div className="flex h-full flex-col gap-2 bg-slate-950 p-3" data-testid="compare-view">
       <div className="flex flex-wrap items-center gap-2">
         <div className="text-sm font-semibold text-slate-100">COMPARE：User Routing vs AI Standard Routing</div>
-        {!fresh && <span className="rounded bg-amber-900/70 px-2 py-0.5 text-xs text-amber-200">元件已變動，這是舊的對照結果</span>}
+        {!fresh && <span className="rounded bg-amber-900/70 px-2 py-0.5 text-xs text-amber-200">元件或麵包板已變動，這是舊的對照結果</span>}
         {!ok && <span className="rounded bg-red-900/70 px-2 py-0.5 text-xs text-red-200">{result.message}</span>}
         <div className="flex-1" />
         <button

@@ -128,13 +128,26 @@ export interface BoardSnap {
   side: SnapSide;
 }
 
+/** 不能這樣移動的原因：和其他板子重疊，或會拉斷連到其他板子的導線。 */
+export type BoardMoveProblem = 'overlap' | 'wires';
+
 export interface BoardMovePlan {
   /** 實際的位移（格，整數）。 */
   dx: number;
   dy: number;
   snap: BoardSnap | null;
-  /** 不能放在這裡的原因：和其他板子重疊，或會拉斷連到群組其他板子的導線。 */
-  blocked: 'overlap' | 'wires' | null;
+  blocked: BoardMoveProblem | null;
+}
+
+/** 把 ids 這幾塊板子移動 dx、dy 格（整數）會不會出問題。 */
+export function boardMoveProblem(circuit: Pick<Circuit, 'boards' | 'wires'>, ids: string[], dx: number, dy: number): BoardMoveProblem | null {
+  const set = new Set(ids);
+  const rects = boardRects(circuit);
+  const moving = rects.filter((r) => set.has(r.id));
+  const others = rects.filter((r) => !set.has(r.id));
+  if (moving.some((m) => others.some((o) => rectsOverlap(shift(m, dx, dy), o)))) return 'overlap';
+  if ((dx !== 0 || dy !== 0) && crossBoardWires(circuit, ids).length > 0) return 'wires';
+  return null;
 }
 
 /**
@@ -148,13 +161,7 @@ export function snapBoardMove(circuit: Pick<Circuit, 'boards' | 'wires'>, ids: s
   const moving = rects.filter((r) => set.has(r.id));
   const others = rects.filter((r) => !set.has(r.id));
   const fits = (mx: number, my: number) => !moving.some((m) => others.some((o) => rectsOverlap(shift(m, mx, my), o)));
-  const wires = crossBoardWires(circuit, ids);
-  const plan = (mx: number, my: number, snap: BoardSnap | null): BoardMovePlan => ({
-    dx: mx,
-    dy: my,
-    snap,
-    blocked: !fits(mx, my) ? 'overlap' : wires.length > 0 && (mx !== 0 || my !== 0) ? 'wires' : null,
-  });
+  const plan = (mx: number, my: number, snap: BoardSnap | null): BoardMovePlan => ({ dx: mx, dy: my, snap, blocked: boardMoveProblem(circuit, ids, mx, my) });
 
   const candidates: Array<{ dx: number; dy: number; distance: number; snap: BoardSnap }> = [];
   for (const m of moving) {

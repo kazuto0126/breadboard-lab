@@ -3,7 +3,7 @@ import type { ComponentInstance } from '../../src/types/component';
 import { circuit, comp, wire } from './build';
 
 // 範例電路由 src/editor/examples.ts 提供；這裡的測試保證範例一定佈得出來。
-export { acceptanceCircuit, adderCircuit, counterCircuit } from '../../src/editor/examples';
+export { acceptanceCircuit, adderCircuit, counterCircuit, twoBoardCircuit } from '../../src/editor/examples';
 
 /** 效能測試用：50 個兩腳元件、50 條使用者導線，每條把元件 k 的腳 1 接到元件 (k+17) mod 50 的腳 2。 */
 export function syntheticCircuit(): Circuit {

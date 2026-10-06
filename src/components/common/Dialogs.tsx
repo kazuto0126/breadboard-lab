@@ -128,16 +128,18 @@ function ConfirmNewDialog() {
 const SHORTCUTS: Array<[string, string]> = [
   ['拖曳元件庫項目到麵包板', '放置元件（自動吸附到合法孔位）'],
   ['從空孔拖曳到另一個空孔', '建立導線（只有水平 / 垂直）'],
-  ['拖曳元件', '移動'],
+  ['拖曳元件', '移動（也可以拖到另一塊麵包板）'],
+  ['拖曳麵包板沒有孔的地方', '移動麵包板 / 整個群組；靠近另一塊板的邊會自動吸附並對齊'],
+  ['Alt / Shift + 拖曳麵包板', '只移動這一塊（拆開群組）'],
   ['R', '旋轉選取的元件 / 放置中的元件'],
-  ['Delete / Backspace', '刪除選取的元件或導線'],
+  ['Delete / Backspace', '刪除選取的元件、導線或麵包板'],
   ['Esc', '取消放置、接線、移動或選取'],
   ['Ctrl+Z / Ctrl+Shift+Z（Ctrl+Y）', 'Undo / Redo'],
   ['Ctrl+S / Ctrl+Shift+S / Ctrl+O', '儲存 / 另存新檔 / 開啟'],
   ['滑鼠滾輪', '以游標為中心縮放'],
   ['中鍵拖曳、Space + 拖曳、拖曳空白處', '平移畫面'],
   ['F / 0 / + / -', 'Fit to Screen / Reset View / 放大 / 縮小'],
-  ['右鍵元件或導線', 'Rotate 90°、刪除、改顏色'],
+  ['右鍵元件、導線或麵包板', 'Rotate 90°、刪除、改顏色、移出群組'],
 ];
 
 function HelpDialog() {
@@ -157,6 +159,10 @@ function HelpDialog() {
       <p className="mt-3 text-xs leading-5 text-slate-400">
         AI 標準佈線會保留你的接線所定義的電氣連接（哪些導通群組要連在一起），重新決定每一條導線的位置：只走水平 / 垂直、不重疊、
         不穿過元件，並盡量避免交叉、縮短總長、減少轉彎。元件位置不會被移動。
+      </p>
+      <p className="mt-2 text-xs leading-5 text-slate-400">
+        多塊麵包板：貼在一起且對齊的板子自動成為同一個 Board Group，自動佈線把整組當成一張連續的格子。
+        貼在一起<b className="text-slate-300">不代表導通</b>——不同板子的孔只有用導線連接才會形成同一個 Net。
       </p>
     </Modal>
   );

@@ -1,4 +1,5 @@
 import { useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { MAX_BOARDS } from '../../editor/boards';
 import { formatResistance, LED_COLOR_NAMES, librarySections, searchLibrary, type LibraryItem } from '../../editor/library';
 import { WIRE_COLORS } from '../../editor/manualWire';
 import { LED_FILL, PART, resistorBands } from '../../render/theme';
@@ -161,6 +162,43 @@ function LibraryRow({ item, active }: { item: LibraryItem; active: boolean }) {
   );
 }
 
+/** 麵包板：新增 MB-102（最多 MAX_BOARDS 塊）。 */
+function BoardCard() {
+  const count = useStore((s) => s.circuit.boards.length);
+  const full = count >= MAX_BOARDS;
+  return (
+    <section className="mx-2 mb-2 flex items-center gap-2 rounded-md border border-slate-700 bg-slate-950/40 px-2 py-1.5">
+      <svg width={34} height={24} viewBox="0 0 34 24" aria-hidden className="shrink-0">
+        <rect x={1} y={3} width={32} height={18} rx={2} fill="#f3efe6" stroke="#cfc6b3" />
+        <line x1={4} x2={30} y1={6} y2={6} stroke="#d32f2f" />
+        <line x1={4} x2={30} y1={18} y2={18} stroke="#1e63c4" />
+        <rect x={3} y={11} width={28} height={2} fill="#e3dccd" />
+        {[6, 10, 14, 18, 22, 26].map((x) => (
+          <g key={x} fill="#3a3936">
+            <rect x={x} y={8} width={1.4} height={1.4} />
+            <rect x={x} y={14.6} width={1.4} height={1.4} />
+          </g>
+        ))}
+      </svg>
+      <span className="min-w-0 flex-1" title="貼在一起且對齊的麵包板會自動成為同一個群組，可以跨板接線">
+        <span className="block whitespace-nowrap text-[12px] font-medium text-slate-100">麵包板</span>
+        <span className="block whitespace-nowrap text-[10px] text-slate-400">
+          MB-102 · {count} / {MAX_BOARDS} 塊
+        </span>
+      </span>
+      <button
+        type="button"
+        disabled={full}
+        onClick={() => useStore.getState().addBoard()}
+        title={full ? `最多 ${MAX_BOARDS} 塊麵包板` : '新增一塊麵包板（放在最下方，再拖曳到想要的位置）'}
+        className="shrink-0 rounded bg-slate-700 px-2 py-1 text-xs text-slate-100 hover:bg-slate-600 disabled:opacity-50"
+      >
+        ＋ 新增麵包板
+      </button>
+    </section>
+  );
+}
+
 function JumperWireCard() {
   const wireColor = useStore((s) => s.wireColor);
   return (
@@ -228,6 +266,7 @@ export function ComponentLibrary() {
         )}
       </div>
       <div className="bbl-scroll min-h-0 flex-1 overflow-y-auto py-2">
+        {!searching && <BoardCard />}
         {sections.length === 0 && <p className="px-3 text-sm text-slate-400">找不到符合的元件。</p>}
         {sections.map((section) => {
           const open = searching || !collapsed[section.id];

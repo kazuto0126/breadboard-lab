@@ -218,3 +218,75 @@ test('邏輯模擬：在板上撥指撥開關、按按鈕，LED 即時反應', a
   }
   await expect.poll(() => litLeds(['D1', 'D2', 'D3', 'D4'])).toBe('1100');
 });
+
+test('第三十八章：新增麵包板、拖曳吸附成群組、整組移動、跨板接線', async ({ page }) => {
+  await page.getByRole('button', { name: '關閉' }).first().click();
+  const holeOf = (board: string, name: string) => centerOf(page, `[data-board="${board}"] [data-hole="${name}"]`);
+  const dragBy = async (from: { x: number; y: number }, dx: number, dy: number, during?: () => Promise<void>) => {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + dx * 0.5, from.y + dy * 0.5, { steps: 4 });
+    await page.mouse.move(from.x + dx, from.y + dy, { steps: 6 });
+    if (during) await during();
+    await page.mouse.up();
+  };
+
+  // 測試 1：新增第二塊板（放在第一塊下方、隔 4 格）。
+  await page.getByRole('button', { name: '＋ 新增麵包板' }).click();
+  await expect(page.locator('[data-hole]')).toHaveCount(1660);
+  let circuit = await savedCircuit(page);
+  expect(circuit.boards.map((b: { id: string; y: number; groupId: string | null }) => [b.id, Math.round(b.y / 2.54), b.groupId])).toEqual([
+    ['b1', 0, null],
+    ['b2', 24, null],
+  ]);
+
+  // 1 格在螢幕上的像素（Fit to Screen 之後的縮放）。
+  const pitch = (await holeOf('b1', 'A2')).x - (await holeOf('b1', 'A1')).x;
+
+  // 測試 2、3：拖曳 b2 的凹槽往上靠近 b1，出現 SNAP 預覽，放開後貼齊並成為同一個 Board Group。
+  const b2Channel = mid(await holeOf('b2', 'E32'), await holeOf('b2', 'F32'));
+  await dragBy(b2Channel, 1.3 * pitch, -3.6 * pitch, async () => {
+    await expect(page.locator('[data-ui="snap-preview"]')).toContainText('SNAP');
+  });
+  await expect(page.locator('[data-board-group]')).toContainText('Board Group 1 · 2 Boards');
+  circuit = await savedCircuit(page);
+  expect(circuit.boards.map((b: { x: number; y: number; groupId: string | null }) => [Math.round(b.x / 2.54), Math.round(b.y / 2.54), b.groupId])).toEqual([
+    [0, 0, 'g-b1'],
+    [0, 20, 'g-b1'],
+  ]);
+
+  // 測試 4：拖曳 b1，b1 + b2 一起移動。
+  const b1Channel = mid(await holeOf('b1', 'E32'), await holeOf('b1', 'F32'));
+  await dragBy(b1Channel, 6 * pitch, 2 * pitch);
+  circuit = await savedCircuit(page);
+  expect(circuit.boards.map((b: { x: number; y: number }) => [Math.round(b.x / 2.54), Math.round(b.y / 2.54)])).toEqual([
+    [6, 2],
+    [6, 22],
+  ]);
+
+  // 測試 8：從 b1 的空孔拉一條導線到 b2，導線經過兩板之間的接縫。
+  const from = await holeOf('b1', 'J12');
+  const to = await holeOf('b2', 'A12');
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x, from.y + (to.y - from.y) * 0.3, { steps: 3 });
+  await page.mouse.move(to.x, to.y, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByTestId('wire-count')).toHaveText('1');
+  circuit = await savedCircuit(page);
+  expect(new Set(circuit.wires[0].path.map((p: { boardId: string }) => p.boardId))).toEqual(new Set(['b1', 'b2']));
+  await page.getByRole('button', { name: '✓ Check Circuit' }).click();
+  await expect(page.getByTestId('check-badge')).toContainText('Circuit Valid');
+
+  // 有跨板導線時，Alt + 拖曳只移動 b2 會被擋下並回到原位。
+  const b2Again = mid(await holeOf('b2', 'E40'), await holeOf('b2', 'F40'));
+  await page.keyboard.down('Shift');
+  await dragBy(b2Again, 0, 6 * pitch);
+  await page.keyboard.up('Shift');
+  await expect(page.locator('[data-toast="warning"]').last()).toContainText('不能把這塊板拆開');
+  circuit = await savedCircuit(page);
+  expect(circuit.boards.map((b: { y: number; groupId: string | null }) => [Math.round(b.y / 2.54), b.groupId])).toEqual([
+    [2, 'g-b1'],
+    [22, 'g-b1'],
+  ]);
+});

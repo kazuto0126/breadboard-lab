@@ -1,9 +1,11 @@
+import { buildLattice } from '../../core/breadboard/lattice';
 import { getNode, holeName } from '../../core/breadboard/naming';
 import { getBoard } from '../../core/breadboard/registry';
 import { countBends } from '../../core/circuit/wireGeometry';
 import { describeGroup } from '../../core/routing/problem';
 import type { CircuitAnalysis } from '../../editor/analysis';
 import { occupancyOf } from '../../editor/analysis';
+import type { BoardGroup } from '../../types/board';
 import type { Circuit, CircuitError, Wire } from '../../types/circuit';
 import type { PinRole } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
@@ -33,14 +35,22 @@ export const FAILURE_NAMES: Record<FailureReason, string> = {
   LEGALITY_CHECK: '沒有通過合法性檢查',
 };
 
-export function holeLabel(circuit: Circuit, p: GridPoint): string {
+/** 孔位名稱；有多塊板時加上板子 ID（例如 b2:A12）。 */
+export function holeLabel(circuit: Pick<Circuit, 'boards'>, p: GridPoint): string {
   const instance = circuit.boards.find((b) => b.id === p.boardId);
   if (!instance) return `(${p.x}, ${p.y})`;
-  return holeName(getBoard(instance.layoutId, instance.id), p) ?? `(${p.x}, ${p.y})`;
+  const name = holeName(getBoard(instance.layoutId, instance.id), p) ?? `(${p.x}, ${p.y})`;
+  return circuit.boards.length > 1 ? `${p.boardId}:${name}` : name;
 }
 
-export function groupLabel(groupId: string | null): string {
-  return groupId ? describeGroup(groupId) : '板面（沒有孔）';
+/** 導通群組的說明；withBoard 為 true 時加上板子 ID（多塊板時使用）。 */
+export function groupLabel(groupId: string | null, withBoard = false): string {
+  return groupId ? describeGroup(groupId, withBoard) : '板面（沒有孔）';
+}
+
+/** 「Board Group 2 · 3 Boards」（需求文件 38.10）；index 從 0 起算。 */
+export function boardGroupTitle(group: BoardGroup, index: number): string {
+  return `Board Group ${index + 1} · ${group.boardIds.length} Boards`;
 }
 
 export function groupOf(circuit: Circuit, p: GridPoint): string | null {
@@ -78,8 +88,10 @@ export function holeContents(circuit: Circuit, p: GridPoint): string[] {
   return out;
 }
 
-export function wireSummary(wire: Wire): string {
-  return `${wire.path.length - 1} 格 · ${countBends(wire.path)} 個轉彎`;
+export function wireSummary(wire: Wire, circuit: Pick<Circuit, 'boards'>): string {
+  const boards = new Set(wire.path.map((p) => p.boardId));
+  const across = boards.size > 1 ? ` · 跨 ${[...boards].join('、')}` : '';
+  return `${wire.path.length - 1} 格 · ${countBends(wire.path, buildLattice(circuit.boards))} 個轉彎${across}`;
 }
 
 export function issuesAtPoint(analysis: CircuitAnalysis, p: GridPoint): CircuitError[] {

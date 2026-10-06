@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { groupMembers, MAX_BOARDS, snapBoardMove, snapUnits } from '../../src/editor/boards';
 import { findLibraryItem } from '../../src/editor/library';
+import { planWirePath } from '../../src/editor/manualWire';
 import { emptyCircuit, serializeCircuitFile } from '../../src/editor/fileFormat';
 import { deriveMode, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
 import { acceptanceCircuit, adderCircuit, counterCircuit } from '../fixtures/circuits';
-import { circuit, comp, wire } from '../fixtures/build';
+import { board, circuit, comp, holeOn, latticeWire, wire } from '../fixtures/build';
 
 /** Node 沒有 Worker，佈線會退回主執行緒（setTimeout）；等它結束。 */
 async function routed() {
@@ -166,6 +168,108 @@ describe('AI standard routing and modes', () => {
     expect(a.delays.w1).toBe(0);
     expect(a.delays.w2).toBeGreaterThan(0);
     expect(a.totalMs).toBeLessThan(3000);
+  });
+});
+
+describe('multiple breadboards', () => {
+  /** b1 在上、b2 貼在正下方（同一個群組）。 */
+  function stacked() {
+    s().addBoard();
+    const plan = snapBoardMove(s().circuit, ['b2'], 0.6, -4.7, snapUnits(1));
+    expect(plan.snap).toMatchObject({ targetId: 'b1', side: 'bottom' });
+    s().moveBoards(['b2'], plan.dx, plan.dy);
+  }
+  const position = (id: string) => {
+    const b = s().circuit.boards.find((x) => x.id === id)!;
+    return [Math.round(b.x / 2.54), Math.round(b.y / 2.54), b.groupId];
+  };
+
+  it('adds a board, snaps it into a group and moves the group together (38.19 #1–#4)', () => {
+    s().addBoard();
+    expect(s().circuit.boards.map((b) => b.id)).toEqual(['b1', 'b2']);
+    expect(s().selection).toEqual({ kind: 'board', id: 'b2' });
+    expect(isDirty(s())).toBe(true);
+    s().undo();
+    expect(s().circuit.boards).toHaveLength(1);
+
+    stacked();
+    expect([position('b1'), position('b2')]).toEqual([
+      [0, 0, 'g-b1'],
+      [0, 20, 'g-b1'],
+    ]);
+    // 拖曳 b1：整組一起移動。
+    s().moveBoards(groupMembers(s().circuit, 'b1'), 5, 3);
+    expect([position('b1'), position('b2')]).toEqual([
+      [5, 3, 'g-b1'],
+      [5, 23, 'g-b1'],
+    ]);
+    expect(s().history.past.map((e) => e.label).slice(-2)).toEqual(['移動麵包板 b2', '移動麵包板群組（b1、b2）']);
+  });
+
+  it('refuses overlapping boards and breaking cross-board wires', () => {
+    stacked();
+    s().moveBoards(['b2'], 0, -10);
+    expect(position('b2')).toEqual([0, 20, 'g-b1']);
+    expect(s().toasts.at(-1)?.message).toContain('不能重疊');
+
+    s().addWire(planWirePath(s().circuit, holeOn('b1', 'J12'), holeOn('b2', 'A12'), 'v'));
+    expect(new Set(s().circuit.wires[0].path.map((p) => p.boardId))).toEqual(new Set(['b1', 'b2']));
+    s().moveBoards(['b2'], 0, 10);
+    expect(position('b2')).toEqual([0, 20, 'g-b1']);
+    expect(s().toasts.at(-1)?.message).toContain('w1');
+    s().detachBoard('b2');
+    expect(position('b2')).toEqual([0, 20, 'g-b1']);
+    expect(s().toasts.at(-1)?.message).toContain('請先刪除這些導線');
+
+    // 刪掉導線後就可以拆開（38.19 #5）。
+    s().deleteWire('w1');
+    s().detachBoard('b2');
+    expect(position('b2')).toEqual([0, 22, null]);
+    expect(position('b1')).toEqual([0, 0, null]);
+  });
+
+  it('deletes a board with its parts and wires, but never the last one', () => {
+    stacked();
+    s().placeComponent(findLibraryItem('led-red')!, 0, 'b2', { x: 10, y: 4 });
+    s().select({ kind: 'board', id: 'b2' });
+    s().deleteSelection();
+    expect(s().circuit.boards.map((b) => b.id)).toEqual(['b1']);
+    expect(s().circuit.components).toEqual([]);
+    expect(s().toasts.at(-1)?.message).toContain('1 個元件');
+    s().removeBoard('b1');
+    expect(s().circuit.boards).toHaveLength(1);
+    s().undo();
+    expect(s().circuit.boards).toHaveLength(2);
+    expect(s().circuit.components.map((c) => c.boardId)).toEqual(['b2']);
+  });
+
+  it('moves a component to another board', () => {
+    stacked();
+    s().placeComponent(findLibraryItem('led-red')!, 0, 'b1', { x: 10, y: 4 });
+    s().moveComponent('D1', { x: 30, y: 12 }, undefined, 'b2');
+    expect(s().circuit.components[0]).toMatchObject({ boardId: 'b2', anchor: { x: 30, y: 12 } });
+  });
+
+  it('routes a two-board group and treats a board move as a new layout for compare', async () => {
+    const c = circuit(
+      [comp('D1', 'led', 'H11'), comp('D2', 'led', 'C12', { board: 'b2' })],
+      [latticeWire([board('b1'), board('b2', 0, 20)], 'w1', holeOn('b1', 'J12'), holeOn('b2', 'A12'))],
+      [board('b1'), board('b2', 0, 20)],
+    );
+    s().loadCircuit(c, null);
+    s().setMode('compare');
+    await routed();
+    expect(s().comparison?.result.status).toBe('success');
+    expect(isComparisonFresh(s())).toBe(true);
+    s().closeCompare();
+    s().moveBoards(['b1', 'b2'], 3, 0);
+    expect(isComparisonFresh(s())).toBe(false);
+  });
+
+  it('caps the number of boards', () => {
+    for (let i = 0; i < 10; i++) s().addBoard();
+    expect(s().circuit.boards).toHaveLength(MAX_BOARDS);
+    expect(s().toasts.at(-1)?.message).toContain(`最多只能放 ${MAX_BOARDS} 塊`);
   });
 });
 

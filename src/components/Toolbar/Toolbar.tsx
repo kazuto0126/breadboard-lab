@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { MAX_BOARDS } from '../../editor/boards';
 import { EXAMPLES } from '../../editor/examples';
 import { redoLabel, undoLabel } from '../../editor/history';
 import { exportJson, exportPng, exportSvg, importJsonFile } from '../../state/fileActions';
@@ -75,6 +76,7 @@ export function Toolbar() {
   const comparisonOk = useStore((s) => s.comparison?.result.status === 'success');
   const hasWires = useStore((s) => s.circuit.wires.length > 0);
   const simulating = useStore((s) => s.simulation !== null);
+  const boardCount = useStore((s) => s.circuit.boards.length);
   const store = useStore.getState();
 
   useEffect(() => {
@@ -95,7 +97,8 @@ export function Toolbar() {
     setOpen(null);
     fn();
   };
-  const canEditSelection = selection?.kind === 'component' || selection?.kind === 'pin' || selection?.kind === 'wire';
+  const canEditSelection =
+    selection?.kind === 'component' || selection?.kind === 'pin' || selection?.kind === 'wire' || (selection?.kind === 'board' && boardCount > 1);
 
   const menus: Array<[string, string, Item[]]> = [
     [
@@ -139,6 +142,8 @@ export function Toolbar() {
         { label: 'Check Circuit 檢查電路', onClick: run(() => store.runCheck()) },
         { label: '在麵包板上顯示檢查標記', onClick: run(() => store.setShowCheck(!showCheck)), checked: showCheck },
         { label: '顯示所有 Nets', onClick: run(() => store.setRightTab('nets')) },
+        'separator',
+        { label: `＋ 新增麵包板（${boardCount} / ${MAX_BOARDS}）`, onClick: run(() => store.addBoard()), disabled: boardCount >= MAX_BOARDS || simulating || routing },
         'separator',
         { label: '清除所有導線', onClick: run(() => store.clearWires()), disabled: !hasWires || simulating },
       ],

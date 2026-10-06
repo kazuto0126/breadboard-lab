@@ -82,4 +82,8 @@ export const UI = {
   error: '#ef4444',
   warning: '#f59e0b',
   info: '#22c55e',
+  /** Board Group 外框（需求文件 38.10 的 Blue Group Outline）。 */
+  group: '#60a5fa',
+  /** 吸附預覽線（38.16 的淡藍色預覽線）。 */
+  snap: '#7dd3fc',
 };

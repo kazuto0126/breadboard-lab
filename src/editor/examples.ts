@@ -2,7 +2,8 @@ import { applyRouting } from '../core/routing/apply';
 import { autoRoute } from '../core/routing/autoRoute';
 import { SIGNAL_PALETTE } from '../core/routing/colors';
 import type { Circuit } from '../types/circuit';
-import { circuit, comp, wire } from './builder';
+import { normalizeBoardGroups } from './boards';
+import { board, circuit, comp, holeOn, latticeWire, pt, wire } from './builder';
 import { defaultWireColor } from './manualWire';
 
 /** 需求文件第三十四章的驗收電路：74LS00 第 1 閘輸入接地 → 1Y → 電阻 → LED → GND。 */
@@ -166,6 +167,36 @@ export function clockCounterCircuit(): Circuit {
   );
 }
 
+/**
+ * 兩塊麵包板上下貼合成一個 Board Group：74LS00 在上板（b1），電阻與 LED 在下板（b2）。
+ * 1Y 的訊號線與 GND 軌的短接線都跨過兩板之間的接縫；貼在一起不代表導通，所以 b2 的 GND 軌要靠 w8 接到 b1。
+ */
+export function twoBoardCircuit(): Circuit {
+  const boards = [board('b1'), board('b2', 0, 20)];
+  return normalizeBoardGroups(
+    circuit(
+      [
+        comp('V1', 'vcc', 'T+5'),
+        comp('G1', 'gnd', 'B-5'),
+        comp('U1', '74LS00', 'F10'),
+        comp('R1', 'resistor', 'C30', { board: 'b2' }),
+        comp('D1', 'led', 'C40', { board: 'b2' }),
+      ],
+      [
+        wire('w1', 'T+6', 'A10'), // VCC → U1 第 14 腳
+        wire('w2', 'B-6', 'J16'), // GND → U1 第 7 腳
+        wire('w3', 'I10', 'I16'), // 第 1 腳 → GND
+        wire('w4', 'H11', 'H16'), // 第 2 腳 → GND
+        latticeWire(boards, 'w5', holeOn('b1', 'J12'), pt(12, 16), pt(30, 16), holeOn('b2', 'A30')), // 1Y → b2 的 R1
+        latticeWire(boards, 'w6', holeOn('b2', 'A34'), holeOn('b2', 'A40')), // R1 → LED 陽極
+        latticeWire(boards, 'w7', holeOn('b2', 'A41'), holeOn('b2', 'T-41')), // LED 陰極 → b2 的 GND 軌
+        latticeWire(boards, 'w8', holeOn('b1', 'B-60'), holeOn('b2', 'T-60')), // b1 與 b2 的 GND 軌接通
+      ],
+      boards,
+    ),
+  );
+}
+
 export interface ExampleCircuit {
   id: string;
   name: string;
@@ -205,6 +236,17 @@ export const EXAMPLES: ExampleCircuit[] = [
     description: '1 Hz 時脈驅動 74LS161，4 顆 LED 自動數 0–15。按「▶ 模擬」看它跑起來；導線已套用 AI 標準佈線。',
     build: () => {
       const c = clockCounterCircuit();
+      const routed = autoRoute(c);
+      return routed.status === 'success' ? applyRouting(c, routed) : colorize(c);
+    },
+  },
+  {
+    id: 'two-boards',
+    name: '兩塊麵包板（Board Group 示範）',
+    description:
+      '上下貼合的兩塊 MB-102 自動組成群組：74LS00 在上板、電阻與 LED 在下板，跨板導線經過兩板之間的接縫。導線已套用 AI 標準佈線，按「▶ 模擬」LED 會亮。',
+    build: () => {
+      const c = twoBoardCircuit();
       const routed = autoRoute(c);
       return routed.status === 'success' ? applyRouting(c, routed) : colorize(c);
     },

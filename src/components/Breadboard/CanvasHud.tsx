@@ -11,7 +11,9 @@ import type { Circuit } from '../../types/circuit';
 import type { GridPoint } from '../../types/geometry';
 import type { RoutingMetrics } from '../../types/routing';
 import { groupIdAt } from '../../editor/analysis';
+import { boardGroups, crossBoardWires, groupMembers, MAX_BOARDS } from '../../editor/boards';
 import {
+  boardGroupTitle,
   FAILURE_NAMES,
   groupLabel,
   groupOf,
@@ -28,12 +30,20 @@ export type Hover =
   | { kind: 'hole'; point: GridPoint; x: number; y: number }
   | { kind: 'pin'; componentId: string; pinNumber: number; x: number; y: number }
   | { kind: 'wire'; id: string; x: number; y: number }
-  | { kind: 'component'; id: string; x: number; y: number };
+  | { kind: 'component'; id: string; x: number; y: number }
+  | { kind: 'board'; id: string; x: number; y: number };
 
 export interface MenuState {
   x: number;
   y: number;
-  target: { kind: 'component'; id: string } | { kind: 'wire'; id: string } | { kind: 'canvas' };
+  target: { kind: 'component'; id: string } | { kind: 'wire'; id: string } | { kind: 'board'; id: string } | { kind: 'canvas' };
+}
+
+/** 麵包板所屬的群組說明，例如「Board Group 1 · 2 Boards（b1、b2）」；單獨一塊回傳 null。 */
+export function boardGroupText(circuit: Circuit, boardId: string): string | null {
+  const groups = boardGroups(circuit);
+  const index = groups.findIndex((g) => g.boardIds.includes(boardId));
+  return index < 0 ? null : `${boardGroupTitle(groups[index], index)}（${groups[index].boardIds.join('、')}）`;
 }
 
 function Line({ children, muted }: { children: ReactNode; muted?: boolean }) {
@@ -76,7 +86,7 @@ export function HoverTooltip({
     const net = g ? analysis.netByGroup.get(g) : undefined;
     title = holeLabel(circuit, hover.point);
     if (sim && g) level = sim.groupLevels[g] ?? 'Z';
-    lines.push(<Line key="g" muted>{groupLabel(g)}</Line>);
+    lines.push(<Line key="g" muted>{groupLabel(g, circuit.boards.length > 1)}</Line>);
     if (net) lines.push(<Line key="n">Net：{net.name}</Line>);
     for (const [i, text] of holeContents(circuit, hover.point).entries()) lines.push(<Line key={`c${i}`}>{text}</Line>);
     issues = issuesAtPoint(analysis, hover.point).map((e) => e.message);
@@ -97,9 +107,22 @@ export function HoverTooltip({
     title = `導線 ${w.id}`;
     const g = groupIdAt(circuit, w.start);
     if (sim && g) level = sim.groupLevels[g] ?? 'Z';
-    lines.push(<Line key="s" muted>{`${holeLabel(circuit, w.start)} → ${holeLabel(circuit, w.end)} · ${wireSummary(w)}`}</Line>);
+    lines.push(<Line key="s" muted>{`${holeLabel(circuit, w.start)} → ${holeLabel(circuit, w.end)} · ${wireSummary(w, circuit)}`}</Line>);
     lines.push(<Line key="n">Net：{net?.name ?? '—'}{w.source === 'auto' ? ' · AI 標準佈線' : ' · 手動'}</Line>);
     issues = issuesOfWire(analysis, w.id).map((e) => e.message);
+  } else if (hover.kind === 'board') {
+    title = `麵包板 ${hover.id} · MB-102`;
+    lines.push(<Line key="g">{boardGroupText(circuit, hover.id) ?? '單獨一塊（沒有和其他板貼在一起）'}</Line>);
+    const parts = circuit.components.filter((c) => c.boardId === hover.id).length;
+    lines.push(<Line key="c" muted>{`${parts} 個元件`}</Line>);
+    if (!sim) {
+      const grouped = groupMembers(circuit, hover.id).length > 1;
+      lines.push(
+        <Line key="h" muted>
+          {grouped ? '拖曳移動整個群組 · Alt / Shift + 拖曳只移動這一塊' : '拖曳移動 · 靠近另一塊板的邊會自動吸附'}
+        </Line>,
+      );
+    }
   } else {
     const c = circuit.components.find((x) => x.id === hover.id);
     const def = c ? getComponentDefinition(c.defId) : undefined;
@@ -196,8 +219,12 @@ export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () =>
           </MenuItem>
         </>
       )}
+      {t.kind === 'board' && (
+        <BoardMenuItems id={t.id} run={run} />
+      )}
       {t.kind === 'canvas' && (
         <>
+          <MenuItem onClick={run(() => store.addBoard())}>＋ 新增麵包板</MenuItem>
           <MenuItem onClick={run(() => store.fitToScreen())} shortcut="F">
             Fit to Screen
           </MenuItem>
@@ -209,6 +236,29 @@ export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () =>
         </>
       )}
     </div>
+  );
+}
+
+function BoardMenuItems({ id, run }: { id: string; run: (fn: () => void) => () => void }) {
+  const store = useStore.getState();
+  const circuit = store.circuit;
+  const grouped = groupMembers(circuit, id).length > 1;
+  const wired = crossBoardWires(circuit, [id]).length > 0;
+  return (
+    <>
+      <MenuItem onClick={run(() => store.select({ kind: 'board', id }))}>顯示麵包板 {id} 的資訊</MenuItem>
+      {grouped && (
+        <MenuItem onClick={run(() => store.detachBoard(id))}>
+          移出群組{wired ? '（有跨板導線）' : ''}
+        </MenuItem>
+      )}
+      {circuit.boards.length < MAX_BOARDS && <MenuItem onClick={run(() => store.addBoard())}>＋ 新增麵包板</MenuItem>}
+      {circuit.boards.length > 1 && (
+        <MenuItem onClick={run(() => store.removeBoard(id))} shortcut="Del" danger>
+          刪除麵包板 {id}
+        </MenuItem>
+      )}
+    </>
   );
 }
 
@@ -485,13 +535,15 @@ function ZoomControls() {
   );
 }
 
-function PlacingHint({ drawingWire }: { drawingWire: boolean }) {
+function PlacingHint({ drawingWire, movingBoards }: { drawingWire: boolean; movingBoards: boolean }) {
   const placing = useStore((s) => s.placing);
   const simulating = useStore((s) => s.simulation !== null);
+  const multiBoard = useStore((s) => s.circuit.boards.length > 1);
   let text: string | null = null;
   if (simulating) text = '點指撥開關切換 ON / OFF · 按住按鈕 · 停在孔或腳上看電位';
   else if (placing) text = `放置 ${placing.item.name}：${placing.dragging ? '拖到麵包板上放開' : '移到麵包板上點一下'} · R 旋轉 · Esc / 右鍵取消`;
-  else if (drawingWire) text = '拖到另一個空孔放開即可接線 · Esc 取消';
+  else if (movingBoards) text = '靠近另一塊板的邊會自動吸附並對齊 · 放開完成 · Esc 取消';
+  else if (drawingWire) text = multiBoard ? '拖到另一個空孔放開即可接線（同一群組的另一塊板也可以）· Esc 取消' : '拖到另一個空孔放開即可接線 · Esc 取消';
   if (!text) return null;
   return (
     <div className="pointer-events-none absolute bottom-3 left-1/2 z-10 -translate-x-1/2 rounded-full border border-slate-600 bg-slate-900/90 px-4 py-1 text-xs text-slate-200 shadow-lg">
@@ -501,7 +553,7 @@ function PlacingHint({ drawingWire }: { drawingWire: boolean }) {
 }
 
 /** 疊在畫布上的 HTML 介面。 */
-export function CanvasHud({ drawingWire }: { drawingWire: boolean }) {
+export function CanvasHud({ drawingWire, movingBoards }: { drawingWire: boolean; movingBoards: boolean }) {
   return (
     <>
       <EmptyHint />
@@ -509,7 +561,7 @@ export function CanvasHud({ drawingWire }: { drawingWire: boolean }) {
       <SimulationBar />
       <LevelLegend />
       <ZoomControls />
-      <PlacingHint drawingWire={drawingWire} />
+      <PlacingHint drawingWire={drawingWire} movingBoards={movingBoards} />
       <ResultCard />
       <RoutingOverlay />
     </>
