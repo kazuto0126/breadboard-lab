@@ -3,6 +3,14 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 部署到 GitHub Pages
+
+### 新增
+
+- `.github/workflows/pages.yml`：`main` 每次更新（或手動執行）就建置網站版與離線版，部署到 GitHub Pages
+  （https://kazuto0126.github.io/breadboard-lab/，離線版在 `breadboard-lab-offline.html`）。
+  第一次使用前要在 GitHub 的 Settings → Pages 把 Source 設成「GitHub Actions」。
+
 ## [未發布] — 平板觸控第 2、3 步：窄螢幕抽屜與 44 px 觸控目標
 
 ### 新增

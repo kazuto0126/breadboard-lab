@@ -17,7 +17,7 @@
 ## 接下來（依優先順序）
 
 1. 修正平板觸控審查（workflow）確認的問題
-2. 部署到 GitHub Pages（`base` 已經是相對路徑）
+2. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），**需要使用者在 Settings → Pages 把 Source 設成 GitHub Actions**，合併到 main 後就會上線
 3. 子專案 5：AI 解說（Claude API；靜態網站不能放 API 金鑰，需要後端或讓使用者自己填金鑰）
 
 ## 注意事項

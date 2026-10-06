@@ -22,6 +22,10 @@ npm install
 npm run dev        # 開啟 http://localhost:5173
 ```
 
+**線上版**：`main` 每次更新都會自動部署到 GitHub Pages（https://kazuto0126.github.io/breadboard-lab/），
+離線版也放在同一個網站（`breadboard-lab-offline.html`）。第一次使用前需要在 GitHub 打開一次：
+Settings → Pages → Build and deployment → Source 選「GitHub Actions」。
+
 **離線版**：`npm run build:single` 會產生 `dist-single/breadboard-lab.html` 一個檔案，複製到任何電腦雙擊就能用，
 不需要伺服器或網路。每次 CI 也會建置一份，可以在 GitHub 的 Actions 頁面下載（Artifacts → `breadboard-lab-offline`）。
 
