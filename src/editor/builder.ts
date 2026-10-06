@@ -1,17 +1,19 @@
+import { buildLattice, latticeOf, MM_PER_UNIT, pointAt } from '../core/breadboard/lattice';
 import { parseHoleName } from '../core/breadboard/naming';
 import { getBoard } from '../core/breadboard/registry';
+import type { BreadboardInstance } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance, ComponentProps, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
 
 export const BOARD_ID = 'b1';
-const board = getBoard('MB102', BOARD_ID);
+const referenceBoard = getBoard('MB102', BOARD_ID);
 
 /** 孔位名稱（例如 "E12"、"T+5"）或格子座標 [x, y]。 */
 export type Where = string | [number, number];
 
 export function hole(name: string): GridPoint {
-  const p = parseHoleName(board, name);
+  const p = parseHoleName(referenceBoard, name);
   if (!p) throw new Error(`Unknown hole ${name}`);
   return p;
 }
@@ -28,13 +30,13 @@ export function comp(
   id: string,
   defId: string,
   anchor: Where,
-  opts: { rotation?: Rotation; span?: number; props?: ComponentProps } = {},
+  opts: { rotation?: Rotation; span?: number; props?: ComponentProps; board?: string } = {},
 ): ComponentInstance {
   const p = toPoint(anchor);
   const instance: ComponentInstance = {
     id,
     defId,
-    boardId: BOARD_ID,
+    boardId: opts.board ?? BOARD_ID,
     anchor: { x: p.x, y: p.y },
     rotation: opts.rotation ?? 0,
     props: opts.props ?? {},
@@ -66,6 +68,39 @@ export function wire(id: string, ...points: Where[]): Wire {
   return { id, color: '#888888', source: 'manual', start: pts[0], end: pts[pts.length - 1], path };
 }
 
-export function circuit(components: ComponentInstance[], wires: Wire[] = []): Circuit {
-  return { version: 1, boards: [{ id: BOARD_ID, layoutId: 'MB102', x: 0, y: 0, groupId: null }], components, wires };
+export function circuit(components: ComponentInstance[], wires: Wire[] = [], boards?: BreadboardInstance[]): Circuit {
+  return { version: 1, boards: boards ?? [board(BOARD_ID)], components, wires };
+}
+
+/** 一塊 MB-102，位置以格（0.1 吋）為單位。上下貼合時下面那塊 y = 20，左右貼合時右邊那塊 x = 65。 */
+export function board(id: string, unitsX = 0, unitsY = 0): BreadboardInstance {
+  return { id, layoutId: 'MB102', x: unitsX * MM_PER_UNIT, y: unitsY * MM_PER_UNIT, groupId: null };
+}
+
+/** 指定板子上的孔（所有板子同一種版型）。 */
+export function holeOn(boardId: string, name: string): GridPoint {
+  return { ...hole(name), boardId };
+}
+
+/** 依序經過每個點、在全域格子上先水平再垂直走的導線，可以跨過同群組兩塊板之間的接縫。 */
+export function latticeWire(boards: BreadboardInstance[], id: string, ...points: GridPoint[]): Wire {
+  const lattice = buildLattice(boards);
+  const cells = points.map((p) => {
+    const at = latticeOf(lattice, p);
+    if (!at) throw new Error(`Unknown board ${p.boardId}`);
+    return at;
+  });
+  const out: GridPoint[] = [];
+  const push = (x: number, y: number) => {
+    const p = pointAt(lattice, x, y);
+    if (!p) throw new Error(`(${x}, ${y}) is not on any breadboard`);
+    out.push(p);
+  };
+  push(cells[0].x, cells[0].y);
+  for (let i = 1; i < cells.length; i++) {
+    let { x, y } = cells[i - 1];
+    while (x !== cells[i].x) push((x += Math.sign(cells[i].x - x)), y);
+    while (y !== cells[i].y) push(x, (y += Math.sign(cells[i].y - y)));
+  }
+  return { id, color: '#888888', source: 'manual', start: out[0], end: out[out.length - 1], path: out };
 }

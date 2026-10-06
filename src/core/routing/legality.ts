@@ -1,3 +1,4 @@
+import { buildLattice, isRoutablePoint } from '../breadboard/lattice';
 import { nodeIdOf } from '../breadboard/naming';
 import { indexCircuit, nodeAt, pushTo, type CircuitIndex } from '../circuit/circuitIndex';
 import { compareIds, extractNetsWith, terminalGroupIds } from '../circuit/nets';
@@ -11,14 +12,15 @@ export function checkRoutingLegality(circuit: Circuit, wires: Wire[]): LegalityV
   const index = indexCircuit(circuit);
   const reference = extractNetsWith(index, circuit.wires);
   const terminals = new Map(reference.map((net) => [net.id, new Set(terminalGroupIds(net, index))]));
-  const isOnBoard = (p: GridPoint) => nodeAt(index, p) !== undefined;
+  const lattice = buildLattice(circuit.boards);
+  const isOnBoard = (p: GridPoint) => isRoutablePoint(lattice, p);
   const endsAt = new Map<string, string[]>();
   for (const w of wires) for (const p of [w.start, w.end]) pushTo(endsAt, nodeIdOf(p), w.id);
   const out: LegalityViolation[] = [];
 
   for (const w of wires) {
     const netIds = w.netId ? [w.netId] : [];
-    const issues = pathIssues(w, isOnBoard);
+    const issues = pathIssues(w, isOnBoard, lattice);
     if (issues.length > 0) out.push({ code: 'PATH_INVALID', wireIds: [w.id], netIds, detail: issues.join(', ') });
 
     const allowed = w.netId ? terminals.get(w.netId) : undefined;
@@ -45,7 +47,7 @@ export function checkRoutingLegality(circuit: Circuit, wires: Wire[]): LegalityV
   }
 
   const netOfWire = new Map(wires.map((w) => [w.id, w.netId]));
-  for (const o of analyzeWireInteractions(wires).overlaps) {
+  for (const o of analyzeWireInteractions(wires, lattice).overlaps) {
     const netIds = [...new Set(o.wireIds.map((id) => netOfWire.get(id)).filter((n): n is string => n !== undefined))].sort(compareIds);
     out.push({ code: 'OVERLAP', wireIds: [...o.wireIds], netIds, detail: o.nodeId });
   }

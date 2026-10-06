@@ -13,7 +13,8 @@ export type NetRouteResult =
  */
 export function routeNet(problem: RoutingProblem, state: RouteState, net: RoutingNet, params: SearchParams): NetRouteResult {
   const holesOf = (cluster: string[]) => cluster.flatMap((g) => problem.freeHoles.get(g) ?? []);
-  const describe = (cluster: string[]) => cluster.map(describeGroup).join('＋');
+  const multiBoard = problem.boardIds.length > 1;
+  const describe = (cluster: string[]) => cluster.map((g) => describeGroup(g, multiBoard)).join('＋');
   const full = net.clusters.find((cl) => holesOf(cl).length === 0);
   if (full) return { ok: false, reason: 'NO_FREE_HOLE', detail: `${describe(full)}沒有空孔可以接線` };
 

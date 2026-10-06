@@ -8,7 +8,8 @@ describe('public API', () => {
       'buildBoard', 'getBoard', 'holeName', 'parseHoleName', 'getComponentDefinitions', 'getComponentDefinition',
       'resolveFootprint', 'getNodeState', 'extractNets', 'validateCircuit', 'autoRoute', 'checkRoutingLegality',
       'scoreRouting', 'applyRouting', 'mergeConfig', 'renderAscii', 'parseLogic', 'createModel', 'compileSimulation',
-      'initialSimState', 'adoptSimState', 'settle', 'clockLevel', 'nextClockEdge',
+      'initialSimState', 'adoptSimState', 'settle', 'clockLevel', 'nextClockEdge', 'buildLattice', 'latticeOf', 'pointAt',
+      'buildCanvas',
     ];
     const exported = api as unknown as Record<string, unknown>;
     for (const name of names) expect(typeof exported[name], name).toBe('function');

@@ -1,9 +1,11 @@
+import { latticeStep, type Lattice } from '../breadboard/lattice';
 import { nodeIdOf } from '../breadboard/naming';
 import type { Wire } from '../../types/circuit';
 import type { Direction, GridPoint } from '../../types/geometry';
 
-export function stepDirection(a: GridPoint, b: GridPoint): Direction | null {
-  if (a.boardId !== b.boardId) return null;
+/** 相鄰兩點的方向。不同板子的兩點需要 lattice 才能判斷（同一群組的跨板導線）。 */
+export function stepDirection(a: GridPoint, b: GridPoint, lattice?: Lattice): Direction | null {
+  if (a.boardId !== b.boardId) return lattice ? latticeStep(lattice, a, b) : null;
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   if (dx === 1 && dy === 0) return 'E';
@@ -15,11 +17,11 @@ export function stepDirection(a: GridPoint, b: GridPoint): Direction | null {
 
 export type PathIssue = 'TOO_SHORT' | 'NOT_ORTHOGONAL_STEP' | 'ENDPOINT_MISMATCH' | 'SELF_INTERSECT' | 'OUT_OF_BOARD';
 
-export function pathIssues(wire: Wire, isOnBoard: (p: GridPoint) => boolean): PathIssue[] {
+export function pathIssues(wire: Wire, isOnBoard: (p: GridPoint) => boolean, lattice?: Lattice): PathIssue[] {
   const issues = new Set<PathIssue>();
   const path = wire.path;
   if (path.length < 2) issues.add('TOO_SHORT');
-  for (let i = 1; i < path.length; i++) if (!stepDirection(path[i - 1], path[i])) issues.add('NOT_ORTHOGONAL_STEP');
+  for (let i = 1; i < path.length; i++) if (!stepDirection(path[i - 1], path[i], lattice)) issues.add('NOT_ORTHOGONAL_STEP');
   if (
     path.length > 0 &&
     (nodeIdOf(path[0]) !== nodeIdOf(wire.start) || nodeIdOf(path[path.length - 1]) !== nodeIdOf(wire.end))
@@ -31,10 +33,10 @@ export function pathIssues(wire: Wire, isOnBoard: (p: GridPoint) => boolean): Pa
   return [...issues];
 }
 
-export function segments(path: GridPoint[]): Array<{ dir: Direction; length: number }> {
+export function segments(path: GridPoint[], lattice?: Lattice): Array<{ dir: Direction; length: number }> {
   const out: Array<{ dir: Direction; length: number }> = [];
   for (let i = 1; i < path.length; i++) {
-    const dir = stepDirection(path[i - 1], path[i]);
+    const dir = stepDirection(path[i - 1], path[i], lattice);
     if (!dir) continue;
     const last = out[out.length - 1];
     if (last && last.dir === dir) last.length++;
@@ -43,13 +45,13 @@ export function segments(path: GridPoint[]): Array<{ dir: Direction; length: num
   return out;
 }
 
-export function countBends(path: GridPoint[]): number {
-  return Math.max(0, segments(path).length - 1);
+export function countBends(path: GridPoint[], lattice?: Lattice): number {
+  return Math.max(0, segments(path, lattice).length - 1);
 }
 
 /** 夾在兩個轉彎之間、只有 1 格長的小折角（實際上很難把線折出來）。 */
-export function countShortJogs(path: GridPoint[]): number {
-  const segs = segments(path);
+export function countShortJogs(path: GridPoint[], lattice?: Lattice): number {
+  const segs = segments(path, lattice);
   let count = 0;
   for (let i = 1; i < segs.length - 1; i++) if (segs[i].length === 1) count++;
   return count;
@@ -63,13 +65,13 @@ export interface NodeUsage {
   kind: UsageKind;
 }
 
-export function wireNodeUsages(wire: Wire): NodeUsage[] {
+export function wireNodeUsages(wire: Wire, lattice?: Lattice): NodeUsage[] {
   const path = wire.path;
   return path.map((p, i) => {
     let kind: UsageKind = 'end';
     if (i > 0 && i < path.length - 1) {
-      const into = stepDirection(path[i - 1], p);
-      const out = stepDirection(p, path[i + 1]);
+      const into = stepDirection(path[i - 1], p, lattice);
+      const out = stepDirection(p, path[i + 1], lattice);
       if (into && into === out) kind = into === 'E' || into === 'W' ? 'H' : 'V';
       else kind = 'turn';
     }
@@ -83,10 +85,10 @@ export interface WireConflict {
 }
 
 /** 同一格點恰好兩條線、一橫一直地直穿才算交叉；其他任何共用都算重疊。 */
-export function analyzeWireInteractions(wires: Wire[]): { overlaps: WireConflict[]; crossings: WireConflict[] } {
+export function analyzeWireInteractions(wires: Wire[], lattice?: Lattice): { overlaps: WireConflict[]; crossings: WireConflict[] } {
   const byNode = new Map<string, NodeUsage[]>();
   for (const w of wires) {
-    for (const usage of wireNodeUsages(w)) {
+    for (const usage of wireNodeUsages(w, lattice)) {
       const list = byNode.get(usage.nodeId);
       if (list) list.push(usage);
       else byNode.set(usage.nodeId, [usage]);

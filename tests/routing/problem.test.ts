@@ -86,9 +86,13 @@ describe('buildRoutingProblem', () => {
     expect(describeGroup('b1:rail-T+')).toBe('T+ 電源軌');
   });
 
-  it('rejects circuits with more than one board', () => {
+  it('needs every board in one board group for a single problem', () => {
     const c = acceptanceCircuit();
     c.boards.push({ id: 'b2', layoutId: 'MB102', x: 0, y: 400, groupId: null });
-    expect(() => buildRoutingProblem(c, DEFAULT_ROUTING_CONFIG)).toThrow('exactly one breadboard');
+    expect(() => buildRoutingProblem(c, DEFAULT_ROUTING_CONFIG)).toThrow('exactly one board group');
+  });
+
+  it('adds the board prefix to group descriptions on request', () => {
+    expect(describeGroup('b2:c7-bot', true)).toBe('b2 第 7 欄下半（F–J）');
   });
 });

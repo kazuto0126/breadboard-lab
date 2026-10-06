@@ -9,6 +9,20 @@
 
 - 子專案 3 設計規格：`docs/superpowers/specs/2026-10-06-multi-board-design.md`
   （全域格子、群組由幾何推導、跨板接縫、依群組分區佈線、吸附 / 拆開 / 合併、對應 38.19 的測試）。
+- 核心引擎支援多塊麵包板（`src/core/breadboard/lattice.ts`）：
+  - 所有板子共用一張 0.1 吋**全域格子**；每塊板的板面 = 格點範圍外加一圈留白（65 × 20 格）。
+  - **Board Group 由幾何推導**：邊對邊貼合且完全對齊（上下排 x 相同、左右排 y 相同）的板子連成一組。
+  - 同一組兩塊板之間的**接縫**（兩側各一格留白）可以走線，所以導線能跨板；其他留白仍然不能走，
+    單板的佈線格子與結果和以前完全相同。
+  - `stepDirection`、`pathIssues`、轉彎 / 小折角計算、重疊 / 交叉分析、`computeMetrics` 加上可選的 `lattice`；
+    `validateCircuit`、`checkRoutingLegality`、`scoreRouting` 一律使用，跨板導線也能正確檢查。
+  - 自動佈線改成**每個 Board Group 一張格子**（`buildRoutingProblems`），各自協商；
+    連到不同群組的 Net 回報 UNROUTABLE（「連到沒有貼在一起的麵包板」）。
+  - 多塊板時，檢查訊息與失敗說明中的孔位 / 群組加上板子 ID（例如 `b1:H12`、`b2 第 7 欄下半`）。
+  - 測試建構工具新增 `board()`、`holeOn()`、`comp(..., { board })`、`latticeWire()`（可跨接縫的導線）。
+  - 11 個新測試（`tests/routing/multiBoard.test.ts`）：全域格子、群組判定、接縫、單板格子不變，
+    以及 38.19 #7（貼合不導通）、#8（跨板導線形成 Net）、#9 #10（群組自動佈線、跨板導線合法、0 重疊 0 交叉）、
+    未貼合板子的 Net 回報失敗、跨板模擬。
 
 ## [未發布] — 子專案 4：74LS 數位邏輯模擬
 

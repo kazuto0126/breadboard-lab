@@ -5,17 +5,68 @@ import { evaluatePath, type SearchParams } from './astar';
 import { mergeConfig } from './config';
 import { checkRoutingLegality } from './legality';
 import { routeNet } from './netTree';
-import { buildRoutingProblem, toPoint, type RoutingNet, type RoutingProblem } from './problem';
+import { buildRoutingProblems, toPoint, type RoutingNet, type RoutingProblem } from './problem';
 import { RouteState, type StoredWire } from './routeState';
 import { scoreRouting } from './score';
 
 export function autoRoute(circuit: Circuit, overrides?: DeepPartial<RoutingConfig>): RoutingResult {
   const started = performance.now();
   const config = mergeConfig(overrides);
-  const problem = buildRoutingProblem(circuit, config);
-  const state = new RouteState(problem.size);
+  const { problems, spanning } = buildRoutingProblems(circuit, config);
   const failed = new Map<string, FailedNet>();
   const outOfTime = () => performance.now() - started > config.timeBudgetMs;
+
+  // 連到不同 Board Group 的 Net 沒有連續的板面可以走線。
+  for (const { net, boardIds } of spanning) {
+    failed.set(net.id, {
+      netId: net.id,
+      reason: 'UNROUTABLE',
+      detail: `${net.id} 連到沒有貼在一起的麵包板（${boardIds.join('、')}），請先把麵包板貼合成同一個群組`,
+    });
+  }
+
+  // 每個 Board Group 是一張獨立的格子，各自協商佈線。
+  let iterations = 0;
+  let routableCount = spanning.length;
+  let wires: Wire[] = [];
+  for (const problem of problems) {
+    const routed = routeCanvas(problem, config, failed, outOfTime);
+    iterations = Math.max(iterations, routed.iterations);
+    routableCount += routed.routable;
+    wires.push(...routed.wires);
+  }
+
+  // 組裝結果，交給獨立的合法性檢查把關。
+  const violations = checkRoutingLegality(circuit, wires);
+  for (const netId of [...new Set(violations.flatMap((v) => v.netIds))].sort(compareIds)) {
+    if (failed.has(netId)) continue;
+    const codes = [...new Set(violations.filter((v) => v.netIds.includes(netId)).map((v) => v.code))].join(', ');
+    failed.set(netId, { netId, reason: 'LEGALITY_CHECK', detail: `${netId} 沒有通過合法性檢查（${codes}）` });
+  }
+  wires = wires.filter((w) => w.netId !== undefined && !failed.has(w.netId));
+
+  const failedNets = [...failed.values()].sort((a, b) => compareIds(a.netId, b.netId));
+  const status = failedNets.length === 0 ? 'success' : failedNets.length < routableCount ? 'partial' : 'failed';
+  const { metrics, score } = scoreRouting(circuit, wires, overrides);
+  return {
+    status,
+    message: status === 'success' ? 'Standard Routing Complete' : 'No valid routing solution.',
+    wires,
+    failedNets,
+    metrics,
+    score,
+    stats: { iterations, elapsedMs: Math.round(performance.now() - started) },
+  };
+}
+
+/** 在一張格子（一個 Board Group）上協商佈線：先允許重疊、逐輪提高成本，再在不准碰的條件下逐一改善。 */
+function routeCanvas(
+  problem: RoutingProblem,
+  config: RoutingConfig,
+  failed: Map<string, FailedNet>,
+  outOfTime: () => boolean,
+): { wires: Wire[]; iterations: number; routable: number } {
+  const state = new RouteState(problem.size);
   const markFailed = (net: RoutingNet, reason: FailureReason, detail: string) => {
     state.removeNet(net.netId);
     failed.set(net.netId, { netId: net.netId, reason, detail });
@@ -66,28 +117,8 @@ export function autoRoute(circuit: Circuit, overrides?: DeepPartial<RoutingConfi
     if (!improved) break;
   }
 
-  // 3. 組裝結果，交給獨立的合法性檢查把關。
-  let wires: Wire[] = active.flatMap((net) => state.wiresOf(net.netId).map((stored, k) => toWire(problem, stored, net, k)));
-  const violations = checkRoutingLegality(circuit, wires);
-  for (const netId of [...new Set(violations.flatMap((v) => v.netIds))].sort(compareIds)) {
-    if (failed.has(netId)) continue;
-    const codes = [...new Set(violations.filter((v) => v.netIds.includes(netId)).map((v) => v.code))].join(', ');
-    failed.set(netId, { netId, reason: 'LEGALITY_CHECK', detail: `${netId} 沒有通過合法性檢查（${codes}）` });
-  }
-  wires = wires.filter((w) => w.netId !== undefined && !failed.has(w.netId));
-
-  const failedNets = [...failed.values()].sort((a, b) => compareIds(a.netId, b.netId));
-  const status = failedNets.length === 0 ? 'success' : failedNets.length < routable.length ? 'partial' : 'failed';
-  const { metrics, score } = scoreRouting(circuit, wires, overrides);
-  return {
-    status,
-    message: status === 'success' ? 'Standard Routing Complete' : 'No valid routing solution.',
-    wires,
-    failedNets,
-    metrics,
-    score,
-    stats: { iterations, elapsedMs: Math.round(performance.now() - started) },
-  };
+  const wires = active.flatMap((net) => state.wiresOf(net.netId).map((stored, k) => toWire(problem, stored, net, k)));
+  return { wires, iterations, routable: routable.length };
 }
 
 /** 把優先序最低、仍有衝突的 Net 逐一拿掉直到沒有衝突，再用嚴格模式試著放回去（優先序高的先放）。 */

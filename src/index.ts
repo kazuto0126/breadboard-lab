@@ -1,6 +1,6 @@
 export type { Direction, GridPoint } from './types/geometry';
 export type {
-  BoardLayout, Breadboard, BreadboardGroup, BreadboardInstance, BreadboardNode, LayoutRow, NodeKind, RailLabel,
+  BoardGroup, BoardLayout, Breadboard, BreadboardGroup, BreadboardInstance, BreadboardNode, LayoutRow, NodeKind, RailLabel,
 } from './types/board';
 export type {
   ComponentCategory, ComponentDefinition, ComponentInstance, ComponentProps, Footprint, LedColor, PackageSpec,
@@ -19,6 +19,10 @@ export { MB102_LAYOUT } from './core/breadboard/layouts';
 export { buildBoard } from './core/breadboard/buildBoard';
 export { getBoard } from './core/breadboard/registry';
 export { getNode, holeName, nodeIdOf, parseHoleName, parseNodeId } from './core/breadboard/naming';
+export {
+  buildCanvas, buildLattice, isRoutablePoint, isSeamPoint, latticeOf, latticeStep, MM_PER_UNIT, pointAt, unitsFromMm,
+} from './core/breadboard/lattice';
+export type { Lattice, LatticeBoard, LatticeCanvas } from './core/breadboard/lattice';
 export { getComponentDefinition, getComponentDefinitions, parseDefinition, RESISTOR_PRESETS } from './core/circuit/library';
 export { resolveFootprint } from './core/circuit/footprint';
 export { getNodeState } from './core/circuit/nodeState';
