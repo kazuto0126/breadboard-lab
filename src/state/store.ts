@@ -1,6 +1,17 @@
 import { create } from 'zustand';
 import { getComponentDefinition } from '../core/circuit/library';
 import { applyRouting } from '../core/routing/apply';
+import {
+  adoptSimState,
+  clockLevel,
+  compileSimulation,
+  initialSimState,
+  nextClockEdge,
+  settle,
+  type SimInputs,
+  type SimResult,
+  type SimState,
+} from '../core/simulation/simulate';
 import { analyzeCircuit } from '../editor/analysis';
 import {
   addComponent,
@@ -67,6 +78,19 @@ export interface WireAnimation {
   totalMs: number;
 }
 
+/** 模擬模式的執行狀態（不存檔、不進 Undo）。 */
+export interface SimulationRun {
+  /** 模擬時間（ms）；時脈依它決定電位，每個 tick 固定前進 25 ms，結果可重現。 */
+  time: number;
+  paused: boolean;
+  /** 目前按住的按鈕。 */
+  pressed: Record<string, boolean>;
+  state: SimState;
+  result: SimResult;
+}
+
+export const SIM_TICK_MS = 25;
+
 export interface Toast {
   id: number;
   kind: 'info' | 'success' | 'warning' | 'error';
@@ -95,6 +119,7 @@ export interface AppState {
   dialog: Dialog;
   toasts: Toast[];
   storageWarned: boolean;
+  simulation: SimulationRun | null;
 }
 
 export interface AppActions {
@@ -147,6 +172,13 @@ export interface AppActions {
   closeDialog(): void;
   toast(kind: Toast['kind'], message: string): void;
   dismissToast(id: number): void;
+  startSimulation(): void;
+  stopSimulation(): void;
+  toggleClockPause(): void;
+  stepClock(): void;
+  resetSimulation(): void;
+  pressButton(id: string, down: boolean): void;
+  tickSimulation(dtMs: number): void;
 }
 
 export type Store = AppState & AppActions;
@@ -197,6 +229,22 @@ function componentName(circuit: Circuit, id: string): string {
 const TOAST_MS: Record<Toast['kind'], number> = { info: 2500, success: 3500, warning: 5000, error: 7000 };
 
 let routingJob: RoutingJob | null = null;
+let simTimer: ReturnType<typeof setInterval> | null = null;
+let simHintShown = false;
+
+function simInputs(circuit: Circuit, run: Pick<SimulationRun, 'time' | 'pressed'>): SimInputs {
+  const clocks: Record<string, 0 | 1> = {};
+  for (const c of compileSimulation(circuit).clocks) clocks[c.componentId] = clockLevel(c.frequency, run.time);
+  return { pressed: run.pressed, clocks };
+}
+
+/** 依目前的電路與輸入重新算到穩定；電路被編輯時沿用 IC 的內部狀態（fresh = 回到上電狀態）。 */
+export function resimulate(circuit: Circuit, run: Omit<SimulationRun, 'result'> & { result?: SimResult }, fresh = false): SimulationRun {
+  const sim = compileSimulation(circuit);
+  const state = fresh ? initialSimState(sim) : adoptSimState(sim, run.state);
+  const settled = settle(sim, state, simInputs(circuit, run));
+  return { time: run.time, paused: run.paused, pressed: run.pressed, state: settled.state, result: settled.result };
+}
 let animationTimer: ReturnType<typeof setTimeout> | null = null;
 let toastId = 1;
 let animationKey = 1;
@@ -241,6 +289,7 @@ export function initialState(): AppState {
     dialog: null,
     toasts: [],
     storageWarned: false,
+    simulation: null,
   };
 }
 
@@ -256,8 +305,30 @@ export const useStore = create<Store>()((set, get) => {
       history: record(s.history, s.circuit, label),
       selection: pruneSelection(requested !== undefined ? requested : s.selection, next),
       animation: null,
+      simulation: s.simulation ? resimulate(next, s.simulation) : null,
       ...rest,
     });
+    syncSimTimer();
+  };
+
+  /** 有模擬、沒暫停、而且電路裡有時脈時才讓計時器跑。 */
+  const syncSimTimer = () => {
+    const s = get();
+    const run = s.simulation;
+    const shouldRun = !!run && !run.paused && compileSimulation(s.circuit).clocks.length > 0;
+    if (shouldRun && !simTimer) simTimer = setInterval(() => get().tickSimulation(SIM_TICK_MS), SIM_TICK_MS);
+    if (!shouldRun && simTimer) {
+      clearInterval(simTimer);
+      simTimer = null;
+    }
+  };
+
+  const guardSimulation = (): boolean => {
+    if (get().simulation) {
+      get().toast('info', '模擬中不能改變電路結構。請先按「■ 停止」再編輯。');
+      return true;
+    }
+    return false;
   };
 
   const guardRouting = (): boolean => {
@@ -267,6 +338,9 @@ export const useStore = create<Store>()((set, get) => {
     }
     return false;
   };
+
+  /** 結構編輯（放置、移動、旋轉、刪除、接線、自動佈線…）在佈線計算中或模擬中都不允許。 */
+  const guardEdit = (): boolean => guardRouting() || guardSimulation();
 
   const startAnimation = (wires: Wire[]) => {
     clearAnimationTimer();
@@ -284,7 +358,15 @@ export const useStore = create<Store>()((set, get) => {
       const step = undo(s.history, s.circuit);
       if (!step) return;
       clearAnimationTimer();
-      set({ circuit: step.state, history: step.history, selection: pruneSelection(s.selection, step.state), animation: null, resultVisible: false });
+      set({
+        circuit: step.state,
+        history: step.history,
+        selection: pruneSelection(s.selection, step.state),
+        animation: null,
+        resultVisible: false,
+        simulation: s.simulation ? resimulate(step.state, s.simulation) : null,
+      });
+      syncSimTimer();
       get().toast('info', `已復原：${step.label}`);
     },
 
@@ -294,7 +376,15 @@ export const useStore = create<Store>()((set, get) => {
       const step = redo(s.history, s.circuit);
       if (!step) return;
       clearAnimationTimer();
-      set({ circuit: step.state, history: step.history, selection: pruneSelection(s.selection, step.state), animation: null, resultVisible: false });
+      set({
+        circuit: step.state,
+        history: step.history,
+        selection: pruneSelection(s.selection, step.state),
+        animation: null,
+        resultVisible: false,
+        simulation: s.simulation ? resimulate(step.state, s.simulation) : null,
+      });
+      syncSimTimer();
       get().toast('info', `已重做：${step.label}`);
     },
 
@@ -303,7 +393,7 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     startPlacing(item, dragging, origin) {
-      if (guardRouting() || !getComponentDefinition(item.defId)) return;
+      if (guardEdit() || !getComponentDefinition(item.defId)) return;
       set({ placing: { item, rotation: 0, dragging, origin: origin ?? null }, selection: null, view: 'edit' });
     },
 
@@ -322,20 +412,20 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     placeComponent(item, rotation, boardId, anchor) {
-      if (guardRouting()) return;
+      if (guardEdit()) return;
       const s = get();
       const { circuit, id } = addComponent(s.circuit, { defId: item.defId, rotation, props: item.props }, boardId, anchor);
       commit(`放置 ${item.name} ${id}`, circuit, { selection: { kind: 'component', id }, placing: null });
     },
 
     moveComponent(id, anchor, rotation) {
-      if (guardRouting()) return;
+      if (guardEdit()) return;
       const s = get();
       commit(`移動 ${componentName(s.circuit, id)}`, moveComponent(s.circuit, id, anchor, rotation));
     },
 
     rotateComponent(id) {
-      if (guardRouting()) return;
+      if (guardEdit()) return;
       const s = get();
       const next = rotateComponent(s.circuit, id);
       if (!next) {
@@ -361,19 +451,19 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     deleteComponent(id) {
-      if (guardRouting()) return;
+      if (guardEdit()) return;
       const s = get();
       commit(`刪除 ${componentName(s.circuit, id)}`, removeItems(s.circuit, { componentIds: [id] }), { selection: null });
     },
 
     deleteWire(id) {
-      if (guardRouting()) return;
+      if (guardEdit()) return;
       const s = get();
       commit(`刪除導線 ${id}`, removeItems(s.circuit, { wireIds: [id] }), { selection: null });
     },
 
     addWire(path) {
-      if (guardRouting()) return;
+      if (guardEdit()) return;
       const s = get();
       if (path.length < 2) return;
       const color = defaultWireColor(s.circuit, path[0], path[path.length - 1], s.wireColor);
@@ -387,6 +477,7 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     setSpan(id, span) {
+      if (guardEdit()) return;
       const s = get();
       const next = setComponentSpan(s.circuit, id, span);
       if (!next) {
@@ -411,7 +502,7 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     clearWires() {
-      if (guardRouting()) return;
+      if (guardEdit()) return;
       const s = get();
       if (s.circuit.wires.length === 0) return;
       commit('清除所有導線', replaceWires(s.circuit, []), { selection: null });
@@ -468,7 +559,7 @@ export const useStore = create<Store>()((set, get) => {
 
     runAutoRoute(purpose) {
       const s = get();
-      if (s.routing) return;
+      if (s.routing || guardSimulation()) return;
       const circuit = s.circuit;
       if (circuit.components.length === 0) {
         get().toast('warning', '板上還沒有元件。先放置元件並手動接線，再執行 AI 標準佈線。');
@@ -540,7 +631,7 @@ export const useStore = create<Store>()((set, get) => {
 
     setMode(mode) {
       const s = get();
-      if (s.routing) return;
+      if (s.routing || guardSimulation()) return;
       // 導線目前是手動還是自動，與「是否正在看比較畫面」無關。
       const wires = deriveMode({ view: 'edit', circuit: s.circuit });
       if (mode === 'compare') {
@@ -558,6 +649,7 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     applyComparison() {
+      if (guardSimulation()) return;
       const s = get();
       const cmp = s.comparison;
       if (!cmp || !isComparisonFresh(s) || cmp.result.status !== 'success') return;
@@ -566,6 +658,7 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     restoreManualWires() {
+      if (guardSimulation()) return;
       const s = get();
       if (!s.comparison || !isComparisonFresh(s)) {
         get().toast('info', '找不到佈線前的手動導線（元件已經變動）。可以用 Undo 回到之前的狀態。');
@@ -587,6 +680,7 @@ export const useStore = create<Store>()((set, get) => {
       if (guardRouting()) return;
       clearAnimationTimer();
       set({
+        simulation: null,
         circuit,
         history: emptyHistory(),
         projectName: name,
@@ -600,6 +694,7 @@ export const useStore = create<Store>()((set, get) => {
         showCheck: false,
         dialog: null,
       });
+      syncSimTimer();
       get().fitToScreen();
       if (message) get().toast('success', message);
     },
@@ -659,6 +754,75 @@ export const useStore = create<Store>()((set, get) => {
 
     dismissToast(id) {
       set({ toasts: get().toasts.filter((t) => t.id !== id) });
+    },
+
+    startSimulation() {
+      const s = get();
+      if (s.simulation || guardRouting()) return;
+      clearAnimationTimer();
+      const run = resimulate(s.circuit, { time: 0, paused: false, pressed: {}, state: { models: {}, outputs: {} } }, true);
+      set({ simulation: run, placing: null, view: 'edit', animation: null, resultVisible: false });
+      syncSimTimer();
+      const sim = compileSimulation(s.circuit);
+      if (sim.ics.length === 0 && sim.leds.length === 0) get().toast('info', '模擬已開始，但電路中沒有 IC 或 LED 可以觀察。');
+      else if (run.result.unpowered.length > 0) get().toast('warning', `${run.result.unpowered.join('、')} 沒有接好 VCC / GND，不會運作。`);
+      else if (!simHintShown) {
+        simHintShown = true;
+        get().toast('success', '模擬開始：點指撥開關切換 ON / OFF、按住按鈕，LED 與腳位電位會即時更新。');
+      }
+    },
+
+    stopSimulation() {
+      if (!get().simulation) return;
+      set({ simulation: null });
+      syncSimTimer();
+    },
+
+    toggleClockPause() {
+      const run = get().simulation;
+      if (!run) return;
+      set({ simulation: { ...run, paused: !run.paused } });
+      syncSimTimer();
+    },
+
+    stepClock() {
+      const s = get();
+      const run = s.simulation;
+      if (!run) return;
+      const next = nextClockEdge(
+        compileSimulation(s.circuit).clocks.map((c) => c.frequency),
+        run.time,
+      );
+      if (next === null) {
+        get().toast('info', '電路中沒有時脈元件（Clock）。可以從元件庫的「輸入」放一個。');
+        return;
+      }
+      set({ simulation: resimulate(s.circuit, { ...run, time: next, paused: true }) });
+      syncSimTimer();
+    },
+
+    resetSimulation() {
+      const s = get();
+      if (!s.simulation) return;
+      set({ simulation: resimulate(s.circuit, { ...s.simulation, time: 0, pressed: {} }, true) });
+      syncSimTimer();
+    },
+
+    pressButton(id, down) {
+      const s = get();
+      const run = s.simulation;
+      if (!run || (run.pressed[id] ?? false) === down) return;
+      set({ simulation: resimulate(s.circuit, { ...run, pressed: { ...run.pressed, [id]: down } }) });
+    },
+
+    tickSimulation(dtMs) {
+      const s = get();
+      const run = s.simulation;
+      if (!run || run.paused) return;
+      const time = run.time + dtMs;
+      const clocks = compileSimulation(s.circuit).clocks;
+      const changed = clocks.some((c) => clockLevel(c.frequency, run.time) !== clockLevel(c.frequency, time));
+      set({ simulation: changed ? resimulate(s.circuit, { ...run, time }) : { ...run, time } });
     },
   };
 });

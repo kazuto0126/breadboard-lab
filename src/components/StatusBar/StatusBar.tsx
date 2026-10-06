@@ -26,12 +26,16 @@ export function StatusBar() {
   const resultVisible = useStore((s) => s.resultVisible);
   const mode = useStore((s) => deriveMode(s));
   const scale = useStore((s) => s.viewport.scale);
+  const simulating = useStore((s) => s.simulation !== null);
   const analysis = useMemo(() => analyzeCircuit(circuit), [circuit]);
   const store = useStore.getState();
 
   let status = 'Ready';
   let statusTone = 'text-slate-300';
-  if (routing) {
+  if (simulating) {
+    status = '▶ 模擬中';
+    statusTone = 'text-emerald-300';
+  } else if (routing) {
     status = 'Routing…';
     statusTone = 'text-sky-300';
   } else if (animation) {

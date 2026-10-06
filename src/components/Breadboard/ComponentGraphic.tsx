@@ -2,10 +2,20 @@ import { memo, type ReactNode } from 'react';
 import { effectiveSpan } from '../../core/circuit/footprint';
 import { formatResistance } from '../../editor/library';
 import { PITCH, type Point } from '../../editor/geometry';
-import { LED_FILL, PART, resistorBands } from '../../render/theme';
+import { LED_FILL, levelColor, PART, resistorBands } from '../../render/theme';
 import type { ComponentDefinition, ComponentInstance, LedColor, Rotation } from '../../types/component';
+import type { Level } from '../../types/logic';
 
 const P = PITCH;
+
+/** 模擬模式下一個元件要顯示的狀態。 */
+export interface ComponentSim {
+  /** 腳號 → 電位。 */
+  levels: Record<number, Level>;
+  lit?: boolean;
+  unpowered?: boolean;
+  pressed?: boolean;
+}
 
 interface Props {
   instance: ComponentInstance;
@@ -18,6 +28,8 @@ interface Props {
   faded?: boolean;
   /** false：純顯示（Compare 畫面），不帶互動屬性。 */
   interactive?: boolean;
+  /** 模擬中：腳位電位、LED 是否發光、IC 是否供電、按鈕是否按下。 */
+  sim?: ComponentSim;
 }
 
 /** 文字永遠保持正向：抵銷元件本身的旋轉。 */
@@ -34,17 +46,39 @@ function UprightGroup({ x, y, rotation, children }: { x: number; y: number; rota
   return <g transform={`translate(${x} ${y})${rotation ? ` rotate(${-rotation})` : ''}`}>{children}</g>;
 }
 
-function Leg({ x, y, top }: { x: number; y: number; top: boolean }) {
-  // 從本體邊緣伸到孔中心的腳片。
+function Leg({ x, y, top, level }: { x: number; y: number; top: boolean; level?: Level }) {
+  // 從本體邊緣伸到孔中心的腳片；模擬時依電位上色。
   const h = 0.6 * P;
-  return <rect x={x - 0.17 * P} y={top ? y - 0.18 * P : y - h + 0.18 * P} width={0.34 * P} height={h} rx={1} fill={PART.metal} stroke={PART.metalEdge} strokeWidth={0.6} />;
+  return (
+    <rect
+      x={x - 0.17 * P}
+      y={top ? y - 0.18 * P : y - h + 0.18 * P}
+      width={0.34 * P}
+      height={h}
+      rx={1}
+      fill={levelColor(level) ?? PART.metal}
+      stroke={PART.metalEdge}
+      strokeWidth={0.6}
+    />
+  );
 }
 
-function PinStub({ x, y }: { x: number; y: number }) {
-  return <rect x={x - 0.16 * P} y={y - 0.16 * P} width={0.32 * P} height={0.32 * P} rx={1.5} fill={PART.metal} stroke={PART.metalEdge} strokeWidth={0.6} />;
+function PinStub({ x, y, level }: { x: number; y: number; level?: Level }) {
+  return (
+    <rect
+      x={x - 0.16 * P}
+      y={y - 0.16 * P}
+      width={0.32 * P}
+      height={0.32 * P}
+      rx={1.5}
+      fill={levelColor(level) ?? PART.metal}
+      stroke={PART.metalEdge}
+      strokeWidth={0.6}
+    />
+  );
 }
 
-function Dip({ instance, def }: { instance: ComponentInstance; def: ComponentDefinition }) {
+function Dip({ instance, def, sim }: { instance: ComponentInstance; def: ComponentDefinition; sim?: ComponentSim }) {
   if (def.package.type !== 'dip') return null;
   const { pinCount, rowSpacing } = def.package;
   const half = pinCount / 2;
@@ -62,7 +96,7 @@ function Dip({ instance, def }: { instance: ComponentInstance; def: ComponentDef
   return (
     <>
       {pins.map((p) => (
-        <Leg key={p.n} x={p.x} y={p.y} top={p.top} />
+        <Leg key={p.n} x={p.x} y={p.y} top={p.top} level={sim?.levels[p.n]} />
       ))}
       <rect
         x={-0.48 * P}
@@ -80,7 +114,7 @@ function Dip({ instance, def }: { instance: ComponentInstance; def: ComponentDef
             ON
           </Upright>
           {states.map((on, k) => (
-            <g key={k}>
+            <g key={k} data-switch={k} style={sim ? { cursor: 'pointer' } : undefined}>
               <rect x={k * P - 0.2 * P} y={mid - 0.55 * P} width={0.4 * P} height={1.1 * P} rx={1.5} fill="#f5f5f5" />
               <rect x={k * P - 0.15 * P} y={on ? mid - 0.5 * P : mid + 0.02 * P} width={0.3 * P} height={0.48 * P} rx={1} fill="#37474f" />
               <Upright x={k * P} y={mid + 0.82 * P} rotation={r} fill="#ffffff" fontSize={0.28 * P}>
@@ -107,13 +141,21 @@ function Dip({ instance, def }: { instance: ComponentInstance; def: ComponentDef
               {p.n}
             </Upright>
           ))}
+          {sim?.unpowered && (
+            <UprightGroup x={w / 2} y={mid} rotation={r}>
+              <rect x={-1.3 * P} y={-0.32 * P} width={2.6 * P} height={0.64 * P} rx={0.12 * P} fill="#f59e0b" fillOpacity={0.92} />
+              <text textAnchor="middle" dominantBaseline="central" fill="#1c1917" fontSize={0.4 * P} fontWeight={800}>
+                未供電
+              </text>
+            </UprightGroup>
+          )}
         </>
       )}
     </>
   );
 }
 
-function Resistor({ instance, def }: { instance: ComponentInstance; def: ComponentDefinition }) {
+function Resistor({ instance, def, sim }: { instance: ComponentInstance; def: ComponentDefinition; sim?: ComponentSim }) {
   const span = effectiveSpan(instance, def);
   const ohms = instance.props.resistance ?? def.defaultProps.resistance ?? 1000;
   const length = span * P;
@@ -124,8 +166,8 @@ function Resistor({ instance, def }: { instance: ComponentInstance; def: Compone
   return (
     <>
       <line x1={0} y1={0} x2={length} y2={0} stroke={PART.lead} strokeWidth={0.12 * P} strokeLinecap="round" />
-      <PinStub x={0} y={0} />
-      <PinStub x={length} y={0} />
+      <PinStub x={0} y={0} level={sim?.levels[1]} />
+      <PinStub x={length} y={0} level={sim?.levels[2]} />
       <rect x={x0} y={-0.32 * P} width={bodyW} height={0.64 * P} rx={0.3 * P} fill={PART.resistorBody} stroke={PART.resistorEdge} strokeWidth={0.8} />
       {bodyW >= 1.6 * P &&
         bands.map((color, i) => (
@@ -138,7 +180,7 @@ function Resistor({ instance, def }: { instance: ComponentInstance; def: Compone
   );
 }
 
-function Led({ instance, def }: { instance: ComponentInstance; def: ComponentDefinition }) {
+function Led({ instance, def, sim }: { instance: ComponentInstance; def: ComponentDefinition; sim?: ComponentSim }) {
   const span = effectiveSpan(instance, def);
   const colorKey = (instance.props.color ?? def.defaultProps.color ?? 'red') as LedColor;
   const color = LED_FILL[colorKey] ?? LED_FILL.red;
@@ -157,15 +199,27 @@ function Led({ instance, def }: { instance: ComponentInstance; def: ComponentDef
         </radialGradient>
       </defs>
       <line x1={0} y1={0} x2={span * P} y2={0} stroke={PART.lead} strokeWidth={0.1 * P} />
-      <PinStub x={0} y={0} />
-      <PinStub x={span * P} y={0} />
-      {/* 圓頂；陰極側切平 */}
+      <PinStub x={0} y={0} level={sim?.levels[1]} />
+      <PinStub x={span * P} y={0} level={sim?.levels[2]} />
+      {sim?.lit && (
+        <>
+          <defs>
+            <radialGradient id={`bbl-led-glow-${colorKey}`}>
+              <stop offset="0%" stopColor={color.glow} stopOpacity={0.95} />
+              <stop offset="55%" stopColor={color.fill} stopOpacity={0.45} />
+              <stop offset="100%" stopColor={color.fill} stopOpacity={0} />
+            </radialGradient>
+          </defs>
+          <circle cx={cx} cy={0} r={r * 2.3} fill={`url(#bbl-led-glow-${colorKey})`} pointerEvents="none" />
+        </>
+      )}
+      {/* 圓頂；陰極側切平。模擬中沒亮的 LED 畫暗一點。 */}
       <path
         d={`M ${cx + d} ${-h} A ${r} ${r} 0 1 0 ${cx + d} ${h} Z`}
-        fill={`url(#${gradientId})`}
+        fill={sim?.lit ? color.glow : `url(#${gradientId})`}
         stroke={color.edge}
         strokeWidth={1}
-        fillOpacity={0.94}
+        fillOpacity={sim && !sim.lit ? 0.55 : 0.94}
       />
       <Upright x={cx - 0.4 * r} y={0} rotation={instance.rotation} fill="#ffffff" fontSize={0.48 * P} fontWeight={800}>
         +
@@ -202,11 +256,13 @@ export function squareWavePath(w: number, h: number): string {
   return `M ${-2 * s} ${h / 2} h ${s} v ${-h} h ${s} v ${h} h ${s} v ${-h} h ${s}`;
 }
 
-function ClockSource({ instance, def }: { instance: ComponentInstance; def: ComponentDefinition }) {
+function ClockSource({ instance, def, sim }: { instance: ComponentInstance; def: ComponentDefinition; sim?: ComponentSim }) {
   const hz = instance.props.frequency ?? def.defaultProps.frequency ?? 1;
+  const high = sim?.levels[1] === 1;
   return (
     <>
-      <circle r={0.44 * P} fill={PART.clock} stroke={PART.clockEdge} strokeWidth={1} />
+      {high && <circle r={0.7 * P} fill="#a78bfa" fillOpacity={0.45} pointerEvents="none" />}
+      <circle r={0.44 * P} fill={high ? '#8b5cf6' : PART.clock} stroke={PART.clockEdge} strokeWidth={1} />
       <path d={squareWavePath(0.56 * P, 0.26 * P)} fill="none" stroke="#ffffff" strokeWidth={1.4} strokeLinejoin="round" />
       <Upright x={0} y={-0.84 * P} rotation={instance.rotation} fill={PART.clock} fontSize={0.38 * P} fontWeight={800}>
         {`${instance.id} ${hz}Hz`}
@@ -236,7 +292,7 @@ function DcPower({ instance, def }: { instance: ComponentInstance; def: Componen
   );
 }
 
-function PushButton({ instance }: { instance: ComponentInstance }) {
+function PushButton({ instance, sim }: { instance: ComponentInstance; sim?: ComponentSim }) {
   const corners: Point[] = [
     { x: 0, y: 0 },
     { x: 0, y: -3 * P },
@@ -247,39 +303,42 @@ function PushButton({ instance }: { instance: ComponentInstance }) {
     <>
       <rect x={-0.38 * P} y={-3.38 * P} width={2.76 * P} height={3.76 * P} rx={0.22 * P} fill={PART.buttonBody} stroke={PART.buttonEdge} strokeWidth={1} />
       {corners.map((c, i) => (
-        <PinStub key={i} x={c.x} y={c.y} />
+        <PinStub key={i} x={c.x} y={c.y} level={sim?.levels[i + 1]} />
       ))}
-      <circle cx={P} cy={-1.5 * P} r={0.92 * P} fill="#1f1f1f" stroke="#000000" strokeWidth={1} />
-      <circle cx={P} cy={-1.5 * P} r={0.68 * P} fill="#333333" />
-      <Upright x={P} y={-1.5 * P} rotation={instance.rotation} fill="#cfd8dc" fontSize={0.34 * P} fontWeight={700}>
-        {instance.id}
-      </Upright>
+      {/* 按鈕帽（含編號文字）整個是可以按的區域。 */}
+      <g data-button="" style={sim ? { cursor: 'pointer' } : undefined}>
+        <circle cx={P} cy={-1.5 * P} r={0.92 * P} fill="#1f1f1f" stroke={sim?.pressed ? '#22c55e' : '#000000'} strokeWidth={sim?.pressed ? 2 : 1} />
+        <circle cx={P} cy={-1.5 * P} r={sim?.pressed ? 0.6 * P : 0.68 * P} fill={sim?.pressed ? '#14532d' : '#333333'} />
+        <Upright x={P} y={-1.5 * P} rotation={instance.rotation} fill="#cfd8dc" fontSize={0.34 * P} fontWeight={700}>
+          {instance.id}
+        </Upright>
+      </g>
     </>
   );
 }
 
 /** 一個元件的外觀（以腳 1 為原點畫，再整體旋轉），加上每隻腳的點擊區。 */
-export const ComponentGraphic = memo(function ComponentGraphic({ instance, def, at, ghost, faded, interactive = true }: Props) {
+export const ComponentGraphic = memo(function ComponentGraphic({ instance, def, at, ghost, faded, interactive = true, sim }: Props) {
   let body: ReactNode = null;
   switch (def.package.type) {
     case 'dip':
-      body = <Dip instance={instance} def={def} />;
+      body = <Dip instance={instance} def={def} sim={sim} />;
       break;
     case 'two-lead':
       body =
         def.category === 'resistor' ? (
-          <Resistor instance={instance} def={def} />
+          <Resistor instance={instance} def={def} sim={sim} />
         ) : def.category === 'led' ? (
-          <Led instance={instance} def={def} />
+          <Led instance={instance} def={def} sim={sim} />
         ) : (
           <DcPower instance={instance} def={def} />
         );
       break;
     case 'single':
-      body = def.category === 'clock' ? <ClockSource instance={instance} def={def} /> : <Terminal instance={instance} def={def} />;
+      body = def.category === 'clock' ? <ClockSource instance={instance} def={def} sim={sim} /> : <Terminal instance={instance} def={def} />;
       break;
     case 'tactile4':
-      body = <PushButton instance={instance} />;
+      body = <PushButton instance={instance} sim={sim} />;
       break;
   }
 

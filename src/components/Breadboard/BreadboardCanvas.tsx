@@ -3,7 +3,7 @@ import { getNode } from '../../core/breadboard/naming';
 import { getBoard } from '../../core/breadboard/registry';
 import { resolveFootprint } from '../../core/circuit/footprint';
 import { getComponentDefinition } from '../../core/circuit/library';
-import { analyzeCircuit, netOfPin, occupancyOf } from '../../editor/analysis';
+import { analyzeCircuit, groupIdAt, netOfPin, occupancyOf } from '../../editor/analysis';
 import { boardFrames, fromWorld, toWorld, type BoardFrame, type GridHit } from '../../editor/geometry';
 import { nextComponentId } from '../../editor/ids';
 import { defaultWireColor, isFreeHoleWith, planWirePath, type Axis } from '../../editor/manualWire';
@@ -14,10 +14,11 @@ import { useStore, type WireAnimation } from '../../state/store';
 import type { Circuit, Net, Wire } from '../../types/circuit';
 import type { ComponentInstance, Rotation } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
+import type { Level } from '../../types/logic';
 import { groupOf } from '../common/describe';
 import { BoardBackground } from './BoardBackground';
 import { CanvasHud, ContextMenu, HoverTooltip, type Hover, type MenuState } from './CanvasHud';
-import { ComponentGraphic } from './ComponentGraphic';
+import { ComponentGraphic, type ComponentSim } from './ComponentGraphic';
 import { componentRect, GroupStrip, groupRect, Outline, PathPreview, PinTargets, Ring, WireGlow } from './overlays';
 import { WireGraphic } from './WireGraphic';
 
@@ -89,26 +90,48 @@ function pinPoint(circuit: Circuit, componentId: string, pinNumber: number): Gri
   return resolveFootprint(c, def).pins.find((p) => p.pinNumber === pinNumber)?.point ?? null;
 }
 
-const ComponentsLayer = memo(function ComponentsLayer({ components, frames, fadedId }: { components: ComponentInstance[]; frames: BoardFrame[]; fadedId?: string }) {
+const ComponentsLayer = memo(function ComponentsLayer({
+  components,
+  frames,
+  fadedId,
+  sims,
+}: {
+  components: ComponentInstance[];
+  frames: BoardFrame[];
+  fadedId?: string;
+  sims: Map<string, ComponentSim> | null;
+}) {
   return (
     <g data-layer="components">
       {components.map((c) => {
         const def = getComponentDefinition(c.defId);
         const at = toWorld(frames, { boardId: c.boardId, ...c.anchor });
         if (!def || !at) return null;
-        return <ComponentGraphic key={c.id} instance={c} def={def} at={at} faded={c.id === fadedId} />;
+        return <ComponentGraphic key={c.id} instance={c} def={def} at={at} faded={c.id === fadedId} sim={sims?.get(c.id)} />;
       })}
     </g>
   );
 });
 
-const WiresLayer = memo(function WiresLayer({ wires, frames, animation, faded }: { wires: Wire[]; frames: BoardFrame[]; animation: WireAnimation | null; faded: boolean }) {
+const WiresLayer = memo(function WiresLayer({
+  wires,
+  frames,
+  animation,
+  faded,
+  levels,
+}: {
+  wires: Wire[];
+  frames: BoardFrame[];
+  animation: WireAnimation | null;
+  faded: boolean;
+  levels: Map<string, Level> | null;
+}) {
   return (
     <g data-layer="wires">
       {wires.map((w) => {
         const delay = animation?.delays[w.id];
         const anim = animation && delay !== undefined ? { delay, duration: animation.drawMs } : undefined;
-        return <WireGraphic key={anim ? `${w.id}@${animation!.key}` : w.id} wire={w} frames={frames} anim={anim} faded={faded} />;
+        return <WireGraphic key={anim ? `${w.id}@${animation!.key}` : w.id} wire={w} frames={frames} anim={anim} faded={faded} level={levels?.get(w.id)} />;
       })}
     </g>
   );
@@ -125,11 +148,40 @@ export function BreadboardCanvas() {
   const showCheck = useStore((s) => s.showCheck);
   const routing = useStore((s) => s.routing);
   const animation = useStore((s) => s.animation);
+  const simResult = useStore((s) => s.simulation?.result ?? null);
+  const simPressed = useStore((s) => s.simulation?.pressed ?? null);
+  const pressedButton = useRef<{ id: string; pointerId: number } | null>(null);
   const wireColor = useStore((s) => s.wireColor);
 
   const boards = circuit.boards;
   const frames = useMemo(() => boardFrames({ boards }), [boards]);
   const analysis = useMemo(() => analyzeCircuit(circuit), [circuit]);
+
+  // 模擬中每個元件的腳位電位 / LED 發光 / 供電，以及每條導線所在節點的電位。
+  const components = circuit.components;
+  const componentSims = useMemo(() => {
+    if (!simResult) return null;
+    const lit = new Set(simResult.litLeds);
+    const unpowered = new Set(simResult.unpowered);
+    const map = new Map<string, ComponentSim>();
+    for (const c of components) {
+      const def = getComponentDefinition(c.defId);
+      if (!def) continue;
+      const levels: Record<number, Level> = {};
+      for (const pin of def.pins) levels[pin.number] = simResult.pinLevels[`${c.id}#${pin.number}`] ?? 'Z';
+      map.set(c.id, { levels, lit: lit.has(c.id), unpowered: unpowered.has(c.id), pressed: simPressed?.[c.id] ?? false });
+    }
+    return map;
+  }, [simResult, simPressed, components]);
+  const wireLevels = useMemo(() => {
+    if (!simResult) return null;
+    const map = new Map<string, Level>();
+    for (const w of circuit.wires) {
+      const g = groupIdAt(circuit, w.start);
+      if (g) map.set(w.id, simResult.groupLevels[g] ?? 'Z');
+    }
+    return map;
+  }, [simResult, circuit]);
 
   const [hover, setHoverState] = useState<Hover | null>(null);
   const hoverRef = useRef<Hover | null>(null);
@@ -335,6 +387,10 @@ export function BreadboardCanvas() {
     setMenu(null);
     const store = useStore.getState();
     if (store.routing) return;
+    if (store.simulation) {
+      onSimulationPointerDown(e);
+      return;
+    }
     if (store.placing) {
       if (e.button === 0 && !store.placing.dragging) {
         const g = ghostRef.current;
@@ -397,6 +453,58 @@ export function BreadboardCanvas() {
     startPan(e);
   };
 
+  /** 模擬模式：可以撥指撥開關、按住按鈕、選取與平移，不能改變電路結構。 */
+  const onSimulationPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const store = useStore.getState();
+    if (e.button === 1 || (e.button === 0 && spaceRef.current)) {
+      e.preventDefault();
+      startPan(e);
+      return;
+    }
+    if (e.button !== 0) return;
+    const target = e.target as Element;
+    const compEl = target.closest('[data-component-id]');
+    const id = compEl?.getAttribute('data-component-id');
+    const switchEl = target.closest('[data-switch]');
+    if (id && switchEl) {
+      store.toggleSwitch(id, Number(switchEl.getAttribute('data-switch')));
+      return;
+    }
+    if (id && target.closest('[data-button]')) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      pressedButton.current = { id, pointerId: e.pointerId };
+      store.pressButton(id, true);
+      return;
+    }
+    if (compEl && id) {
+      const pinAttr = compEl.getAttribute('data-pin');
+      store.select(pinAttr ? { kind: 'pin', componentId: id, pinNumber: Number(pinAttr) } : { kind: 'component', id });
+      return;
+    }
+    const wireEl = target.closest('[data-wire-id]');
+    if (wireEl) {
+      store.select({ kind: 'wire', id: wireEl.getAttribute('data-wire-id')! });
+      return;
+    }
+    const hit = clientToHit(e.clientX, e.clientY);
+    const point = hit ? { boardId: hit.boardId, x: hit.x, y: hit.y } : null;
+    if (point && isHole(circuitRef.current, point)) {
+      store.select({ kind: 'hole', point });
+      return;
+    }
+    store.select(null);
+    startPan(e);
+  };
+
+  const releaseButton = (e: ReactPointerEvent<SVGSVGElement>) => {
+    const held = pressedButton.current;
+    if (!held) return false;
+    pressedButton.current = null;
+    if (e.currentTarget.hasPointerCapture(held.pointerId)) e.currentTarget.releasePointerCapture(held.pointerId);
+    useStore.getState().pressButton(held.id, false);
+    return true;
+  };
+
   const updateWire = (d: WireDrag, clientX: number, clientY: number) => {
     const hit = clientToHit(clientX, clientY);
     const current = hit && hit.boardId === d.start.boardId ? { boardId: hit.boardId, x: hit.x, y: hit.y } : null;
@@ -448,6 +556,7 @@ export function BreadboardCanvas() {
   };
 
   const onPointerUp = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (releaseButton(e)) return;
     const d = dragRef.current;
     if (!d) return;
     if (e.currentTarget.hasPointerCapture(d.pointerId)) e.currentTarget.releasePointerCapture(d.pointerId);
@@ -473,7 +582,7 @@ export function BreadboardCanvas() {
       store.cancelPlacing();
       return;
     }
-    if (dragRef.current || store.routing) return;
+    if (dragRef.current || store.routing || store.simulation) return;
     const rect = containerRef.current!.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -546,7 +655,10 @@ export function BreadboardCanvas() {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
-        onPointerCancel={() => setDrag(null)}
+        onPointerCancel={(e) => {
+          releaseButton(e);
+          setDrag(null);
+        }}
         onPointerEnter={() => (pointerInside.current = true)}
         onPointerLeave={() => {
           pointerInside.current = false;
@@ -572,7 +684,7 @@ export function BreadboardCanvas() {
             ))}
           </g>
 
-          <ComponentsLayer components={circuit.components} frames={frames} fadedId={movingId} />
+          <ComponentsLayer components={circuit.components} frames={frames} fadedId={movingId} sims={componentSims} />
 
           <g data-ui="wire-glow">
             {selectedNet &&
@@ -590,7 +702,7 @@ export function BreadboardCanvas() {
             )}
           </g>
 
-          <WiresLayer wires={circuit.wires} frames={frames} animation={animation} faded={routing !== null} />
+          <WiresLayer wires={circuit.wires} frames={frames} animation={animation} faded={routing !== null} levels={wireLevels} />
 
           <g data-ui="over">
             <PinTargets components={circuit.components} frames={frames} hiddenId={movingId} />
@@ -648,7 +760,9 @@ export function BreadboardCanvas() {
         </g>
       </svg>
 
-      {hover && !drag && !placing && !menu && <HoverTooltip hover={hover} container={containerRef.current} circuit={circuit} analysis={analysis} />}
+      {hover && !drag && !placing && !menu && (
+        <HoverTooltip hover={hover} container={containerRef.current} circuit={circuit} analysis={analysis} sim={simResult} />
+      )}
       {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
       <CanvasHud drawingWire={drag?.kind === 'wire' && drag.started} />
     </div>

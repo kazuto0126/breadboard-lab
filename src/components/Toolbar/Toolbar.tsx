@@ -74,6 +74,7 @@ export function Toolbar() {
   const fresh = useStore((s) => isComparisonFresh(s));
   const comparisonOk = useStore((s) => s.comparison?.result.status === 'success');
   const hasWires = useStore((s) => s.circuit.wires.length > 0);
+  const simulating = useStore((s) => s.simulation !== null);
   const store = useStore.getState();
 
   useEffect(() => {
@@ -131,19 +132,23 @@ export function Toolbar() {
       'circuit',
       '電路',
       [
+        simulating
+          ? { label: '■ 停止模擬', onClick: run(() => store.stopSimulation()) }
+          : { label: '▶ 開始模擬 Simulate', onClick: run(() => store.startSimulation()), disabled: routing },
+        'separator',
         { label: 'Check Circuit 檢查電路', onClick: run(() => store.runCheck()) },
         { label: '在麵包板上顯示檢查標記', onClick: run(() => store.setShowCheck(!showCheck)), checked: showCheck },
         { label: '顯示所有 Nets', onClick: run(() => store.setRightTab('nets')) },
         'separator',
-        { label: '清除所有導線', onClick: run(() => store.clearWires()), disabled: !hasWires },
+        { label: '清除所有導線', onClick: run(() => store.clearWires()), disabled: !hasWires || simulating },
       ],
     ],
     [
       'route',
       '自動佈線',
       [
-        { label: 'AI 標準佈線 Auto Route', onClick: run(() => store.runAutoRoute('apply')), disabled: routing },
-        { label: '比較 Compare（手動 vs AI）', onClick: run(() => store.setMode('compare')), disabled: routing },
+        { label: 'AI 標準佈線 Auto Route', onClick: run(() => store.runAutoRoute('apply')), disabled: routing || simulating },
+        { label: '比較 Compare（手動 vs AI）', onClick: run(() => store.setMode('compare')), disabled: routing || simulating },
         'separator',
         { label: '套用 AI 佈線結果', onClick: run(() => store.applyComparison()), disabled: !fresh || !comparisonOk || mode === 'auto' },
         { label: '切回手動接線', onClick: run(() => store.restoreManualWires()), disabled: !fresh || mode !== 'auto' },
@@ -199,7 +204,7 @@ export function Toolbar() {
             role="radio"
             aria-checked={mode === id}
             title={title}
-            disabled={routing}
+            disabled={routing || simulating}
             onClick={() => store.setMode(id)}
             className={`px-3 py-1 text-xs font-semibold tracking-wide ${mode === id ? 'bg-sky-600 text-white' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'} disabled:opacity-60`}
           >
@@ -212,8 +217,19 @@ export function Toolbar() {
       </button>
       <button
         type="button"
-        onClick={() => store.runAutoRoute('apply')}
+        onClick={() => (simulating ? store.stopSimulation() : store.startSimulation())}
         disabled={routing}
+        title={simulating ? '停止模擬，回到編輯' : '模擬 74LS 邏輯：撥開關、按按鈕、看 LED'}
+        className={`rounded-md px-3 py-1 text-sm font-semibold shadow disabled:opacity-60 ${
+          simulating ? 'bg-red-700 text-white hover:bg-red-600' : 'bg-violet-600 text-white hover:bg-violet-500'
+        }`}
+      >
+        {simulating ? '■ 停止模擬' : '▶ 模擬'}
+      </button>
+      <button
+        type="button"
+        onClick={() => store.runAutoRoute('apply')}
+        disabled={routing || simulating}
         className="rounded-md bg-emerald-600 px-3 py-1 text-sm font-semibold text-white shadow hover:bg-emerald-500 disabled:opacity-60"
       >
         ⚡ AI 標準佈線

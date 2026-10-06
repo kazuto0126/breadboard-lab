@@ -3,10 +3,14 @@ import { getComponentDefinition } from '../../core/circuit/library';
 import { analyzeCircuit, netOfPin, type CircuitAnalysis } from '../../editor/analysis';
 import { EXAMPLES } from '../../editor/examples';
 import { WIRE_COLORS } from '../../editor/manualWire';
+import type { SimResult } from '../../core/simulation/simulate';
+import { LEVEL_COLORS, LEVEL_NAMES } from '../../render/theme';
+import type { Level } from '../../types/logic';
 import { deriveMode, useStore } from '../../state/store';
 import type { Circuit } from '../../types/circuit';
 import type { GridPoint } from '../../types/geometry';
 import type { RoutingMetrics } from '../../types/routing';
+import { groupIdAt } from '../../editor/analysis';
 import {
   FAILURE_NAMES,
   groupLabel,
@@ -36,9 +40,32 @@ function Line({ children, muted }: { children: ReactNode; muted?: boolean }) {
   return <div className={muted ? 'text-slate-400' : undefined}>{children}</div>;
 }
 
+/** 模擬時的電位標籤（色點 + 文字）。 */
+export function LevelTag({ level }: { level: Level }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: LEVEL_COLORS[String(level)] }} />
+      {LEVEL_NAMES[String(level)]}
+    </span>
+  );
+}
+
 /** 游標停在孔、腳、導線、元件上時的說明。 */
-export function HoverTooltip({ hover, container, circuit, analysis }: { hover: Hover; container: HTMLDivElement | null; circuit: Circuit; analysis: CircuitAnalysis }) {
+export function HoverTooltip({
+  hover,
+  container,
+  circuit,
+  analysis,
+  sim,
+}: {
+  hover: Hover;
+  container: HTMLDivElement | null;
+  circuit: Circuit;
+  analysis: CircuitAnalysis;
+  sim: SimResult | null;
+}) {
   if (!container) return null;
+  let level: Level | undefined;
   const rect = container.getBoundingClientRect();
   const lines: ReactNode[] = [];
   let issues: string[] = [];
@@ -48,6 +75,7 @@ export function HoverTooltip({ hover, container, circuit, analysis }: { hover: H
     const g = groupOf(circuit, hover.point);
     const net = g ? analysis.netByGroup.get(g) : undefined;
     title = holeLabel(circuit, hover.point);
+    if (sim && g) level = sim.groupLevels[g] ?? 'Z';
     lines.push(<Line key="g" muted>{groupLabel(g)}</Line>);
     if (net) lines.push(<Line key="n">Net：{net.name}</Line>);
     for (const [i, text] of holeContents(circuit, hover.point).entries()) lines.push(<Line key={`c${i}`}>{text}</Line>);
@@ -58,6 +86,7 @@ export function HoverTooltip({ hover, container, circuit, analysis }: { hover: H
     const pin = def?.pins.find((p) => p.number === hover.pinNumber);
     const net = netOfPin(analysis, { componentId: hover.componentId, pinNumber: hover.pinNumber });
     title = `${hover.componentId} · ${def?.name ?? ''}`;
+    if (sim) level = sim.pinLevels[`${hover.componentId}#${hover.pinNumber}`] ?? 'Z';
     if (pin) lines.push(<Line key="p">腳 {pin.number}：{pin.name}（{ROLE_NAMES[pin.role]}）</Line>);
     lines.push(<Line key="n">Net：{net ? `${net.name}（${net.pins.length} 隻腳）` : '—'}</Line>);
     issues = issuesOfComponent(analysis, hover.componentId).map((e) => e.message);
@@ -66,6 +95,8 @@ export function HoverTooltip({ hover, container, circuit, analysis }: { hover: H
     if (!w) return null;
     const net = analysis.netByWire.get(w.id);
     title = `導線 ${w.id}`;
+    const g = groupIdAt(circuit, w.start);
+    if (sim && g) level = sim.groupLevels[g] ?? 'Z';
     lines.push(<Line key="s" muted>{`${holeLabel(circuit, w.start)} → ${holeLabel(circuit, w.end)} · ${wireSummary(w)}`}</Line>);
     lines.push(<Line key="n">Net：{net?.name ?? '—'}{w.source === 'auto' ? ' · AI 標準佈線' : ' · 手動'}</Line>);
     issues = issuesOfWire(analysis, w.id).map((e) => e.message);
@@ -74,7 +105,10 @@ export function HoverTooltip({ hover, container, circuit, analysis }: { hover: H
     const def = c ? getComponentDefinition(c.defId) : undefined;
     title = `${hover.id} · ${def?.name ?? ''}`;
     if (def?.description) lines.push(<Line key="d" muted>{def.description}</Line>);
-    lines.push(<Line key="h" muted>拖曳移動 · R 旋轉 · Del 刪除</Line>);
+    if (!sim) lines.push(<Line key="h" muted>拖曳移動 · R 旋轉 · Del 刪除</Line>);
+    else if (def?.category === 'dip-switch') lines.push(<Line key="h" muted>點小開關切換 ON / OFF（ON = 兩側接通）</Line>);
+    else if (def?.category === 'pushbutton') lines.push(<Line key="h" muted>按住按鈕 = 接通、放開 = 斷開</Line>);
+    if (sim?.unpowered.includes(hover.id)) lines.push(<Line key="u">⚠ 沒有接好 VCC / GND，不會運作</Line>);
     issues = issuesOfComponent(analysis, hover.id).map((e) => e.message);
   }
 
@@ -86,6 +120,11 @@ export function HoverTooltip({ hover, container, circuit, analysis }: { hover: H
       style={{ left, top }}
     >
       <div className="font-semibold text-slate-50">{title}</div>
+      {level !== undefined && (
+        <div className="my-0.5">
+          電位：<LevelTag level={level} />
+        </div>
+      )}
       {lines}
       {issues.slice(0, 3).map((m, i) => (
         <div key={i} className="mt-1 text-amber-300">
@@ -331,7 +370,8 @@ function EmptyHint() {
 function CheckBadge() {
   const showCheck = useStore((s) => s.showCheck);
   const circuit = useStore((s) => s.circuit);
-  if (!showCheck) return null;
+  const simulating = useStore((s) => s.simulation !== null);
+  if (!showCheck || simulating) return null;
   const store = useStore.getState();
   const analysis = analyzeForBadge(circuit);
   const tone = analysis.errors > 0 ? 'border-red-500/60 bg-red-950/90 text-red-200' : analysis.warnings > 0 ? 'border-amber-500/60 bg-amber-950/90 text-amber-200' : 'border-emerald-500/60 bg-emerald-950/90 text-emerald-200';
@@ -352,6 +392,59 @@ function CheckBadge() {
 function analyzeForBadge(circuit: Circuit) {
   const a = analyzeCircuit(circuit);
   return { errors: a.errorCount, warnings: a.warningCount };
+}
+
+function SimulationBar() {
+  const run = useStore((s) => s.simulation);
+  const circuit = useStore((s) => s.circuit);
+  if (!run) return null;
+  const store = useStore.getState();
+  const clocks = circuit.components.filter((c) => c.defId === 'clock');
+  const r = run.result;
+  const btn = 'rounded px-2 py-0.5 text-xs hover:bg-slate-700';
+  return (
+    <div className="absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col items-center gap-1" data-testid="simulation-bar">
+      <div className="flex flex-wrap items-center gap-2 rounded-full border border-emerald-600/60 bg-slate-900/95 px-3 py-1 text-sm text-slate-100 shadow-lg">
+        <span className="flex items-center gap-1.5 font-semibold text-emerald-300">
+          <span className="bbl-pulse inline-block h-2 w-2 rounded-full bg-emerald-400" />
+          模擬中
+        </span>
+        {clocks.length > 0 && (
+          <>
+            <span className="tabular-nums text-slate-300">t = {(run.time / 1000).toFixed(2)} s</span>
+            <span className="text-xs text-slate-400">時脈 {clocks.map((c) => `${c.props.frequency ?? 1}Hz`).join('、')}</span>
+            <button type="button" className={btn} onClick={() => store.toggleClockPause()}>
+              {run.paused ? '▶ 繼續' : '⏸ 暫停'}
+            </button>
+            <button type="button" className={btn} onClick={() => store.stepClock()} title="把時間推進到下一個時脈邊緣">
+              ⏭ 單步
+            </button>
+          </>
+        )}
+        <button type="button" className={btn} onClick={() => store.resetSimulation()} title="回到上電狀態（正反器、計數器歸零）">
+          ↺ 重置
+        </button>
+        <button type="button" className={`${btn} text-red-300`} onClick={() => store.stopSimulation()}>
+          ■ 停止
+        </button>
+        <span className="hidden items-center gap-2 border-l border-slate-700 pl-2 text-[11px] text-slate-400 xl:flex">
+          {(['1', '0', 'Z', 'X'] as const).map((k) => (
+            <span key={k} className="flex items-center gap-1">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ background: LEVEL_COLORS[k] }} />
+              {k}
+            </span>
+          ))}
+        </span>
+      </div>
+      {(r.unpowered.length > 0 || !r.stable || r.conflicts.length > 0) && (
+        <div className="rounded-md border border-amber-600/60 bg-amber-950/90 px-3 py-1 text-xs text-amber-200 shadow-lg">
+          {r.unpowered.length > 0 && <div>⚠ {r.unpowered.join('、')} 沒有接好 VCC / GND，不會運作</div>}
+          {!r.stable && <div>⚠ 電路不穩定（震盪）：輸出一直在改變，檢查是否有沒有接好的回授</div>}
+          {r.conflicts.length > 0 && <div>⚠ {r.conflicts.length} 個導通群組電位衝突（X）：可能有輸出互接或短路</div>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ZoomControls() {
@@ -379,8 +472,10 @@ function ZoomControls() {
 
 function PlacingHint({ drawingWire }: { drawingWire: boolean }) {
   const placing = useStore((s) => s.placing);
+  const simulating = useStore((s) => s.simulation !== null);
   let text: string | null = null;
-  if (placing) text = `放置 ${placing.item.name}：${placing.dragging ? '拖到麵包板上放開' : '移到麵包板上點一下'} · R 旋轉 · Esc / 右鍵取消`;
+  if (simulating) text = '點指撥開關切換 ON / OFF · 按住按鈕 · 停在孔或腳上看電位';
+  else if (placing) text = `放置 ${placing.item.name}：${placing.dragging ? '拖到麵包板上放開' : '移到麵包板上點一下'} · R 旋轉 · Esc / 右鍵取消`;
   else if (drawingWire) text = '拖到另一個空孔放開即可接線 · Esc 取消';
   if (!text) return null;
   return (
@@ -396,6 +491,7 @@ export function CanvasHud({ drawingWire }: { drawingWire: boolean }) {
     <>
       <EmptyHint />
       <CheckBadge />
+      <SimulationBar />
       <ZoomControls />
       <PlacingHint drawingWire={drawingWire} />
       <ResultCard />

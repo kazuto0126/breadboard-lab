@@ -8,6 +8,10 @@ import { WIRE_COLORS } from '../../editor/manualWire';
 import { deriveMode, isComparisonFresh, useStore, type RightTab, type Selection } from '../../state/store';
 import type { Circuit, CircuitError, Net } from '../../types/circuit';
 import type { LedColor } from '../../types/component';
+import { groupIdAt } from '../../editor/analysis';
+import { LEVEL_COLORS } from '../../render/theme';
+import type { Level } from '../../types/logic';
+import { LevelTag } from '../Breadboard/CanvasHud';
 import {
   FAILURE_NAMES,
   groupLabel,
@@ -71,6 +75,27 @@ function IssueList({ issues }: { issues: CircuitError[] }) {
   );
 }
 
+function LevelDot({ level }: { level: Level | undefined }) {
+  if (level === undefined) return null;
+  return <span className="inline-block h-2.5 w-2.5 rounded-full" title={String(level)} style={{ background: LEVEL_COLORS[String(level)] }} />;
+}
+
+/** 模擬中某個導通群組的電位（沒有模擬時為 undefined）。 */
+function useGroupLevel(groupId: string | null | undefined): Level | undefined {
+  return useStore((s) => (s.simulation && groupId ? (s.simulation.result.groupLevels[groupId] ?? 'Z') : undefined));
+}
+
+/** 模擬中顯示某個導通群組電位的一列（獨立元件，避免在條件分支裡呼叫 hook）。 */
+function LevelRow({ groupId }: { groupId: string | null }) {
+  const level = useGroupLevel(groupId);
+  if (level === undefined) return null;
+  return (
+    <Row label="電位（模擬）">
+      <LevelTag level={level} />
+    </Row>
+  );
+}
+
 function NetChip({ net, index }: { net: Net; index: number }) {
   return <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-slate-500" style={{ background: netColor(net.kind, index) }} />;
 }
@@ -118,6 +143,7 @@ function CircuitSummary({ circuit, analysis }: { circuit: Circuit; analysis: Cir
 }
 
 function ComponentInspector({ id, circuit, analysis }: { id: string; circuit: Circuit; analysis: CircuitAnalysis }) {
+  const sim = useStore((s) => s.simulation?.result ?? null);
   const instance = circuit.components.find((c) => c.id === id);
   const def = instance ? getComponentDefinition(instance.defId) : undefined;
   if (!instance || !def) return null;
@@ -228,6 +254,7 @@ function ComponentInspector({ id, circuit, analysis }: { id: string; circuit: Ci
               <th className="text-left font-normal">功能</th>
               <th className="text-left font-normal">孔</th>
               <th className="text-left font-normal">Net</th>
+              {sim && <th className="text-left font-normal">電位</th>}
             </tr>
           </thead>
           <tbody>
@@ -245,6 +272,11 @@ function ComponentInspector({ id, circuit, analysis }: { id: string; circuit: Ci
                   <td className="py-0.5 text-slate-400">{ROLE_NAMES[pin.role]}</td>
                   <td className="py-0.5 text-slate-300">{holeLabel(circuit, at)}</td>
                   <td className="py-0.5 text-slate-300">{net && net.pins.length > 1 ? net.name : <span className="text-slate-600">—</span>}</td>
+                  {sim && (
+                    <td className="py-0.5">
+                      <LevelDot level={sim.pinLevels[`${id}#${pin.number}`] ?? 'Z'} />
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -258,6 +290,7 @@ function ComponentInspector({ id, circuit, analysis }: { id: string; circuit: Ci
 function NetInspector({ net, circuit, analysis }: { net: Net; circuit: Circuit; analysis: CircuitAnalysis }) {
   const wires = circuit.wires.filter((w) => analysis.netByWire.get(w.id) === net);
   const store = useStore.getState();
+  const level = useGroupLevel(net.groupIds[0]);
   return (
     <Section title="Electrical Net">
       <div className="mb-1 flex items-center gap-2 text-base font-semibold text-slate-50">
@@ -265,6 +298,11 @@ function NetInspector({ net, circuit, analysis }: { net: Net; circuit: Circuit; 
         {net.name}
         <span className="text-xs font-normal text-slate-400">{net.kind === 'power' ? '電源' : net.kind === 'ground' ? '接地' : '訊號'}</span>
       </div>
+      {level !== undefined && (
+        <Row label="電位（模擬）">
+          <LevelTag level={level} />
+        </Row>
+      )}
       <Row label="導通群組">{net.groupIds.length}</Row>
       <Row label="導線">{wires.length}</Row>
       <div className="mt-2 text-xs text-slate-400">連接的腳位（{net.pins.length}）</div>
@@ -307,6 +345,7 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
             {pin && <Row label="功能">{ROLE_NAMES[pin.role]}</Row>}
             {at && <Row label="孔位">{holeLabel(circuit, at)}</Row>}
             {at && <Row label="導通群組">{groupLabel(groupOf(circuit, at))}</Row>}
+            {at && <LevelRow groupId={groupOf(circuit, at)} />}
             <Row label="Net">
               <NetLink net={net} analysis={analysis} />
             </Row>
@@ -331,6 +370,7 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
           <Row label="來源">{w.source === 'auto' ? 'AI 標準佈線' : '手動接線'}</Row>
           <Row label="起點 → 終點">{`${holeLabel(circuit, w.start)} → ${holeLabel(circuit, w.end)}`}</Row>
           <Row label="長度">{wireSummary(w)}</Row>
+          <LevelRow groupId={groupIdAt(circuit, w.start)} />
           <Row label="Net">
             <NetLink net={analysis.netByWire.get(w.id)} analysis={analysis} />
           </Row>
@@ -358,6 +398,7 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
           <Section title="孔位">
             <div className="text-base font-semibold text-slate-50">{holeLabel(circuit, selection.point)}</div>
             <Row label="導通群組">{groupLabel(g)}</Row>
+            <LevelRow groupId={g} />
             <Row label="Net">
               <NetLink net={net} analysis={analysis} />
             </Row>

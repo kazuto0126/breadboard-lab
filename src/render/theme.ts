@@ -1,4 +1,5 @@
 import type { LedColor } from '../types/component';
+import type { Level } from '../types/logic';
 
 /** 麵包板與元件的繪圖顏色。寫成 SVG 屬性（不用 CSS class），匯出的 SVG 才能獨立顯示。 */
 export const BOARD = {
@@ -61,6 +62,15 @@ export function resistorBands(ohms: number): string[] {
   const multiplier = exponent >= 0 ? BAND_COLORS[Math.min(9, exponent)] : exponent === -1 ? GOLD : SILVER;
   return [BAND_COLORS[Math.floor(significant / 10)], BAND_COLORS[significant % 10], multiplier, GOLD];
 }
+
+/** 模擬時的電位顏色：1 亮綠、0 灰、Z（浮接）藍、X（衝突 / 未知）紅。 */
+export const LEVEL_COLORS: Record<string, string> = { '1': '#22c55e', '0': '#64748b', Z: '#60a5fa', X: '#ef4444' };
+
+export function levelColor(level: Level | undefined): string | undefined {
+  return level === undefined ? undefined : LEVEL_COLORS[String(level)];
+}
+
+export const LEVEL_NAMES: Record<string, string> = { '1': 'HIGH（1）', '0': 'LOW（0）', Z: '浮接（Z，TTL 輸入當成 HIGH）', X: '衝突 / 未知（X）' };
 
 /** 互動用的高亮色（不會出現在匯出的圖中）。 */
 export const UI = {
