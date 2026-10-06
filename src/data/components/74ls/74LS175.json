@@ -1,6 +1,7 @@
 {
   "id": "74LS175",
   "name": "74LS175",
+  "description": "四組 D 型正反器，含互補輸出（Quad D flip-flop）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
   "pins": [

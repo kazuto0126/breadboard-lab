@@ -1,6 +1,7 @@
 {
   "id": "74LS08",
   "name": "74LS08",
+  "description": "四組 2 輸入 AND 閘（Quad 2-input AND）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [

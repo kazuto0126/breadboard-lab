@@ -1,6 +1,7 @@
 {
   "id": "74LS163",
   "name": "74LS163",
+  "description": "4 位元同步二進位計數器，同步清除（Sync 4-bit counter）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
   "pins": [

@@ -1,6 +1,7 @@
 {
   "id": "74LS138",
   "name": "74LS138",
+  "description": "3 對 8 解碼器 / 解多工器（3-to-8 decoder）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
   "pins": [

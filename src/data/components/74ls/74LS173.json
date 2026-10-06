@@ -1,6 +1,7 @@
 {
   "id": "74LS173",
   "name": "74LS173",
+  "description": "4 位元 D 型暫存器，三態輸出（4-bit D register）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
   "pins": [

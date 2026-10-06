@@ -1,6 +1,7 @@
 {
   "id": "74LS93",
   "name": "74LS93",
+  "description": "4 位元二進位計數器（4-bit binary counter）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [

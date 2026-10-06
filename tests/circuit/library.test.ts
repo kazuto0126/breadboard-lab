@@ -65,6 +65,11 @@ describe('component library', () => {
     expect(getComponentDefinition('74LS245')!.pins.filter((p) => p.role === 'bidir')).toHaveLength(16);
   });
 
+  it('describes every part for the component library', () => {
+    for (const def of getComponentDefinitions()) expect(def.description, def.id).toMatch(/\S/);
+    expect(getComponentDefinition('74LS00')!.description).toContain('NAND');
+  });
+
   it('defines the generic parts', () => {
     expect(getComponentDefinition('pushbutton')!.internalConnections).toEqual([[1, 2], [3, 4]]);
     expect(getComponentDefinition('dipsw-4')!.package).toEqual({ type: 'dip', pinCount: 8, rowSpacing: 3 });
@@ -95,5 +100,7 @@ describe('component library', () => {
     expect(() => parseDefinition({ ...base, package: { type: 'dip', pinCount: 7, rowSpacing: 3 } })).toThrow('even');
     expect(() => parseDefinition({ ...base, internalConnections: [[1, 9]] })).toThrow('internalConnections');
     expect(() => parseDefinition(null)).toThrow('not an object');
+    expect(() => parseDefinition({ ...base, description: 42 })).toThrow('description');
+    expect(parseDefinition(base).description).toBe('');
   });
 });

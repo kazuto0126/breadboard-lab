@@ -93,6 +93,8 @@ export function parseDefinition(raw: unknown): ComponentDefinition {
   const id = typeof d.id === 'string' && d.id.length > 0 ? d.id : fail('?', 'missing id');
   const name = d.name;
   if (typeof name !== 'string') fail(id, 'missing name');
+  const description = d.description ?? '';
+  if (typeof description !== 'string') fail(id, 'description must be a string');
   const category = d.category;
   if (typeof category !== 'string' || !CATEGORIES.has(category)) fail(id, `unknown category ${String(category)}`);
   const { pkg, pinCount } = parsePackage(id, d.package);
@@ -125,6 +127,7 @@ export function parseDefinition(raw: unknown): ComponentDefinition {
   return {
     id,
     name,
+    description,
     category: category as ComponentCategory,
     package: pkg,
     pins,

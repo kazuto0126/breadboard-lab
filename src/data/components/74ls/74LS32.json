@@ -1,6 +1,7 @@
 {
   "id": "74LS32",
   "name": "74LS32",
+  "description": "四組 2 輸入 OR 閘（Quad 2-input OR）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [

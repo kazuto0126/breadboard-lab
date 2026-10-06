@@ -1,6 +1,7 @@
 {
   "id": "74LS02",
   "name": "74LS02",
+  "description": "四組 2 輸入 NOR 閘（Quad 2-input NOR）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [

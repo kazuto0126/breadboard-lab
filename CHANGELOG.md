@@ -15,6 +15,24 @@
   強制核心與編輯邏輯不依賴瀏覽器）與 `tsconfig.web.json`（畫面，含 DOM 與 JSX）；
   `npm run typecheck` 會檢查兩者與 e2e 測試。
 - `vitest.config.ts`：單元測試只收 `tests/**/*.test.ts`，與 Playwright 的 e2e 測試分開。
+- `src/editor/`：不依賴 DOM 的編輯邏輯（全部有單元測試，`tests/editor/`，53 個測試）。
+  - `geometry.ts`、`viewport.ts`：格點 ↔ 像素換算、以游標為中心縮放、Fit to Screen。
+  - `history.ts`：Undo / Redo 堆疊（附動作名稱，上限 200 步）。
+  - `ids.ts`：元件編號（U1、R1、D1…）與導線編號（w1…）。
+  - `placement.ts`：放置合法性檢查（硬性 / 軟性問題）、半徑 2 格內自動吸附、以中心為軸旋轉
+    （DIP IC 轉 90° 插不進去時自動翻轉 180°）。
+  - `manualWire.ts`：手動接線的正交路徑規劃（Dijkstra，避開元件與其他導線端點、轉彎加成本），
+    空孔判斷、依電源軌決定預設導線顏色。
+  - `commands.ts`：放置、移動、旋轉、刪除、修改屬性 / 跨距、切換指撥開關、接線、改色等純函式動作。
+  - `fileFormat.ts`：存檔格式 `breadboard-lab/circuit` v1 與完整的匯入驗證（中文錯誤訊息指出哪一筆資料錯）。
+  - `analysis.ts`：Net、檢查結果、Routing Score 依電路參照快取。
+  - `library.ts`：元件庫分類（74LS / 電阻 8 種阻值 / LED 4 色 / 電源 / 輸入）與搜尋。
+  - `builder.ts`、`examples.ts`：電路建構工具與 3 個範例電路（原本在 `tests/fixtures/`，
+    改由 `src/editor` 提供，測試沿用同一份，保證範例一定佈得出來）。
+
+### 變更
+
+- 元件定義 JSON 新增 `description` 欄位（28 個元件都有中文說明），`parseDefinition` 會驗證其型別。
 
 ## [0.1.0] — 2026-10-05 — 子專案 1：核心引擎
 

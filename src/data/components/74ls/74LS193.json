@@ -1,6 +1,7 @@
 {
   "id": "74LS193",
   "name": "74LS193",
+  "description": "4 位元同步上 / 下數計數器（Up/down counter）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
   "pins": [

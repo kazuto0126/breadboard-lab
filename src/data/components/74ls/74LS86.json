@@ -1,6 +1,7 @@
 {
   "id": "74LS86",
   "name": "74LS86",
+  "description": "四組 2 輸入 XOR 閘（Quad 2-input XOR）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [

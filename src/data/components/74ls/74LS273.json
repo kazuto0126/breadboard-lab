@@ -1,6 +1,7 @@
 {
   "id": "74LS273",
   "name": "74LS273",
+  "description": "8 位元 D 型正反器，含清除（Octal D flip-flop）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 20, "rowSpacing": 3 },
   "pins": [

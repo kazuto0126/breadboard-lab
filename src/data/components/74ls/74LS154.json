@@ -1,6 +1,7 @@
 {
   "id": "74LS154",
   "name": "74LS154",
+  "description": "4 對 16 解碼器 / 解多工器，0.6 吋寬 DIP（4-to-16 decoder）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 24, "rowSpacing": 6 },
   "pins": [

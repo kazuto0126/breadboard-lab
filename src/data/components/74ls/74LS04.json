@@ -1,6 +1,7 @@
 {
   "id": "74LS04",
   "name": "74LS04",
+  "description": "六組反相器（Hex inverter）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [

@@ -39,6 +39,8 @@ export interface ComponentProps {
 export interface ComponentDefinition {
   id: string;
   name: string;
+  /** 給元件庫顯示的一句話說明。 */
+  description?: string;
   category: ComponentCategory;
   package: PackageSpec;
   pins: PinDefinition[];

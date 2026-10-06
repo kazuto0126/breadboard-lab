@@ -1,6 +1,7 @@
 {
   "id": "74LS74",
   "name": "74LS74",
+  "description": "雙 D 型正反器，含 Preset / Clear（Dual D flip-flop）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [

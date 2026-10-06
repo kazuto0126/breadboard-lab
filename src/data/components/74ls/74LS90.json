@@ -1,6 +1,7 @@
 {
   "id": "74LS90",
   "name": "74LS90",
+  "description": "十進位計數器（Decade counter）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [

@@ -1,6 +1,7 @@
 {
   "id": "74LS283",
   "name": "74LS283",
+  "description": "4 位元二進位全加器（4-bit full adder）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
   "pins": [

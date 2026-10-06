@@ -1,6 +1,7 @@
 {
   "id": "74LS174",
   "name": "74LS174",
+  "description": "六組 D 型正反器，含清除（Hex D flip-flop）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
   "pins": [
