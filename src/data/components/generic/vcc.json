@@ -1,6 +1,7 @@
 {
   "id": "vcc",
   "name": "VCC",
+  "description": "+5V 電源端子，插在孔上即為 VCC",
   "category": "vcc",
   "package": { "type": "single" },
   "pins": [{ "number": 1, "name": "VCC", "role": "vcc-source" }],

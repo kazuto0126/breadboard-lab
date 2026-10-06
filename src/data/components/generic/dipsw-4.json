@@ -1,6 +1,7 @@
 {
   "id": "dipsw-4",
   "name": "DIP Switch (4)",
+  "description": "4 位元指撥開關，第 k 個開關接在腳 k 與腳 9−k 之間",
   "category": "dip-switch",
   "package": { "type": "dip", "pinCount": 8, "rowSpacing": 3 },
   "pins": [

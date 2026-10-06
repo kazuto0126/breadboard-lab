@@ -1,0 +1,13 @@
+{
+  "id": "clock",
+  "name": "Clock",
+  "description": "時脈產生器：模擬時輸出固定頻率的方波（0.5–10 Hz）",
+  "category": "clock",
+  "package": { "type": "single" },
+  "pins": [
+    { "number": 1, "name": "CLK", "role": "output" }
+  ],
+  "internalConnections": [],
+  "defaultProps": { "frequency": 1 },
+  "logic": null
+}

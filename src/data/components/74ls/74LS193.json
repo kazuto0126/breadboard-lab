@@ -1,6 +1,7 @@
 {
   "id": "74LS193",
   "name": "74LS193",
+  "description": "4 位元同步上 / 下數計數器（Up/down counter）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
   "pins": [
@@ -23,5 +24,15 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "updown-counter",
+    "outputs": ["QA", "QB", "QC", "QD"],
+    "data": ["A", "B", "C", "D"],
+    "up": "UP",
+    "down": "DOWN",
+    "clear": { "pin": "CLR", "active": "high" },
+    "load": { "pin": "/LOAD", "active": "low" },
+    "carry": "/CO",
+    "borrow": "/BO"
+  }
 }

@@ -1,6 +1,7 @@
 {
   "id": "74LS245",
   "name": "74LS245",
+  "description": "8 位元雙向匯流排收發器（Octal bus transceiver）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 20, "rowSpacing": 3 },
   "pins": [
@@ -27,5 +28,13 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "transceiver",
+    "a": ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"],
+    "b": ["B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8"],
+    "direction": { "pin": "DIR", "aToB": "high" },
+    "enable": [
+      { "pin": "/G", "active": "low" }
+    ]
+  }
 }

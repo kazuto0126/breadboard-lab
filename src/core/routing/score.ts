@@ -1,3 +1,4 @@
+import { buildLattice, isRoutablePoint, latticeOf, type Lattice } from '../breadboard/lattice';
 import { nodeIdOf, parseNodeId } from '../breadboard/naming';
 import { groupInfo, indexCircuit, nodeAt, type CircuitIndex } from '../circuit/circuitIndex';
 import { extractNetsWith, terminalClusters } from '../circuit/nets';
@@ -18,16 +19,18 @@ function holePoints(index: CircuitIndex, groupId: string): GridPoint[] {
   return free.length > 0 ? free : all;
 }
 
-function groupDistance(a: GridPoint[], b: GridPoint[]): number {
+/** 兩組格點間的最小曼哈頓距離（以全域格子座標計算，跨板也正確）。 */
+function groupDistance(a: Array<{ x: number; y: number }>, b: Array<{ x: number; y: number }>): number {
   let best = Infinity;
   for (const p of a) for (const q of b) best = Math.min(best, Math.abs(p.x - q.x) + Math.abs(p.y - q.y));
   return best;
 }
 
 /** 不考慮障礙物時，把各簇連成一棵樹的最短總長（Prim 最小生成樹）。 */
-export function netLowerBound(index: CircuitIndex, clusters: string[][]): number {
+export function netLowerBound(index: CircuitIndex, clusters: string[][], lattice?: Lattice): number {
   if (clusters.length < 2) return 0;
-  const points = clusters.map((cl) => cl.flatMap((g) => holePoints(index, g)));
+  const toLattice = (p: GridPoint) => (lattice ? (latticeOf(lattice, p) ?? p) : p);
+  const points = clusters.map((cl) => cl.flatMap((g) => holePoints(index, g)).map(toLattice));
   const inTree = new Array<boolean>(clusters.length).fill(false);
   const best = new Array<number>(clusters.length).fill(Infinity);
   best[0] = 0;
@@ -52,10 +55,11 @@ export function scoreRouting(
 ): { metrics: RoutingMetrics; score: number } {
   const weights = mergeConfig(overrides).scoring;
   const index = indexCircuit(circuit);
-  const metrics = computeMetrics(wires);
-  const isOnBoard = (p: GridPoint) => nodeAt(index, p) !== undefined;
+  const lattice = buildLattice(circuit.boards);
+  const metrics = computeMetrics(wires, lattice);
+  const isOnBoard = (p: GridPoint) => isRoutablePoint(lattice, p);
   const broken = wires.some(
-    (w) => pathIssues(w, isOnBoard).length > 0 || [w.start, w.end].some((p) => nodeAt(index, p)?.kind !== 'hole'),
+    (w) => pathIssues(w, isOnBoard, lattice).length > 0 || [w.start, w.end].some((p) => nodeAt(index, p)?.kind !== 'hole'),
   );
   const reference = extractNetsWith(index, circuit.wires);
   if (broken || mismatchedNets(index, reference, wires).length > 0) return { metrics, score: 0 };
@@ -66,7 +70,7 @@ export function scoreRouting(
       return index.pinsAt.has(id) || index.bodiesAt.has(id);
     }),
   ).length;
-  const lowerBound = reference.reduce((sum, net) => sum + netLowerBound(index, terminalClusters(net, index)), 0);
+  const lowerBound = reference.reduce((sum, net) => sum + netLowerBound(index, terminalClusters(net, index), lattice), 0);
   const efficiency = metrics.totalLength === 0 ? 1 : Math.min(1, lowerBound / metrics.totalLength);
   const penalty =
     (metrics.overlaps + obstacleHits) * weights.overlap +

@@ -1,6 +1,7 @@
 {
   "id": "led",
   "name": "LED",
+  "description": "發光二極體：腳 1 陽極（+）、腳 2 陰極（−）",
   "category": "led",
   "package": { "type": "two-lead", "defaultSpan": 1, "minSpan": 1, "blocksBetween": false },
   "pins": [

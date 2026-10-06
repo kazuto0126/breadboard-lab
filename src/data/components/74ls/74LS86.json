@@ -1,6 +1,7 @@
 {
   "id": "74LS86",
   "name": "74LS86",
+  "description": "四組 2 輸入 XOR 閘（Quad 2-input XOR）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [
@@ -21,5 +22,13 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "gates",
+    "gates": [
+      { "op": "xor", "in": ["1A", "1B"], "out": "1Y" },
+      { "op": "xor", "in": ["2A", "2B"], "out": "2Y" },
+      { "op": "xor", "in": ["3A", "3B"], "out": "3Y" },
+      { "op": "xor", "in": ["4A", "4B"], "out": "4Y" }
+    ]
+  }
 }

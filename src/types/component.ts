@@ -1,4 +1,5 @@
 import type { GridPoint } from './geometry';
+import type { LogicSpec } from './logic';
 
 export type PinRole =
   | 'input'
@@ -13,7 +14,7 @@ export type PinRole =
   | 'vcc-source'
   | 'gnd-source';
 
-export type ComponentCategory = 'ic' | 'resistor' | 'led' | 'vcc' | 'gnd' | 'dc-power' | 'dip-switch' | 'pushbutton';
+export type ComponentCategory = 'ic' | 'resistor' | 'led' | 'vcc' | 'gnd' | 'dc-power' | 'dip-switch' | 'pushbutton' | 'clock';
 
 export type PackageSpec =
   | { type: 'dip'; pinCount: number; rowSpacing: 3 | 6 }
@@ -34,17 +35,22 @@ export interface ComponentProps {
   color?: LedColor;
   voltage?: number;
   switchStates?: boolean[];
+  /** 時脈頻率（Hz）。 */
+  frequency?: number;
 }
 
 export interface ComponentDefinition {
   id: string;
   name: string;
+  /** 給元件庫顯示的一句話說明。 */
+  description?: string;
   category: ComponentCategory;
   package: PackageSpec;
   pins: PinDefinition[];
   internalConnections: number[][];
   defaultProps: ComponentProps;
-  logic: null;
+  /** 邏輯模型；被動元件與電源為 null。 */
+  logic: LogicSpec | null;
 }
 
 export type Rotation = 0 | 90 | 180 | 270;

@@ -27,10 +27,10 @@ const EXPECTED: Record<string, { pinCount: number; rowSpacing: 3 | 6; vcc: numbe
 const pin = (id: string, n: number) => getComponentDefinition(id)!.pins.find((p) => p.number === n)!;
 
 describe('component library', () => {
-  it('loads 28 definitions with unique ids', () => {
+  it('loads 29 definitions with unique ids', () => {
     const defs = getComponentDefinitions();
-    expect(defs).toHaveLength(28);
-    expect(new Set(defs.map((d) => d.id)).size).toBe(28);
+    expect(defs).toHaveLength(29);
+    expect(new Set(defs.map((d) => d.id)).size).toBe(29);
     expect(getComponentDefinitions()).toBe(defs);
   });
 
@@ -41,7 +41,7 @@ describe('component library', () => {
     expect(def.pins.map((p) => p.number)).toEqual(Array.from({ length: e.pinCount }, (_, i) => i + 1));
     expect(def.pins.filter((p) => p.role === 'power').map((p) => p.number)).toEqual([e.vcc]);
     expect(def.pins.filter((p) => p.role === 'ground').map((p) => p.number)).toEqual([e.gnd]);
-    expect(def.logic).toBeNull();
+    expect(def.logic).not.toBeNull();
   });
 
   it('spot-checks pin names and roles against the datasheets', () => {
@@ -63,6 +63,11 @@ describe('component library', () => {
     expect(nc('74LS90')).toEqual([4, 13]);
     expect(nc('74LS93')).toEqual([4, 6, 7, 13]);
     expect(getComponentDefinition('74LS245')!.pins.filter((p) => p.role === 'bidir')).toHaveLength(16);
+  });
+
+  it('describes every part for the component library', () => {
+    for (const def of getComponentDefinitions()) expect(def.description, def.id).toMatch(/\S/);
+    expect(getComponentDefinition('74LS00')!.description).toContain('NAND');
   });
 
   it('defines the generic parts', () => {
@@ -95,5 +100,7 @@ describe('component library', () => {
     expect(() => parseDefinition({ ...base, package: { type: 'dip', pinCount: 7, rowSpacing: 3 } })).toThrow('even');
     expect(() => parseDefinition({ ...base, internalConnections: [[1, 9]] })).toThrow('internalConnections');
     expect(() => parseDefinition(null)).toThrow('not an object');
+    expect(() => parseDefinition({ ...base, description: 42 })).toThrow('description');
+    expect(parseDefinition(base).description).toBe('');
   });
 });

@@ -3,7 +3,7 @@ import { autoRoute } from '../../src/core/routing/autoRoute';
 import { checkRoutingLegality } from '../../src/core/routing/legality';
 import { scoreRouting } from '../../src/core/routing/score';
 import type { RoutingResult } from '../../src/types/routing';
-import { acceptanceCircuit, adderCircuit, counterCircuit } from '../fixtures/circuits';
+import { acceptanceCircuit, adderCircuit, counterCircuit, twoBoardCircuit } from '../fixtures/circuits';
 
 const withoutTiming = (r: RoutingResult) => ({ ...r, stats: { ...r.stats, elapsedMs: 0 } });
 
@@ -11,6 +11,7 @@ describe.each([
   ['acceptance', acceptanceCircuit],
   ['counter', counterCircuit],
   ['adder', adderCircuit],
+  ['two-boards', twoBoardCircuit],
 ])('%s fixture', (_name, build) => {
   it('routes successfully, legally and deterministically', () => {
     const c = build();

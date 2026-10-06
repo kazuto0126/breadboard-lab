@@ -1,6 +1,7 @@
 {
   "id": "74LS00",
   "name": "74LS00",
+  "description": "四組 2 輸入 NAND 閘（Quad 2-input NAND）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [
@@ -21,5 +22,13 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "gates",
+    "gates": [
+      { "op": "nand", "in": ["1A", "1B"], "out": "1Y" },
+      { "op": "nand", "in": ["2A", "2B"], "out": "2Y" },
+      { "op": "nand", "in": ["3A", "3B"], "out": "3Y" },
+      { "op": "nand", "in": ["4A", "4B"], "out": "4Y" }
+    ]
+  }
 }

@@ -1,3 +1,4 @@
+import { buildLattice, isRoutablePoint } from '../breadboard/lattice';
 import { nodeIdOf, parseNodeId } from '../breadboard/naming';
 import type { Circuit, CircuitError, Net, PinRef } from '../../types/circuit';
 import type { PinRole } from '../../types/component';
@@ -33,8 +34,10 @@ export function validateCircuit(circuit: Circuit): CircuitError[] {
   return errors;
 }
 
+/** 孔位名稱；多塊板時加上板子 ID（例如 b2:A12）。 */
 function holeLabel(index: CircuitIndex, p: GridPoint): string {
-  return nodeAt(index, p)?.name ?? `(${p.x}, ${p.y})`;
+  const name = nodeAt(index, p)?.name ?? `(${p.x}, ${p.y})`;
+  return index.boards.size > 1 ? `${p.boardId}:${name}` : name;
 }
 
 function sortedEntries<T>(map: Map<string, T>): Array<[string, T]> {
@@ -89,13 +92,15 @@ function checkPlacement(index: CircuitIndex, report: Report): void {
 }
 
 function checkWires(circuit: Circuit, index: CircuitIndex, report: Report): void {
-  const isOnBoard = (p: GridPoint) => nodeAt(index, p) !== undefined;
+  // 導線可以經過板上的格點，或同一個 Board Group 兩塊板之間的接縫。
+  const lattice = buildLattice(circuit.boards);
+  const isOnBoard = (p: GridPoint) => isRoutablePoint(lattice, p);
   const endsAt = new Map<string, string[]>();
   for (const w of circuit.wires) for (const p of [w.start, w.end]) pushTo(endsAt, nodeIdOf(p), w.id);
   const sharedEndReported = new Set<string>();
 
   for (const w of circuit.wires) {
-    const issues = pathIssues(w, isOnBoard);
+    const issues = pathIssues(w, isOnBoard, lattice);
     if (issues.length > 0) {
       report({
         code: 'WIRE_PATH_INVALID',
@@ -151,7 +156,7 @@ function checkWires(circuit: Circuit, index: CircuitIndex, report: Report): void
   }
 
   const byPair = new Map<string, { wireIds: string[]; points: GridPoint[] }>();
-  for (const o of analyzeWireInteractions(circuit.wires).overlaps) {
+  for (const o of analyzeWireInteractions(circuit.wires, lattice).overlaps) {
     const key = JSON.stringify(o.wireIds);
     const entry = byPair.get(key) ?? { wireIds: [...o.wireIds], points: [] };
     entry.points.push(parseNodeId(o.nodeId));

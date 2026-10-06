@@ -14,6 +14,7 @@ const PIN_CHAR: Record<ComponentCategory, string> = {
   'dc-power': 'P',
   'dip-switch': 'S',
   pushbutton: 'B',
+  clock: 'K',
 };
 
 const LINE_CHAR: Record<string, string> = { EW: '─', NS: '│', ES: '┌', SW: '┐', EN: '└', NW: '┘', ENSW: '┼' };

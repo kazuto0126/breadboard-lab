@@ -1,6 +1,7 @@
 {
   "id": "74LS93",
   "name": "74LS93",
+  "description": "4 位元二進位計數器（4-bit binary counter）",
   "category": "ic",
   "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
   "pins": [
@@ -21,5 +22,14 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "ripple-counter",
+    "stages": [
+      { "clock": "CKA", "modulus": 2, "outputs": ["QA"] },
+      { "clock": "CKB", "modulus": 8, "outputs": ["QB", "QC", "QD"] }
+    ],
+    "presets": [
+      { "when": [{ "pin": "R0(1)", "active": "high" }, { "pin": "R0(2)", "active": "high" }], "values": [0, 0] }
+    ]
+  }
 }

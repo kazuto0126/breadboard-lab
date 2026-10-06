@@ -1,6 +1,7 @@
 {
   "id": "pushbutton",
   "name": "Push Button",
+  "description": "4 腳輕觸按鈕：腳 1–2、腳 3–4 內部導通，按下時兩組相連",
   "category": "pushbutton",
   "package": { "type": "tactile4" },
   "pins": [

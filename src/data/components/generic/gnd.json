@@ -1,6 +1,7 @@
 {
   "id": "gnd",
   "name": "GND",
+  "description": "接地端子，插在孔上即為 GND",
   "category": "gnd",
   "package": { "type": "single" },
   "pins": [{ "number": 1, "name": "GND", "role": "gnd-source" }],

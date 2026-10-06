@@ -1,6 +1,7 @@
 {
   "id": "dc-power",
   "name": "DC Power",
+  "description": "直流電源模組：腳 1 為 +、腳 2 為 −",
   "category": "dc-power",
   "package": { "type": "two-lead", "defaultSpan": 1, "minSpan": 1, "blocksBetween": false },
   "pins": [
