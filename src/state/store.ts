@@ -295,7 +295,8 @@ export function initialState(): AppState {
     circuit,
     history: emptyHistory(),
     projectName: restored?.name || null,
-    savedCircuit: circuit,
+    // 重新整理前有未儲存的修改：沒有「上次存檔」的電路，isDirty 才會繼續成立。
+    savedCircuit: restored?.unsaved ? null : circuit,
     selection: null,
     placing: null,
     view: 'edit',
@@ -935,14 +936,15 @@ export const useStore = create<Store>()((set, get) => {
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** 電路、專案名稱或接線清單的勾選改變後 400 ms 寫入 localStorage；第一次失敗時提示一次。 */
+/** 電路、專案名稱、存檔狀態或接線清單的勾選改變後 400 ms 寫入 localStorage；第一次失敗時提示一次。 */
 export function startAutosave(): () => void {
   return useStore.subscribe((s, prev) => {
-    if (s.circuit === prev.circuit && s.projectName === prev.projectName && s.checklist === prev.checklist) return;
+    if (s.circuit === prev.circuit && s.projectName === prev.projectName && s.checklist === prev.checklist && s.savedCircuit === prev.savedCircuit) return;
     if (autosaveTimer) clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
       const now = useStore.getState();
-      if (!persistence.writeAutosave(now.circuit, now.projectName, pruneChecklist(now.checklist, now.circuit)) && !now.storageWarned) {
+      const checklist = pruneChecklist(now.checklist, now.circuit);
+      if (!persistence.writeAutosave(now.circuit, now.projectName, checklist, isDirty(now)) && !now.storageWarned) {
         useStore.setState({ storageWarned: true });
         now.toast('warning', '瀏覽器不允許使用本機儲存空間，無法自動儲存。請記得「匯出 JSON」。');
       }

@@ -170,9 +170,12 @@ test('Undo / Redo 放置、旋轉、刪除，且電路會自動儲存', async ({
   circuit = await savedCircuit(page);
   expect(circuit.components[0]).toMatchObject({ rotation: 0, anchor: { x: 20, y: 11 } });
 
-  // 重新整理後自動還原。
+  // 重新整理後自動還原；沒有存檔過，所以仍算未儲存，開新電路前會先確認。
   await page.reload();
   await expect(page.locator('g[data-component-id="U1"]')).toHaveCount(1);
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: '新電路 New Circuit' }).click();
+  await expect(page.getByRole('dialog', { name: '建立新電路？' })).toBeVisible();
 });
 
 test('邏輯模擬：在板上撥指撥開關、按按鈕，LED 即時反應', async ({ page }) => {

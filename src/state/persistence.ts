@@ -28,23 +28,35 @@ export function storageAvailable(): boolean {
   return storage() !== null;
 }
 
+export interface Autosave {
+  circuit: Circuit;
+  name: string | null;
+  checklist: ChecklistState;
+  /** 上次「儲存」之後有沒有修改；重新整理後仍要記得，開新電路或開啟專案前才會先確認。 */
+  unsaved: boolean;
+}
+
 /** 自動儲存的電路（重新整理後還原）。沒有或格式錯誤時回傳 null。 */
-export function loadAutosave(): { circuit: Circuit; name: string | null; checklist: ChecklistState } | null {
+export function loadAutosave(): Autosave | null {
   const text = storage()?.getItem(AUTOSAVE_KEY);
   if (!text) return null;
   try {
-    const result = parseCircuitData(JSON.parse(text));
-    return result.ok ? { circuit: result.circuit, name: result.name, checklist: result.checklist ?? {} } : null;
+    const raw = JSON.parse(text) as unknown;
+    const result = parseCircuitData(raw);
+    if (!result.ok) return null;
+    const unsaved = (raw as { unsaved?: unknown }).unsaved === true;
+    return { circuit: result.circuit, name: result.name, checklist: result.checklist ?? {}, unsaved };
   } catch {
     return null;
   }
 }
 
-export function writeAutosave(circuit: Circuit, name: string | null, checklist?: ChecklistState): boolean {
+export function writeAutosave(circuit: Circuit, name: string | null, checklist?: ChecklistState, unsaved = false): boolean {
   const s = storage();
   if (!s) return false;
   try {
-    s.setItem(AUTOSAVE_KEY, JSON.stringify(toCircuitFile(circuit, name ?? '', undefined, checklist)));
+    const file = toCircuitFile(circuit, name ?? '', undefined, checklist);
+    s.setItem(AUTOSAVE_KEY, JSON.stringify(unsaved ? { ...file, unsaved: true } : file));
     return true;
   } catch {
     return false;
