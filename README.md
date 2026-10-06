@@ -61,6 +61,9 @@ AI 標準佈線**不會移動元件**，只保留你的接線所定義的電氣�
 第一次執行 e2e 前需要安裝瀏覽器：`npx playwright install chromium`。
 已經有 Chromium 的環境可以改設 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chrome`。
 
+GitHub Actions（`.github/workflows/ci.yml`）在每個 Pull Request 與 push 到 `main` 時自動執行型別檢查、單元測試、建置與 e2e。
+給 Claude Code 的專案說明（架構、指令、慣例）在 [`CLAUDE.md`](CLAUDE.md)。
+
 ## 架構
 
 依需求文件第三十一章分層：畫面只負責顯示與操作，佈線完全由確定性的引擎計算。

@@ -3,6 +3,16 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 開發流程
+
+### 新增
+
+- `CLAUDE.md`：給 Claude Code 新對話的專案說明（指令、架構與依賴方向、格點 / 多板 / 導通的重要概念、
+  繁中文件與 CHANGELOG 等慣例、目前狀態），新的對話不必重讀整個專案就能接手。
+- GitHub Actions CI（`.github/workflows/ci.yml`）：每個 Pull Request 與 push 到 `main` 時執行
+  `npm ci` → 型別檢查 → 單元測試 → 建置，另一個工作安裝 Chromium 跑 Playwright 端對端測試，失敗時保留 trace。
+  同一分支有新的 push 時取消舊的檢查。
+
 ## [未發布] — 子專案 3：多麵包板長邊吸附與 Board Group（已完成）
 
 ### 新增
