@@ -1,0 +1,532 @@
+{
+  "format": "breadboard-lab",
+  "version": 1,
+  "name": "驗收電路",
+  "circuit": {
+    "version": 1,
+    "boards": [
+      {
+        "id": "b1",
+        "layoutId": "MB102",
+        "x": 0,
+        "y": 0,
+        "groupId": null
+      }
+    ],
+    "components": [
+      {
+        "id": "V1",
+        "defId": "vcc",
+        "boardId": "b1",
+        "anchor": {
+          "x": 5,
+          "y": 2
+        },
+        "rotation": 0,
+        "props": {}
+      },
+      {
+        "id": "G1",
+        "defId": "gnd",
+        "boardId": "b1",
+        "anchor": {
+          "x": 5,
+          "y": 18
+        },
+        "rotation": 0,
+        "props": {}
+      },
+      {
+        "id": "U1",
+        "defId": "74LS00",
+        "boardId": "b1",
+        "anchor": {
+          "x": 10,
+          "y": 11
+        },
+        "rotation": 0,
+        "props": {}
+      },
+      {
+        "id": "R1",
+        "defId": "resistor",
+        "boardId": "b1",
+        "anchor": {
+          "x": 30,
+          "y": 12
+        },
+        "rotation": 0,
+        "props": {}
+      },
+      {
+        "id": "D1",
+        "defId": "led",
+        "boardId": "b1",
+        "anchor": {
+          "x": 40,
+          "y": 12
+        },
+        "rotation": 0,
+        "props": {}
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "color": "#888888",
+        "source": "manual",
+        "start": {
+          "boardId": "b1",
+          "x": 6,
+          "y": 2
+        },
+        "end": {
+          "boardId": "b1",
+          "x": 10,
+          "y": 4
+        },
+        "path": [
+          {
+            "boardId": "b1",
+            "x": 6,
+            "y": 2
+          },
+          {
+            "boardId": "b1",
+            "x": 7,
+            "y": 2
+          },
+          {
+            "boardId": "b1",
+            "x": 8,
+            "y": 2
+          },
+          {
+            "boardId": "b1",
+            "x": 9,
+            "y": 2
+          },
+          {
+            "boardId": "b1",
+            "x": 10,
+            "y": 2
+          },
+          {
+            "boardId": "b1",
+            "x": 10,
+            "y": 3
+          },
+          {
+            "boardId": "b1",
+            "x": 10,
+            "y": 4
+          }
+        ]
+      },
+      {
+        "id": "w2",
+        "color": "#888888",
+        "source": "manual",
+        "start": {
+          "boardId": "b1",
+          "x": 6,
+          "y": 18
+        },
+        "end": {
+          "boardId": "b1",
+          "x": 16,
+          "y": 15
+        },
+        "path": [
+          {
+            "boardId": "b1",
+            "x": 6,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 7,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 8,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 9,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 10,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 11,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 12,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 13,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 14,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 15,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 16,
+            "y": 18
+          },
+          {
+            "boardId": "b1",
+            "x": 16,
+            "y": 17
+          },
+          {
+            "boardId": "b1",
+            "x": 16,
+            "y": 16
+          },
+          {
+            "boardId": "b1",
+            "x": 16,
+            "y": 15
+          }
+        ]
+      },
+      {
+        "id": "w3",
+        "color": "#888888",
+        "source": "manual",
+        "start": {
+          "boardId": "b1",
+          "x": 10,
+          "y": 15
+        },
+        "end": {
+          "boardId": "b1",
+          "x": 16,
+          "y": 14
+        },
+        "path": [
+          {
+            "boardId": "b1",
+            "x": 10,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 11,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 12,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 13,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 14,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 15,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 16,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 16,
+            "y": 14
+          }
+        ]
+      },
+      {
+        "id": "w4",
+        "color": "#888888",
+        "source": "manual",
+        "start": {
+          "boardId": "b1",
+          "x": 11,
+          "y": 15
+        },
+        "end": {
+          "boardId": "b1",
+          "x": 16,
+          "y": 13
+        },
+        "path": [
+          {
+            "boardId": "b1",
+            "x": 11,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 12,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 13,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 14,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 15,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 16,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 16,
+            "y": 14
+          },
+          {
+            "boardId": "b1",
+            "x": 16,
+            "y": 13
+          }
+        ]
+      },
+      {
+        "id": "w5",
+        "color": "#888888",
+        "source": "manual",
+        "start": {
+          "boardId": "b1",
+          "x": 12,
+          "y": 15
+        },
+        "end": {
+          "boardId": "b1",
+          "x": 30,
+          "y": 15
+        },
+        "path": [
+          {
+            "boardId": "b1",
+            "x": 12,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 13,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 14,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 15,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 16,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 17,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 18,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 19,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 20,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 21,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 22,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 23,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 24,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 25,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 26,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 27,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 28,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 29,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 30,
+            "y": 15
+          }
+        ]
+      },
+      {
+        "id": "w6",
+        "color": "#888888",
+        "source": "manual",
+        "start": {
+          "boardId": "b1",
+          "x": 34,
+          "y": 15
+        },
+        "end": {
+          "boardId": "b1",
+          "x": 40,
+          "y": 15
+        },
+        "path": [
+          {
+            "boardId": "b1",
+            "x": 34,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 35,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 36,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 37,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 38,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 39,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 40,
+            "y": 15
+          }
+        ]
+      },
+      {
+        "id": "w7",
+        "color": "#888888",
+        "source": "manual",
+        "start": {
+          "boardId": "b1",
+          "x": 41,
+          "y": 15
+        },
+        "end": {
+          "boardId": "b1",
+          "x": 41,
+          "y": 18
+        },
+        "path": [
+          {
+            "boardId": "b1",
+            "x": 41,
+            "y": 15
+          },
+          {
+            "boardId": "b1",
+            "x": 41,
+            "y": 16
+          },
+          {
+            "boardId": "b1",
+            "x": 41,
+            "y": 17
+          },
+          {
+            "boardId": "b1",
+            "x": 41,
+            "y": 18
+          }
+        ]
+      }
+    ]
+  },
+  "routing": null,
+  "savedAt": "2026-10-06T00:00:00.000Z"
+}
