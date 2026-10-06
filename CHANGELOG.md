@@ -40,6 +40,26 @@
   74LS IC / 指撥開關 / 電阻（依阻值畫色環）/ LED（陰極切平、標 + −）/ VCC / GND / DC Power / 按鈕、
   跳線（外框、端點插針、描線動畫）。
 
+- **可操作的 Web App**（`npm run dev`），版面依需求文件第二十一章：
+  - 頂部選單（檔案 / 編輯 / 電路 / 自動佈線 / 檢視 / 說明）、MANUAL / AUTO ROUTE / COMPARE 模式切換、
+    「Check Circuit」與「AI 標準佈線」按鈕。
+  - 左側元件庫：74LS / 電阻 / LED 以兩欄小格子顯示、分類快速跳轉、搜尋；拖曳或點一下放置；
+    Jumper Wire 預設顏色選擇。
+  - 中央互動式麵包板：放置時 ghost 預覽（綠 = 可放、紅 = 不可放）並自動吸附；拖曳移動（拖曳中可按 R 旋轉）；
+    從空孔拖曳到空孔接線（預覽正交路徑）；滑鼠停在孔上高亮整個導通群組並顯示孔位、群組、Net 與佔用狀態；
+    點腳位 / 導線 / Net 高亮整個 Net；右鍵選單（Rotate 90°、刪除、導線改色、Fit）；
+    滾輪以游標為中心縮放、中鍵 / Space + 拖曳 / 拖曳空白處平移、Fit to Screen、Reset View。
+  - Check Circuit：錯誤（紅）/ 警告（黃）直接標在板上，通過時顯示綠色「✓ Circuit Valid」，右側列出所有結果，
+    點一項會把畫面移過去。
+  - AI 標準佈線：在 Web Worker 計算（可取消）、原始導線淡化、新導線依 Net 優先序逐條描線出現，
+    完成後顯示 Standard Routing Complete 與前後統計（Wire Count、Total Length、Bends、Crossings、Overlaps、
+    Routing Score）；失敗時列出每個失敗 Net 的原因，電路不變。
+  - COMPARE：User Routing 與 AI Standard Routing 並排（可切換上下 / 左右），可套用 AI 佈線或切回手動接線。
+  - 右側資訊面板：選取項目的屬性（阻值、LED 顏色、兩腳間距、指撥開關狀態、腳位表）、Nets 清單、檢查結果。
+  - 底部狀態列：狀態、元件 / 導線 / Net 數、錯誤與警告、Routing Score、模式、縮放。
+  - Undo / Redo（所有編輯與 Auto Route）、儲存 / 另存新檔 / 開啟（瀏覽器專案庫）、匯入 / 匯出 JSON、
+    匯出 PNG / SVG、自動儲存、3 個範例電路、快捷鍵說明。
+
 ### 變更
 
 - 元件定義 JSON 新增 `description` 欄位（28 個元件都有中文說明），`parseDefinition` 會驗證其型別。

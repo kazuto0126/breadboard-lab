@@ -17,6 +17,16 @@ body {
   background: #0b1120;
   color: #e2e8f0;
   -webkit-font-smoothing: antialiased;
+  /* 拖曳元件與導線時不要選到文字。 */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+select {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* 自動佈線動畫：path 設 pathLength="1"，虛線從 1 收到 0 就是「描線」。 */

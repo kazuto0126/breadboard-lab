@@ -42,6 +42,8 @@ export interface PlacingTool {
   rotation: Rotation;
   /** true：按住拖曳中，放開就放置；false：點一下後 ghost 跟著游標，再點板子放置。 */
   dragging: boolean;
+  /** 在元件庫按下時的螢幕座標，用來分辨「點一下」與「拖曳」。 */
+  origin: { x: number; y: number } | null;
 }
 
 export type Mode = 'manual' | 'auto' | 'compare';
@@ -99,7 +101,7 @@ export interface AppActions {
   undo(): void;
   redo(): void;
   select(selection: Selection): void;
-  startPlacing(item: LibraryItem, dragging: boolean): void;
+  startPlacing(item: LibraryItem, dragging: boolean, origin?: { x: number; y: number }): void;
   setPlacingDragging(dragging: boolean): void;
   rotatePlacing(): void;
   cancelPlacing(): void;
@@ -296,9 +298,9 @@ export const useStore = create<Store>()((set, get) => {
       set({ selection, rightTab: selection && selection.kind !== 'issue' ? 'inspect' : get().rightTab });
     },
 
-    startPlacing(item, dragging) {
+    startPlacing(item, dragging, origin) {
       if (guardRouting() || !getComponentDefinition(item.defId)) return;
-      set({ placing: { item, rotation: 0, dragging }, selection: null, view: 'edit' });
+      set({ placing: { item, rotation: 0, dragging, origin: origin ?? null }, selection: null, view: 'edit' });
     },
 
     setPlacingDragging(dragging) {

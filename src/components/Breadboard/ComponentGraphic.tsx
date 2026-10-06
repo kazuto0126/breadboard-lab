@@ -16,6 +16,8 @@ interface Props {
   ghost?: boolean;
   /** 被拖曳中的原件：淡化。 */
   faded?: boolean;
+  /** false：純顯示（Compare 畫面），不帶互動屬性。 */
+  interactive?: boolean;
 }
 
 /** 文字永遠保持正向：抵銷元件本身的旋轉。 */
@@ -231,7 +233,7 @@ function PushButton({ instance }: { instance: ComponentInstance }) {
 }
 
 /** 一個元件的外觀（以腳 1 為原點畫，再整體旋轉），加上每隻腳的點擊區。 */
-export const ComponentGraphic = memo(function ComponentGraphic({ instance, def, at, ghost, faded }: Props) {
+export const ComponentGraphic = memo(function ComponentGraphic({ instance, def, at, ghost, faded, interactive = true }: Props) {
   let body: ReactNode = null;
   switch (def.package.type) {
     case 'dip':
@@ -258,9 +260,9 @@ export const ComponentGraphic = memo(function ComponentGraphic({ instance, def, 
   return (
     <g
       transform={`translate(${at.x} ${at.y})${instance.rotation ? ` rotate(${instance.rotation})` : ''}`}
-      data-component-id={ghost ? undefined : instance.id}
+      data-component-id={ghost || !interactive ? undefined : instance.id}
       opacity={ghost ? 0.72 : faded ? 0.3 : 1}
-      style={ghost ? { pointerEvents: 'none' } : { cursor: 'grab' }}
+      style={ghost || !interactive ? { pointerEvents: 'none' } : { cursor: 'grab' }}
     >
       {body}
     </g>
