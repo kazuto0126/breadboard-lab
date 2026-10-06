@@ -9,8 +9,8 @@ describe('board geometry', () => {
   it('places grid points on a 0.1-inch pitch inside a padded board', () => {
     expect(frames).toHaveLength(1);
     expect(frames[0].width).toBe(65 * PITCH);
-    expect(frames[0].height).toBe(19 * PITCH);
-    expect(localPx(1, 1)).toEqual({ x: 1.5 * PITCH, y: PITCH });
+    expect(frames[0].height).toBe(20 * PITCH);
+    expect(localPx(1, 1)).toEqual({ x: 1.5 * PITCH, y: 1.5 * PITCH });
     expect(toWorld(frames, pt(2, 1))!.x - toWorld(frames, pt(1, 1))!.x).toBe(PITCH);
     expect(toWorld(frames, { boardId: 'nope', x: 1, y: 1 })).toBeNull();
   });
@@ -21,12 +21,12 @@ describe('board geometry', () => {
     const hit = fromWorld(frames, w.x + PITCH / 2, w.y)!;
     expect(hit.fx).toBeCloseTo(12.5);
     expect(fromWorld(frames, -5, -5)).toBeNull();
-    // 板邊的留白也算在板上，但會夾到最近的格點。
-    expect(fromWorld(frames, 1, 1)).toMatchObject({ x: 1, y: 1 });
+    // 板邊的留白也算在板上，對應到留白格（x = 0、y = 0），不是孔。
+    expect(fromWorld(frames, 1, 1)).toMatchObject({ x: 0, y: 0 });
   });
 
   it('computes bounds', () => {
-    expect(worldBounds(frames)).toEqual({ x: 0, y: 0, width: 65 * PITCH, height: 19 * PITCH });
+    expect(worldBounds(frames)).toEqual({ x: 0, y: 0, width: 65 * PITCH, height: 20 * PITCH });
     expect(worldBounds([])).toBeNull();
     const b = gridBounds(frames, [pt(1, 1), pt(3, 2)], 0.5)!;
     expect(b.width).toBe(3 * PITCH);

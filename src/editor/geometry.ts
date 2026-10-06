@@ -1,3 +1,4 @@
+import { unitsFromMm } from '../core/breadboard/lattice';
 import { getBoard } from '../core/breadboard/registry';
 import type { Breadboard, BreadboardInstance } from '../types/board';
 import type { Circuit } from '../types/circuit';
@@ -5,9 +6,12 @@ import type { GridPoint } from '../types/geometry';
 
 /** 1 格（0.1 吋 = 2.54 mm）在世界座標中的像素數。 */
 export const PITCH = 20;
-/** 板邊到第 1 欄 / 第 1 列格點的距離（格）。 */
+/**
+ * 板邊到第 1 欄 / 第 1 列格點的距離（格）。四周各留 1.5 格，板子剛好是 (欄數 + 2) × (列數 + 2) 格，
+ * 每個格點都在一格的正中央；多塊板貼合時，所有格點落在同一張全域格子上。
+ */
 export const PAD_X = 1.5;
-export const PAD_Y = 1;
+export const PAD_Y = 1.5;
 /** BreadboardInstance.x / y 以 mm 記錄；換算成世界座標像素。 */
 export const MM_TO_PX = PITCH / 2.54;
 
@@ -46,7 +50,8 @@ export function boardSize(board: Pick<Breadboard, 'width' | 'height'>): { width:
 export function boardFrames(circuit: Pick<Circuit, 'boards'>): BoardFrame[] {
   return circuit.boards.map((instance) => {
     const board = getBoard(instance.layoutId, instance.id);
-    return { id: instance.id, board, instance, x: instance.x * MM_TO_PX, y: instance.y * MM_TO_PX, ...boardSize(board) };
+    // 位置一律對齊格點（與核心引擎的全域格子一致）。
+    return { id: instance.id, board, instance, x: unitsFromMm(instance.x) * PITCH, y: unitsFromMm(instance.y) * PITCH, ...boardSize(board) };
   });
 }
 
@@ -67,7 +72,7 @@ export interface GridHit {
   /** 連續的格點座標（可為小數），用來讓元件跟著游標置中。 */
   fx: number;
   fy: number;
-  /** 最近的格點。 */
+  /** 最近的格點（可能落在板邊留白，x 為 0 或欄數 + 1、y 為 0 或列數 + 1）。 */
   x: number;
   y: number;
 }
@@ -80,8 +85,8 @@ export function fromWorld(frames: BoardFrame[], wx: number, wy: number): GridHit
     if (lx < 0 || ly < 0 || lx > frame.width || ly > frame.height) continue;
     const fx = lx / PITCH - PAD_X + 1;
     const fy = ly / PITCH - PAD_Y + 1;
-    const x = Math.min(frame.board.width, Math.max(1, Math.round(fx)));
-    const y = Math.min(frame.board.height, Math.max(1, Math.round(fy)));
+    const x = Math.min(frame.board.width + 1, Math.max(0, Math.round(fx)));
+    const y = Math.min(frame.board.height + 1, Math.max(0, Math.round(fy)));
     return { boardId: frame.id, fx, fy, x, y };
   }
   return null;

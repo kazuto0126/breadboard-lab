@@ -9,6 +9,8 @@ import {
   serializeCircuitFile,
   toCircuitFile,
 } from '../../src/editor/fileFormat';
+import { normalizeBoardGroups } from '../../src/editor/boards';
+import { board, circuit, holeOn, latticeWire } from '../fixtures/build';
 import { acceptanceCircuit } from '../fixtures/circuits';
 
 function expectError(raw: unknown, fragment: string) {
@@ -47,7 +49,10 @@ describe('circuit files', () => {
     expectError({ format: FILE_FORMAT, version: 9, circuit: {} }, '檔案版本');
     const good = acceptanceCircuit();
     expectError({ ...good, version: 2 }, 'circuit.version');
-    expectError({ ...good, boards: [...good.boards, { ...good.boards[0], id: 'b2' }] }, '一塊麵包板');
+    expectError({ ...good, boards: [...good.boards, { ...good.boards[0], id: 'b2' }] }, '重疊');
+    expectError({ ...good, boards: [...good.boards, { ...good.boards[0], y: 50.8 }] }, '麵包板 ID「b1」重複');
+    expectError({ ...good, boards: [] }, '至少要有一塊');
+    expectError({ ...good, boards: Array.from({ length: 9 }, (_, i) => ({ ...good.boards[0], id: `b${i + 1}`, y: i * 60 })) }, '最多 8 塊');
     expectError({ ...good, components: [{ ...good.components[0], defId: '74LS999' }] }, '74LS999');
     expectError({ ...good, components: [{ ...good.components[0], rotation: 45 }] }, 'rotation');
     expectError({ ...good, components: [{ ...good.components[0], anchor: { x: 1.5, y: 2 } }] }, 'anchor.x');
@@ -56,6 +61,19 @@ describe('circuit files', () => {
     expectError({ ...good, wires: [{ ...good.wires[0], path: [good.wires[0].path[0]] }] }, '兩個點');
     expectError({ ...good, wires: [{ ...good.wires[0], start: { boardId: 'zz', x: 1, y: 1 } }] }, '找不到麵包板');
     expectError({ ...good, wires: [{ ...good.wires[0], source: 'robot' }] }, 'source');
+  });
+
+  it('loads several boards and derives their board groups from the layout', () => {
+    const boards = [board('b1'), board('b2', 0, 20), board('b3', 0, 45)].map((b) => ({ ...b, groupId: 'whatever' }));
+    const parsed = parseCircuitData({ ...emptyCircuit(), boards });
+    expect(parsed.ok && parsed.circuit.boards.map((b) => [b.id, b.y, b.groupId])).toEqual([
+      ['b1', 0, 'g-b1'],
+      ['b2', 50.8, 'g-b1'],
+      ['b3', 114.3, null],
+    ]);
+    const stacked = [board('b1'), board('b2', 0, 20)];
+    const c = normalizeBoardGroups(circuit([], [latticeWire(stacked, 'w1', holeOn('b1', 'J12'), holeOn('b2', 'A12'))], stacked));
+    expect(parseCircuitText(serializeCircuitFile(c, 'two'))).toEqual({ ok: true, circuit: c, name: 'two' });
   });
 
   it('drops unknown props instead of keeping junk', () => {

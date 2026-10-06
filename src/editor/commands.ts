@@ -53,8 +53,14 @@ function updateComponent(circuit: Circuit, id: string, update: (c: ComponentInst
   return { ...circuit, components: circuit.components.map((c) => (c.id === id ? update(c) : c)) };
 }
 
-export function moveComponent(circuit: Circuit, id: string, anchor: { x: number; y: number }, rotation?: Rotation): Circuit {
-  return updateComponent(circuit, id, (c) => ({ ...c, anchor: { x: anchor.x, y: anchor.y }, rotation: rotation ?? c.rotation }));
+/** 移動（可以換到另一塊板）並可同時改變方向。 */
+export function moveComponent(circuit: Circuit, id: string, anchor: { x: number; y: number }, rotation?: Rotation, boardId?: string): Circuit {
+  return updateComponent(circuit, id, (c) => ({
+    ...c,
+    boardId: boardId ?? c.boardId,
+    anchor: { x: anchor.x, y: anchor.y },
+    rotation: rotation ?? c.rotation,
+  }));
 }
 
 /** 旋轉並吸附到合法位置；轉不了（四周都放不下）時回傳 null。 */

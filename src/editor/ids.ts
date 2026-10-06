@@ -38,3 +38,10 @@ export function nextWireId(circuit: Circuit): string {
     'w',
   );
 }
+
+export function nextBoardId(circuit: Circuit): string {
+  return nextNumbered(
+    circuit.boards.map((b) => b.id),
+    'b',
+  );
+}

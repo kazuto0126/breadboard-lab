@@ -3,6 +3,7 @@ import type { BreadboardInstance } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance, ComponentProps, LedColor, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
+import { boardRects, MAX_BOARDS, normalizeBoardGroups, rectsOverlap } from './boards';
 
 export const FILE_FORMAT = 'breadboard-lab/circuit';
 export const FILE_VERSION = 1;
@@ -161,7 +162,18 @@ function parseCircuit(raw: unknown): Circuit {
   const c = obj(raw, 'circuit');
   if (c.version !== 1) fail('circuit.version', `不支援的電路版本 ${String(c.version)}`);
   const boards = arr(c.boards, 'circuit.boards').map((b, i) => parseBoard(b, `circuit.boards[${i}]`));
-  if (boards.length !== 1) fail('circuit.boards', '目前只支援一塊麵包板');
+  if (boards.length === 0) fail('circuit.boards', '至少要有一塊麵包板');
+  if (boards.length > MAX_BOARDS) fail('circuit.boards', `最多 ${MAX_BOARDS} 塊麵包板`);
+  assertUnique(
+    boards.map((b) => b.id),
+    '麵包板',
+  );
+  const rects = boardRects({ boards });
+  for (let i = 0; i < rects.length; i++) {
+    for (let j = i + 1; j < rects.length; j++) {
+      if (rectsOverlap(rects[i], rects[j])) fail('circuit.boards', `麵包板 ${rects[i].id} 和 ${rects[j].id} 重疊`);
+    }
+  }
   const boardIds = new Set(boards.map((b) => b.id));
   const components = arr(c.components ?? [], 'circuit.components').map((x, i) =>
     parseComponent(x, `circuit.components[${i}]`, boardIds),
@@ -175,7 +187,8 @@ function parseCircuit(raw: unknown): Circuit {
     wires.map((x) => x.id),
     '導線',
   );
-  return { version: 1, boards, components, wires };
+  // 位置對齊格點、依幾何重新推導 Board Group（檔案裡的 groupId 不採信）。
+  return normalizeBoardGroups({ version: 1, boards, components, wires });
 }
 
 /** 接受 CircuitFile（Save / Export 的格式），也接受直接貼上的 Circuit 物件。 */

@@ -1,4 +1,5 @@
-import { getNode, holeName, nodeIdOf } from '../core/breadboard/naming';
+import { buildLattice, canvasIndex, canvasOf, latticeOf, pointAt, type Lattice } from '../core/breadboard/lattice';
+import { getNode, holeName, nodeIdOf, parseNodeId } from '../core/breadboard/naming';
 import { getBoard } from '../core/breadboard/registry';
 import { MinHeap } from '../core/routing/minHeap';
 import type { Circuit } from '../types/circuit';
@@ -72,6 +73,36 @@ export function lShapePath(start: GridPoint, end: GridPoint, first: Axis = 'h'):
   return out;
 }
 
+/** 在全域格子上先走 first 軸再走另一軸（可以跨過同群組的接縫）；經過板面以外的格子時退回板內的 L 形。 */
+function latticeLPath(lattice: Lattice, start: GridPoint, end: GridPoint, first: Axis): GridPoint[] {
+  const a = latticeOf(lattice, start);
+  const b = latticeOf(lattice, end);
+  if (!a || !b) return lShapePath(start, end, first);
+  const out: GridPoint[] = [start];
+  let { x, y } = a;
+  const push = () => {
+    const p = pointAt(lattice, x, y);
+    if (p) out.push(p);
+    return p !== null;
+  };
+  const stepX = () => {
+    while (x !== b.x) {
+      x += Math.sign(b.x - x);
+      if (!push()) return false;
+    }
+    return true;
+  };
+  const stepY = () => {
+    while (y !== b.y) {
+      y += Math.sign(b.y - y);
+      if (!push()) return false;
+    }
+    return true;
+  };
+  const ok = first === 'h' ? stepX() && stepY() : stepY() && stepX();
+  return ok ? out : lShapePath(start, end, first);
+}
+
 const DX = [0, 1, 0, -1];
 const DY = [-1, 0, 1, 0];
 const NO_DIRECTION = 4;
@@ -79,25 +110,36 @@ const NO_DIRECTION = 4;
 /**
  * 規劃一條手動導線的正交路徑（Dijkstra，狀態含方向）：不能經過元件本體、元件腳與別條線的端點；
  * 轉彎與經過別條線都會加成本。成本相同時，第一步優先走 prefer 軸。找不到路時退回 L 形。
+ * 起點與終點可以在同一個 Board Group 的不同板子上：整組當成一張格子，導線經過板子之間的接縫。
+ * 兩端在沒有貼在一起的板子上時，回傳只有兩端的路徑。
  */
 export function planWirePath(circuit: Circuit, start: GridPoint, end: GridPoint, prefer: Axis = 'h'): GridPoint[] {
-  if (start.boardId !== end.boardId) return lShapePath(start, end, prefer);
-  if (start.x === end.x && start.y === end.y) return [start];
-  const occ = buildOccupancy(circuit, start.boardId);
-  const board = occ.board;
-  if (!board) return lShapePath(start, end, prefer);
-  const { width, height } = board;
-  const size = width * height;
-  const startIndex = (start.y - 1) * width + (start.x - 1);
-  const endIndex = (end.y - 1) * width + (end.x - 1);
-  if (startIndex < 0 || startIndex >= size || endIndex < 0 || endIndex >= size) return lShapePath(start, end, prefer);
+  if (start.boardId === end.boardId && start.x === end.x && start.y === end.y) return [start];
+  const lattice = buildLattice(circuit.boards);
+  const groupId = lattice.groupOf.get(start.boardId);
+  // 不同群組（或不存在）的板子之間沒有板面可以走線：只回傳兩端（Check Circuit 會判定為不合法）。
+  if (groupId === undefined || lattice.groupOf.get(end.boardId) !== groupId) return [start, end];
+  const canvas = canvasOf(lattice, groupId);
+  const { width, height, size } = canvas;
+  const startIndex = canvasIndex(canvas, lattice, start);
+  const endIndex = canvasIndex(canvas, lattice, end);
+  if (startIndex < 0 || endIndex < 0) return latticeLPath(lattice, start, end, prefer);
 
   const blocked = new Uint8Array(size);
   const overlap = new Uint8Array(size);
-  for (const node of board.nodes) {
-    const i = (node.y - 1) * width + (node.x - 1);
-    if (occ.pins.has(node.id) || occ.bodies.has(node.id) || occ.wireEnds.has(node.id)) blocked[i] = 1;
-    if (occ.wirePaths.has(node.id)) overlap[i] = 1;
+  for (let i = 0; i < size; i++) if (!canvas.routable[i]) blocked[i] = 1;
+  const mark = (ids: Set<string>, into: Uint8Array) => {
+    for (const id of ids) {
+      const i = canvasIndex(canvas, lattice, parseNodeId(id));
+      if (i >= 0) into[i] = 1;
+    }
+  };
+  for (const boardId of canvas.boardIds) {
+    const occ = buildOccupancy(circuit, boardId);
+    mark(occ.pins, blocked);
+    mark(occ.bodies, blocked);
+    mark(occ.wireEnds, blocked);
+    mark(occ.wirePaths, overlap);
   }
   blocked[startIndex] = 0;
   blocked[endIndex] = 0;
@@ -141,12 +183,12 @@ export function planWirePath(circuit: Circuit, start: GridPoint, end: GridPoint,
       }
     }
   }
-  if (found < 0) return lShapePath(start, end, prefer);
+  if (found < 0) return latticeLPath(lattice, start, end, prefer);
 
   const path: GridPoint[] = [];
   for (let s = found; s >= 0; s = prev[s]) {
-    const node = Math.floor(s / 5);
-    path.push({ boardId: start.boardId, x: (node % width) + 1, y: Math.floor(node / width) + 1 });
+    const p = canvas.points[Math.floor(s / 5)]!;
+    path.push({ boardId: p.boardId, x: p.x, y: p.y });
   }
   return path.reverse();
 }

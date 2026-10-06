@@ -184,3 +184,20 @@ export function buildCanvas(lattice: Lattice, groupId: string): LatticeCanvas {
 export function latticeGroups(lattice: Lattice): string[] {
   return [...new Set(lattice.groupOf.values())].sort();
 }
+
+const canvasCache = new WeakMap<Lattice, Map<string, LatticeCanvas>>();
+
+/** buildCanvas 的快取版本（同一個 lattice 重複查詢時用）。回傳值是共用物件，呼叫端不可修改。 */
+export function canvasOf(lattice: Lattice, groupId: string): LatticeCanvas {
+  let perGroup = canvasCache.get(lattice);
+  if (!perGroup) {
+    perGroup = new Map();
+    canvasCache.set(lattice, perGroup);
+  }
+  let canvas = perGroup.get(groupId);
+  if (!canvas) {
+    canvas = buildCanvas(lattice, groupId);
+    perGroup.set(groupId, canvas);
+  }
+  return canvas;
+}
