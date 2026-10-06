@@ -306,6 +306,34 @@ describe('wiring checklist', () => {
   });
 });
 
+describe('viewport', () => {
+  it('refits when the canvas resizes until the user zooms or pans', () => {
+    s().setCanvasSize(1200, 700);
+    s().fitToScreen();
+    const wide = s().viewport;
+    s().setCanvasSize(600, 900);
+    expect(s().viewportAuto).toBe(true);
+    expect(s().viewport.scale).toBeLessThan(wide.scale);
+
+    s().zoomBy(1.5);
+    expect(s().viewportAuto).toBe(false);
+    const zoomed = s().viewport;
+    s().setCanvasSize(1200, 700);
+    expect(s().viewport).toBe(zoomed);
+
+    s().fitToScreen();
+    s().setViewport({ ...s().viewport, x: s().viewport.x + 40 });
+    const panned = s().viewport;
+    s().setCanvasSize(800, 600);
+    expect(s().viewport).toBe(panned);
+
+    s().fitToScreen();
+    s().setCanvasSize(1000, 800);
+    expect(s().viewport).not.toBe(panned);
+    expect(s().viewportAuto).toBe(true);
+  });
+});
+
 describe('files', () => {
   it('imports a circuit file and resets the history', () => {
     s().placeComponent(findLibraryItem('led-red')!, 0, 'b1', { x: 5, y: 4 });

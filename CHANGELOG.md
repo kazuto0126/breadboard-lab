@@ -3,6 +3,15 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 畫布大小改變時重新符合畫面（移植自 feat/core-engine）
+
+### 修正
+
+- 只有第一次量到畫布大小時會 Fit to Screen：平板轉向、調整視窗大小後，麵包板可能有一半在畫面外。
+  現在使用者還沒自己縮放或平移（滾輪、兩指、拖曳、＋ / − 按鈕）時，畫布大小改變就自動重新 Fit；
+  縮放或平移過就保留使用者的畫面，按 Fit to Screen（F）後又恢復自動。
+- 測試：store 測試 1 個；Playwright `e2e/tablet.spec.ts` 新增轉向測試（直放 → 橫放整塊板子仍在畫面裡、放大後轉回仍保留縮放）。
+
 ## [未發布] — 重新整理後仍記得有未儲存的修改（移植自 feat/core-engine）
 
 ### 修正

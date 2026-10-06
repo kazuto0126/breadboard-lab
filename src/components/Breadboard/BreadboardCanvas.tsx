@@ -276,7 +276,7 @@ export function BreadboardCanvas() {
     return fromWorld(framesRef.current, world.x, world.y);
   }, []);
 
-  // 畫布大小；第一次量到大小時 Fit to Screen。
+  // 畫布大小；第一次量到大小時 Fit to Screen，之後使用者還沒自己縮放或平移時，大小改變會重新 Fit（setCanvasSize）。
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -286,7 +286,7 @@ export function BreadboardCanvas() {
       useStore.getState().setCanvasSize(Math.round(width), Math.round(height));
       if (!fitted && width > 0 && height > 0) {
         fitted = true;
-        useStore.getState().fitToScreen();
+        if (useStore.getState().viewportAuto) useStore.getState().fitToScreen();
       }
     });
     observer.observe(el);

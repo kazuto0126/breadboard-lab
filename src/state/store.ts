@@ -121,6 +121,8 @@ export interface AppState {
   resultVisible: boolean;
   wireColor: string;
   viewport: Viewport;
+  /** 使用者還沒自己縮放或平移：畫布大小改變（平板轉向、調整視窗）時自動重新 Fit to Screen。 */
+  viewportAuto: boolean;
   canvasSize: { width: number; height: number };
   rightTab: RightTab;
   dialog: Dialog;
@@ -308,6 +310,7 @@ export function initialState(): AppState {
     resultVisible: false,
     wireColor: DEFAULT_WIRE_COLOR,
     viewport: DEFAULT_VIEWPORT,
+    viewportAuto: true,
     canvasSize: { width: 1200, height: 700 },
     rightTab: 'inspect',
     dialog: null,
@@ -598,36 +601,40 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     setViewport(viewport) {
-      set({ viewport });
+      set({ viewport, viewportAuto: false });
     },
 
     setCanvasSize(width, height) {
       const s = get();
       if (s.canvasSize.width === width && s.canvasSize.height === height) return;
       set({ canvasSize: { width, height } });
+      if (s.viewportAuto && width > 0 && height > 0) get().fitToScreen();
     },
 
     zoomBy(factor) {
       const s = get();
-      set({ viewport: zoomAt(s.viewport, factor, s.canvasSize.width / 2, s.canvasSize.height / 2) });
+      set({ viewport: zoomAt(s.viewport, factor, s.canvasSize.width / 2, s.canvasSize.height / 2), viewportAuto: false });
     },
 
     fitToScreen() {
       const s = get();
       const bounds = worldBounds(boardFrames(s.circuit));
-      if (bounds) set({ viewport: fitRect(bounds, s.canvasSize.width, s.canvasSize.height, 28) });
+      if (bounds) set({ viewport: fitRect(bounds, s.canvasSize.width, s.canvasSize.height, 28), viewportAuto: true });
     },
 
     resetView() {
       const s = get();
       const bounds = worldBounds(boardFrames(s.circuit));
-      set({ viewport: bounds ? centerOn({ ...DEFAULT_VIEWPORT, scale: 1 }, bounds, s.canvasSize.width, s.canvasSize.height) : DEFAULT_VIEWPORT });
+      set({
+        viewport: bounds ? centerOn({ ...DEFAULT_VIEWPORT, scale: 1 }, bounds, s.canvasSize.width, s.canvasSize.height) : DEFAULT_VIEWPORT,
+        viewportAuto: false,
+      });
     },
 
     focusPoints(points) {
       const s = get();
       const rect = gridBounds(boardFrames(s.circuit), points, 3);
-      if (rect) set({ viewport: centerOn(s.viewport, rect, s.canvasSize.width, s.canvasSize.height) });
+      if (rect) set({ viewport: centerOn(s.viewport, rect, s.canvasSize.width, s.canvasSize.height), viewportAuto: false });
     },
 
     setRightTab(rightTab) {

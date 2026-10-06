@@ -75,3 +75,33 @@ test('平板：選單、接線清單的勾選框與狀態列也夠大', async ({
   await expect(page.getByTestId('checklist-progress')).toHaveText(/已完成 1 \//);
   expect(await smallTargets(page.locator('footer'))).toEqual([]);
 });
+
+/** 主畫布上的 b1 板子佔畫布寬度的比例，以及是否整塊都在畫布裡。 */
+async function boardFit(page: Page) {
+  const svg = page.locator('svg', { has: page.locator('[data-hole]') }).first();
+  const canvas = (await svg.boundingBox())!;
+  const board = (await svg.locator('[data-board="b1"]').first().boundingBox())!;
+  const inside =
+    board.x >= canvas.x - 0.5 &&
+    board.y >= canvas.y - 0.5 &&
+    board.x + board.width <= canvas.x + canvas.width + 0.5 &&
+    board.y + board.height <= canvas.y + canvas.height + 0.5;
+  return { fill: board.width / canvas.width, inside };
+}
+
+test('平板轉向：還沒自己縮放時整塊板子重新符合畫面，縮放過就保留', async ({ page }) => {
+  expect(await boardFit(page)).toMatchObject({ inside: true });
+  expect((await boardFit(page)).fill).toBeGreaterThan(0.85);
+
+  // 橫放（≥ 1024 px，兩側面板回到版面裡、畫布變窄變矮）：重新 Fit，整塊板子仍在畫面裡、填滿寬度。
+  await page.setViewportSize({ width: 1180, height: 820 });
+  await expect.poll(async () => (await boardFit(page)).inside).toBe(true);
+  await expect.poll(async () => (await boardFit(page)).fill).toBeGreaterThan(0.85);
+
+  // 自己放大之後再轉回直放：保留使用者的縮放。
+  await page.getByTitle('放大（+）').tap();
+  const zoom = await page.getByTestId('zoom').textContent();
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await page.waitForTimeout(200);
+  await expect(page.getByTestId('zoom')).toHaveText(zoom!);
+});
