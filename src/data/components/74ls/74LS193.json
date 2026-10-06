@@ -24,5 +24,15 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "updown-counter",
+    "outputs": ["QA", "QB", "QC", "QD"],
+    "data": ["A", "B", "C", "D"],
+    "up": "UP",
+    "down": "DOWN",
+    "clear": { "pin": "CLR", "active": "high" },
+    "load": { "pin": "/LOAD", "active": "low" },
+    "carry": "/CO",
+    "borrow": "/BO"
+  }
 }

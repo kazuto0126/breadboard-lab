@@ -24,5 +24,12 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "adder",
+    "a": ["A1", "A2", "A3", "A4"],
+    "b": ["B1", "B2", "B3", "B4"],
+    "carryIn": "C0",
+    "sum": ["S1", "S2", "S3", "S4"],
+    "carryOut": "C4"
+  }
 }

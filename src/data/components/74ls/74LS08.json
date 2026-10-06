@@ -22,5 +22,13 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "gates",
+    "gates": [
+      { "op": "and", "in": ["1A", "1B"], "out": "1Y" },
+      { "op": "and", "in": ["2A", "2B"], "out": "2Y" },
+      { "op": "and", "in": ["3A", "3B"], "out": "3Y" },
+      { "op": "and", "in": ["4A", "4B"], "out": "4Y" }
+    ]
+  }
 }

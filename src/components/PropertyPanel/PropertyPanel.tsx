@@ -22,6 +22,8 @@ import {
   wireSummary,
 } from '../common/describe';
 
+const CLOCK_FREQUENCIES = [0.5, 1, 2, 5, 10];
+
 function Section({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
   return (
     <section className="border-b border-slate-800 px-3 py-3">
@@ -187,6 +189,17 @@ function ComponentInspector({ id, circuit, analysis }: { id: string; circuit: Ci
           </Row>
         )}
         {(def.category === 'vcc' || def.category === 'dc-power') && <Row label="電壓">{props.voltage ?? 5} V</Row>}
+        {def.category === 'clock' && (
+          <Row label="頻率">
+            <select className={select} value={props.frequency ?? 1} onChange={(e) => store.updateProps(id, { frequency: Number(e.target.value) })} aria-label="時脈頻率">
+              {CLOCK_FREQUENCIES.map((f) => (
+                <option key={f} value={f}>
+                  {f} Hz
+                </option>
+              ))}
+            </select>
+          </Row>
+        )}
         {def.category === 'dip-switch' && (
           <div className="mt-2">
             <div className="mb-1 text-xs text-slate-400">開關狀態（只影響之後的邏輯模擬，不影響佈線）</div>

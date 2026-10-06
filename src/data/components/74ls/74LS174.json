@@ -24,5 +24,15 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "dff",
+    "flipflops": [
+      { "d": "1D", "clock": "CLK", "q": "1Q", "clear": { "pin": "/CLR", "active": "low" } },
+      { "d": "2D", "clock": "CLK", "q": "2Q", "clear": { "pin": "/CLR", "active": "low" } },
+      { "d": "3D", "clock": "CLK", "q": "3Q", "clear": { "pin": "/CLR", "active": "low" } },
+      { "d": "4D", "clock": "CLK", "q": "4Q", "clear": { "pin": "/CLR", "active": "low" } },
+      { "d": "5D", "clock": "CLK", "q": "5Q", "clear": { "pin": "/CLR", "active": "low" } },
+      { "d": "6D", "clock": "CLK", "q": "6Q", "clear": { "pin": "/CLR", "active": "low" } }
+    ]
+  }
 }

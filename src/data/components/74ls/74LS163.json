@@ -24,5 +24,17 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "sync-counter",
+    "outputs": ["QA", "QB", "QC", "QD"],
+    "data": ["A", "B", "C", "D"],
+    "clock": "CLK",
+    "clear": { "pin": "/CLR", "active": "low", "mode": "sync" },
+    "load": { "pin": "/LOAD", "active": "low" },
+    "enable": [
+      { "pin": "ENP", "active": "high" },
+      { "pin": "ENT", "active": "high" }
+    ],
+    "carry": { "output": "RCO", "enable": [{ "pin": "ENT", "active": "high" }] }
+  }
 }

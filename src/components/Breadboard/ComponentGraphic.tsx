@@ -196,6 +196,25 @@ function Terminal({ instance, def }: { instance: ComponentInstance; def: Compone
   );
 }
 
+/** 方波符號（以 (0, 0) 為中心，寬 w）。 */
+export function squareWavePath(w: number, h: number): string {
+  const s = w / 4;
+  return `M ${-2 * s} ${h / 2} h ${s} v ${-h} h ${s} v ${h} h ${s} v ${-h} h ${s}`;
+}
+
+function ClockSource({ instance, def }: { instance: ComponentInstance; def: ComponentDefinition }) {
+  const hz = instance.props.frequency ?? def.defaultProps.frequency ?? 1;
+  return (
+    <>
+      <circle r={0.44 * P} fill={PART.clock} stroke={PART.clockEdge} strokeWidth={1} />
+      <path d={squareWavePath(0.56 * P, 0.26 * P)} fill="none" stroke="#ffffff" strokeWidth={1.4} strokeLinejoin="round" />
+      <Upright x={0} y={-0.84 * P} rotation={instance.rotation} fill={PART.clock} fontSize={0.38 * P} fontWeight={800}>
+        {`${instance.id} ${hz}Hz`}
+      </Upright>
+    </>
+  );
+}
+
 function DcPower({ instance, def }: { instance: ComponentInstance; def: ComponentDefinition }) {
   const span = effectiveSpan(instance, def);
   const volts = instance.props.voltage ?? def.defaultProps.voltage ?? 5;
@@ -257,7 +276,7 @@ export const ComponentGraphic = memo(function ComponentGraphic({ instance, def, 
         );
       break;
     case 'single':
-      body = <Terminal instance={instance} def={def} />;
+      body = def.category === 'clock' ? <ClockSource instance={instance} def={def} /> : <Terminal instance={instance} def={def} />;
       break;
     case 'tactile4':
       body = <PushButton instance={instance} />;

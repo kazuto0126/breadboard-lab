@@ -24,5 +24,10 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "decoder",
+    "units": [
+      { "select": ["A", "B", "C"], "enable": [{ "pin": "G1", "active": "high" }, { "pin": "/G2A", "active": "low" }, { "pin": "/G2B", "active": "low" }], "outputs": ["/Y0", "/Y1", "/Y2", "/Y3", "/Y4", "/Y5", "/Y6", "/Y7"], "outputActive": "low" }
+    ]
+  }
 }

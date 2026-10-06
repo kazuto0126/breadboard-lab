@@ -71,7 +71,7 @@ export function librarySections(): LibrarySection[] {
       items: led ? LED_COLORS.map((color) => item(led, `led-${color}`, `${LED_COLOR_NAMES[color]}色 LED`, { color })) : [],
     },
     { id: 'power', title: '電源 Power', items: byCategory('vcc', 'gnd', 'dc-power').map((d) => item(d, d.id, d.name, {})) },
-    { id: 'input', title: '輸入 Input', items: byCategory('dip-switch', 'pushbutton').map((d) => item(d, d.id, d.name, {})) },
+    { id: 'input', title: '輸入 Input', items: byCategory('dip-switch', 'pushbutton', 'clock').map((d) => item(d, d.id, d.name, {})) },
   ];
   return sections;
 }

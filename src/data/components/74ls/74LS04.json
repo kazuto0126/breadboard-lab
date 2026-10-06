@@ -22,5 +22,15 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "gates",
+    "gates": [
+      { "op": "not", "in": ["1A"], "out": "1Y" },
+      { "op": "not", "in": ["2A"], "out": "2Y" },
+      { "op": "not", "in": ["3A"], "out": "3Y" },
+      { "op": "not", "in": ["4A"], "out": "4Y" },
+      { "op": "not", "in": ["5A"], "out": "5Y" },
+      { "op": "not", "in": ["6A"], "out": "6Y" }
+    ]
+  }
 }

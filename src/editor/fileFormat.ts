@@ -85,6 +85,11 @@ function parseProps(raw: unknown, path: string): ComponentProps {
     props.color = p.color as LedColor;
   }
   if (p.voltage !== undefined) props.voltage = num(p.voltage, `${path}.voltage`);
+  if (p.frequency !== undefined) {
+    const f = num(p.frequency, `${path}.frequency`);
+    if (f <= 0) fail(`${path}.frequency`, '必須大於 0');
+    props.frequency = f;
+  }
   if (p.switchStates !== undefined) {
     const states = arr(p.switchStates, `${path}.switchStates`);
     if (!states.every((s) => typeof s === 'boolean')) fail(`${path}.switchStates`, '必須是 true / false 陣列');

@@ -22,5 +22,11 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "dff",
+    "flipflops": [
+      { "d": "1D", "clock": "1CLK", "q": "1Q", "qn": "1/Q", "preset": { "pin": "1/PRE", "active": "low" }, "clear": { "pin": "1/CLR", "active": "low" } },
+      { "d": "2D", "clock": "2CLK", "q": "2Q", "qn": "2/Q", "preset": { "pin": "2/PRE", "active": "low" }, "clear": { "pin": "2/CLR", "active": "low" } }
+    ]
+  }
 }

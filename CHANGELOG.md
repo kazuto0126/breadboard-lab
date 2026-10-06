@@ -9,6 +9,13 @@
 
 - 子專案 4 設計規格：`docs/superpowers/specs/2026-10-06-logic-simulation-design.md`
   （邏輯模型 JSON 格式、模擬引擎演算法、時脈元件、模擬模式的畫面）。
+- 元件 JSON 的 `logic` 欄位正式啟用（`src/types/logic.ts`）：以「模型 + 腳位名稱」描述 IC 行為，
+  共 8 種模型——`gates`、`decoder`、`dff`、`ripple-counter`、`sync-counter`、`updown-counter`、`adder`、`transceiver`。
+  20 顆 74LS IC 依 datasheet 的功能表填好 `logic`；之後新增同類 IC 只需要寫 JSON。
+- `parseLogic`（`src/core/circuit/logicSpec.ts`）：驗證模型名稱、參數、腳位名稱（不能引用重複的名稱，例如 NC），
+  只保留已知欄位。7 個新測試。
+- 新元件 **Clock 時脈產生器**（類別 `clock`、編號前綴 `CLK`、屬性 `frequency` 0.5–10 Hz）：
+  板上圖示、元件庫圖示（放在「輸入」分類）、屬性面板頻率選擇、存檔格式支援。
 
 ## [未發布] — 子專案 2：Web App
 

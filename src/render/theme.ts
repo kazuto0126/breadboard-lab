@@ -33,6 +33,8 @@ export const PART = {
   gnd: '#263238',
   gndEdge: '#0f1417',
   dcBody: '#37474f',
+  clock: '#6d28d9',
+  clockEdge: '#3b0f87',
 };
 
 export const LED_FILL: Record<LedColor, { fill: string; edge: string; glow: string }> = {

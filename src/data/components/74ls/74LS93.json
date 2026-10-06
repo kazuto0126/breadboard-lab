@@ -22,5 +22,14 @@
   ],
   "internalConnections": [],
   "defaultProps": {},
-  "logic": null
+  "logic": {
+    "model": "ripple-counter",
+    "stages": [
+      { "clock": "CKA", "modulus": 2, "outputs": ["QA"] },
+      { "clock": "CKB", "modulus": 8, "outputs": ["QB", "QC", "QD"] }
+    ],
+    "presets": [
+      { "when": [{ "pin": "R0(1)", "active": "high" }, { "pin": "R0(2)", "active": "high" }], "values": [0, 0] }
+    ]
+  }
 }

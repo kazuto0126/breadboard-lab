@@ -76,6 +76,13 @@ export function PartIcon({ item }: { item: LibraryItem }) {
           ))}
         </svg>
       );
+    case 'clock':
+      return (
+        <svg {...box} aria-hidden>
+          <circle cx={17} cy={12} r={9} fill={PART.clock} />
+          <path d="M 11 15 h 3 v -6 h 3 v 6 h 3 v -6 h 3" fill="none" stroke="#fff" strokeWidth={1.6} strokeLinejoin="round" />
+        </svg>
+      );
     case 'pushbutton':
       return (
         <svg {...box} aria-hidden>

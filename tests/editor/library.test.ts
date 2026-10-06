@@ -10,7 +10,7 @@ describe('component library sections', () => {
       ['resistor', 8],
       ['led', 4],
       ['power', 3],
-      ['input', 3],
+      ['input', 4],
     ]);
     const ics = sections[0].items.map((i) => i.defId);
     expect(ics[0]).toBe('74LS00');
