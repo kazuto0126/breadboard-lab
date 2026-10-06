@@ -9,6 +9,12 @@
 
 - 子專案 2（Web App）設計規格：`docs/superpowers/specs/2026-10-06-web-app-design.md`。
 - 本變更紀錄檔。
+- 前端工具鏈：Vite 8、React 19、Zustand 5、Tailwind CSS 4、Playwright（e2e）。
+  新增 `npm run dev`、`npm run build`、`npm run preview`、`npm run e2e`。
+- TypeScript 設定拆成兩份：`tsconfig.json`（核心引擎、editor、測試，**不含 DOM 型別**，
+  強制核心與編輯邏輯不依賴瀏覽器）與 `tsconfig.web.json`（畫面，含 DOM 與 JSX）；
+  `npm run typecheck` 會檢查兩者與 e2e 測試。
+- `vitest.config.ts`：單元測試只收 `tests/**/*.test.ts`，與 Playwright 的 e2e 測試分開。
 
 ## [0.1.0] — 2026-10-05 — 子專案 1：核心引擎
 

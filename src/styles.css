@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  background: #0b1120;
+  color: #e2e8f0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 自動佈線動畫：path 設 pathLength="1"，虛線從 1 收到 0 就是「描線」。 */
+@keyframes bbl-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes bbl-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.bbl-draw {
+  stroke-dasharray: 1 2;
+  animation: bbl-draw var(--bbl-duration, 400ms) ease-out var(--bbl-delay, 0ms) both;
+}
+
+.bbl-fade {
+  animation: bbl-fade 200ms ease-out var(--bbl-delay, 0ms) both;
+}
+
+@keyframes bbl-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.bbl-pulse {
+  animation: bbl-pulse 1.4s ease-in-out infinite;
+}
+
+.bbl-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.bbl-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
