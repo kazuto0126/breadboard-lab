@@ -16,8 +16,15 @@
 
 ## 接下來（依優先順序）
 
-1. 補跑平板觸控審查的 CSS 角度（第一次因 API 過載失敗），並審查 417151d（觸控修正）、3e94964（重新整理後記得未儲存）、
-   9df4d0d（畫布大小改變時重新 Fit）。2026-10-06 14:25Z 因用量快用完而中止，還沒有結果，要重新跑。
+1. 審查（2026-10-06 在本機 Windows 對話進行到一半，使用者要求先停）：
+   - 已看完、沒有找到問題：3e94964（重新整理後記得未儲存）、9df4d0d（畫布大小改變時重新 Fit）、417151d 的指標事件邏輯。
+   - CSS 角度，待確認與修正：
+     a. 右鍵 / 長按選單（`CanvasHud` 的 `ContextMenu`）沒有限制在畫布內，畫布容器是 `overflow-hidden`，
+        在靠右或靠下的地方打開會被裁掉；平板上每項 44 px，更容易發生。還沒寫測試重現。
+     b. 工具列下拉選單與對話框（`Modal`）沒有最大高度、不能捲動。1133 × 744（iPad mini 橫放、觸控）量到
+        「檔案」選單底部在 678 px、說明對話框 22–722 px，剛好放得下；實機 Safari 扣掉網址列後可能超出畫面。
+        修法：加 `max-h` 與 `overflow-y-auto`。
+   - 確認後各自先寫會失敗的 e2e 再修。
 2. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），**需要使用者在 Settings → Pages 把 Source 設成 GitHub Actions**，合併到 main 後就會上線
 3. 子專案 5：AI 解說。先寫設計規格 `docs/superpowers/specs/2026-10-06-ai-explanation-design.md`（設計 workflow 同樣中止，要重新跑）。
    預定方向：靜態網站不能放 API 金鑰，所以由使用者自己貼 Claude API 金鑰（只存在自己的瀏覽器）；
