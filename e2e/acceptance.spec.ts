@@ -174,3 +174,47 @@ test('Undo / Redo 放置、旋轉、刪除，且電路會自動儲存', async ({
   await page.reload();
   await expect(page.locator('g[data-component-id="U1"]')).toHaveCount(1);
 });
+
+test('邏輯模擬：在板上撥指撥開關、按按鈕，LED 即時反應', async ({ page }) => {
+  const openExample = async (name: string) => {
+    await page.getByRole('button', { name: '檔案', exact: true }).click();
+    await page.getByRole('menuitem', { name }).click();
+  };
+  const litLeds = async (ids: string[]) => {
+    const states = await Promise.all(ids.map((id) => page.locator(`g[data-component-id="${id}"][data-lit]`).count()));
+    return states.join('');
+  };
+
+  // 74LS283：全部 OFF 時 A = B = 15、C0 = 0 → 30 = 1 1110。
+  await openExample('74LS283 4 位元加法器');
+  await page.getByRole('button', { name: '▶ 模擬', exact: true }).click();
+  await expect(page.getByTestId('simulation-bar')).toContainText('模擬中');
+  await expect.poll(() => litLeds(['D1', 'D2', 'D3', 'D4', 'D5'])).toBe('01111');
+
+  // A = 3（開關 3、4 ON）、B = 5（開關 6、8 ON）→ 8 = 0 1000。
+  for (const k of [2, 3, 5, 7]) await page.locator(`g[data-component-id="SW1"] [data-switch="${k}"]`).click();
+  await expect.poll(() => litLeds(['D1', 'D2', 'D3', 'D4', 'D5'])).toBe('00010');
+
+  // 模擬中不能移動元件。
+  const ic = page.locator('g[data-component-id="U1"]');
+  const before = await ic.getAttribute('transform');
+  const box = (await ic.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + box.height / 2, { steps: 6 });
+  await page.mouse.up();
+  await expect(ic).toHaveAttribute('transform', before!);
+  await page.getByRole('button', { name: '■ 停止模擬', exact: true }).click();
+
+  // 74LS93：每按一次按鈕加 1，3 次後 QA、QB 亮。
+  await openExample('74LS93 計數器');
+  await page.getByRole('button', { name: '▶ 模擬', exact: true }).click();
+  const button = page.locator('g[data-component-id="SW1"] [data-button]');
+  for (let i = 0; i < 3; i++) {
+    const b = (await button.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+  }
+  await expect.poll(() => litLeds(['D1', 'D2', 'D3', 'D4'])).toBe('1100');
+});

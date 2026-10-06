@@ -346,6 +346,7 @@ export const ComponentGraphic = memo(function ComponentGraphic({ instance, def, 
     <g
       transform={`translate(${at.x} ${at.y})${instance.rotation ? ` rotate(${instance.rotation})` : ''}`}
       data-component-id={ghost || !interactive ? undefined : instance.id}
+      data-lit={sim?.lit ? '' : undefined}
       opacity={ghost ? 0.72 : faded ? 0.3 : 1}
       style={ghost || !interactive ? { pointerEvents: 'none' } : { cursor: 'grab' }}
     >

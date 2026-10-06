@@ -404,7 +404,7 @@ function SimulationBar() {
   const btn = 'rounded px-2 py-0.5 text-xs hover:bg-slate-700';
   return (
     <div className="absolute left-1/2 top-3 z-10 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col items-center gap-1" data-testid="simulation-bar">
-      <div className="flex flex-wrap items-center gap-2 rounded-full border border-emerald-600/60 bg-slate-900/95 px-3 py-1 text-sm text-slate-100 shadow-lg">
+      <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-emerald-600/60 bg-slate-900/95 px-3 py-1 text-sm text-slate-100 shadow-lg">
         <span className="flex items-center gap-1.5 font-semibold text-emerald-300">
           <span className="bbl-pulse inline-block h-2 w-2 rounded-full bg-emerald-400" />
           模擬中
@@ -427,14 +427,6 @@ function SimulationBar() {
         <button type="button" className={`${btn} text-red-300`} onClick={() => store.stopSimulation()}>
           ■ 停止
         </button>
-        <span className="hidden items-center gap-2 border-l border-slate-700 pl-2 text-[11px] text-slate-400 xl:flex">
-          {(['1', '0', 'Z', 'X'] as const).map((k) => (
-            <span key={k} className="flex items-center gap-1">
-              <span className="inline-block h-2 w-2 rounded-full" style={{ background: LEVEL_COLORS[k] }} />
-              {k}
-            </span>
-          ))}
-        </span>
       </div>
       {(r.unpowered.length > 0 || !r.stable || r.conflicts.length > 0) && (
         <div className="rounded-md border border-amber-600/60 bg-amber-950/90 px-3 py-1 text-xs text-amber-200 shadow-lg">
@@ -443,6 +435,29 @@ function SimulationBar() {
           {r.conflicts.length > 0 && <div>⚠ {r.conflicts.length} 個導通群組電位衝突（X）：可能有輸出互接或短路</div>}
         </div>
       )}
+    </div>
+  );
+}
+
+/** 模擬時左下角的電位圖例。 */
+function LevelLegend() {
+  const simulating = useStore((s) => s.simulation !== null);
+  if (!simulating) return null;
+  const items: Array<[string, string]> = [
+    ['1', 'HIGH'],
+    ['0', 'LOW'],
+    ['Z', '浮接'],
+    ['X', '衝突 / 未知'],
+  ];
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex items-center gap-3 rounded-md border border-slate-700 bg-slate-900/90 px-3 py-1.5 text-[11px] text-slate-300 shadow-lg">
+      <span className="text-slate-500">電位</span>
+      {items.map(([k, label]) => (
+        <span key={k} className="flex items-center gap-1">
+          <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: LEVEL_COLORS[k] }} />
+          {k} {label}
+        </span>
+      ))}
     </div>
   );
 }
@@ -492,6 +507,7 @@ export function CanvasHud({ drawingWire }: { drawingWire: boolean }) {
       <EmptyHint />
       <CheckBadge />
       <SimulationBar />
+      <LevelLegend />
       <ZoomControls />
       <PlacingHint drawingWire={drawingWire} />
       <ResultCard />

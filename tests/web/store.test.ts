@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { findLibraryItem } from '../../src/editor/library';
 import { emptyCircuit, serializeCircuitFile } from '../../src/editor/fileFormat';
 import { deriveMode, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
-import { acceptanceCircuit } from '../fixtures/circuits';
+import { acceptanceCircuit, adderCircuit, counterCircuit } from '../fixtures/circuits';
 import { circuit, comp, wire } from '../fixtures/build';
 
 /** Node 沒有 Worker，佈線會退回主執行緒（setTimeout）；等它結束。 */
@@ -182,5 +182,97 @@ describe('files', () => {
     s().importJson('{"format":"nope"}');
     expect(s().circuit).toEqual(emptyCircuit());
     expect(s().toasts.at(-1)).toMatchObject({ kind: 'error' });
+  });
+});
+
+describe('simulation mode', () => {
+  const leds = (ids: string[]) => ids.map((id) => (s().simulation!.result.litLeds.includes(id) ? 1 : 0)).join('');
+
+  it('lights the LED of the acceptance circuit and stops cleanly', () => {
+    s().loadCircuit(acceptanceCircuit(), null);
+    s().startSimulation();
+    expect(s().simulation?.result.litLeds).toEqual(['D1']);
+    s().stopSimulation();
+    expect(s().simulation).toBeNull();
+  });
+
+  it('locks structural edits but keeps undo and property edits live', () => {
+    s().loadCircuit(adderCircuit(), null);
+    s().startSimulation();
+    const before = s().circuit;
+    s().placeComponent(findLibraryItem('led-red')!, 0, 'b1', { x: 5, y: 4 });
+    s().deleteComponent('U1');
+    s().runAutoRoute('apply');
+    expect(s().circuit).toBe(before);
+    expect(s().routing).toBeNull();
+    expect(s().toasts.at(-1)?.message).toContain('模擬中');
+
+    // A = 3、B = 5：撥開關 3、4、6、8 → 3 + 5 = 8，只有 D4（S4）亮。
+    for (const k of [2, 3, 5, 7]) s().toggleSwitch('SW1', k);
+    expect(leds(['D1', 'D2', 'D3', 'D4', 'D5'])).toBe('00010');
+    s().undo(); // 開關 8 OFF → B = 13 → 3 + 13 = 16 → 只有 D5（C4）亮
+    expect(leds(['D1', 'D2', 'D3', 'D4', 'D5'])).toBe('00001');
+    s().stopSimulation();
+  });
+
+  it('counts button presses and resets to the power-up state', () => {
+    s().loadCircuit(counterCircuit(), null);
+    s().startSimulation();
+    for (let i = 0; i < 3; i++) {
+      s().pressButton('SW1', true);
+      s().pressButton('SW1', false);
+    }
+    expect(leds(['D1', 'D2', 'D3', 'D4'])).toBe('1100');
+    s().resetSimulation();
+    expect(leds(['D1', 'D2', 'D3', 'D4'])).toBe('0000');
+    s().stopSimulation();
+  });
+
+  it('runs clocks on a timer, pauses, and single-steps to the next edge', () => {
+    vi.useFakeTimers();
+    try {
+      // 1 Hz 時脈接到 74LS04 的 1A；1Y 經電阻點亮 LED（時脈 LOW 時亮）。
+      const c = circuit(
+        [
+          comp('V1', 'vcc', 'T+3'),
+          comp('G1', 'gnd', 'B-3'),
+          comp('U1', '74LS04', 'F10'),
+          comp('CLK1', 'clock', 'J5'),
+          comp('R1', 'resistor', 'H20'),
+          comp('D1', 'led', 'H30'),
+        ],
+        [
+          wire('pv', 'T+10', 'A10'),
+          wire('pg', 'B-16', 'J16'),
+          wire('in', 'I5', 'I10'),
+          wire('out', 'J11', 'J20'),
+          wire('r', 'J24', 'J30'),
+          wire('k', 'J31', 'B-31'),
+        ],
+      );
+      s().loadCircuit(c, null);
+      s().startSimulation();
+      expect(s().simulation?.result.litLeds).toEqual(['D1']); // t = 0：時脈 LOW → 1Y HIGH
+      vi.advanceTimersByTime(500);
+      expect(s().simulation?.time).toBe(500);
+      expect(s().simulation?.result.litLeds).toEqual([]);
+      s().toggleClockPause();
+      vi.advanceTimersByTime(2000);
+      expect(s().simulation?.time).toBe(500);
+      s().stepClock();
+      expect(s().simulation?.time).toBe(1000);
+      expect(s().simulation?.paused).toBe(true);
+      expect(s().simulation?.result.litLeds).toEqual(['D1']);
+      s().stopSimulation();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops when another circuit is loaded', () => {
+    s().loadCircuit(acceptanceCircuit(), null);
+    s().startSimulation();
+    s().loadCircuit(counterCircuit(), null);
+    expect(s().simulation).toBeNull();
   });
 });

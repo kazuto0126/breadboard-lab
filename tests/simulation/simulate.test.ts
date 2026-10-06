@@ -232,3 +232,26 @@ describe('clock timing', () => {
     expect(nextClockEdge([], 0)).toBeNull();
   });
 });
+
+describe('74LS161 clock counter example', () => {
+  it('is clean, routes, and counts rising clock edges', async () => {
+    const { clockCounterCircuit, EXAMPLES } = await import('../../src/editor/examples');
+    const { validateCircuit } = await import('../../src/core/circuit/validate');
+    const raw = clockCounterCircuit();
+    expect(validateCircuit(raw).map((e) => e.code)).toEqual(expect.not.arrayContaining(['INPUT_FLOATING', 'IC_POWER_MISSING', 'NO_POWER_SOURCE']));
+    const example = EXAMPLES.find((e) => e.id === 'clock-counter')!.build();
+    expect(example.wires.every((w) => w.source === 'auto')).toBe(true);
+    expect(validateCircuit(example).map((e) => e.code)).toEqual(['CIRCUIT_VALID']);
+
+    const sim = compileSimulation(example);
+    let state = initialSimState(sim);
+    const counts: number[] = [];
+    for (let t = 0; t <= 4000; t += 250) {
+      const r = settle(sim, state, { pressed: {}, clocks: { CLK1: clockLevel(1, t) } });
+      state = r.state;
+      if (t % 1000 === 750) counts.push(['D1', 'D2', 'D3', 'D4'].reduce((acc, id, bit) => acc + (r.result.litLeds.includes(id) ? 2 ** bit : 0), 0));
+    }
+    // 上升緣在 t = 500、1500、2500、3500 ms。
+    expect(counts).toEqual([1, 2, 3, 4]);
+  });
+});

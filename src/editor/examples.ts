@@ -1,3 +1,5 @@
+import { applyRouting } from '../core/routing/apply';
+import { autoRoute } from '../core/routing/autoRoute';
 import { SIGNAL_PALETTE } from '../core/routing/colors';
 import type { Circuit } from '../types/circuit';
 import { circuit, comp, wire } from './builder';
@@ -117,6 +119,53 @@ export function adderCircuit(): Circuit {
   );
 }
 
+/**
+ * 74LS161 同步計數器 + 1 Hz 時脈：QA–QD 各經電阻點亮一顆 LED，控制腳（/CLR、/LOAD、ENP、ENT）接 VCC、
+ * 資料腳接 GND，Check Circuit 沒有任何錯誤或警告。這裡的導線只用來描述連接關係，
+ * 範例載入時會先套用 AI 標準佈線（見 EXAMPLES）。
+ */
+export function clockCounterCircuit(): Circuit {
+  return circuit(
+    [
+      comp('V1', 'vcc', 'T+3'),
+      comp('G1', 'gnd', 'T-3'),
+      comp('V2', 'vcc', 'B+3'),
+      comp('G2', 'gnd', 'B-3'),
+      comp('CLK1', 'clock', 'J10'),
+      comp('U1', '74LS161', 'F20'),
+      comp('R1', 'resistor', 'A35'),
+      comp('D1', 'led', 'C39', { props: { color: 'green' } }),
+      comp('R2', 'resistor', 'A43'),
+      comp('D2', 'led', 'C47', { props: { color: 'green' } }),
+      comp('R3', 'resistor', 'J35'),
+      comp('D3', 'led', 'H39', { props: { color: 'green' } }),
+      comp('R4', 'resistor', 'J43'),
+      comp('D4', 'led', 'H47', { props: { color: 'green' } }),
+    ],
+    [
+      wire('vcc', 'T+19', 'A20'), // VCC → 第 16 腳
+      wire('gnd', 'B-27', 'J27'), // GND → 第 8 腳
+      wire('clk', 'I10', 'I21'), // 時脈 → CLK
+      wire('clr', 'J20', 'B+19'), // /CLR 接 HIGH
+      wire('enp', 'J26', 'B+25'), // ENP 接 HIGH
+      wire('ent', 'A26', 'T+25'), // ENT 接 HIGH
+      wire('load', 'A27', 'T+27'), // /LOAD 接 HIGH
+      wire('da', 'J22', 'B-22'), // 資料腳 A–D 接 GND
+      wire('db', 'J23', 'B-23'),
+      wire('dc', 'J24', 'B-24'),
+      wire('dd', 'J25', 'B-25'),
+      wire('qa', 'B22', 'B35'), // QA → R1
+      wire('qb', 'C23', 'C43'), // QB → R2
+      wire('qc', 'D24', 'G35'), // QC → R3
+      wire('qd', 'A25', 'I43'), // QD → R4
+      wire('k1', 'A40', 'T-40'), // LED 陰極 → GND
+      wire('k2', 'A48', 'T-48'),
+      wire('k3', 'J40', 'B-40'),
+      wire('k4', 'J48', 'B-48'),
+    ],
+  );
+}
+
 export interface ExampleCircuit {
   id: string;
   name: string;
@@ -149,6 +198,16 @@ export const EXAMPLES: ExampleCircuit[] = [
     name: '74LS93 計數器',
     description: 'Push Button 當時脈，4 顆 LED 顯示二進位計數。',
     build: () => colorize(counterCircuit()),
+  },
+  {
+    id: 'clock-counter',
+    name: '74LS161 + 時脈（模擬示範）',
+    description: '1 Hz 時脈驅動 74LS161，4 顆 LED 自動數 0–15。按「▶ 模擬」看它跑起來；導線已套用 AI 標準佈線。',
+    build: () => {
+      const c = clockCounterCircuit();
+      const routed = autoRoute(c);
+      return routed.status === 'success' ? applyRouting(c, routed) : colorize(c);
+    },
   },
   {
     id: 'adder',
