@@ -38,6 +38,8 @@ export interface EditorState {
   selection: Selection | null;
   wireColor: string;
   viewport: Viewport;
+  /** 使用者還沒自己縮放或平移：畫布大小改變（比較模式、平板轉向）時自動重新符合畫面。 */
+  viewportAuto: boolean;
   analysis: Analysis;
   rightTab: RightTab;
   routingJob: RoutingJob;
@@ -62,7 +64,8 @@ export interface EditorActions {
   select(selection: Selection | null): void;
   setMode(mode: Mode): void;
   setWireColor(hex: string): void;
-  setViewport(viewport: Viewport): void;
+  /** auto 為 true 表示這是「符合畫面」的結果，之後畫布大小改變時會繼續自動符合。 */
+  setViewport(viewport: Viewport, auto?: boolean): void;
   setRightTab(tab: RightTab): void;
   setCompareView(view: CompareView): void;
   setRoutingJob(job: RoutingJob): void;
@@ -101,6 +104,7 @@ export function initialEditorState(doc: ProjectFile = createProject(), projectId
     selection: null,
     wireColor: DEFAULT_WIRE_COLOR,
     viewport: { scale: 1, tx: 0, ty: 0 },
+    viewportAuto: true,
     analysis: analyzeCircuit(doc.circuit),
     rightTab: 'selection',
     routingJob: { status: 'idle' },
@@ -229,7 +233,7 @@ const editorStateCreator: StateCreator<EditorStore> = (set, get) => ({
   select: (selection) => set({ selection }),
   setMode: (mode) => set({ mode }),
   setWireColor: (wireColor) => set({ wireColor }),
-  setViewport: (viewport) => set({ viewport }),
+  setViewport: (viewport, auto = false) => set({ viewport, viewportAuto: auto }),
   setRightTab: (rightTab) => set({ rightTab }),
   setCompareView: (compareView) => set({ compareView }),
   setRoutingJob: (routingJob) => set({ routingJob }),

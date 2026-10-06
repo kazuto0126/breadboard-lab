@@ -77,9 +77,8 @@ export function BoardCanvas({ circuit, label, selectable = true, registerAsMain 
   const containerRef = useRef<HTMLDivElement>(null);
   const size = useElementSize(containerRef);
   useEffect(() => {
-    const v = useEditor.getState().viewport;
-    const isDefault = v.scale === 1 && v.tx === 0 && v.ty === 0;
-    if (size.width > 0 && size.height > 0 && isDefault) useEditor.getState().setViewport(fitViewport(size.width, size.height));
+    const s = useEditor.getState();
+    if (size.width > 0 && size.height > 0 && s.viewportAuto) s.setViewport(fitViewport(size.width, size.height), true);
   }, [size.width, size.height]);
 
   const net = useMemo(() => (showsDocument ? netHighlightFor(selection, shown) : null), [showsDocument, selection, shown]);
@@ -106,7 +105,7 @@ export function BoardCanvas({ circuit, label, selectable = true, registerAsMain 
     const s = useEditor.getState();
     s.setViewport(zoomAt(s.viewport, factor, size.width / 2, size.height / 2));
   };
-  const fit = () => useEditor.getState().setViewport(fitViewport(size.width, size.height));
+  const fit = () => useEditor.getState().setViewport(fitViewport(size.width, size.height), true);
 
   return (
     <div ref={containerRef} className={`relative h-full w-full overflow-hidden ${armed ? 'cursor-copy' : ''}`}>

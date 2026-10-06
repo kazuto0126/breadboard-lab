@@ -84,6 +84,14 @@ describe('editor store', () => {
     expect(store.getState().focusWireId).toBeNull();
   });
 
+  it('keeps fitting the board to the canvas until the user zooms or pans', () => {
+    expect(store.getState().viewportAuto).toBe(true);
+    store.getState().setViewport({ scale: 2, tx: 0, ty: 0 });
+    expect(store.getState().viewportAuto).toBe(false);
+    store.getState().setViewport({ scale: 1, tx: 5, ty: 5 }, true);
+    expect(store.getState()).toMatchObject({ viewport: { scale: 1, tx: 5, ty: 5 }, viewportAuto: true });
+  });
+
   it('replaces the document with or without an undo step', () => {
     place('74LS00', 10, 11);
     store.getState().replaceDocument(createProject('新的'), { projectId: 'p_1', undoable: true, dirty: true });

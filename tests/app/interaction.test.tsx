@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BoardCanvas } from '../../src/app/board/BoardCanvas';
 import { addWire, placeComponent } from '../../src/app/commands/commands';
 import { ContextMenu } from '../../src/app/interaction/ContextMenu';
 import { runShortcut, selectedComponentId, useKeyboardShortcuts } from '../../src/app/interaction/useKeyboardShortcuts';
+import { fitViewport } from '../../src/app/interaction/viewport';
 import { resetEditor, useEditor } from '../../src/app/store/editorStore';
 import { hole } from '../fixtures/build';
 
@@ -103,5 +104,52 @@ describe('BoardCanvas', () => {
     expect(useEditor.getState().viewport.scale).toBeGreaterThan(before);
     fireEvent.click(screen.getByRole('button', { name: '縮小' }));
     expect(useEditor.getState().viewport.scale).toBeCloseTo(before, 5);
+  });
+});
+
+describe('BoardCanvas fitting', () => {
+  let size = { width: 1280, height: 380 };
+  let notifyResize: (() => void) | null = null;
+
+  beforeEach(() => {
+    size = { width: 1280, height: 380 };
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          notifyResize = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(() => size.width);
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockImplementation(() => size.height);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    notifyResize = null;
+  });
+
+  const resizeTo = (width: number, height: number) => {
+    size = { width, height };
+    act(() => notifyResize?.());
+  };
+
+  it('refits the board when the canvas changes size, until the user zooms', () => {
+    render(<BoardCanvas />);
+    expect(useEditor.getState().viewport).toEqual(fitViewport(1280, 380));
+    resizeTo(640, 380);
+    expect(useEditor.getState().viewport).toEqual(fitViewport(640, 380));
+    fireEvent.click(screen.getByRole('button', { name: '放大' }));
+    const zoomed = useEditor.getState().viewport;
+    resizeTo(1280, 380);
+    expect(useEditor.getState().viewport).toEqual(zoomed);
+    fireEvent.click(screen.getByRole('button', { name: '符合畫面' }));
+    expect(useEditor.getState().viewport).toEqual(fitViewport(1280, 380));
+    resizeTo(640, 380);
+    expect(useEditor.getState().viewport).toEqual(fitViewport(640, 380));
   });
 });

@@ -1,5 +1,18 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import { board, components, dragPart, drawWire, holeCenter, midpoint, openEditor, wires } from './helpers';
+
+/** 板子外框整個落在畫布裡（比較模式左右兩塊都要看得到整塊板子）。 */
+async function wholeBoardVisible(svg: Locator): Promise<boolean> {
+  const canvas = await svg.boundingBox();
+  const outline = await svg.locator('[data-layer="board"] rect').first().boundingBox();
+  if (!canvas || !outline) return false;
+  return (
+    outline.x >= canvas.x - 0.5 &&
+    outline.y >= canvas.y - 0.5 &&
+    outline.x + outline.width <= canvas.x + canvas.width + 0.5 &&
+    outline.y + outline.height <= canvas.y + canvas.height + 0.5
+  );
+}
 
 /**
  * 與子專案 1 的 acceptanceCircuit 相同的接線：VCC、GND、74LS00 第 1 閘 → 電阻 → LED → GND。
@@ -67,6 +80,9 @@ test('需求文件第三十四章的驗收流程', async ({ page }) => {
   // 19：比較模式（1440 px 寬，左右並排）
   await page.getByRole('button', { name: '比較' }).click();
   await expect(page.getByTestId('board-svg')).toHaveCount(2);
+  for (const svg of await page.getByTestId('board-svg').all()) {
+    await expect.poll(() => wholeBoardVisible(svg)).toBe(true);
+  }
   await expect(page.getByText(/^你的接線（Routing Score/)).toBeVisible();
   await expect(page.getByText(/^AI 標準佈線（Routing Score/)).toBeVisible();
   await page.keyboard.press('Escape');
