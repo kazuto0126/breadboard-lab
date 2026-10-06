@@ -3,6 +3,13 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 子專案 4：74LS 數位邏輯模擬
+
+### 新增
+
+- 子專案 4 設計規格：`docs/superpowers/specs/2026-10-06-logic-simulation-design.md`
+  （邏輯模型 JSON 格式、模擬引擎演算法、時脈元件、模擬模式的畫面）。
+
 ## [未發布] — 子專案 2：Web App
 
 ### 新增
