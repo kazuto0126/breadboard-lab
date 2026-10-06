@@ -51,8 +51,19 @@ src/data/components/  元件定義 JSON（74ls/、generic/），IC 行為寫在 
 - 測試放 `tests/`（對應 src 的結構）；需要 DOM 型別的 store 測試放 `tests/web/`；e2e 用真實滑鼠操作。
 - 測試與範例電路用 `src/editor/builder.ts` 建立（`comp`、`wire`、`board`、`holeOn`、`latticeWire`）。
 
+## 工作流程（避免進度遺失）
+
+雲端容器閒置後會被回收，沒推送的修改會跟著消失；GitHub 才是唯一可靠的紀錄。
+
+- 開始工作前，先看對話開始時自動顯示的進度摘要（`docs/PROGRESS.md` 與各分支最新的 commit）；目前分支落後 origin 就先 `git pull`。
+- 每個任務用自己的分支；第一個 commit 推上去後就開 draft PR，描述裡放待辦清單，做完一項勾一項。
+- 每完成一個小步驟（測試通過）就 commit 並推送，不要累積大量修改才推。
+- 推送前更新 `docs/PROGRESS.md`（進行中、下一步、卡住的地方）；做完的事記在 `CHANGELOG.md`。
+- `.claude/hooks/checkpoint.sh` 會在每次回覆結束或因用量上限中斷時，把工作分支上還沒提交或推送的修改存成
+  `wip: checkpoint` commit 推上去（不會動 main）。這只是保險，平常仍要自己寫有意義的 commit。
+- 要知道其他對話做到哪裡：`git fetch --all`，再看 `docs/PROGRESS.md`、`git log origin/<分支>` 與 PR。
+
 ## 目前狀態
 
-子專案 1–4 已完成並合併到 main（PR #2）。主線就是這套程式碼；`feat/core-engine` 分支是另一套子專案 2 實作（`src/app/`），
-只拿來參考、把它獨有的功能分批移植過來：接線清單已移植，還剩單一 HTML 離線版、平板觸控。不要再在 `feat/core-engine` 上開發。
-下一步見 README 的路線圖。
+見 `docs/PROGRESS.md`。主線是這套程式碼；`feat/core-engine` 分支是另一套子專案 2 實作（`src/app/`），只拿來參考、
+把它獨有的功能分批移植過來，不要在上面開發。

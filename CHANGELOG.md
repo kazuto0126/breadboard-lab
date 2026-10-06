@@ -3,6 +3,23 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 進度同步流程（避免用量上限中斷時遺失進度）
+
+### 新增
+
+- `docs/PROGRESS.md`：目前狀態、進行中的分支與 PR、接下來的工作、注意事項；每次推送前更新。
+- Claude Code hooks（`.claude/settings.json`，雲端對話也會讀取）：
+  - `SessionStart` → `.claude/hooks/session-start.sh`：雲端容器裡先 `npm install` 並設定 e2e 使用預裝的 Chromium，
+    再 `git fetch` GitHub，把目前分支與 origin 的差距、最近更新的分支、`docs/PROGRESS.md` 加進 Claude 的上下文。
+  - `Stop`、`StopFailure` → `.claude/hooks/checkpoint.sh`：每次回覆結束或因 API 錯誤 / 用量上限中斷時，
+    把工作分支上還沒提交的修改存成 `wip: checkpoint` commit，並推送還沒推的 commit（失敗時重試 3 次）；
+    不動 main / master、detached HEAD，合併或 rebase 進行中也不動，永遠不阻擋 Claude。
+
+### 變更
+
+- `CLAUDE.md` 新增「工作流程」：開工前看進度摘要、一個任務一個分支並早開 draft PR、小步提交推送、推送前更新進度檔；
+  「目前狀態」改為指向 `docs/PROGRESS.md`。
+
 ## [未發布] — 接線清單（移植自 feat/core-engine）
 
 ### 新增
