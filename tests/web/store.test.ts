@@ -306,6 +306,28 @@ describe('wiring checklist', () => {
   });
 });
 
+describe('narrow-screen drawers', () => {
+  it('opens the info drawer when something outside the panel shows a tab', () => {
+    expect(s().drawer).toBeNull();
+    s().setRightTab('nets');
+    expect(s().drawer).toBeNull();
+    s().showRightTab('check');
+    expect(s()).toMatchObject({ rightTab: 'check', drawer: 'info' });
+    s().showRightTab('nets');
+    expect(s()).toMatchObject({ rightTab: 'nets', drawer: 'info' });
+  });
+
+  it('leaves the drawer alone on wide screens', () => {
+    vi.stubGlobal('window', { matchMedia: (q: string) => ({ matches: q === '(min-width: 1024px)' }) });
+    try {
+      s().showRightTab('nets');
+      expect(s()).toMatchObject({ rightTab: 'nets', drawer: null });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
 describe('viewport', () => {
   it('refits when the canvas resizes until the user zooms or pans', () => {
     s().setCanvasSize(1200, 700);

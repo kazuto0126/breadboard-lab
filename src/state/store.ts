@@ -169,6 +169,8 @@ export interface AppActions {
   resetView(): void;
   focusPoints(points: GridPoint[]): void;
   setRightTab(tab: RightTab): void;
+  /** 切到右側面板的分頁並打開資訊抽屜（窄螢幕時面板平常收起來）；給面板以外的「顯示…」按鈕用。 */
+  showRightTab(tab: RightTab): void;
   setShowCheck(show: boolean): void;
   runCheck(): void;
   runAutoRoute(purpose: 'apply' | 'compare'): void;
@@ -272,6 +274,11 @@ export function resimulate(circuit: Circuit, run: Omit<SimulationRun, 'result'> 
 }
 let animationTimer: ReturnType<typeof setTimeout> | null = null;
 let toastId = 1;
+
+/** 寬螢幕（≥ 1024 px，Tailwind 的 lg）：左右面板一直顯示，不用抽屜。 */
+function wideLayout(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 1024px)').matches;
+}
 let animationKey = 1;
 
 function clearAnimationTimer() {
@@ -639,6 +646,11 @@ export const useStore = create<Store>()((set, get) => {
 
     setRightTab(rightTab) {
       set({ rightTab });
+    },
+
+    showRightTab(rightTab) {
+      // 寬螢幕不碰抽屜狀態，之後視窗變窄時才不會突然冒出抽屜。
+      set(wideLayout() ? { rightTab } : { rightTab, drawer: 'info' });
     },
 
     setShowCheck(showCheck) {

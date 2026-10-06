@@ -55,7 +55,7 @@ export function StatusBar() {
       </span>
       <Cell label="元件" value={circuit.components.length} />
       <Cell label="Wires" value={circuit.wires.length} testId="wire-count" />
-      <Cell label="Nets" value={nets} onClick={() => store.setRightTab('nets')} />
+      <Cell label="Nets" value={nets} onClick={() => store.showRightTab('nets')} />
       <Cell
         label="Check"
         value={problems}

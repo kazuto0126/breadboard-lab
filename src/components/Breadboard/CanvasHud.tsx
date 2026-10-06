@@ -194,7 +194,14 @@ export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () =>
           <MenuItem onClick={run(() => store.rotateComponent(t.id))} shortcut="R">
             旋轉 90°（Rotate）
           </MenuItem>
-          <MenuItem onClick={run(() => store.select({ kind: 'component', id: t.id }))}>顯示屬性</MenuItem>
+          <MenuItem
+            onClick={run(() => {
+              store.select({ kind: 'component', id: t.id });
+              store.showRightTab('inspect');
+            })}
+          >
+            顯示屬性
+          </MenuItem>
           <MenuItem onClick={run(() => store.deleteComponent(t.id))} shortcut="Del" danger>
             刪除 {t.id}
           </MenuItem>
@@ -427,7 +434,7 @@ function CheckBadge() {
   const tone = analysis.errors > 0 ? 'border-red-500/60 bg-red-950/90 text-red-200' : analysis.warnings > 0 ? 'border-amber-500/60 bg-amber-950/90 text-amber-200' : 'border-emerald-500/60 bg-emerald-950/90 text-emerald-200';
   return (
     <div className={`absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-3 rounded-full border px-4 py-1 text-sm shadow-lg ${tone}`} data-testid="check-badge">
-      <button type="button" onClick={() => store.setRightTab('check')}>
+      <button type="button" onClick={() => store.showRightTab('check')}>
         {analysis.errors === 0 && analysis.warnings === 0
           ? '✓ Circuit Valid'
           : `⚠ ${analysis.errors} 個錯誤 · ${analysis.warnings} 個警告`}

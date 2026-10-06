@@ -94,10 +94,44 @@ export function PartIcon({ item }: { item: LibraryItem }) {
   }
 }
 
+/** 觸控 / 觸控筆按住元件後往旁邊移動多少 px 才算拿起來拖曳。 */
+const TOUCH_PICK_DISTANCE = 8;
+
 function startDrag(item: LibraryItem, e: ReactPointerEvent<HTMLButtonElement>) {
   if (e.button !== 0) return;
   e.preventDefault();
-  useStore.getState().startPlacing(item, true, { x: e.clientX, y: e.clientY });
+  const origin = { x: e.clientX, y: e.clientY };
+  if (e.pointerType === 'mouse') {
+    useStore.getState().startPlacing(item, true, origin);
+    return;
+  }
+  // 觸控：先不拿起來（不收抽屜、不取消選取、不離開比較畫面）。往旁邊拖 = 拖放；放開時沒移動 = 點選放置；
+  // 上下滑是捲動清單，瀏覽器接手後送 pointercancel，什麼都不改。
+  const pointerId = e.pointerId;
+  const finish = () => {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onCancel);
+  };
+  const onMove = (ev: PointerEvent) => {
+    if (ev.pointerId !== pointerId) return;
+    const dx = Math.abs(ev.clientX - origin.x);
+    const dy = Math.abs(ev.clientY - origin.y);
+    if (dx < TOUCH_PICK_DISTANCE || dx < dy) return;
+    finish();
+    useStore.getState().startPlacing(item, true, origin);
+  };
+  const onUp = (ev: PointerEvent) => {
+    if (ev.pointerId !== pointerId) return;
+    finish();
+    if (Math.hypot(ev.clientX - origin.x, ev.clientY - origin.y) <= TOUCH_PICK_DISTANCE * 2) useStore.getState().startPlacing(item, false, origin);
+  };
+  const onCancel = (ev: PointerEvent) => {
+    if (ev.pointerId === pointerId) finish();
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onCancel);
 }
 
 const TOOLTIP = '拖曳到麵包板上放置，或點一下後再點麵包板（平板：點一下元件、再點麵包板）。';

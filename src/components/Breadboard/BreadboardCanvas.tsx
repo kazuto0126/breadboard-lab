@@ -293,6 +293,19 @@ export function BreadboardCanvas() {
     return () => observer.disconnect();
   }, []);
 
+  // 保險：手指在畫布外放開（沒有被 svg 捕捉）時，svg 收不到 pointerup，也要從 touches 拿掉。
+  useEffect(() => {
+    const forget = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') touches.current.delete(e.pointerId);
+    };
+    window.addEventListener('pointerup', forget, true);
+    window.addEventListener('pointercancel', forget, true);
+    return () => {
+      window.removeEventListener('pointerup', forget, true);
+      window.removeEventListener('pointercancel', forget, true);
+    };
+  }, []);
+
   // 滾輪縮放（需要 passive: false 才能阻止瀏覽器捲動 / 縮放整頁）。
   useEffect(() => {
     const svg = svgRef.current;
@@ -430,7 +443,7 @@ export function BreadboardCanvas() {
         store.cancelPlacing();
       }
     };
-    // 觸控從元件庫往上下滑是在捲動清單：瀏覽器接手後會送 pointercancel，這時取消拿起的元件。
+    // 觸控拖曳中瀏覽器接手（例如改成捲動元件庫）會送 pointercancel，這時取消拿起的元件。
     const onCancel = () => {
       const store = useStore.getState();
       if (store.placing?.dragging) store.cancelPlacing();
@@ -459,7 +472,16 @@ export function BreadboardCanvas() {
   };
 
   /** 第二指按下：放棄第一指正在做的事（還沒完成的接線、移動、平移），改成兩指縮放與平移。 */
-  const startPinch = (svg: SVGSVGElement) => {
+  const startPinch = (svg: SVGSVGElement): boolean => {
+    // 已經放開的手指 setPointerCapture 會丟出錯誤：從清單拿掉，當成一般的單指操作。
+    for (const id of touches.current.keys()) {
+      try {
+        svg.setPointerCapture(id);
+      } catch {
+        touches.current.delete(id);
+      }
+    }
+    if (touches.current.size !== 2) return false;
     const [[idA, a], [idB, b]] = [...touches.current.entries()];
     pendingTap.current = null;
     const held = pressedButton.current;
@@ -467,25 +489,18 @@ export function BreadboardCanvas() {
       pressedButton.current = null;
       useStore.getState().pressButton(held.id, false);
     }
-    for (const id of [idA, idB]) {
-      try {
-        svg.setPointerCapture(id);
-      } catch {
-        // 指標已經放開
-      }
-    }
     setHover(null);
     setDrag({ kind: 'pinch', pointerId: idA, ids: [idA, idB], origin: useStore.getState().viewport, a0: canvasPoint(a), b0: canvasPoint(b) });
+    return true;
   };
 
   const onPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     setMenu(null);
     if (e.pointerType === 'touch') {
+      // 第一根手指（isPrimary）按下時，之前的手指一定都放開了：清掉沒收到放開事件的舊紀錄。
+      if (e.isPrimary) touches.current.clear();
       touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (touches.current.size === 2) {
-        startPinch(e.currentTarget);
-        return;
-      }
+      if (touches.current.size === 2 && startPinch(e.currentTarget)) return;
       if (touches.current.size > 2) return;
     }
     const store = useStore.getState();
@@ -495,7 +510,8 @@ export function BreadboardCanvas() {
       return;
     }
     if (store.placing) {
-      if (e.pointerType === 'touch' && !store.placing.dragging) {
+      // 觸控與觸控筆：按下時沒有游標位置可以預覽，放開時才放置（中途滑動 = 平移）。
+      if (e.pointerType !== 'mouse' && !store.placing.dragging) {
         e.currentTarget.setPointerCapture(e.pointerId);
         pendingTap.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, origin: store.viewport };
         return;
@@ -715,9 +731,10 @@ export function BreadboardCanvas() {
     const d = dragRef.current;
     if (!d) return;
     if (d.kind === 'pinch') {
-      // 任一指放開就結束兩指手勢；剩下的那一指不再做任何事。
+      // 任一指放開就結束兩指手勢；剩下的那一指不再做任何事，但仍由 svg 捕捉，
+      // 它放開時才會收到 pointerup，從 touches 拿掉。
       if (!d.ids.includes(e.pointerId)) return;
-      for (const id of d.ids) if (e.currentTarget.hasPointerCapture(id)) e.currentTarget.releasePointerCapture(id);
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
       setDrag(null);
       return;
     }
@@ -746,7 +763,8 @@ export function BreadboardCanvas() {
     e.preventDefault();
     const store = useStore.getState();
     if (store.placing) {
-      store.cancelPlacing();
+      // Android 長按也會送 contextmenu：手指還按著（等放開才放置）時不取消，只有滑鼠右鍵取消。
+      if (!pendingTap.current && touches.current.size === 0) store.cancelPlacing();
       return;
     }
     if (dragRef.current || store.routing || store.simulation) return;

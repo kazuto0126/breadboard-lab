@@ -6,17 +6,17 @@
 ## 目前狀態
 
 - `main`：子專案 1–4 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬），GitHub Actions CI 已設定。
-- 測試：321 個單元測試、12 個 Playwright 端對端測試（含 PR #3 的分支）。
+- 測試：323 個單元測試、19 個 Playwright 端對端測試（含 PR #3 的分支）。
 
 ## 進行中
 
 | 分支 | 內容 | PR | 狀態 |
 |---|---|---|---|
-| `claude/affectionate-sagan-kmclr0` | 接線清單、單一 HTML 離線版、平板觸控（畫布手勢、窄螢幕抽屜、44 px 觸控目標）、重新整理後記得未儲存的修改、畫布大小改變時重新 Fit（皆移植自 `feat/core-engine`）、GitHub Pages 部署、進度同步流程（hooks、本檔） | [#3](https://github.com/kazuto0126/breadboard-lab/pull/3) | 每個推上去的 commit 都完整可合併；正在做平板觸控的多角度審查 |
+| `claude/affectionate-sagan-kmclr0` | 接線清單、單一 HTML 離線版、平板觸控（畫布手勢、窄螢幕抽屜、44 px 觸控目標）、重新整理後記得未儲存的修改、畫布大小改變時重新 Fit（皆移植自 `feat/core-engine`）、GitHub Pages 部署、進度同步流程（hooks、本檔） | [#3](https://github.com/kazuto0126/breadboard-lab/pull/3) | 每個推上去的 commit 都完整可合併；平板觸控審查確認的問題已修正，正在補跑 CSS 角度的審查 |
 
 ## 接下來（依優先順序）
 
-1. 修正平板觸控審查（workflow）確認的問題
+1. 補跑平板觸控審查的 CSS 角度（第一次因 API 過載失敗），並審查這次的修正
 2. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），**需要使用者在 Settings → Pages 把 Source 設成 GitHub Actions**，合併到 main 後就會上線
 3. 子專案 5：AI 解說（Claude API；靜態網站不能放 API 金鑰，需要後端或讓使用者自己填金鑰）
 

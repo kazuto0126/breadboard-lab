@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import logoUrl from '../../assets/logo.svg';
 import { MAX_BOARDS } from '../../editor/boards';
 import { EXAMPLES } from '../../editor/examples';
@@ -12,6 +12,19 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigat
 const MOD = isMac ? '⌘' : 'Ctrl+';
 
 function MenuButton({ label, items, open, onOpen, onHover }: { label: string; items: Item[]; open: boolean; onOpen: () => void; onHover: () => void }) {
+  // 窄螢幕時右邊的選單會超出畫面：往左移到剛好貼齊右邊（留 8 px）。
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!open || !el) {
+      setShift(0);
+      return;
+    }
+    // 關閉時 shift 已歸零，量到的是沒有位移的位置。
+    const rect = el.getBoundingClientRect();
+    setShift(Math.min(0, Math.max(8 - rect.left, window.innerWidth - 8 - rect.right)));
+  }, [open]);
   return (
     <div className="relative">
       <button
@@ -23,7 +36,12 @@ function MenuButton({ label, items, open, onOpen, onHover }: { label: string; it
         {label}
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 min-w-[250px] rounded-md border border-slate-600 bg-slate-800 py-1 shadow-2xl" role="menu">
+        <div
+          ref={menuRef}
+          className="absolute left-0 top-full z-50 mt-1 min-w-[250px] rounded-md border border-slate-600 bg-slate-800 py-1 shadow-2xl"
+          style={shift ? { left: shift } : undefined}
+          role="menu"
+        >
           {items.map((item, i) => {
             if (item === 'separator') return <div key={i} className="my-1 border-t border-slate-700" />;
             if ('heading' in item)
@@ -143,7 +161,7 @@ export function Toolbar() {
         'separator',
         { label: 'Check Circuit 檢查電路', onClick: run(() => store.runCheck()) },
         { label: '在麵包板上顯示檢查標記', onClick: run(() => store.setShowCheck(!showCheck)), checked: showCheck },
-        { label: '顯示所有 Nets', onClick: run(() => store.setRightTab('nets')) },
+        { label: '顯示所有 Nets', onClick: run(() => store.showRightTab('nets')) },
         'separator',
         { label: `＋ 新增麵包板（${boardCount} / ${MAX_BOARDS}）`, onClick: run(() => store.addBoard()), disabled: boardCount >= MAX_BOARDS || simulating || routing },
         'separator',

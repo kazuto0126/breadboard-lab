@@ -105,3 +105,99 @@ test('平板轉向：還沒自己縮放時整塊板子重新符合畫面，縮�
   await page.waitForTimeout(200);
   await expect(page.getByTestId('zoom')).toHaveText(zoom!);
 });
+
+type Pt = { x: number; y: number };
+
+/** 用 CDP 送出單指觸控：按下、依序移動、放開。 */
+async function swipe(page: Page, points: Pt[]) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...points[0], id: 0 }] });
+  for (const p of points.slice(1)) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...p, id: 0 }] });
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await cdp.detach();
+}
+
+test('平板：在元件上下滑動可以捲動元件庫，往旁邊拖到麵包板可以放置', async ({ page }) => {
+  // 先選取一個元件：捲動元件庫不應該取消選取。
+  await page.getByRole('button', { name: '檔案', exact: true }).tap();
+  await page.getByRole('menuitem', { name: '74LS00 + LED（驗收電路）' }).tap();
+  const body = await center(page, 'g[data-component-id="U1"]');
+  await page.touchscreen.tap(body.x, body.y);
+
+  const library = page.getByRole('complementary', { name: '元件庫' });
+  await page.getByRole('button', { name: '元件庫', exact: true }).tap();
+  await expect(library).toBeVisible();
+  const tile = library.locator('[data-library-item="74LS04"]');
+  const scrollTop = () =>
+    tile.evaluate((el) => {
+      let node: HTMLElement | null = el.parentElement;
+      while (node && !/(auto|scroll)/.test(getComputedStyle(node).overflowY)) node = node.parentElement;
+      return node?.scrollTop ?? -1;
+    });
+  expect(await scrollTop()).toBe(0);
+  const start = await center(page, '[data-library-item="74LS04"]');
+  await swipe(page, Array.from({ length: 11 }, (_, i) => ({ x: start.x, y: start.y - i * 25 })));
+  await expect(library).toBeVisible();
+  await expect.poll(scrollTop).toBeGreaterThan(0);
+  // 等慣性捲動停下來（捲動中的第一下點擊會被拿來停止捲動）。
+  let last = -1;
+  await expect.poll(async () => {
+    const now = await scrollTop();
+    const settled = now === last;
+    last = now;
+    return settled;
+  }).toBe(true);
+  await page.getByRole('button', { name: '資訊', exact: true }).tap();
+  await expect(page.getByRole('complementary', { name: '資訊' }).getByText('U1').first()).toBeVisible();
+  await page.getByTestId('drawer-backdrop').tap();
+
+  // 往旁邊拖：抽屜收起，放到麵包板上。
+  await page.getByRole('button', { name: '元件庫', exact: true }).tap();
+  const from = await center(page, '[data-library-item="led-red"]');
+  const a = await center(page, '[data-hole="G55"]');
+  const b = await center(page, '[data-hole="G56"]');
+  const to = { x: (a.x + b.x) / 2, y: a.y };
+  await swipe(page, Array.from({ length: 13 }, (_, i) => ({ x: from.x + ((to.x - from.x) * i) / 12, y: from.y + ((to.y - from.y) * Math.max(0, i - 2)) / 10 })));
+  await expect(library).toBeHidden();
+  await expect(page.locator('g[data-component-id="D2"]')).toHaveCount(1);
+});
+
+test('平板：比較畫面上也能打開抽屜；面板外的「顯示…」會打開資訊抽屜', async ({ page }) => {
+  await page.getByRole('button', { name: '檔案', exact: true }).tap();
+  await page.getByRole('menuitem', { name: '74LS00 + LED（驗收電路）' }).tap();
+  const info = page.getByRole('complementary', { name: '資訊' });
+
+  // 狀態列的 Nets：打開資訊抽屜的 Nets 分頁。
+  await page.locator('footer').getByRole('button', { name: /Nets/ }).tap();
+  await expect(info).toBeVisible();
+  await expect(info.getByRole('tab', { name: /Nets/ })).toHaveAttribute('aria-selected', 'true');
+  await page.getByTestId('drawer-backdrop').tap();
+  await expect(info).toBeHidden();
+
+  // 比較畫面：抽屜要蓋在比較畫面上面，點得到。
+  await page.getByRole('radio', { name: 'COMPARE' }).tap();
+  await expect(page.getByTestId('compare-view')).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: '資訊', exact: true }).tap();
+  await expect(info).toBeVisible();
+  const box = (await info.boundingBox())!;
+  const onTop = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest('aside')?.getAttribute('aria-label') ?? null,
+    { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+  );
+  expect(onTop).toBe('資訊');
+});
+
+test('平板：工具列的選單都在畫面裡（iPad mini 直放 744 px）', async ({ page }) => {
+  await page.setViewportSize({ width: 744, height: 1133 });
+  const width = 744;
+  for (const name of ['檔案', '編輯', '電路', '自動佈線', '檢視', '說明']) {
+    await page.getByRole('button', { name, exact: true }).tap();
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible();
+    const box = (await menu.boundingBox())!;
+    expect(box.x, name).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, name).toBeLessThanOrEqual(width);
+    await page.keyboard.press('Escape');
+    await expect(menu).toBeHidden();
+  }
+});
