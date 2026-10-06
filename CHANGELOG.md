@@ -3,6 +3,13 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 子專案 3：多麵包板長邊吸附與 Board Group
+
+### 新增
+
+- 子專案 3 設計規格：`docs/superpowers/specs/2026-10-06-multi-board-design.md`
+  （全域格子、群組由幾何推導、跨板接縫、依群組分區佈線、吸附 / 拆開 / 合併、對應 38.19 的測試）。
+
 ## [未發布] — 子專案 4：74LS 數位邏輯模擬
 
 ### 新增
