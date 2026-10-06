@@ -51,7 +51,7 @@ export function PartsPanel() {
           placeholder="搜尋元件（例如 74LS00、220Ω）"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full rounded border border-gray-300 px-2 py-2 text-sm"
+          className="min-h-11 w-full rounded border border-gray-300 px-2 py-2 text-sm lg:min-h-0"
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">

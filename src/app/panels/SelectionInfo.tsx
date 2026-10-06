@@ -70,7 +70,7 @@ function ComponentInfo({ id }: { id: string }) {
             disabled={!editable}
             value={props.resistance ?? 1000}
             onChange={(e) => update({ resistance: Number(e.target.value) })}
-            className="mt-1 block w-full rounded border border-gray-300 p-2"
+            className="mt-1 block min-h-11 w-full rounded border border-gray-300 p-2 lg:min-h-0"
           >
             {RESISTOR_PRESETS.map((ohms) => (
               <option key={ohms} value={ohms}>
@@ -88,7 +88,7 @@ function ComponentInfo({ id }: { id: string }) {
             disabled={!editable}
             value={props.color ?? 'red'}
             onChange={(e) => update({ color: e.target.value as LedColor })}
-            className="mt-1 block w-full rounded border border-gray-300 p-2"
+            className="mt-1 block min-h-11 w-full rounded border border-gray-300 p-2 lg:min-h-0"
           >
             {(Object.keys(LED_COLOR_NAMES) as LedColor[]).map((color) => (
               <option key={color} value={color}>
@@ -126,7 +126,7 @@ function ComponentInfo({ id }: { id: string }) {
               const v = Number(e.target.value);
               if (v > 0) update({ voltage: v });
             }}
-            className="mt-1 block w-full rounded border border-gray-300 p-2"
+            className="mt-1 block min-h-11 w-full rounded border border-gray-300 p-2 lg:min-h-0"
           />
         </label>
       )}

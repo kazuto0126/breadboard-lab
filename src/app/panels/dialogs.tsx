@@ -69,7 +69,7 @@ function NameDialog({ request }: { request: Extract<DialogRequest, { kind: 'name
           request.resolve(trimmed);
         }}
       >
-        <input aria-label="名稱" autoFocus value={value} onChange={(e) => setValue(e.target.value)} className="w-full rounded border border-gray-300 p-2" />
+        <input aria-label="名稱" autoFocus value={value} onChange={(e) => setValue(e.target.value)} className="min-h-11 w-full rounded border border-gray-300 p-2 lg:min-h-0" />
         <p className="mt-2 text-xs text-gray-500">{STORAGE_HINT}</p>
         <div className="mt-4 flex justify-end gap-2">
           <button

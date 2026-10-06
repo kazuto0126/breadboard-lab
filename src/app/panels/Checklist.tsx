@@ -47,14 +47,16 @@ export function Checklist() {
               key={row.wireId}
               className={`flex items-center gap-2 rounded-md border px-2 py-1 ${focusWireId === row.wireId ? 'border-blue-400 bg-blue-50' : 'border-transparent'}`}
             >
-              <input
-                type="checkbox"
-                className="h-5 w-5"
-                aria-label={`${row.from} → ${row.to} 已插好`}
-                checked={checked}
-                disabled={stale}
-                onChange={(e) => useEditor.getState().setChecklistItem(row.wireId, e.target.checked)}
-              />
+              <label className="flex h-11 w-11 shrink-0 items-center justify-center lg:h-auto lg:w-auto">
+                <input
+                  type="checkbox"
+                  className="h-5 w-5"
+                  aria-label={`${row.from} → ${row.to} 已插好`}
+                  checked={checked}
+                  disabled={stale}
+                  onChange={(e) => useEditor.getState().setChecklistItem(row.wireId, e.target.checked)}
+                />
+              </label>
               <button type="button" onClick={() => toggleFocus(row)} className={`flex min-h-11 flex-1 items-center gap-2 text-left text-sm lg:min-h-0 ${checked ? 'opacity-50' : ''}`}>
                 <span className="inline-block h-3 w-3 rounded-sm border border-gray-400" style={{ background: row.color }} />
                 <span className="w-6">{row.colorName}</span>
