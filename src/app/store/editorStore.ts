@@ -129,6 +129,11 @@ function sanitizeSelection(selection: Selection | null, circuit: Circuit): Selec
   }
 }
 
+/** 接線清單點選的導線不存在了（被刪除、復原掉佈線）就取消，否則其他導線會一直變淡。 */
+function sanitizeFocus(focusWireId: string | null, circuit: Circuit): string | null {
+  return focusWireId !== null && circuit.wires.some((w) => w.id === focusWireId) ? focusWireId : null;
+}
+
 let noticeCounter = 0;
 
 const editorStateCreator: StateCreator<EditorStore> = (set, get) => ({
@@ -148,12 +153,13 @@ const editorStateCreator: StateCreator<EditorStore> = (set, get) => ({
       history: { past: [...state.history.past, snapshot].slice(-HISTORY_LIMIT), future: [] },
       dirty: true,
       selection: result.select === undefined ? sanitizeSelection(state.selection, result.doc.circuit) : result.select,
+      focusWireId: sanitizeFocus(state.focusWireId, result.doc.circuit),
     });
     return true;
   },
 
   undo() {
-    const { mode, history, doc, selection } = get();
+    const { mode, history, doc, selection, focusWireId } = get();
     if (mode !== 'edit' || history.past.length === 0) return;
     const previous = history.past[history.past.length - 1];
     const nextDoc: ProjectFile = { ...doc, circuit: previous.circuit, routing: previous.routing };
@@ -162,13 +168,14 @@ const editorStateCreator: StateCreator<EditorStore> = (set, get) => ({
       history: { past: history.past.slice(0, -1), future: [{ circuit: doc.circuit, routing: doc.routing }, ...history.future] },
       dirty: true,
       selection: sanitizeSelection(selection, nextDoc.circuit),
+      focusWireId: sanitizeFocus(focusWireId, nextDoc.circuit),
       routingJob: { status: 'idle' },
       previewWires: [],
     });
   },
 
   redo() {
-    const { mode, history, doc, selection } = get();
+    const { mode, history, doc, selection, focusWireId } = get();
     if (mode !== 'edit' || history.future.length === 0) return;
     const [next, ...rest] = history.future;
     const nextDoc: ProjectFile = { ...doc, circuit: next.circuit, routing: next.routing };
@@ -177,6 +184,7 @@ const editorStateCreator: StateCreator<EditorStore> = (set, get) => ({
       history: { past: [...history.past, { circuit: doc.circuit, routing: doc.routing }].slice(-HISTORY_LIMIT), future: rest },
       dirty: true,
       selection: sanitizeSelection(selection, nextDoc.circuit),
+      focusWireId: sanitizeFocus(focusWireId, nextDoc.circuit),
       routingJob: { status: 'idle' },
       previewWires: [],
     });

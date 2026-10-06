@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { StoreApi } from 'zustand/vanilla';
-import { applyRoutingResult, placeComponent } from '../../src/app/commands/commands';
+import { applyRoutingResult, deleteWire, placeComponent } from '../../src/app/commands/commands';
 import { createProject } from '../../src/app/model/projectFile';
 import { analyzeCircuit, createEditorStore, HISTORY_LIMIT, type EditorStore } from '../../src/app/store/editorStore';
 import { autoRoute } from '../../src/core/routing/autoRoute';
@@ -63,6 +63,25 @@ describe('editor store', () => {
     expect(store.getState().history.past).toHaveLength(steps);
     store.getState().clearChecklist();
     expect(store.getState().doc.routing!.checklist).toEqual({});
+  });
+
+  it('forgets the focused checklist wire once it is deleted', () => {
+    store.getState().replaceDocument({ ...createProject(), circuit: acceptanceCircuit() }, { projectId: null, undoable: false, dirty: false });
+    store.getState().run((d) => applyRoutingResult(d, autoRoute(d.circuit), 0));
+    const [first, second] = store.getState().doc.circuit.wires;
+    store.getState().setFocusWire(first.id);
+    store.getState().run((d) => deleteWire(d, second.id));
+    expect(store.getState().focusWireId).toBe(first.id);
+    store.getState().run((d) => deleteWire(d, first.id));
+    expect(store.getState().focusWireId).toBeNull();
+  });
+
+  it('forgets the focused checklist wire when undo takes the routing back', () => {
+    store.getState().replaceDocument({ ...createProject(), circuit: acceptanceCircuit() }, { projectId: null, undoable: false, dirty: false });
+    store.getState().run((d) => applyRoutingResult(d, autoRoute(d.circuit), 0));
+    store.getState().setFocusWire(store.getState().doc.circuit.wires[0].id);
+    store.getState().undo();
+    expect(store.getState().focusWireId).toBeNull();
   });
 
   it('replaces the document with or without an undo step', () => {
