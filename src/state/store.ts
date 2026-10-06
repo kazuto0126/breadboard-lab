@@ -653,7 +653,8 @@ export const useStore = create<Store>()((set, get) => {
     toast(kind, message) {
       const id = toastId++;
       set({ toasts: [...get().toasts.slice(-3), { id, kind, message }] });
-      setTimeout(() => get().dismissToast(id), TOAST_MS[kind]);
+      // 長訊息多留一點時間閱讀。
+      setTimeout(() => get().dismissToast(id), Math.max(TOAST_MS[kind], 1500 + message.length * 50));
     },
 
     dismissToast(id) {

@@ -316,8 +316,9 @@ function EmptyHint() {
           <button
             key={ex.id}
             type="button"
+            title={ex.description}
             className="rounded bg-slate-700 px-2 py-1 text-xs text-slate-100 hover:bg-slate-600"
-            onClick={() => store.loadCircuit(ex.build(), ex.name, `已載入範例「${ex.name}」`)}
+            onClick={() => store.loadCircuit(ex.build(), ex.name, `已載入範例「${ex.name}」：${ex.description}`)}
           >
             {ex.name}
           </button>

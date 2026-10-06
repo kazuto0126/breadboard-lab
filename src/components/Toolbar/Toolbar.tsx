@@ -112,7 +112,7 @@ export function Toolbar() {
         { label: '匯出 SVG', onClick: run(exportSvg) },
         'separator',
         { heading: '範例電路' },
-        ...EXAMPLES.map((ex) => ({ label: ex.name, onClick: run(() => store.loadCircuit(ex.build(), ex.name, `已載入範例「${ex.name}」`)) })),
+        ...EXAMPLES.map((ex) => ({ label: ex.name, onClick: run(() => store.loadCircuit(ex.build(), ex.name, `已載入範例「${ex.name}」：${ex.description}`)) })),
       ],
     ],
     [

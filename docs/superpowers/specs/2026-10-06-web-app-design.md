@@ -1,7 +1,7 @@
 # 子專案 2：Web App（畫面與互動）設計規格
 
 - 日期：2026-10-06
-- 狀態：實作中
+- 狀態：已完成（2026-10-06）
 - 來源需求：`digitaldesigned.md`（以下稱「需求文件」）
 - 前置：子專案 1 核心引擎（`docs/superpowers/specs/2026-10-05-core-engine-design.md`，已完成）
 - 所屬總計畫：麵包板標準佈線 AI 工具，共 5 個子專案，本文件只涵蓋子專案 2
@@ -314,6 +314,7 @@ startRouting(circuit, config?): { promise: Promise<RoutingResult>; cancel(): voi
 | 範圍 | 方式 |
 |---|---|
 | `editor/*` | Vitest（Node），每個模組都有單元測試：歷史紀錄、編號、放置與吸附、旋轉、手動接線路徑、所有編輯動作、存檔格式與匯入錯誤、座標與縮放 |
+| `state/store` | Vitest（Node，`tests/web/`，用 DOM 型別另外檢查）：編輯與 Undo、AI 標準佈線的套用 / 失敗 / 取消、模式切換、匯入 |
 | 範例電路 | 沿用子專案 1 的固定測試電路（改由 `editor/examples.ts` 提供），保證範例一定佈得出來 |
 | 端對端 | Playwright（`npm run e2e`）：照需求文件第三十四章走一遍——開網頁、拖入 74LS00 / LED / 電阻 / VCC / GND、手動接線、Check Circuit、AI 標準佈線（0 交叉、0 重疊、分數 ≥ 90）、Undo 回到手動接線 |
 

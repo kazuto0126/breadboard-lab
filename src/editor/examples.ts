@@ -141,19 +141,19 @@ export const EXAMPLES: ExampleCircuit[] = [
   {
     id: 'acceptance',
     name: '74LS00 + LED（驗收電路）',
-    description: 'NAND 閘輸入接地 → 輸出經電阻點亮 LED',
+    description: 'NAND 閘輸入接地 → 輸出經電阻點亮 LED。手動接線故意有重疊，按「AI 標準佈線」看整理後的結果。',
     build: () => colorize(acceptanceCircuit()),
   },
   {
     id: 'counter',
     name: '74LS93 計數器',
-    description: 'Push Button 當時脈，4 顆 LED 顯示二進位計數',
+    description: 'Push Button 當時脈，4 顆 LED 顯示二進位計數。',
     build: () => colorize(counterCircuit()),
   },
   {
     id: 'adder',
     name: '74LS283 4 位元加法器',
-    description: '8 位元指撥開關輸入 A、B，5 顆 LED 顯示和與進位',
+    description: '8 位元指撥開關輸入 A、B，5 顆 LED 顯示和與進位。手動接線故意很亂（穿過 IC、互相重疊），按「AI 標準佈線」看整理後的結果。',
     build: () => colorize(adderCircuit()),
   },
 ];
