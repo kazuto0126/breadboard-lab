@@ -8,6 +8,9 @@ export type {
 } from './types/component';
 export type { Circuit, CircuitError, CircuitErrorCode, Net, NodeState, PinRef, Wire } from './types/circuit';
 export type {
+  ActiveSignal, GateOp, Level, Logic, LogicModelName, LogicSpec,
+} from './types/logic';
+export type {
   DeepPartial, FailedNet, FailureReason, LegalityCode, LegalityViolation, RoutingConfig, RoutingMetrics, RoutingNode,
   RoutingPath, RoutingResult, RoutingWeights,
 } from './types/routing';
@@ -27,3 +30,10 @@ export { checkRoutingLegality } from './core/routing/legality';
 export { scoreRouting } from './core/routing/score';
 export { applyRouting } from './core/routing/apply';
 export { renderAscii } from './debug/ascii';
+export { parseLogic } from './core/circuit/logicSpec';
+export { createModel } from './core/simulation/models';
+export type { LogicModel, ModelState } from './core/simulation/models';
+export {
+  adoptSimState, clockLevel, compileSimulation, initialSimState, MAX_ITERATIONS, nextClockEdge, settle,
+} from './core/simulation/simulate';
+export type { SimCircuit, SimInputs, SimResult, SimState } from './core/simulation/simulate';

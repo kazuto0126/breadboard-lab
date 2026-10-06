@@ -7,12 +7,20 @@ describe('public API', () => {
     const names = [
       'buildBoard', 'getBoard', 'holeName', 'parseHoleName', 'getComponentDefinitions', 'getComponentDefinition',
       'resolveFootprint', 'getNodeState', 'extractNets', 'validateCircuit', 'autoRoute', 'checkRoutingLegality',
-      'scoreRouting', 'applyRouting', 'mergeConfig', 'renderAscii',
+      'scoreRouting', 'applyRouting', 'mergeConfig', 'renderAscii', 'parseLogic', 'createModel', 'compileSimulation',
+      'initialSimState', 'adoptSimState', 'settle', 'clockLevel', 'nextClockEdge',
     ];
     const exported = api as unknown as Record<string, unknown>;
     for (const name of names) expect(typeof exported[name], name).toBe('function');
     expect(api.MB102_LAYOUT.id).toBe('MB102');
     expect(api.DEFAULT_ROUTING_CONFIG.weights.crossing).toBe(1000);
+  });
+
+  it('round-trips a simulation state and result through JSON', () => {
+    const sim = api.compileSimulation(acceptanceCircuit());
+    const { state, result } = api.settle(sim, api.initialSimState(sim), { pressed: {}, clocks: {} });
+    expect(JSON.parse(JSON.stringify(state))).toEqual(state);
+    expect(JSON.parse(JSON.stringify(result))).toEqual(result);
   });
 
   it('round-trips a routing result through JSON', () => {
