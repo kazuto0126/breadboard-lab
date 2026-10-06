@@ -14,6 +14,11 @@
   20 顆 74LS IC 依 datasheet 的功能表填好 `logic`；之後新增同類 IC 只需要寫 JSON。
 - `parseLogic`（`src/core/circuit/logicSpec.ts`）：驗證模型名稱、參數、腳位名稱（不能引用重複的名稱，例如 NC），
   只保留已知欄位。7 個新測試。
+- 邏輯模型實作（`src/core/simulation/models.ts`）：三值邏輯（0 / 1 / X，AND 類遇 0、OR 類遇 1 就確定），
+  8 種模型的行為依 datasheet：閘、解碼器致能、正反器上升緣 / 非同步 preset / clear（74LS74 兩者同時有效時 Q 與 /Q 皆為 HIGH）、
+  74LS173 載入致能與三態輸出、漣波計數器下降緣與重置 / 設 9（R9 優先）、同步計數器非同步 / 同步清除與 RCO、
+  上 / 下數計數器的 /CO、/BO、加法器、收發器方向與致能。
+  `tests/simulation/models.test.ts` 28 個測試逐顆對照功能表（含 74LS283 全部 512 種輸入、74LS90 BCD、74LS93 0–15 計數）。
 - 新元件 **Clock 時脈產生器**（類別 `clock`、編號前綴 `CLK`、屬性 `frequency` 0.5–10 Hz）：
   板上圖示、元件庫圖示（放在「輸入」分類）、屬性面板頻率選擇、存檔格式支援。
 
