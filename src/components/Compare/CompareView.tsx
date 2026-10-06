@@ -122,7 +122,7 @@ export function CompareView() {
             切回手動接線
           </button>
         )}
-        <button type="button" className="rounded bg-sky-600 px-3 py-1 text-xs text-white hover:bg-sky-500" onClick={() => store.setMode(mode === 'auto' ? 'auto' : 'manual')}>
+        <button type="button" className="rounded bg-sky-600 px-3 py-1 text-xs text-white hover:bg-sky-500" onClick={() => store.closeCompare()}>
           返回編輯
         </button>
       </div>

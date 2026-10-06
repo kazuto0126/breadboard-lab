@@ -598,7 +598,7 @@ export function BreadboardCanvas() {
               const p = pinPoint(circuit, ref.componentId, ref.pinNumber);
               return p ? <Ring key={`${ref.componentId}#${ref.pinNumber}`} frames={frames} point={p} color={UI.net} r={0.4} width={2} /> : null;
             })}
-            {selection?.kind === 'component' && componentsById.get(selection.id) && (
+            {selection?.kind === 'component' && selection.id !== movingId && componentsById.get(selection.id) && (
               <Outline rect={componentRect(frames, componentsById.get(selection.id)!)} color={UI.select} />
             )}
             {selection?.kind === 'pin' && (
@@ -648,7 +648,7 @@ export function BreadboardCanvas() {
         </g>
       </svg>
 
-      {hover && !drag && !placing && <HoverTooltip hover={hover} container={containerRef.current} circuit={circuit} analysis={analysis} />}
+      {hover && !drag && !placing && !menu && <HoverTooltip hover={hover} container={containerRef.current} circuit={circuit} analysis={analysis} />}
       {menu && <ContextMenu menu={menu} onClose={() => setMenu(null)} />}
       <CanvasHud drawingWire={drag?.kind === 'wire' && drag.started} />
     </div>

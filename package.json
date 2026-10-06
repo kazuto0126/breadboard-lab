@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p e2e/tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tests/web/tsconfig.json && tsc --noEmit -p e2e/tsconfig.json",
     "e2e": "playwright test",
     "demo": "tsx scripts/demo.ts"
   },

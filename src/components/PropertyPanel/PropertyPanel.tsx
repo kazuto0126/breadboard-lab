@@ -96,7 +96,7 @@ function CircuitSummary({ circuit, analysis }: { circuit: Circuit; analysis: Cir
         <Row label="名稱">{projectName ?? '未命名電路'}</Row>
         <Row label="元件">{circuit.components.length}</Row>
         <Row label="導線">{circuit.wires.length}</Row>
-        <Row label="Electrical Nets">{analysis.nets.length}</Row>
+        <Row label="Electrical Nets">{analysis.nets.filter((n) => n.pins.length > 1).length}</Row>
         <Row label="Routing Score">{analysis.routing.score}</Row>
         <Row label="模式">{mode === 'auto' ? 'AUTO ROUTE（AI 標準佈線）' : mode === 'compare' ? 'COMPARE' : 'MANUAL（手動接線）'}</Row>
       </Section>

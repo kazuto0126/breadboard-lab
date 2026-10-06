@@ -29,6 +29,11 @@ function Upright({ x, y, rotation, children, ...rest }: { x: number; y: number; 
   );
 }
 
+/** 一組保持正向的文字：以 (x, y) 為中心，子元素用相對座標。 */
+function UprightGroup({ x, y, rotation, children }: { x: number; y: number; rotation: Rotation; children: ReactNode }) {
+  return <g transform={`translate(${x} ${y})${rotation ? ` rotate(${-rotation})` : ''}`}>{children}</g>;
+}
+
 function Leg({ x, y, top }: { x: number; y: number; top: boolean }) {
   // 從本體邊緣伸到孔中心的腳片。
   const h = 0.6 * P;
@@ -89,12 +94,14 @@ function Dip({ instance, def }: { instance: ComponentInstance; def: ComponentDef
           {/* 第 1 腳方向：左側半圓缺口與圓點 */}
           <path d={`M ${-0.48 * P} ${mid - 0.3 * P} A ${0.3 * P} ${0.3 * P} 0 0 1 ${-0.48 * P} ${mid + 0.3 * P} Z`} fill={PART.icEdge} />
           <circle cx={0.02 * P} cy={bottom - 0.32 * P} r={0.1 * P} fill="#5f6368" />
-          <Upright x={w / 2} y={mid - 0.18 * P} rotation={r} fill={PART.icText} fontSize={0.58 * P} fontWeight={700} letterSpacing={0.5}>
-            {def.name}
-          </Upright>
-          <Upright x={w / 2} y={mid + 0.48 * P} rotation={r} fill={PART.icSubText} fontSize={0.4 * P}>
-            {instance.id}
-          </Upright>
+          <UprightGroup x={w / 2} y={mid} rotation={r}>
+            <text y={r % 180 === 0 ? -0.18 * P : -0.3 * P} textAnchor="middle" dominantBaseline="central" fill={PART.icText} fontSize={0.58 * P} fontWeight={700} letterSpacing={0.5}>
+              {def.name}
+            </text>
+            <text y={r % 180 === 0 ? 0.48 * P : 0.36 * P} textAnchor="middle" dominantBaseline="central" fill={PART.icSubText} fontSize={0.4 * P}>
+              {instance.id}
+            </text>
+          </UprightGroup>
           {pins.map((p) => (
             <Upright key={p.n} x={p.x} y={p.top ? top + 0.26 * P : bottom - 0.26 * P} rotation={r} fill="#80868b" fontSize={0.27 * P}>
               {p.n}

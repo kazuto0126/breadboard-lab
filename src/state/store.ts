@@ -133,6 +133,7 @@ export interface AppActions {
   finishAnimation(): void;
   dismissResult(): void;
   setMode(mode: Mode): void;
+  closeCompare(): void;
   applyComparison(): void;
   restoreManualWires(): void;
   setCompareLayout(layout: 'side' | 'stacked'): void;
@@ -193,6 +194,8 @@ function componentName(circuit: Circuit, id: string): string {
 
 // ---------- 模組層級的非序列化狀態 ----------
 
+const TOAST_MS: Record<Toast['kind'], number> = { info: 2500, success: 3500, warning: 5000, error: 7000 };
+
 let routingJob: RoutingJob | null = null;
 let animationTimer: ReturnType<typeof setTimeout> | null = null;
 let toastId = 1;
@@ -213,7 +216,8 @@ export function planAnimation(wires: Wire[]): WireAnimation {
   return { key: animationKey++, delays, drawMs, totalMs: Math.round((n - 1) * stepMs + drawMs) };
 }
 
-function initialState(): AppState {
+/** 初始狀態（有自動儲存就還原）。測試也用它重設 store。 */
+export function initialState(): AppState {
   const restored = typeof window !== 'undefined' ? persistence.loadAutosave() : null;
   const circuit = restored?.circuit ?? emptyCircuit();
   return {
@@ -537,15 +541,20 @@ export const useStore = create<Store>()((set, get) => {
     setMode(mode) {
       const s = get();
       if (s.routing) return;
-      const current = deriveMode(s);
+      // 導線目前是手動還是自動，與「是否正在看比較畫面」無關。
+      const wires = deriveMode({ view: 'edit', circuit: s.circuit });
       if (mode === 'compare') {
         if (isComparisonFresh(s)) set({ view: 'compare', placing: null });
         else s.runAutoRoute('compare');
         return;
       }
       set({ view: 'edit' });
-      if (mode === 'auto' && current !== 'auto') s.runAutoRoute('apply');
-      if (mode === 'manual' && deriveMode({ view: 'edit', circuit: s.circuit }) === 'auto') s.restoreManualWires();
+      if (mode === 'auto' && wires !== 'auto') s.runAutoRoute('apply');
+      if (mode === 'manual' && wires === 'auto') s.restoreManualWires();
+    },
+
+    closeCompare() {
+      set({ view: 'edit' });
     },
 
     applyComparison() {
@@ -644,7 +653,7 @@ export const useStore = create<Store>()((set, get) => {
     toast(kind, message) {
       const id = toastId++;
       set({ toasts: [...get().toasts.slice(-3), { id, kind, message }] });
-      setTimeout(() => get().dismissToast(id), kind === 'error' ? 7000 : 4200);
+      setTimeout(() => get().dismissToast(id), TOAST_MS[kind]);
     },
 
     dismissToast(id) {

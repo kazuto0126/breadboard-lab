@@ -28,5 +28,8 @@
     "scripts",
     "vite.config.ts",
     "vitest.config.ts"
+  ],
+  "exclude": [
+    "tests/web"
   ]
 }

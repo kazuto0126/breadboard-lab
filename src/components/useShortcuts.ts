@@ -21,7 +21,7 @@ export function useShortcuts(): void {
         else if (s.placing) s.cancelPlacing();
         else if (s.animation) s.finishAnimation();
         else if (s.resultVisible) s.dismissResult();
-        else if (s.view === 'compare') s.setMode('manual');
+        else if (s.view === 'compare') s.closeCompare();
         else s.select(null);
         return;
       }
