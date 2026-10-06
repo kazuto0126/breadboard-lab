@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
+  background: #f3f4f6;
+  color: #1f2937;
+  overscroll-behavior: none;
+}
+
+@keyframes bbl-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes bbl-fade {
+  to {
+    opacity: 0;
+  }
+}
