@@ -69,5 +69,64 @@ describe('explanations: shared parts', () => {
   });
 });
 
-void texts;
-void issueOf;
+const withWire = (c: Circuit, path: Circuit['wires'][number]['path']): Circuit => ({
+  ...c,
+  wires: [...c.wires, { id: 'sug', color: '#22c55e', source: 'manual', start: path[0], end: path[path.length - 1], path }],
+});
+
+describe('explanations: power', () => {
+  it('suggests a wire from the VCC pin row to the + rail, and following it fixes the issue', () => {
+    const c = circuit(icBase(), [gndWire()]);
+    const issue = issueOf(c, 'IC_POWER_MISSING', 'E10');
+    const e = explainIssue(c, issue);
+    expect(texts(c, issue)).toEqual(['從 U1 第 14 腳（VCC）那一排的空孔 A10，拉一條線到上方的 + 電源軌 T+10。']);
+    expect(names(c, e.holes)).toEqual(names(c, [hole('A10'), hole('T+10')]));
+    expect(e.wires).toHaveLength(1);
+    const fixed = withWire(c, e.wires[0]);
+    expect(validateCircuit(fixed).some((x) => x.code === 'IC_POWER_MISSING' && x.points[0].x === 10 && x.points[0].y === hole('E10').y)).toBe(false);
+  });
+
+  it('asks to place a GND first when no rail carries ground, without reusing that hole for the wire', () => {
+    const c = circuit([comp('U1', '74LS00', 'F10'), comp('V1', 'vcc', 'T+3')], [wire('v1', 'A10', 'T+10')]);
+    const issue = issueOf(c, 'IC_POWER_MISSING', 'F16');
+    expect(texts(c, issue)).toEqual([
+      '先從元件庫放一個 GND 到下方的 − 電源軌，例如 B-3。',
+      '從 U1 第 7 腳（GND）那一排的空孔 J16，拉一條線到下方的 − 電源軌 B-16。',
+    ]);
+  });
+
+  it('uses the other + rail when only that one has power', () => {
+    const c = circuit([comp('U1', '74LS00', 'F10'), comp('V1', 'vcc', 'B+3'), comp('G1', 'gnd', 'B-3')], [gndWire()]);
+    expect(texts(c, issueOf(c, 'IC_POWER_MISSING', 'E10'))).toEqual(['從 U1 第 14 腳（VCC）那一排的空孔 D10，拉一條線到下方的 + 電源軌 B+10。']);
+  });
+
+  it('says so when the pin row has no free hole', () => {
+    const full = ['A', 'B', 'C', 'D'].map((r, i) => wire(`x${i}`, `${r}10`, `${r}${20 + i}`));
+    const c = circuit(icBase(), [gndWire(), ...full]);
+    const e = explainIssue(c, issueOf(c, 'IC_POWER_MISSING', 'E10'));
+    expect(e.steps.map((s) => plainText(c, s))).toEqual(['U1 第 14 腳（VCC）那一排已經沒有空孔，請先移開那一排上的導線或元件，再拉線到上方的 + 電源軌。']);
+    expect(e.holes).toEqual([]);
+  });
+
+  it('places VCC and GND on the rails when the circuit has no power at all', () => {
+    const c = circuit([comp('U1', '74LS00', 'F10')]);
+    const issue = issueOf(c, 'NO_POWER_SOURCE');
+    expect(texts(c, issue)).toEqual([
+      '從元件庫放一個 VCC 到上方的 + 電源軌，例如 T+3。',
+      '從元件庫放一個 GND 到下方的 − 電源軌，例如 B-3。',
+      '再把 IC 的 VCC 腳接到 + 軌、GND 腳接到 − 軌；其他元件也從這兩條軌拿電。',
+    ]);
+  });
+
+  it('offers to tie an unused input to the + rail, and following it fixes the warning', () => {
+    const c = circuit(icBase(), [gndWire(), wire('v1', 'A10', 'T+10')]);
+    const issue = issueOf(c, 'INPUT_FLOATING', 'F10');
+    const e = explainIssue(c, issue);
+    expect(texts(c, issue)).toEqual([
+      '如果這隻腳要用：從 G10 拉線到開關，或其他閘的輸出腳所在的那一排。',
+      '如果用不到：從 U1 第 1 腳（1A）那一排的空孔 G10，拉一條線到上方的 + 電源軌 T+9，讓它固定是 HIGH。',
+    ]);
+    const fixed = withWire(c, e.wires[0]);
+    expect(validateCircuit(fixed).some((x) => x.code === 'INPUT_FLOATING' && x.points[0].x === 10 && x.points[0].y === hole('F10').y)).toBe(false);
+  });
+});
