@@ -13,20 +13,13 @@
 | 分支 | 內容 | PR | 狀態 |
 |---|---|---|---|
 | `claude/affectionate-sagan-kmclr0` | 接線清單、單一 HTML 離線版、平板觸控（畫布手勢、窄螢幕抽屜、44 px 觸控目標）、重新整理後記得未儲存的修改、畫布大小改變時重新 Fit（皆移植自 `feat/core-engine`）、GitHub Pages 部署、進度同步流程（hooks、本檔） | [#3](https://github.com/kazuto0126/breadboard-lab/pull/3) | 每個推上去的 commit 都完整可合併；平板觸控審查確認的問題已修正（417151d）；CSS 角度審查找到的 2 個問題也已修正（077ebb3 與下一個 commit） |
+| `feat/ai-explanation`（從 PR #3 的分支開出） | 子專案 5 第一部分：離線錯誤解說（點一個檢查錯誤，說明為什麼錯、具體到孔位的修改步驟、板上綠色標示）。規格 `docs/superpowers/specs/2026-10-08-ai-explanation-design.md` | 還沒開 | 規格完成，接著寫實作計畫並實作 |
 
 ## 接下來（依優先順序）
 
-1. 審查（2026-10-06 在本機 Windows 對話進行到一半，使用者要求先停）：
-   - 已看完、沒有找到問題：3e94964（重新整理後記得未儲存）、9df4d0d（畫布大小改變時重新 Fit）、417151d 的指標事件邏輯。
-   - CSS 角度，待確認與修正：
-     a. ✅ 右鍵 / 長按選單在靠右或靠下的地方會被畫布邊緣切掉：已修正（放不下時翻到指標左邊 / 上面），
-        e2e 先失敗再通過。
-     b. ✅ 工具列下拉選單與對話框在矮螢幕（1133 × 660）會超出畫面：已修正（限制高度、可以捲動），e2e 先失敗再通過。
-   - 審查項目全部處理完。
+1. 子專案 5 第一部分（離線錯誤解說）：依規格寫實作計畫 `docs/superpowers/plans/2026-10-08-ai-explanation.md`，在 `feat/ai-explanation` 實作。
 2. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），**需要使用者在 Settings → Pages 把 Source 設成 GitHub Actions**，合併到 main 後就會上線
-3. 子專案 5：AI 解說。先寫設計規格 `docs/superpowers/specs/2026-10-06-ai-explanation-design.md`（設計 workflow 同樣中止，要重新跑）。
-   預定方向：靜態網站不能放 API 金鑰，所以由使用者自己貼 Claude API 金鑰（只存在自己的瀏覽器）；
-   第一步做不需要網路的確定性解說（錯誤、Net、佈線的說明），之後才接 Claude API。使用者若想用別的方式要先講。
+3. 子專案 5 第二部分：接 Claude API（使用者自己貼金鑰、只存在瀏覽器），第一部分完成後另寫規格。
 
 ## 注意事項
 

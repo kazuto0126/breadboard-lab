@@ -3,6 +3,13 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 子專案 5 設計：離線錯誤解說
+
+### 文件
+
+- 新增 `docs/superpowers/specs/2026-10-08-ai-explanation-design.md`：點一個檢查錯誤時說明為什麼錯，並給出具體到孔位的修改步驟、
+  在麵包板上用綠色標出建議的孔與導線；不用網路、不自動修正。接 Claude API 之後另寫規格。
+
 ## [未發布] — 矮螢幕上選單與對話框不會超出畫面
 
 ### 修正
