@@ -27,6 +27,7 @@ import {
   ROLE_NAMES,
   wireSummary,
 } from '../common/describe';
+import { ExplanationCard } from './ExplanationCard';
 
 const CLOCK_FREQUENCIES = [0.5, 1, 2, 5, 10];
 
@@ -482,6 +483,7 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
       return issue ? (
         <Section title="檢查結果">
           <IssueList issues={[issue]} />
+          <ExplanationCard circuit={circuit} issue={issue} />
         </Section>
       ) : null;
     }
@@ -528,6 +530,7 @@ function NetsTab({ circuit, analysis }: { circuit: Circuit; analysis: CircuitAna
 
 function CheckTab({ analysis }: { analysis: CircuitAnalysis }) {
   const showCheck = useStore((s) => s.showCheck);
+  const circuit = useStore((s) => s.circuit);
   const selection = useStore((s) => s.selection);
   const store = useStore.getState();
   const errors = analysis.issues.filter((e) => e.severity === 'error');
@@ -546,6 +549,7 @@ function CheckTab({ analysis }: { analysis: CircuitAnalysis }) {
           <button type="button" onClick={() => focus(issue, index)} className={`w-full rounded px-2 py-1 text-left text-xs leading-5 ${tone} ${active ? 'ring-1 ring-sky-400' : ''}`}>
             {issue.message}
           </button>
+          {active && <ExplanationCard circuit={circuit} issue={issue} />}
         </li>
       );
     });

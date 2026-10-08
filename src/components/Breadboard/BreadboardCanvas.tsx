@@ -5,6 +5,7 @@ import { getBoard } from '../../core/breadboard/registry';
 import { resolveFootprint } from '../../core/circuit/footprint';
 import { getComponentDefinition } from '../../core/circuit/library';
 import { analyzeCircuit, groupIdAt, netOfPin, occupancyOf } from '../../editor/analysis';
+import { explainIssue } from '../../editor/explain';
 import { groupMembers, moveBoards, snapBoardMove, snapUnits, type BoardMovePlan } from '../../editor/boards';
 import { boardFrames, fromWorld, PITCH, toWorld, type BoardFrame, type GridHit, type Point } from '../../editor/geometry';
 import { nextComponentId } from '../../editor/ids';
@@ -23,7 +24,7 @@ import { BoardBackground } from './BoardBackground';
 import { BoardSelection, GroupOutlines, MovingBoards, SnapPreview } from './boardOverlays';
 import { CanvasHud, ContextMenu, HoverTooltip, type Hover, type MenuState } from './CanvasHud';
 import { ComponentGraphic, type ComponentSim } from './ComponentGraphic';
-import { componentRect, GroupStrip, groupRect, Outline, PathPreview, PinTargets, Ring, WireGlow } from './overlays';
+import { componentRect, GroupStrip, groupRect, Outline, PathPreview, PinTargets, Ring, SuggestionMarks, WireGlow } from './overlays';
 import { WireGraphic } from './WireGraphic';
 
 const DRAG_THRESHOLD = 4;
@@ -823,6 +824,12 @@ export function BreadboardCanvas() {
     return list;
   }, [showCheck, analysis, selection]);
 
+  // 選取一個檢查錯誤時：解說的建議孔位、建議導線與要拔掉的導線（規格：子專案 5 第 2.2 節）。
+  const explanation = useMemo(() => {
+    const picked = selection?.kind === 'issue' ? analysis.issues[selection.index] : undefined;
+    return picked ? explainIssue(circuit, picked) : null;
+  }, [selection, analysis, circuit]);
+
   const hoverGroup = hover?.kind === 'hole' ? groupOf(circuit, hover.point) : null;
   const hoverFree = hover?.kind === 'hole' && isFreeHoleWith(occupancyOf(circuit, hover.point.boardId), hover.point);
   const movingId = drag?.kind === 'move' && drag.started ? drag.id : undefined;
@@ -948,6 +955,7 @@ export function BreadboardCanvas() {
                 </g>
               );
             })}
+            {explanation && <SuggestionMarks frames={frames} circuit={circuit} explanation={explanation} />}
 
             {hover?.kind === 'hole' && <Ring frames={frames} point={hover.point} color={hoverFree ? UI.hover : '#94a3b8'} r={0.36} width={2} />}
             {selectedBoardId && !boardDrag && <BoardSelection boards={displayBoards} id={selectedBoardId} />}
