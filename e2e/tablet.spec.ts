@@ -219,3 +219,25 @@ test('平板：在畫布右下角打開右鍵選單，選單整個留在畫布�
   expect(box.y + box.height).toBeLessThanOrEqual(at.y + 1);
   await expect(menu.getByRole('button', { name: 'AI 標準佈線' })).toBeVisible();
 });
+
+test('平板橫放、扣掉瀏覽器網址列（1133 × 660）：最長的選單與說明對話框都在畫面裡，可以捲到最後一項', async ({ page }) => {
+  await page.setViewportSize({ width: 1133, height: 660 });
+  const height = 660;
+  await page.getByRole('button', { name: '檔案', exact: true }).tap();
+  const menu = page.getByRole('menu');
+  const box = (await menu.boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(height);
+  const last = menu.getByRole('menuitem').last();
+  await last.scrollIntoViewIfNeeded();
+  const item = (await last.boundingBox())!;
+  expect(item.y + item.height).toBeLessThanOrEqual(height);
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: '說明', exact: true }).tap();
+  await page.getByRole('menuitem').first().tap();
+  const dialog = page.getByRole('dialog');
+  const d = (await dialog.boundingBox())!;
+  expect(d.y).toBeGreaterThanOrEqual(0);
+  expect(d.y + d.height).toBeLessThanOrEqual(height);
+  await expect(dialog.getByRole('button', { name: '關閉' })).toBeInViewport();
+});

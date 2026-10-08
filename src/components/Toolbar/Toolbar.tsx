@@ -13,17 +13,21 @@ const MOD = isMac ? '⌘' : 'Ctrl+';
 
 function MenuButton({ label, items, open, onOpen, onHover }: { label: string; items: Item[]; open: boolean; onOpen: () => void; onHover: () => void }) {
   // 窄螢幕時右邊的選單會超出畫面：往左移到剛好貼齊右邊（留 8 px）。
+  // 畫面太矮時（平板橫放、扣掉網址列）長的選單會超出下緣：限制高度，可以捲動。
   const menuRef = useRef<HTMLDivElement>(null);
   const [shift, setShift] = useState(0);
+  const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
   useLayoutEffect(() => {
     const el = menuRef.current;
     if (!open || !el) {
       setShift(0);
+      setMaxHeight(undefined);
       return;
     }
     // 關閉時 shift 已歸零，量到的是沒有位移的位置。
     const rect = el.getBoundingClientRect();
     setShift(Math.min(0, Math.max(8 - rect.left, window.innerWidth - 8 - rect.right)));
+    setMaxHeight(Math.max(120, window.innerHeight - 8 - rect.top));
   }, [open]);
   return (
     <div className="relative">
@@ -38,8 +42,8 @@ function MenuButton({ label, items, open, onOpen, onHover }: { label: string; it
       {open && (
         <div
           ref={menuRef}
-          className="absolute left-0 top-full z-50 mt-1 min-w-[250px] rounded-md border border-slate-600 bg-slate-800 py-1 shadow-2xl"
-          style={shift ? { left: shift } : undefined}
+          className="bbl-scroll absolute left-0 top-full z-50 mt-1 min-w-[250px] overflow-y-auto rounded-md border border-slate-600 bg-slate-800 py-1 shadow-2xl"
+          style={{ left: shift || undefined, maxHeight }}
           role="menu"
         >
           {items.map((item, i) => {

@@ -6,13 +6,13 @@
 ## 目前狀態
 
 - `main`：子專案 1–4 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬），GitHub Actions CI 已設定。
-- 測試：323 個單元測試、20 個 Playwright 端對端測試（含 PR #3 的分支）。
+- 測試：323 個單元測試、21 個 Playwright 端對端測試（含 PR #3 的分支）。
 
 ## 進行中
 
 | 分支 | 內容 | PR | 狀態 |
 |---|---|---|---|
-| `claude/affectionate-sagan-kmclr0` | 接線清單、單一 HTML 離線版、平板觸控（畫布手勢、窄螢幕抽屜、44 px 觸控目標）、重新整理後記得未儲存的修改、畫布大小改變時重新 Fit（皆移植自 `feat/core-engine`）、GitHub Pages 部署、進度同步流程（hooks、本檔） | [#3](https://github.com/kazuto0126/breadboard-lab/pull/3) | 每個推上去的 commit 都完整可合併；平板觸控審查確認的問題已修正（417151d，CI 綠燈）；CSS 角度的審查待補跑 |
+| `claude/affectionate-sagan-kmclr0` | 接線清單、單一 HTML 離線版、平板觸控（畫布手勢、窄螢幕抽屜、44 px 觸控目標）、重新整理後記得未儲存的修改、畫布大小改變時重新 Fit（皆移植自 `feat/core-engine`）、GitHub Pages 部署、進度同步流程（hooks、本檔） | [#3](https://github.com/kazuto0126/breadboard-lab/pull/3) | 每個推上去的 commit 都完整可合併；平板觸控審查確認的問題已修正（417151d）；CSS 角度審查找到的 2 個問題也已修正（077ebb3 與下一個 commit） |
 
 ## 接下來（依優先順序）
 
@@ -21,10 +21,8 @@
    - CSS 角度，待確認與修正：
      a. ✅ 右鍵 / 長按選單在靠右或靠下的地方會被畫布邊緣切掉：已修正（放不下時翻到指標左邊 / 上面），
         e2e 先失敗再通過。
-     b. 工具列下拉選單與對話框（`Modal`）沒有最大高度、不能捲動。1133 × 744（iPad mini 橫放、觸控）量到
-        「檔案」選單底部在 678 px、說明對話框 22–722 px，剛好放得下；實機 Safari 扣掉網址列後可能超出畫面。
-        修法：加 `max-h` 與 `overflow-y-auto`。
-   - 確認後各自先寫會失敗的 e2e 再修。
+     b. ✅ 工具列下拉選單與對話框在矮螢幕（1133 × 660）會超出畫面：已修正（限制高度、可以捲動），e2e 先失敗再通過。
+   - 審查項目全部處理完。
 2. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），**需要使用者在 Settings → Pages 把 Source 設成 GitHub Actions**，合併到 main 後就會上線
 3. 子專案 5：AI 解說。先寫設計規格 `docs/superpowers/specs/2026-10-06-ai-explanation-design.md`（設計 workflow 同樣中止，要重新跑）。
    預定方向：靜態網站不能放 API 金鑰，所以由使用者自己貼 Claude API 金鑰（只存在自己的瀏覽器）；
