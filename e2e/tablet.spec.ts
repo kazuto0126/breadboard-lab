@@ -201,3 +201,21 @@ test('平板：工具列的選單都在畫面裡（iPad mini 直放 744 px）', 
     await expect(menu).toBeHidden();
   }
 });
+
+test('平板：在畫布右下角打開右鍵選單，選單整個留在畫布裡', async ({ page }) => {
+  const canvas = (await page.locator('#bbl-board-svg').boundingBox())!;
+  // 右下角的縮放按鈕上方、板子下方的空白處。
+  const at = { x: canvas.x + canvas.width - 20, y: canvas.y + canvas.height - 90 };
+  await page.mouse.click(at.x, at.y, { button: 'right' });
+  const menu = page.getByTestId('context-menu');
+  await expect(menu).toBeVisible();
+  const box = (await menu.boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(canvas.x);
+  expect(box.y).toBeGreaterThanOrEqual(canvas.y);
+  expect(box.x + box.width).toBeLessThanOrEqual(canvas.x + canvas.width);
+  expect(box.y + box.height).toBeLessThanOrEqual(canvas.y + canvas.height);
+  // 放不下時翻到指標的左邊 / 上面，仍然貼著指標。
+  expect(box.x + box.width).toBeLessThanOrEqual(at.x + 1);
+  expect(box.y + box.height).toBeLessThanOrEqual(at.y + 1);
+  await expect(menu.getByRole('button', { name: 'AI 標準佈線' })).toBeVisible();
+});

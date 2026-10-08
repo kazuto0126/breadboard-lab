@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { getComponentDefinition } from '../../core/circuit/library';
 import { analyzeCircuit, netOfPin, type CircuitAnalysis } from '../../editor/analysis';
 import { EXAMPLES } from '../../editor/examples';
@@ -171,8 +171,24 @@ function MenuItem({ children, onClick, shortcut, danger }: { children: ReactNode
   );
 }
 
+/** 選單和畫布邊緣至少留的距離（px）。 */
+const MENU_MARGIN = 4;
+
 export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () => void }) {
   const store = useStore.getState();
+  // 在靠右或靠下的地方打開時，畫布放不下就翻到指標的左邊 / 上面（畫布是 overflow-hidden，超出的部分會被裁掉）。
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ left: menu.x, top: menu.y });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const parent = el?.offsetParent as HTMLElement | null;
+    if (!el || !parent) return;
+    const fits = (start: number, size: number, room: number) => start + size <= room - MENU_MARGIN;
+    setPos({
+      left: fits(menu.x, el.offsetWidth, parent.clientWidth) ? menu.x : Math.max(MENU_MARGIN, menu.x - el.offsetWidth),
+      top: fits(menu.y, el.offsetHeight, parent.clientHeight) ? menu.y : Math.max(MENU_MARGIN, menu.y - el.offsetHeight),
+    });
+  }, [menu.x, menu.y]);
   useEffect(() => {
     const close = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', close);
@@ -185,8 +201,10 @@ export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () =>
   const t = menu.target;
   return (
     <div
-      className="absolute z-30 min-w-[190px] overflow-hidden rounded-md border border-slate-600 bg-slate-800 py-1 shadow-2xl"
-      style={{ left: menu.x, top: menu.y }}
+      ref={ref}
+      data-testid="context-menu"
+      className="bbl-scroll absolute z-30 max-h-[calc(100%-8px)] min-w-[190px] overflow-y-auto rounded-md border border-slate-600 bg-slate-800 py-1 shadow-2xl"
+      style={pos}
       onPointerDown={(e) => e.stopPropagation()}
     >
       {t.kind === 'component' && (
