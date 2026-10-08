@@ -6,7 +6,7 @@
 ## 目前狀態
 
 - `main`：子專案 1–4 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬），GitHub Actions CI 已設定。
-- 測試：339 個單元測試、22 個 Playwright 端對端測試（`feat/ai-explanation` 分支）。
+- 測試：340 個單元測試、22 個 Playwright 端對端測試（`feat/ai-explanation` 分支）。
 
 ## 進行中
 

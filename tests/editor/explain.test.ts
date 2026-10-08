@@ -139,6 +139,13 @@ describe('explanations: parts', () => {
     ]);
   });
 
+  it('picks the free rail hole next to a leg that sits on a rail', () => {
+    const c = circuit([comp('R1', 'resistor', 'T+33', { rotation: 90 })]);
+    expect(texts(c, issueOf(c, 'PIN_UNCONNECTED', 'T+33'))).toEqual([
+      '從 R1 第 1 腳（1）那一排的空孔 T+34 拉線到要接的地方（電源軌，或另一個元件的腳所在的那一排）。',
+    ]);
+  });
+
   /** 陽極接 GND、陰極接 VCC 的 LED。 */
   const reversed = () =>
     circuit(

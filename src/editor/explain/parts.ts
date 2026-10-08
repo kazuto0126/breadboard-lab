@@ -10,13 +10,14 @@ import {
 } from './helpers';
 import type { ExplainStep, Explanation } from './types';
 
-/** 離中間凹槽（第 9.5 列）近的先。 */
-const byChannel = (a: GridPoint, b: GridPoint) => Math.abs(a.y - 9.5) - Math.abs(b.y - 9.5) || a.x - b.x;
+/** 離中間凹槽（第 9.5 列）近的先；同一列（例如電源軌）時離 near 近的先。 */
+const byChannel = (near: GridPoint) => (a: GridPoint, b: GridPoint) =>
+  Math.abs(a.y - 9.5) - Math.abs(b.y - 9.5) || Math.abs(a.x - near.x) - Math.abs(b.x - near.x) || a.x - b.x;
 const distance = (a: GridPoint, b: GridPoint) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
 export function explainPinUnconnected(circuit: Circuit, issue: CircuitError): Explanation {
   const hit = pinAt(circuit, issue.points[0]);
-  const free = freeHolesInGroup(circuit, hit.point).sort(byChannel)[0];
+  const free = freeHolesInGroup(circuit, hit.point).sort(byChannel(hit.point))[0];
   return explanation(ISSUE_TEXT.PIN_UNCONNECTED.why, [
     free
       ? step(`從 ${pinLabel(hit)}那一排的空孔 {0} 拉線到要接的地方（電源軌，或另一個元件的腳所在的那一排）。`, free)
@@ -41,7 +42,7 @@ interface ResistorSpot {
 
 /** 規格第 3.2 節第 1 步：電阻一腳在陰極那一排的空孔、另一腳往右（再往左）4 格，放得下而且另一排整排空著。 */
 function resistorSpot(circuit: Circuit, cathode: GridPoint): ResistorSpot | null {
-  for (const near of freeHolesInGroup(circuit, cathode).sort(byChannel)) {
+  for (const near of freeHolesInGroup(circuit, cathode).sort(byChannel(cathode))) {
     for (const dir of [1, -1]) {
       const instance: ComponentInstance = {
         id: '__suggested_resistor__',
