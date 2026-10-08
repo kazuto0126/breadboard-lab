@@ -130,3 +130,58 @@ describe('explanations: power', () => {
     expect(validateCircuit(fixed).some((x) => x.code === 'INPUT_FLOATING' && x.points[0].x === 10 && x.points[0].y === hole('F10').y)).toBe(false);
   });
 });
+
+describe('explanations: parts', () => {
+  it('points at the free hole nearest the centre channel of an unconnected leg', () => {
+    const c = circuit([comp('R1', 'resistor', 'A30')]);
+    expect(texts(c, issueOf(c, 'PIN_UNCONNECTED', 'A30'))).toEqual([
+      '從 R1 第 1 腳（1）那一排的空孔 E30 拉線到要接的地方（電源軌，或另一個元件的腳所在的那一排）。',
+    ]);
+  });
+
+  /** 陽極接 GND、陰極接 VCC 的 LED。 */
+  const reversed = () =>
+    circuit(
+      [comp('D1', 'led', 'G40'), comp('V1', 'vcc', 'B+3'), comp('G1', 'gnd', 'B-3')],
+      [wire('a1', 'J40', 'B-40'), wire('k1', 'J41', 'B+41')],
+    );
+
+  it('shows where the anode and the cathode are when an LED is reversed', () => {
+    const c = reversed();
+    const e = explainIssue(c, issueOf(c, 'LED_REVERSED'));
+    expect(names(c, e.holes)).toEqual(names(c, [hole('G40'), hole('G41')]));
+    expect(e.steps.map((s) => plainText(c, s))[0]).toBe('陽極（A）現在在 G40、陰極（K）在 G41：實體 LED 拔起來轉半圈再插回去，讓陽極改插 G41、陰極改插 G40。');
+  });
+
+  /** 陽極接 VCC、陰極直接接 GND，沒有限流電阻。 */
+  const bare = () =>
+    circuit(
+      [comp('D1', 'led', 'G40'), comp('V1', 'vcc', 'B+3'), comp('G1', 'gnd', 'B-3')],
+      [wire('a1', 'J40', 'B+40'), wire('k1', 'J41', 'B-41')],
+    );
+
+  it('places a resistor on the cathode side and moves the cathode wire, which fixes the warning', () => {
+    const c = bare();
+    const e = explainIssue(c, issueOf(c, 'LED_NO_RESISTOR'));
+    expect(e.steps.map((s) => plainText(c, s))).toEqual([
+      '電阻（元件庫的 220Ω）一腳插在 LED 陰極那一排的 F41，另一腳插在 F45。',
+      '把 k1 插在 J41 的那一端拔起來，改插到 J45。',
+    ]);
+    expect(e.removeWireIds).toEqual(['k1']);
+    const path = e.wires[0];
+    const fixed: Circuit = {
+      ...c,
+      components: [...c.components, comp('R9', 'resistor', 'F41', { props: { resistance: 220 } })],
+      wires: [...c.wires.filter((w) => w.id !== 'k1'), { id: 'k2', color: '#000000', source: 'manual', start: path[0], end: path[path.length - 1], path }],
+    };
+    expect(validateCircuit(fixed).some((x) => x.code === 'LED_NO_RESISTOR')).toBe(false);
+  });
+
+  it('wires the new resistor row to ground when the cathode was not connected', () => {
+    const c = circuit([comp('D1', 'led', 'G40'), comp('V1', 'vcc', 'B+3'), comp('G1', 'gnd', 'B-3')], [wire('a1', 'J40', 'B+40')]);
+    expect(texts(c, issueOf(c, 'LED_NO_RESISTOR'))).toEqual([
+      '電阻（元件庫的 220Ω）一腳插在 LED 陰極那一排的 F41，另一腳插在 F45。',
+      '從電阻另一腳那一排的空孔 J45，拉一條線到下方的 − 電源軌 B-45。',
+    ]);
+  });
+});
