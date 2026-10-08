@@ -185,3 +185,21 @@ describe('explanations: parts', () => {
     ]);
   });
 });
+
+describe('explanations: short circuit', () => {
+  it('names the wire whose removal ends the short, and removing it fixes the error', () => {
+    const c = circuit([comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3')], [wire('s1', 'T+21', 'B-21'), wire('u1', 'A30', 'A35')]);
+    const e = explainIssue(c, issueOf(c, 'SHORT_CIRCUIT'));
+    expect(e.removeWireIds).toEqual(['s1']);
+    expect(e.steps.map((s) => plainText(c, s))[0]).toBe('拔掉 s1（T+21 → B-21）就不會短路。');
+    const fixed: Circuit = { ...c, wires: c.wires.filter((w) => w.id !== 's1') };
+    expect(validateCircuit(fixed).some((x) => x.code === 'SHORT_CIRCUIT')).toBe(false);
+  });
+
+  it('explains a short made by parts alone', () => {
+    const c = circuit([comp('V1', 'vcc', 'A20'), comp('G1', 'gnd', 'B20')]);
+    const e = explainIssue(c, issueOf(c, 'SHORT_CIRCUIT'));
+    expect(e.removeWireIds).toEqual([]);
+    expect(e.steps[0].text).toBe('這個 Net 上的元件腳直接把電源和 GND 接在一起（G1、V1），請把其中一個元件移到別的排。');
+  });
+});

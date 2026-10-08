@@ -1,6 +1,7 @@
 import type { Circuit, CircuitError, CircuitErrorCode } from '../../types/circuit';
 import { genericExplanation } from './generic';
 import { explainLedNoResistor, explainLedReversed, explainPinUnconnected } from './parts';
+import { explainShort } from './short';
 import { explainInputFloating, explainNoPowerSource, explainPowerMissing } from './power';
 import type { Explanation } from './types';
 
@@ -17,6 +18,7 @@ const EXPLAINERS: Partial<Record<CircuitErrorCode, Explainer>> = {
   PIN_UNCONNECTED: explainPinUnconnected,
   LED_REVERSED: explainLedReversed,
   LED_NO_RESISTOR: explainLedNoResistor,
+  SHORT_CIRCUIT: explainShort,
 };
 
 const cache = new WeakMap<Circuit, WeakMap<CircuitError, Explanation>>();
