@@ -1,25 +1,22 @@
 # 專案進度
 
 > 每個 Claude Code 對話開始時會自動顯示這份檔案（`.claude/hooks/session-start.sh`）。
-> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-08
+> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-09
 
 ## 目前狀態
 
-- `main`：子專案 1–4 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬），GitHub Actions CI 已設定。
-- 測試：340 個單元測試、22 個 Playwright 端對端測試（`feat/ai-explanation` 分支）。
+- `main`：子專案 1–4 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬）；子專案 5 第一部分（離線錯誤解說）完成；
+  接線清單、單一 HTML 離線版、平板觸控也已合併（PR #3、#4，2026-10-09）。GitHub Actions CI 已設定。
+- 測試：340 個單元測試、22 個 Playwright 端對端測試。
 
 ## 進行中
 
-| 分支 | 內容 | PR | 狀態 |
-|---|---|---|---|
-| `claude/affectionate-sagan-kmclr0` | 接線清單、單一 HTML 離線版、平板觸控（畫布手勢、窄螢幕抽屜、44 px 觸控目標）、重新整理後記得未儲存的修改、畫布大小改變時重新 Fit（皆移植自 `feat/core-engine`）、GitHub Pages 部署、進度同步流程（hooks、本檔） | [#3](https://github.com/kazuto0126/breadboard-lab/pull/3) | 每個推上去的 commit 都完整可合併；平板觸控審查確認的問題已修正（417151d）；CSS 角度審查找到的 2 個問題也已修正（077ebb3 與下一個 commit） |
-| `feat/ai-explanation`（從 PR #3 的分支開出） | 子專案 5 第一部分：離線錯誤解說（點一個檢查錯誤，說明為什麼錯、具體到孔位的修改步驟、板上綠色標示）。規格 `docs/superpowers/specs/2026-10-08-ai-explanation-design.md` | 還沒開（[建立 PR](https://github.com/kazuto0126/breadboard-lab/pull/new/feat/ai-explanation)） | 已完成：規格、計畫、實作、測試全部推上去；等 PR #3 合併後再開 PR 合併到 main |
+目前沒有進行中的分支。
 
 ## 接下來（依優先順序）
 
-1. 審查 `feat/ai-explanation`（子專案 5 第一部分）並開 PR；PR #3 先合併。
-2. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），**需要使用者在 Settings → Pages 把 Source 設成 GitHub Actions**，合併到 main 後就會上線
-3. 子專案 5 第二部分：接 Claude API（使用者自己貼金鑰、只存在瀏覽器），第一部分完成後另寫規格。
+1. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），**需要使用者在 Settings → Pages 把 Source 設成 GitHub Actions**；設好後重新執行 Pages workflow（或下一次推到 main）就會上線
+2. 子專案 5 第二部分：接 Claude API（使用者自己貼金鑰、只存在瀏覽器）。先和使用者討論設計、寫規格。
 
 ## 注意事項
 

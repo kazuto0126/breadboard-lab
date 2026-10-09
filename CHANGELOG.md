@@ -3,6 +3,12 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 進度紀錄：PR #3、#4 已合併
+
+### 文件
+
+- `docs/PROGRESS.md`：PR #3（平板觸控等）與 #4（子專案 5 第一部分）已合併到 main，沒有進行中的分支；下一步是 GitHub Pages 設定與子專案 5 第二部分。
+
 ## [未發布] — 子專案 5 第一部分：離線錯誤解說
 
 ### 新增
