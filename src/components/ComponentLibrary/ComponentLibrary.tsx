@@ -94,13 +94,47 @@ export function PartIcon({ item }: { item: LibraryItem }) {
   }
 }
 
+/** 觸控 / 觸控筆按住元件後往旁邊移動多少 px 才算拿起來拖曳。 */
+const TOUCH_PICK_DISTANCE = 8;
+
 function startDrag(item: LibraryItem, e: ReactPointerEvent<HTMLButtonElement>) {
   if (e.button !== 0) return;
   e.preventDefault();
-  useStore.getState().startPlacing(item, true, { x: e.clientX, y: e.clientY });
+  const origin = { x: e.clientX, y: e.clientY };
+  if (e.pointerType === 'mouse') {
+    useStore.getState().startPlacing(item, true, origin);
+    return;
+  }
+  // 觸控：先不拿起來（不收抽屜、不取消選取、不離開比較畫面）。往旁邊拖 = 拖放；放開時沒移動 = 點選放置；
+  // 上下滑是捲動清單，瀏覽器接手後送 pointercancel，什麼都不改。
+  const pointerId = e.pointerId;
+  const finish = () => {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onCancel);
+  };
+  const onMove = (ev: PointerEvent) => {
+    if (ev.pointerId !== pointerId) return;
+    const dx = Math.abs(ev.clientX - origin.x);
+    const dy = Math.abs(ev.clientY - origin.y);
+    if (dx < TOUCH_PICK_DISTANCE || dx < dy) return;
+    finish();
+    useStore.getState().startPlacing(item, true, origin);
+  };
+  const onUp = (ev: PointerEvent) => {
+    if (ev.pointerId !== pointerId) return;
+    finish();
+    if (Math.hypot(ev.clientX - origin.x, ev.clientY - origin.y) <= TOUCH_PICK_DISTANCE * 2) useStore.getState().startPlacing(item, false, origin);
+  };
+  const onCancel = (ev: PointerEvent) => {
+    if (ev.pointerId === pointerId) finish();
+  };
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onCancel);
 }
 
-const TOOLTIP = '拖曳到麵包板上放置，或點一下後再點麵包板。';
+const TOOLTIP = '拖曳到麵包板上放置，或點一下後再點麵包板（平板：點一下元件、再點麵包板）。';
 
 /** 描述中括號裡的英文（例如「Quad 2-input NAND」），給小格子用。 */
 function shortDescription(item: LibraryItem): string {
@@ -123,6 +157,7 @@ function LibraryTile({ item, active }: { item: LibraryItem; active: boolean }) {
       type="button"
       data-library-item={item.key}
       onPointerDown={(e) => startDrag(item, e)}
+      style={{ touchAction: 'pan-y' }}
       title={`${item.name}：${item.description}\n${TOOLTIP}`}
       className={`flex min-w-0 cursor-grab items-center gap-1.5 rounded-md px-1.5 py-1 text-left transition-colors active:cursor-grabbing ${
         active ? 'bg-sky-900/60 ring-1 ring-sky-500' : 'bg-slate-800/40 hover:bg-slate-800'
@@ -146,6 +181,7 @@ function LibraryRow({ item, active }: { item: LibraryItem; active: boolean }) {
       type="button"
       data-library-item={item.key}
       onPointerDown={(e) => startDrag(item, e)}
+      style={{ touchAction: 'pan-y' }}
       title={`${item.name}：${item.description}\n${TOOLTIP}`}
       className={`flex w-full cursor-grab items-center gap-2 rounded-md px-2 py-1 text-left transition-colors active:cursor-grabbing ${
         active ? 'bg-sky-900/60 ring-1 ring-sky-500' : 'hover:bg-slate-800'
@@ -234,13 +270,17 @@ export function ComponentLibrary() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const sections = useMemo(() => searchLibrary(librarySections(), query), [query]);
   const placingKey = useStore((s) => s.placing?.item.key);
+  const open = useStore((s) => s.drawer === 'library');
   const searching = query.trim().length > 0;
   const jump = (id: string) => {
     setCollapsed((c) => ({ ...c, [id]: false }));
     requestAnimationFrame(() => document.getElementById(`library-${id}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   };
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-slate-800 bg-slate-900">
+    <aside
+      aria-label="元件庫"
+      className={`${open ? 'flex' : 'hidden'} absolute inset-y-0 left-0 z-30 w-72 max-w-[85vw] shrink-0 flex-col border-r border-slate-800 bg-slate-900 shadow-2xl lg:static lg:z-auto lg:flex lg:h-full lg:w-64 lg:shadow-none`}
+    >
       <div className="border-b border-slate-800 p-3 pb-2">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">元件庫 Parts</div>
         <input

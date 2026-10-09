@@ -2,6 +2,8 @@ import { autoRoute } from '../core/routing/autoRoute';
 import type { Circuit } from '../types/circuit';
 import type { DeepPartial, RoutingConfig, RoutingResult } from '../types/routing';
 import type { RoutingResponse } from './protocol';
+// 內嵌（inline）的 Worker：程式碼包在主程式裡、用 blob URL 啟動，單一 HTML 檔用 file:// 開啟也能用。
+import RoutingWorker from './routing.worker.ts?worker&inline';
 
 export interface RoutingJob {
   promise: Promise<RoutingResult>;
@@ -26,7 +28,7 @@ export function startRouting(circuit: Circuit, config?: DeepPartial<RoutingConfi
   if (typeof Worker === 'undefined') return runInline(circuit, config);
 
   const id = nextId++;
-  const worker = new Worker(new URL('./routing.worker.ts', import.meta.url), { type: 'module', name: 'routing' });
+  const worker = new RoutingWorker({ name: 'routing' });
   let settle: { resolve: (r: RoutingResult) => void; reject: (e: Error) => void } | null = null;
   const promise = new Promise<RoutingResult>((resolve, reject) => {
     settle = { resolve, reject };

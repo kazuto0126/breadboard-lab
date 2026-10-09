@@ -3,7 +3,10 @@ import { parseNodeId } from '../../core/breadboard/naming';
 import { getBoard } from '../../core/breadboard/registry';
 import { resolveFootprint } from '../../core/circuit/footprint';
 import { getComponentDefinition } from '../../core/circuit/library';
+import { holeLabel } from '../../editor/analysis';
+import type { Explanation } from '../../editor/explain';
 import { gridBounds, PITCH, toWorld, type BoardFrame, type Rect } from '../../editor/geometry';
+import { UI } from '../../render/theme';
 import type { Circuit, Wire } from '../../types/circuit';
 import type { ComponentInstance } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
@@ -102,6 +105,33 @@ export function PathPreview({ frames, path, color, valid }: { frames: BoardFrame
       strokeLinejoin="round"
       pointerEvents="none"
     />
+  );
+}
+
+/** 規格第 2.2 節：建議的孔（綠色虛線圈與編號）、建議的導線（綠色虛線）、建議拔掉的導線（紅色光暈）。 */
+export function SuggestionMarks({ frames, circuit, explanation }: { frames: BoardFrame[]; circuit: Circuit; explanation: Explanation }) {
+  return (
+    <g data-ui="explanation" pointerEvents="none">
+      {explanation.removeWireIds.map((id) => {
+        const w = circuit.wires.find((x) => x.id === id);
+        return w ? <WireGlow key={id} frames={frames} wire={w} color={UI.error} width={0.9} opacity={0.55} /> : null;
+      })}
+      {explanation.wires.map((path, i) => (
+        <PathPreview key={i} frames={frames} path={path} color={UI.ok} valid />
+      ))}
+      {explanation.holes.map((p, i) => {
+        const c = toWorld(frames, p);
+        if (!c) return null;
+        return (
+          <g key={i} data-suggested-hole={holeLabel(circuit, p)}>
+            <circle cx={c.x} cy={c.y} r={0.55 * P} fill="none" stroke={UI.ok} strokeWidth={2.4} strokeDasharray={`${0.25 * P} ${0.18 * P}`} />
+            <text x={c.x + 0.75 * P} y={c.y - 0.75 * P} fontSize={0.8 * P} fontWeight={700} fill={UI.ok} stroke="#0f172a" strokeWidth={0.15 * P} paintOrder="stroke" textAnchor="middle" dominantBaseline="central">
+              {i + 1}
+            </text>
+          </g>
+        );
+      })}
+    </g>
   );
 }
 

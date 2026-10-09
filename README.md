@@ -22,6 +22,13 @@ npm install
 npm run dev        # 開啟 http://localhost:5173
 ```
 
+**線上版**：`main` 每次更新都會自動部署到 GitHub Pages（https://kazuto0126.github.io/breadboard-lab/），
+離線版也放在同一個網站（`breadboard-lab-offline.html`）。第一次使用前需要在 GitHub 打開一次：
+Settings → Pages → Build and deployment → Source 選「GitHub Actions」。
+
+**離線版**：`npm run build:single` 會產生 `dist-single/breadboard-lab.html` 一個檔案，複製到任何電腦雙擊就能用，
+不需要伺服器或網路。每次 CI 也會建置一份，可以在 GitHub 的 Actions 頁面下載（Artifacts → `breadboard-lab-offline`）。
+
 第一次打開時，畫面上方有操作說明，也可以直接載入範例電路（檔案 → 範例電路）：
 74LS00 + LED 驗收電路、74LS93 按鈕計數器、74LS161 + 時脈（模擬示範）、兩塊麵包板（Board Group 示範）、74LS283 4 位元加法器。
 
@@ -36,7 +43,9 @@ npm run dev        # 開啟 http://localhost:5173
 | 編輯 | 拖曳移動（可以拖到另一塊板）、`R` 旋轉、`Delete` 刪除、右鍵選單、修改阻值 / LED 顏色 / 兩腳間距 / 指撥開關 |
 | 接線 | 從空孔拖曳到另一個空孔；路徑只有水平 / 垂直，會自動繞過元件；接 + 軌自動用紅色、− 軌用黑色 |
 | 選取 | 點孔、元件、腳位、導線或 Net；腳位與導線會高亮整個 Net，右側面板顯示詳細資訊 |
+| 接線清單 | 照著插實體麵包板：依電源 → 接地 → 訊號列出每條導線的顏色、起點 → 終點、長度；插好一條勾一條，點一列就在板上找到那條線，進度會自動儲存 |
 | Check Circuit | 17 種檢查（短路、IC 電源未接、輸出衝突、LED 反接、輸入懸空…），錯誤直接標在板上 |
+| 錯誤解說 | 點一個檢查錯誤：說明為什麼錯、具體到孔位的修改步驟，麵包板上用綠色標出建議的孔與導線（不用網路） |
 | AI 標準佈線 | 在 Web Worker 執行的確定性佈線引擎（A* + 協商式拆線重排）；導線逐條以動畫出現，顯示前後統計與 Routing Score |
 | 模式 | MANUAL（手動接線）/ AUTO ROUTE（AI 標準佈線）/ COMPARE（左右或上下對照） |
 | 邏輯模擬 | 20 顆 74LS IC 依 datasheet 模擬；LED 發光、腳位與導線依電位上色（1 / 0 / 浮接 / 衝突）；在板上撥開關、按按鈕；時脈可暫停、單步、重置；偵測未供電、震盪、輸出衝突 |
@@ -53,6 +62,7 @@ AI 標準佈線**不會移動元件**，只保留你的接線所定義的電氣�
 |---|---|
 | `npm run dev` | 開發伺服器 |
 | `npm run build` / `npm run preview` | 建置靜態網站到 `dist/` / 預覽建置結果 |
+| `npm run build:single` | 建置單一 HTML 離線版 `dist-single/breadboard-lab.html`（用 `file://` 直接開啟） |
 | `npm test` | 單元測試（Vitest） |
 | `npm run typecheck` | TypeScript 型別檢查（核心、畫面、測試四份設定） |
 | `npm run e2e` | 端對端測試（Playwright），用真實滑鼠操作走完需求文件第三十四章的驗收流程，以及第三十八章的多麵包板吸附與跨板接線 |
@@ -61,8 +71,11 @@ AI 標準佈線**不會移動元件**，只保留你的接線所定義的電氣�
 第一次執行 e2e 前需要安裝瀏覽器：`npx playwright install chromium`。
 已經有 Chromium 的環境可以改設 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chrome`。
 
-GitHub Actions（`.github/workflows/ci.yml`）在每個 Pull Request 與 push 到 `main` 時自動執行型別檢查、單元測試、建置與 e2e。
-給 Claude Code 的專案說明（架構、指令、慣例）在 [`CLAUDE.md`](CLAUDE.md)。
+GitHub Actions（`.github/workflows/ci.yml`）在每個 Pull Request 與 push 到 `main` 時自動執行型別檢查、單元測試、建置與 e2e，
+並上傳離線版 HTML。
+給 Claude Code 的專案說明（架構、指令、慣例、工作流程）在 [`CLAUDE.md`](CLAUDE.md)，目前進度與下一步在
+[`docs/PROGRESS.md`](docs/PROGRESS.md)。`.claude/settings.json` 設定了兩個 hook：對話開始時自動安裝相依套件、
+從 GitHub 同步並顯示進度；每次回覆結束或中斷時，把工作分支上還沒推送的修改存成 WIP commit 推上 GitHub。
 
 ## 架構
 
@@ -108,4 +121,4 @@ docs/            設計規格與實作計畫
 | 2 | Web App：畫面、互動、Undo / Redo、存檔、匯出、動畫、Compare、Web Worker | ✅ 完成 |
 | 3 | 多麵包板：長邊吸附、Board Group、群組座標系、跨板接線與佈線 | ✅ 完成 |
 | 4 | 74LS 數位邏輯模擬：邏輯模型、模擬引擎、Clock、模擬模式 | ✅ 完成 |
-| 5 | 串接大型語言模型的 AI 解說 | 規劃中 |
+| 5 | AI 解說：第一部分離線錯誤解說已完成；串接 Claude API 規劃中 | 進行中 |

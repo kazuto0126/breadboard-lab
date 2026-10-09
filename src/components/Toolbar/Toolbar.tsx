@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import logoUrl from '../../assets/logo.svg';
 import { MAX_BOARDS } from '../../editor/boards';
 import { EXAMPLES } from '../../editor/examples';
 import { redoLabel, undoLabel } from '../../editor/history';
@@ -11,6 +12,23 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigat
 const MOD = isMac ? '⌘' : 'Ctrl+';
 
 function MenuButton({ label, items, open, onOpen, onHover }: { label: string; items: Item[]; open: boolean; onOpen: () => void; onHover: () => void }) {
+  // 窄螢幕時右邊的選單會超出畫面：往左移到剛好貼齊右邊（留 8 px）。
+  // 畫面太矮時（平板橫放、扣掉網址列）長的選單會超出下緣：限制高度，可以捲動。
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [shift, setShift] = useState(0);
+  const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!open || !el) {
+      setShift(0);
+      setMaxHeight(undefined);
+      return;
+    }
+    // 關閉時 shift 已歸零，量到的是沒有位移的位置。
+    const rect = el.getBoundingClientRect();
+    setShift(Math.min(0, Math.max(8 - rect.left, window.innerWidth - 8 - rect.right)));
+    setMaxHeight(Math.max(120, window.innerHeight - 8 - rect.top));
+  }, [open]);
   return (
     <div className="relative">
       <button
@@ -22,7 +40,12 @@ function MenuButton({ label, items, open, onOpen, onHover }: { label: string; it
         {label}
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-50 mt-1 min-w-[250px] rounded-md border border-slate-600 bg-slate-800 py-1 shadow-2xl" role="menu">
+        <div
+          ref={menuRef}
+          className="bbl-scroll absolute left-0 top-full z-50 mt-1 min-w-[250px] overflow-y-auto rounded-md border border-slate-600 bg-slate-800 py-1 shadow-2xl"
+          style={{ left: shift || undefined, maxHeight }}
+          role="menu"
+        >
           {items.map((item, i) => {
             if (item === 'separator') return <div key={i} className="my-1 border-t border-slate-700" />;
             if ('heading' in item)
@@ -77,6 +100,7 @@ export function Toolbar() {
   const hasWires = useStore((s) => s.circuit.wires.length > 0);
   const simulating = useStore((s) => s.simulation !== null);
   const boardCount = useStore((s) => s.circuit.boards.length);
+  const drawer = useStore((s) => s.drawer);
   const store = useStore.getState();
 
   useEffect(() => {
@@ -141,7 +165,7 @@ export function Toolbar() {
         'separator',
         { label: 'Check Circuit 檢查電路', onClick: run(() => store.runCheck()) },
         { label: '在麵包板上顯示檢查標記', onClick: run(() => store.setShowCheck(!showCheck)), checked: showCheck },
-        { label: '顯示所有 Nets', onClick: run(() => store.setRightTab('nets')) },
+        { label: '顯示所有 Nets', onClick: run(() => store.showRightTab('nets')) },
         'separator',
         { label: `＋ 新增麵包板（${boardCount} / ${MAX_BOARDS}）`, onClick: run(() => store.addBoard()), disabled: boardCount >= MAX_BOARDS || simulating || routing },
         'separator',
@@ -177,10 +201,29 @@ export function Toolbar() {
   ];
 
   return (
-    <header ref={barRef} className="flex h-12 shrink-0 items-center gap-2 border-b border-slate-800 bg-slate-900 px-3">
+    <header ref={barRef} className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-slate-800 bg-slate-900 px-3 py-1">
+      {/* 窄螢幕（< 1024 px）：左右面板收成抽屜，用這兩個按鈕開關。 */}
+      <div className="flex gap-1 lg:hidden">
+        {(
+          [
+            ['library', '元件庫'],
+            ['info', '資訊'],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={drawer === id}
+            onClick={() => store.toggleDrawer(id)}
+            className={`rounded-md border px-2.5 py-1 text-sm ${drawer === id ? 'border-sky-500 bg-sky-900/60 text-white' : 'border-slate-700 text-slate-200 hover:bg-slate-800'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="mr-2 flex items-center gap-2">
-        <img src="/favicon.svg" alt="" className="h-6 w-6" />
-        <div className="leading-tight">
+        <img src={logoUrl} alt="" className="h-6 w-6" />
+        <div className="hidden leading-tight sm:block">
           <div className="text-sm font-bold text-slate-50">Breadboard Lab</div>
           <div className="max-w-[180px] truncate text-[11px] text-slate-400" title={projectName ?? '未命名電路'}>
             {projectName ?? '未命名電路'}

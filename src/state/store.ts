@@ -14,6 +14,7 @@ import {
 } from '../core/simulation/simulate';
 import { analyzeCircuit } from '../editor/analysis';
 import { addBoard, boardMoveProblem, crossBoardWires, detachBoard, groupMembers, MAX_BOARDS, moveBoards, removeBoard } from '../editor/boards';
+import { pruneChecklist, setChecked, type ChecklistState } from '../editor/checklist';
 import {
   addComponent,
   addWire,
@@ -61,8 +62,10 @@ export interface PlacingTool {
 }
 
 export type Mode = 'manual' | 'auto' | 'compare';
-export type RightTab = 'inspect' | 'nets' | 'check';
+export type RightTab = 'inspect' | 'nets' | 'check' | 'checklist';
 export type Dialog = 'open' | 'save-as' | 'confirm-new' | 'help' | null;
+/** 窄螢幕（寬度 < 1024 px，例如直放的平板）時，左右面板改成可以開關的抽屜。 */
+export type Drawer = 'library' | 'info' | null;
 
 export interface Comparison {
   /** 佈線當時使用者的導線。 */
@@ -118,18 +121,24 @@ export interface AppState {
   resultVisible: boolean;
   wireColor: string;
   viewport: Viewport;
+  /** 使用者還沒自己縮放或平移：畫布大小改變（平板轉向、調整視窗）時自動重新 Fit to Screen。 */
+  viewportAuto: boolean;
   canvasSize: { width: number; height: number };
   rightTab: RightTab;
   dialog: Dialog;
+  drawer: Drawer;
   toasts: Toast[];
   storageWarned: boolean;
   simulation: SimulationRun | null;
+  /** 接線清單的勾選進度（不進 Undo；隨自動儲存與專案存檔保存）。 */
+  checklist: ChecklistState;
 }
 
 export interface AppActions {
   undo(): void;
   redo(): void;
-  select(selection: Selection): void;
+  /** 選取；keepTab 為 true 時不切換右側面板的分頁（例如從接線清單點選導線）。 */
+  select(selection: Selection, options?: { keepTab?: boolean }): void;
   startPlacing(item: LibraryItem, dragging: boolean, origin?: { x: number; y: number }): void;
   setPlacingDragging(dragging: boolean): void;
   rotatePlacing(): void;
@@ -160,6 +169,8 @@ export interface AppActions {
   resetView(): void;
   focusPoints(points: GridPoint[]): void;
   setRightTab(tab: RightTab): void;
+  /** 切到右側面板的分頁並打開資訊抽屜（窄螢幕時面板平常收起來）；給面板以外的「顯示…」按鈕用。 */
+  showRightTab(tab: RightTab): void;
   setShowCheck(show: boolean): void;
   runCheck(): void;
   runAutoRoute(purpose: 'apply' | 'compare'): void;
@@ -172,12 +183,14 @@ export interface AppActions {
   restoreManualWires(): void;
   setCompareLayout(layout: 'side' | 'stacked'): void;
   newCircuit(): void;
-  loadCircuit(circuit: Circuit, name: string | null, message?: string): void;
+  loadCircuit(circuit: Circuit, name: string | null, message?: string, checklist?: ChecklistState): void;
   saveProject(name?: string): void;
   openProject(name: string): void;
   deleteProject(name: string): void;
   importJson(text: string): void;
   openDialog(dialog: Dialog): void;
+  /** 打開某個抽屜；再按一次同一個（或傳 null）就關閉。寬螢幕時兩側面板一直顯示，不受影響。 */
+  toggleDrawer(drawer: Drawer): void;
   closeDialog(): void;
   toast(kind: Toast['kind'], message: string): void;
   dismissToast(id: number): void;
@@ -188,6 +201,8 @@ export interface AppActions {
   resetSimulation(): void;
   pressButton(id: string, down: boolean): void;
   tickSimulation(dtMs: number): void;
+  setWireChecked(id: string, checked: boolean): void;
+  clearChecklist(): void;
 }
 
 export type Store = AppState & AppActions;
@@ -259,6 +274,11 @@ export function resimulate(circuit: Circuit, run: Omit<SimulationRun, 'result'> 
 }
 let animationTimer: ReturnType<typeof setTimeout> | null = null;
 let toastId = 1;
+
+/** 寬螢幕（≥ 1024 px，Tailwind 的 lg）：左右面板一直顯示，不用抽屜。 */
+function wideLayout(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(min-width: 1024px)').matches;
+}
 let animationKey = 1;
 
 function clearAnimationTimer() {
@@ -284,7 +304,8 @@ export function initialState(): AppState {
     circuit,
     history: emptyHistory(),
     projectName: restored?.name || null,
-    savedCircuit: circuit,
+    // 重新整理前有未儲存的修改：沒有「上次存檔」的電路，isDirty 才會繼續成立。
+    savedCircuit: restored?.unsaved ? null : circuit,
     selection: null,
     placing: null,
     view: 'edit',
@@ -296,12 +317,15 @@ export function initialState(): AppState {
     resultVisible: false,
     wireColor: DEFAULT_WIRE_COLOR,
     viewport: DEFAULT_VIEWPORT,
+    viewportAuto: true,
     canvasSize: { width: 1200, height: 700 },
     rightTab: 'inspect',
     dialog: null,
+    drawer: null,
     toasts: [],
     storageWarned: false,
     simulation: null,
+    checklist: restored?.checklist ?? {},
   };
 }
 
@@ -400,13 +424,15 @@ export const useStore = create<Store>()((set, get) => {
       get().toast('info', `已重做：${step.label}`);
     },
 
-    select(selection) {
-      set({ selection, rightTab: selection && selection.kind !== 'issue' ? 'inspect' : get().rightTab });
+    select(selection, options) {
+      const inspect = selection !== null && selection.kind !== 'issue' && !options?.keepTab;
+      set({ selection, rightTab: inspect ? 'inspect' : get().rightTab });
     },
 
     startPlacing(item, dragging, origin) {
       if (guardEdit() || !getComponentDefinition(item.defId)) return;
-      set({ placing: { item, rotation: 0, dragging, origin: origin ?? null }, selection: null, view: 'edit' });
+      // 從抽屜裡的元件庫拿起元件時收起抽屜，才點得到麵包板。
+      set({ placing: { item, rotation: 0, dragging, origin: origin ?? null }, selection: null, view: 'edit', drawer: null });
     },
 
     setPlacingDragging(dragging) {
@@ -582,40 +608,49 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     setViewport(viewport) {
-      set({ viewport });
+      set({ viewport, viewportAuto: false });
     },
 
     setCanvasSize(width, height) {
       const s = get();
       if (s.canvasSize.width === width && s.canvasSize.height === height) return;
       set({ canvasSize: { width, height } });
+      if (s.viewportAuto && width > 0 && height > 0) get().fitToScreen();
     },
 
     zoomBy(factor) {
       const s = get();
-      set({ viewport: zoomAt(s.viewport, factor, s.canvasSize.width / 2, s.canvasSize.height / 2) });
+      set({ viewport: zoomAt(s.viewport, factor, s.canvasSize.width / 2, s.canvasSize.height / 2), viewportAuto: false });
     },
 
     fitToScreen() {
       const s = get();
       const bounds = worldBounds(boardFrames(s.circuit));
-      if (bounds) set({ viewport: fitRect(bounds, s.canvasSize.width, s.canvasSize.height, 28) });
+      if (bounds) set({ viewport: fitRect(bounds, s.canvasSize.width, s.canvasSize.height, 28), viewportAuto: true });
     },
 
     resetView() {
       const s = get();
       const bounds = worldBounds(boardFrames(s.circuit));
-      set({ viewport: bounds ? centerOn({ ...DEFAULT_VIEWPORT, scale: 1 }, bounds, s.canvasSize.width, s.canvasSize.height) : DEFAULT_VIEWPORT });
+      set({
+        viewport: bounds ? centerOn({ ...DEFAULT_VIEWPORT, scale: 1 }, bounds, s.canvasSize.width, s.canvasSize.height) : DEFAULT_VIEWPORT,
+        viewportAuto: false,
+      });
     },
 
     focusPoints(points) {
       const s = get();
       const rect = gridBounds(boardFrames(s.circuit), points, 3);
-      if (rect) set({ viewport: centerOn(s.viewport, rect, s.canvasSize.width, s.canvasSize.height) });
+      if (rect) set({ viewport: centerOn(s.viewport, rect, s.canvasSize.width, s.canvasSize.height), viewportAuto: false });
     },
 
     setRightTab(rightTab) {
       set({ rightTab });
+    },
+
+    showRightTab(rightTab) {
+      // 寬螢幕不碰抽屜狀態，之後視窗變窄時才不會突然冒出抽屜。
+      set(wideLayout() ? { rightTab } : { rightTab, drawer: 'info' });
     },
 
     setShowCheck(showCheck) {
@@ -750,11 +785,12 @@ export const useStore = create<Store>()((set, get) => {
       get().loadCircuit(emptyCircuit(), null, '已建立新電路');
     },
 
-    loadCircuit(circuit, name, message) {
+    loadCircuit(circuit, name, message, checklist) {
       if (guardRouting()) return;
       clearAnimationTimer();
       set({
         simulation: null,
+        checklist: checklist ?? {},
         circuit,
         history: emptyHistory(),
         projectName: name,
@@ -780,7 +816,7 @@ export const useStore = create<Store>()((set, get) => {
         set({ dialog: 'save-as' });
         return;
       }
-      if (!persistence.saveProject(target, s.circuit)) {
+      if (!persistence.saveProject(target, s.circuit, pruneChecklist(s.checklist, s.circuit))) {
         get().toast('error', '無法儲存：瀏覽器不允許使用本機儲存空間。請改用「匯出 JSON」。');
         return;
       }
@@ -794,7 +830,7 @@ export const useStore = create<Store>()((set, get) => {
         get().toast('error', result.error);
         return;
       }
-      get().loadCircuit(result.circuit, name, `已開啟「${name}」`);
+      get().loadCircuit(result.circuit, name, `已開啟「${name}」`, result.checklist);
     },
 
     deleteProject(name) {
@@ -808,11 +844,15 @@ export const useStore = create<Store>()((set, get) => {
         get().toast('error', `匯入失敗：${result.error}`);
         return;
       }
-      get().loadCircuit(result.circuit, result.name, `已匯入${result.name ? `「${result.name}」` : ' JSON'}`);
+      get().loadCircuit(result.circuit, result.name, `已匯入${result.name ? `「${result.name}」` : ' JSON'}`, result.checklist);
     },
 
     openDialog(dialog) {
       set({ dialog });
+    },
+
+    toggleDrawer(drawer) {
+      set({ drawer: drawer === null || get().drawer === drawer ? null : drawer });
     },
 
     closeDialog() {
@@ -889,6 +929,16 @@ export const useStore = create<Store>()((set, get) => {
       set({ simulation: resimulate(s.circuit, { ...run, pressed: { ...run.pressed, [id]: down } }) });
     },
 
+    setWireChecked(id, checked) {
+      const s = get();
+      const wire = s.circuit.wires.find((w) => w.id === id);
+      if (wire) set({ checklist: setChecked(s.checklist, wire, checked) });
+    },
+
+    clearChecklist() {
+      if (Object.keys(get().checklist).length > 0) set({ checklist: {} });
+    },
+
     tickSimulation(dtMs) {
       const s = get();
       const run = s.simulation;
@@ -905,14 +955,15 @@ export const useStore = create<Store>()((set, get) => {
 
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** 電路或專案名稱改變後 400 ms 寫入 localStorage；第一次失敗時提示一次。 */
+/** 電路、專案名稱、存檔狀態或接線清單的勾選改變後 400 ms 寫入 localStorage；第一次失敗時提示一次。 */
 export function startAutosave(): () => void {
   return useStore.subscribe((s, prev) => {
-    if (s.circuit === prev.circuit && s.projectName === prev.projectName) return;
+    if (s.circuit === prev.circuit && s.projectName === prev.projectName && s.checklist === prev.checklist && s.savedCircuit === prev.savedCircuit) return;
     if (autosaveTimer) clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
       const now = useStore.getState();
-      if (!persistence.writeAutosave(now.circuit, now.projectName) && !now.storageWarned) {
+      const checklist = pruneChecklist(now.checklist, now.circuit);
+      if (!persistence.writeAutosave(now.circuit, now.projectName, checklist, isDirty(now)) && !now.storageWarned) {
         useStore.setState({ storageWarned: true });
         now.toast('warning', '瀏覽器不允許使用本機儲存空間，無法自動儲存。請記得「匯出 JSON」。');
       }

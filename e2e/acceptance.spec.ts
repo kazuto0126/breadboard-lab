@@ -170,9 +170,12 @@ test('Undo / Redo 放置、旋轉、刪除，且電路會自動儲存', async ({
   circuit = await savedCircuit(page);
   expect(circuit.components[0]).toMatchObject({ rotation: 0, anchor: { x: 20, y: 11 } });
 
-  // 重新整理後自動還原。
+  // 重新整理後自動還原；沒有存檔過，所以仍算未儲存，開新電路前會先確認。
   await page.reload();
   await expect(page.locator('g[data-component-id="U1"]')).toHaveCount(1);
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: '新電路 New Circuit' }).click();
+  await expect(page.getByRole('dialog', { name: '建立新電路？' })).toBeVisible();
 });
 
 test('邏輯模擬：在板上撥指撥開關、按按鈕，LED 即時反應', async ({ page }) => {
@@ -289,4 +292,37 @@ test('第三十八章：新增麵包板、拖曳吸附成群組、整組移動�
     [2, 'g-b1'],
     [22, 'g-b1'],
   ]);
+});
+
+test('接線清單：照著 AI 標準佈線插線、打勾，重新整理後進度仍在', async ({ page }) => {
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: '74LS00 + LED（驗收電路）' }).click();
+  await page.getByRole('button', { name: '⚡ AI 標準佈線' }).click();
+  await expect(page.getByTestId('routing-result')).toContainText('Standard Routing Complete', { timeout: 20_000 });
+
+  await page.getByRole('tab', { name: /接線清單/ }).click();
+  const progress = page.getByTestId('checklist-progress');
+  await expect(progress).toHaveText(/已完成 0 \/ \d+/);
+  const total = Number(/\/ (\d+)/.exec((await progress.textContent()) ?? '')![1]);
+  const rows = page.locator('[data-checklist-row]');
+  await expect(rows).toHaveCount(total);
+
+  // 插好第一條（電源線）就打勾。
+  await rows.first().getByRole('checkbox').check();
+  await expect(progress).toHaveText(`已完成 1 / ${total}`);
+
+  // 點第二列：選取那條線，其他導線變淡，分頁不變。
+  await rows.nth(1).getByRole('button').click();
+  const focused = await rows.nth(1).getAttribute('data-checklist-row');
+  await expect(page.locator(`g[data-wire-id="${focused}"]`)).toHaveAttribute('opacity', '1');
+  await expect(page.locator(`g[data-wire-id]:not([data-wire-id="${focused}"])`).first()).toHaveAttribute('opacity', '0.3');
+  await expect(page.getByRole('tab', { name: /接線清單/ })).toHaveAttribute('aria-selected', 'true');
+
+  // 重新整理後勾選進度仍在（跟著自動儲存）。
+  await page.waitForTimeout(600);
+  await page.reload();
+  await page.getByRole('tab', { name: /接線清單/ }).click();
+  await expect(page.getByTestId('checklist-progress')).toHaveText(`已完成 1 / ${total}`);
+  await page.getByRole('button', { name: '全部清除' }).click();
+  await expect(page.getByTestId('checklist-progress')).toHaveText(`已完成 0 / ${total}`);
 });

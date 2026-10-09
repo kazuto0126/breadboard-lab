@@ -9,16 +9,17 @@ function Modal({ title, children, onClose, width = 'w-[460px]' }: { title: strin
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`${width} max-w-[calc(100vw-2rem)] rounded-lg border border-slate-600 bg-slate-900 p-5 text-slate-200 shadow-2xl`}
+        className={`${width} flex max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] flex-col rounded-lg border border-slate-600 bg-slate-900 p-5 text-slate-200 shadow-2xl`}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex shrink-0 items-center justify-between">
           <h2 className="text-base font-semibold text-slate-50">{title}</h2>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-100" aria-label="關閉">
             ✕
           </button>
         </div>
-        {children}
+        {/* 畫面太矮時（平板橫放）標題與關閉鈕留在上面，內容可以捲動。 */}
+        <div className="bbl-scroll min-h-0 overflow-y-auto">{children}</div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { boardFrames, fromWorld, gridBounds, localPx, PITCH, toWorld, worldBounds } from '../../src/editor/geometry';
-import { clampScale, fitRect, MAX_SCALE, MIN_SCALE, panBy, screenToWorld, worldToScreen, zoomAt } from '../../src/editor/viewport';
+import { clampScale, fitRect, MAX_SCALE, MIN_SCALE, panBy, pinchViewport, screenToWorld, worldToScreen, zoomAt } from '../../src/editor/viewport';
 import { circuit, pt } from '../fixtures/build';
 
 describe('board geometry', () => {
@@ -58,5 +58,26 @@ describe('viewport', () => {
     const centre = worldToScreen(v, 650, 190);
     expect(centre.x).toBeCloseTo(500);
     expect(centre.y).toBeCloseTo(300);
+  });
+});
+
+describe('pinch zoom', () => {
+  const start = { scale: 1, x: 10, y: 20 };
+
+  it('zooms by the ratio of finger distances around their midpoint', () => {
+    const v = pinchViewport(start, { x: 100, y: 100 }, { x: 200, y: 100 }, { x: 50, y: 100 }, { x: 250, y: 100 });
+    expect(v.scale).toBe(2);
+    // 兩指中點 (150, 100) 底下的世界座標不動。
+    const before = screenToWorld(start, 150, 100);
+    const after = worldToScreen(v, before.x, before.y);
+    expect(after.x).toBeCloseTo(150);
+    expect(after.y).toBeCloseTo(100);
+  });
+
+  it('pans with the midpoint when the fingers move together, and clamps the zoom', () => {
+    const moved = pinchViewport(start, { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 30, y: 40 }, { x: 130, y: 40 });
+    expect(moved).toEqual({ scale: 1, x: 40, y: 60 });
+    expect(pinchViewport(start, { x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 0 }, { x: 1000, y: 0 }).scale).toBe(MAX_SCALE);
+    expect(pinchViewport(start, { x: 0, y: 0 }, { x: 0, y: 0 }, { x: 5, y: 5 }, { x: 5, y: 5 }).scale).toBe(1);
   });
 });

@@ -28,6 +28,13 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm run build:single
+      - name: 上傳單一 HTML 離線版（在 Actions 頁面的 Artifacts 下載）
+        uses: actions/upload-artifact@v4
+        with:
+          name: breadboard-lab-offline
+          path: dist-single/breadboard-lab.html
+          retention-days: 30
 
   e2e:
     name: 端對端測試（Playwright）

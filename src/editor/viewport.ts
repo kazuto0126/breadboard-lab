@@ -52,3 +52,17 @@ export function centerOn(v: Viewport, rect: Rect, width: number, height: number)
   const cy = rect.y + rect.height / 2;
   return { scale: v.scale, x: width / 2 - cx * v.scale, y: height / 2 - cy * v.scale };
 }
+
+/**
+ * 雙指縮放與平移：start 是兩指剛按下時的視窗，a0 / b0 是當時兩指的位置，a1 / b1 是現在的位置（皆為畫布座標）。
+ * 縮放倍率 = 兩指距離的比例；兩指中點底下的世界座標跟著中點移動。
+ */
+export function pinchViewport(start: Viewport, a0: Point, b0: Point, a1: Point, b1: Point): Viewport {
+  const d0 = Math.hypot(b0.x - a0.x, b0.y - a0.y);
+  const d1 = Math.hypot(b1.x - a1.x, b1.y - a1.y);
+  const scale = clampScale(start.scale * (d0 > 0 ? d1 / d0 : 1));
+  const world = screenToWorld(start, (a0.x + b0.x) / 2, (a0.y + b0.y) / 2);
+  const mx = (a1.x + b1.x) / 2;
+  const my = (a1.y + b1.y) / 2;
+  return { scale, x: mx - world.x * scale, y: my - world.y * scale };
+}

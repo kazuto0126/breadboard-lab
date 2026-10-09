@@ -80,3 +80,32 @@ select {
   background: #334155;
   border-radius: 4px;
 }
+
+/*
+ * 觸控裝置（平板）：可以點的東西至少 44 × 44 px（WCAG 2.5.5、Apple HIG）。
+ * 用 pointer: coarse 判斷，滑鼠操作的電腦版面不受影響。
+ */
+@media (pointer: coarse) {
+  button,
+  select,
+  [role="tab"],
+  [role="menuitem"],
+  input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: 44px;
+  }
+
+  button,
+  [role="tab"] {
+    min-width: 44px;
+  }
+
+  input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+  }
+
+  label:has(> input[type="checkbox"]) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

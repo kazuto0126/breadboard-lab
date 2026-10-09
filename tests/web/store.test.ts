@@ -273,6 +273,89 @@ describe('multiple breadboards', () => {
   });
 });
 
+describe('wiring checklist', () => {
+  it('ticks wires without touching the undo history, and clears them', () => {
+    s().loadCircuit(acceptanceCircuit(), null);
+    s().setWireChecked('w1', true);
+    s().setWireChecked('w5', true);
+    s().setWireChecked('nope', true);
+    expect(Object.keys(s().checklist).sort()).toEqual(['w1', 'w5']);
+    expect(s().history.past).toEqual([]);
+    expect(isDirty(s())).toBe(false);
+    s().setWireChecked('w1', false);
+    expect(Object.keys(s().checklist)).toEqual(['w5']);
+    s().clearChecklist();
+    expect(s().checklist).toEqual({});
+  });
+
+  it('starts fresh when another circuit is loaded, unless the file brings its progress', () => {
+    s().loadCircuit(acceptanceCircuit(), null);
+    s().setWireChecked('w2', true);
+    s().loadCircuit(counterCircuit(), null);
+    expect(s().checklist).toEqual({});
+    s().loadCircuit(acceptanceCircuit(), null, undefined, { w3: 'kept' });
+    expect(s().checklist).toEqual({ w3: 'kept' });
+  });
+
+  it('selects a wire from the list without leaving the checklist tab', () => {
+    s().setRightTab('checklist');
+    s().select({ kind: 'wire', id: 'w1' }, { keepTab: true });
+    expect(s().rightTab).toBe('checklist');
+    s().select({ kind: 'wire', id: 'w1' });
+    expect(s().rightTab).toBe('inspect');
+  });
+});
+
+describe('narrow-screen drawers', () => {
+  it('opens the info drawer when something outside the panel shows a tab', () => {
+    expect(s().drawer).toBeNull();
+    s().setRightTab('nets');
+    expect(s().drawer).toBeNull();
+    s().showRightTab('check');
+    expect(s()).toMatchObject({ rightTab: 'check', drawer: 'info' });
+    s().showRightTab('nets');
+    expect(s()).toMatchObject({ rightTab: 'nets', drawer: 'info' });
+  });
+
+  it('leaves the drawer alone on wide screens', () => {
+    vi.stubGlobal('window', { matchMedia: (q: string) => ({ matches: q === '(min-width: 1024px)' }) });
+    try {
+      s().showRightTab('nets');
+      expect(s()).toMatchObject({ rightTab: 'nets', drawer: null });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('viewport', () => {
+  it('refits when the canvas resizes until the user zooms or pans', () => {
+    s().setCanvasSize(1200, 700);
+    s().fitToScreen();
+    const wide = s().viewport;
+    s().setCanvasSize(600, 900);
+    expect(s().viewportAuto).toBe(true);
+    expect(s().viewport.scale).toBeLessThan(wide.scale);
+
+    s().zoomBy(1.5);
+    expect(s().viewportAuto).toBe(false);
+    const zoomed = s().viewport;
+    s().setCanvasSize(1200, 700);
+    expect(s().viewport).toBe(zoomed);
+
+    s().fitToScreen();
+    s().setViewport({ ...s().viewport, x: s().viewport.x + 40 });
+    const panned = s().viewport;
+    s().setCanvasSize(800, 600);
+    expect(s().viewport).toBe(panned);
+
+    s().fitToScreen();
+    s().setCanvasSize(1000, 800);
+    expect(s().viewport).not.toBe(panned);
+    expect(s().viewportAuto).toBe(true);
+  });
+});
+
 describe('files', () => {
   it('imports a circuit file and resets the history', () => {
     s().placeComponent(findLibraryItem('led-red')!, 0, 'b1', { x: 5, y: 4 });
