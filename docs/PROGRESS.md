@@ -7,13 +7,13 @@
 
 - `main`：子專案 1–5 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說：離線錯誤解說與「問 AI」Gemini 追問）；
   接線清單、單一 HTML 離線版、平板觸控也已合併（PR #3、#4 2026-10-09，PR #5 2026-10-10）。GitHub Actions CI 已設定。
-- 測試：359 個單元測試、24 個 Playwright 端對端測試。
+- 測試：main 上 359 個單元測試、24 個端對端測試；`feat/straight-wires` 上 376 個、26 個。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
   原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布。
 
 ## 進行中
 
-- `feat/straight-wires`：子專案 6「直線導線」（使用者新需求第 0、4 項）。規格 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`；計畫 `docs/superpowers/plans/2026-10-10-straight-wires.md`（6 個任務）；目前：Task 1（直線幾何）。
+- `feat/straight-wires`（PR #7）：子專案 6「直線導線」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`、計畫 `docs/superpowers/plans/2026-10-10-straight-wires.md`。
 
 ## 接下來（依優先順序）
 
