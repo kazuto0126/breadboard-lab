@@ -7,14 +7,14 @@
 
 - `main`：子專案 1–5 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說：離線錯誤解說與「問 AI」Gemini 追問）；
   接線清單、單一 HTML 離線版、平板觸控也已合併（PR #3、#4 2026-10-09，PR #5 2026-10-10）。GitHub Actions CI 已設定。
-- 測試：main 上 359 個單元測試、24 個端對端測試；`feat/straight-wires` 上 376 個、26 個。
+- 測試：main 上 359 個單元測試、24 個端對端測試；`feat/routing-standard`（含子專案 6）上 379 個、26 個。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
   原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布。
 
 ## 進行中
 
 - `feat/straight-wires`（PR #7）：子專案 6「直線導線」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`、計畫 `docs/superpowers/plans/2026-10-10-straight-wires.md`。
-- `feat/routing-standard`（從 `feat/straight-wires` 開出，要先合併 PR #7）：子專案 7「新的自動佈線標準」（PR #8，草稿）。規格 `docs/superpowers/specs/2026-10-10-routing-standard-design.md`；計畫 `docs/superpowers/plans/2026-10-10-routing-standard.md`（6 個任務）；目前：Task 1–4 已完成（新搜尋、生成樹、合法性檢查、autoRoute 換新）。**卡住的地方**：(1) congestion 20 太高，Test 2 繞路用 4 條線（改 0–4 可解）；(2) 74LS283 加法器範例佈不完——開關第 5–12 欄上半 8 個 Net 只能沿 A–D 四列往外走，GND 又用 G/H 列串接佔掉下半；需要讓 GND 直接垂直接到 B− 軌、或調整範例擺放。接下來：Task 5 校準與範例、Task 6 e2e 與文件。
+- `feat/routing-standard`（PR #8，從 `feat/straight-wires` 開出，要先合併 PR #7）：子專案 7「新的自動佈線標準」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-routing-standard-design.md`、計畫 `docs/superpowers/plans/2026-10-10-routing-standard.md`。
 
 ## 接下來（依優先順序）
 
