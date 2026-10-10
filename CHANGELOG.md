@@ -3,6 +3,13 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 子專案 7：新的自動佈線標準
+
+### 文件
+
+- 新增 `docs/superpowers/specs/2026-10-10-routing-standard-design.md`：自動佈線的每條線都是水平或垂直的直線；轉彎靠「轉接排」
+  （空的五孔排或這個 Net 自己的排；空的電源軌不用）；一孔一線；最優先避免交叉，其次線少、再其次短。
+
 ## [未發布] — 子專案 6：直線導線
 
 ### 新增
