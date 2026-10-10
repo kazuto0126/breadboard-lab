@@ -14,6 +14,7 @@ import { groupIdAt } from '../../editor/analysis';
 import { boardGroups, crossBoardWires, groupMembers, MAX_BOARDS } from '../../editor/boards';
 import {
   boardGroupTitle,
+  describeMove,
   FAILURE_NAMES,
   groupLabel,
   groupOf,
@@ -359,6 +360,11 @@ function ResultCard() {
           ))}
         </div>
       )}
+      {result.moves && (
+        <div className="mt-2 rounded bg-amber-950/50 px-2 py-1 text-xs text-amber-200" data-testid="ic-moves">
+          {result.moves.length === 0 ? 'IC 已經在最好的位置，沒有移動。' : result.moves.map((m) => <div key={m.componentId}>移動 {describeMove(circuit, m)}</div>)}
+        </div>
+      )}
       <div className="mt-3">
         <MetricsTable before={comparison.beforeScore} after={after} />
       </div>
@@ -393,8 +399,10 @@ function RoutingOverlay() {
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/35">
       <div className="w-[340px] rounded-lg border border-slate-600 bg-slate-900/95 p-5 text-center shadow-2xl">
         <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-sky-500 border-t-transparent" />
-        <div className="text-base font-semibold text-slate-100">AI 標準佈線計算中…</div>
-        <div className="mt-1 text-xs text-slate-400">分析 Electrical Nets → A* 正交搜尋 → 協商式拆線重排 → 合法性檢查</div>
+        <div className="text-base font-semibold text-slate-100">{routing.moveIcs ? 'AI 佈線（可移動 IC）計算中…' : 'AI 標準佈線計算中…'}</div>
+        <div className="mt-1 text-xs text-slate-400">
+          {routing.moveIcs ? '找 IC 位置 → 直線跳線佈線 → 合法性檢查' : '分析 Electrical Nets → 直線跳線搜尋 → 協商式拆線重排 → 合法性檢查'}
+        </div>
         <div className="mt-2 text-sm tabular-nums text-slate-300">{seconds.toFixed(1)} 秒</div>
         <button type="button" className="mt-3 rounded bg-slate-700 px-4 py-1 text-sm text-slate-100 hover:bg-slate-600" onClick={() => useStore.getState().cancelRouting()}>
           取消

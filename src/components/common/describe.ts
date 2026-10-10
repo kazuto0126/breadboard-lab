@@ -4,12 +4,12 @@ import { getBoard } from '../../core/breadboard/registry';
 import { cellsUnder, countBends, isStraight, wireLength } from '../../core/circuit/wireGeometry';
 import { describeGroup } from '../../core/routing/problem';
 import type { CircuitAnalysis } from '../../editor/analysis';
-import { occupancyOf } from '../../editor/analysis';
+import { holeLabel, occupancyOf } from '../../editor/analysis';
 import type { BoardGroup } from '../../types/board';
 import type { Circuit, CircuitError, Wire } from '../../types/circuit';
 import type { PinRole } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
-import type { FailureReason } from '../../types/routing';
+import type { FailureReason, IcMove, IcPlacement } from '../../types/routing';
 import { getComponentDefinition } from '../../core/circuit/library';
 import { resolveFootprint } from '../../core/circuit/footprint';
 
@@ -102,4 +102,11 @@ export function issuesOfComponent(analysis: CircuitAnalysis, id: string): Circui
 
 export function issuesOfWire(analysis: CircuitAnalysis, id: string): CircuitError[] {
   return analysis.issues.filter((e) => e.severity !== 'info' && e.wireIds.includes(id));
+}
+
+/** 「U1：F10 → F22（轉 180 度）」：第 1 腳所在的孔；多塊板時加板子 ID。 */
+export function describeMove(circuit: Pick<Circuit, 'boards'>, m: IcMove): string {
+  const at = (p: IcPlacement) => holeLabel(circuit, { boardId: p.boardId, x: p.anchor.x, y: p.anchor.y });
+  const turned = m.from.rotation !== m.to.rotation ? '（轉 180 度）' : '';
+  return `${m.componentId}：${at(m.from)} → ${at(m.to)}${turned}`;
 }

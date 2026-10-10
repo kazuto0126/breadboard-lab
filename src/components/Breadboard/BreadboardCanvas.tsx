@@ -4,6 +4,7 @@ import { getNode, nodeIdOf } from '../../core/breadboard/naming';
 import { getBoard } from '../../core/breadboard/registry';
 import { resolveFootprint } from '../../core/circuit/footprint';
 import { getComponentDefinition } from '../../core/circuit/library';
+import { placeAt } from '../../core/icPlacement/relocate';
 import { analyzeCircuit, groupIdAt, netOfPin, occupancyOf } from '../../editor/analysis';
 import { explainIssue } from '../../editor/explain';
 import { groupMembers, moveBoards, snapBoardMove, snapUnits, type BoardMovePlan } from '../../editor/boards';
@@ -979,6 +980,16 @@ export function BreadboardCanvas() {
             {selectedNet?.pins.map((ref) => {
               const p = pinPoint(circuit, ref.componentId, ref.pinNumber);
               return p ? <Ring key={`${ref.componentId}#${ref.pinNumber}`} frames={frames} point={p} color={UI.net} r={0.4} width={2} /> : null;
+            })}
+            {animation?.moves.map((m) => {
+              const c = componentsById.get(m.componentId);
+              if (!c) return null;
+              return (
+                <g key={`moved-${m.componentId}`} pointerEvents="none" data-moved-ic={m.componentId}>
+                  <Outline rect={componentRect(frames, placeAt(c, m.from), 0.75)} color={UI.warning} />
+                  <Outline rect={componentRect(frames, c, 0.75)} color={UI.warning} dashed={false} width={2.6} />
+                </g>
+              );
             })}
             {selection?.kind === 'component' && selection.id !== movingId && componentsById.get(selection.id) && (
               <Outline rect={componentRect(frames, componentsById.get(selection.id)!)} color={UI.select} />

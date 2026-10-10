@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { getComponentDefinition } from '../../core/circuit/library';
 import { boardFrames, toWorld, worldBounds } from '../../editor/geometry';
-import { deriveMode, isComparisonFresh, useStore } from '../../state/store';
-import type { Circuit, Wire } from '../../types/circuit';
+import { comparisonSides, deriveMode, isComparisonFresh, useStore } from '../../state/store';
+import type { Circuit } from '../../types/circuit';
 import type { RoutingMetrics } from '../../types/routing';
 import { BoardBackground } from '../Breadboard/BoardBackground';
 import { ComponentGraphic } from '../Breadboard/ComponentGraphic';
@@ -10,7 +10,7 @@ import { WireGraphic } from '../Breadboard/WireGraphic';
 import { FAILURE_NAMES } from '../common/describe';
 
 /** 不能互動、剛好放得下整塊板的麵包板圖。 */
-function StaticBoard({ circuit, wires }: { circuit: Circuit; wires: Wire[] }) {
+function StaticBoard({ circuit }: { circuit: Circuit }) {
   const frames = useMemo(() => boardFrames(circuit), [circuit]);
   const bounds = worldBounds(frames);
   if (!bounds) return null;
@@ -30,7 +30,7 @@ function StaticBoard({ circuit, wires }: { circuit: Circuit; wires: Wire[] }) {
         const at = toWorld(frames, { boardId: c.boardId, ...c.anchor });
         return def && at ? <ComponentGraphic key={c.id} instance={c} def={def} at={at} interactive={false} /> : null;
       })}
-      {wires.map((w) => (
+      {circuit.wires.map((w) => (
         <WireGraphic key={w.id} wire={w} frames={frames} interactive={false} />
       ))}
     </svg>
@@ -67,7 +67,6 @@ function Metrics({ metrics, score, other }: { metrics: RoutingMetrics; score: nu
 
 /** COMPARE 模式：使用者的接線與 AI 標準佈線並排。 */
 export function CompareView() {
-  const circuit = useStore((s) => s.circuit);
   const comparison = useStore((s) => s.comparison);
   const fresh = useStore((s) => isComparisonFresh(s));
   const layout = useStore((s) => s.compareLayout);
@@ -80,10 +79,11 @@ export function CompareView() {
       </div>
     );
   }
-  const { result, beforeWires, beforeScore } = comparison;
+  const { result, beforeScore } = comparison;
+  const sides = comparisonSides(comparison);
   const after = { metrics: result.metrics, score: result.score };
   const ok = result.status === 'success';
-  const pane = (title: string, subtitle: string, wires: Wire[], metrics: { metrics: RoutingMetrics; score: number }, other: { metrics: RoutingMetrics; score: number }, accent: string) => (
+  const pane = (title: string, subtitle: string, board: Circuit, metrics: { metrics: RoutingMetrics; score: number }, other: { metrics: RoutingMetrics; score: number }, accent: string) => (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col rounded-lg border border-slate-700 bg-slate-900/60">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 px-3 py-2">
         <div>
@@ -93,7 +93,7 @@ export function CompareView() {
         <Metrics metrics={metrics.metrics} score={metrics.score} other={other} />
       </div>
       <div className="min-h-0 flex-1 p-2">
-        <StaticBoard circuit={circuit} wires={wires} />
+        <StaticBoard circuit={board} />
       </div>
     </div>
   );
@@ -132,8 +132,15 @@ export function CompareView() {
         </div>
       )}
       <div className={`flex min-h-0 flex-1 gap-3 ${layout === 'side' ? 'flex-row' : 'flex-col'}`}>
-        {pane('User Routing', '你的手動接線', beforeWires, beforeScore, after, 'text-slate-100')}
-        {pane('AI Standard Routing', ok ? 'Standard Routing Complete' : 'No valid routing solution.', result.wires, after, beforeScore, 'text-emerald-300')}
+        {pane('User Routing', '你的手動接線', sides.before, beforeScore, after, 'text-slate-100')}
+        {pane(
+          'AI Standard Routing',
+          `${ok ? 'Standard Routing Complete' : 'No valid routing solution.'}${result.moves && result.moves.length > 0 ? `・移動了 ${result.moves.length} 顆 IC` : ''}`,
+          sides.after,
+          after,
+          beforeScore,
+          'text-emerald-300',
+        )}
       </div>
     </div>
   );

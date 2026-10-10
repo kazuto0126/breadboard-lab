@@ -177,6 +177,7 @@ export function Toolbar() {
       '自動佈線',
       [
         { label: 'AI 標準佈線 Auto Route', onClick: run(() => store.runAutoRoute('apply')), disabled: routing || simulating },
+        { label: 'AI 佈線（可移動 IC）Auto Place & Route', onClick: run(() => store.runAutoRoute('apply', { moveIcs: true })), disabled: routing || simulating },
         { label: '比較 Compare（手動 vs AI）', onClick: run(() => store.setMode('compare')), disabled: routing || simulating },
         'separator',
         { label: '套用 AI 佈線結果', onClick: run(() => store.applyComparison()), disabled: !fresh || !comparisonOk || mode === 'auto' },
@@ -288,6 +289,15 @@ export function Toolbar() {
         className="rounded-md bg-emerald-600 px-3 py-1 text-sm font-semibold text-white shadow hover:bg-emerald-500 disabled:opacity-60"
       >
         ⚡ AI 標準佈線
+      </button>
+      <button
+        type="button"
+        onClick={() => store.runAutoRoute('apply', { moveIcs: true })}
+        disabled={routing || simulating}
+        title="AI 佈線（可移動 IC）：先幫 IC 找位置再佈線；開關、按鈕、電阻、LED 與電源不動"
+        className="hidden rounded-md border border-emerald-600 px-3 py-1 text-sm font-semibold text-emerald-300 hover:bg-emerald-900/40 disabled:opacity-60 lg:inline-block"
+      >
+        ⚡ 可移動 IC
       </button>
     </header>
   );
