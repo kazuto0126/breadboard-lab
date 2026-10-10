@@ -6,7 +6,7 @@ import type { Circuit, PinRef } from '../../types/circuit';
 import type { ComponentDefinition, ComponentInstance, PinDefinition, PinRole } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
 import { analyzeCircuit, groupIdAt, holeLabel, occupancyOf } from '../analysis';
-import { isFreeHoleWith, planWirePath } from '../manualWire';
+import { isFreeHoleWith, straightWireProblem } from '../manualWire';
 import type { ExplainStep, Explanation } from './types';
 
 export interface PinHit {
@@ -118,14 +118,17 @@ export function chooseRail(circuit: Circuit, point: GridPoint, polarity: '+' | '
   return { rail: near, powered: false };
 }
 
+/** 電源軌上的空孔，依和 x 的距離排序（同距離 x 小的先）。 */
+export function railHoles(circuit: Circuit, boardId: string, rail: Rail, x: number, exclude: GridPoint[] = []): GridPoint[] {
+  const occ = occupancyOf(circuit, boardId);
+  return holesOfGroup(circuit, boardId, railGroupId(boardId, rail))
+    .filter((p) => isFreeHoleWith(occ, p) && !exclude.some((e) => samePoint(e, p)))
+    .sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x) || a.x - b.x);
+}
+
 /** 電源軌上和 x 最接近的空孔（同距離選 x 較小的）。 */
 export function railHole(circuit: Circuit, boardId: string, rail: Rail, x: number, exclude: GridPoint[] = []): GridPoint | null {
-  const occ = occupancyOf(circuit, boardId);
-  const holes = holesOfGroup(circuit, boardId, railGroupId(boardId, rail)).filter(
-    (p) => isFreeHoleWith(occ, p) && !exclude.some((e) => samePoint(e, p)),
-  );
-  holes.sort((a, b) => Math.abs(a.x - x) - Math.abs(b.x - x) || a.x - b.x);
-  return holes[0] ?? null;
+  return railHoles(circuit, boardId, rail, x, exclude)[0] ?? null;
 }
 
 export interface WirePlan {
@@ -134,13 +137,19 @@ export interface WirePlan {
   path: GridPoint[];
 }
 
-/** 從 point 那一排最靠近目標軌的空孔，拉到軌上 x 最接近的空孔。那一排或那條軌沒有空孔時回傳 null。 */
+/**
+ * 從 point 那一排的空孔拉一條直線到軌上的空孔：靠近軌的孔先試、軌上 x 近的先試，直線不能經過障礙（手動接線的規則）。
+ * 找不到時回傳 null。
+ */
 export function wireToRail(circuit: Circuit, point: GridPoint, rail: Rail, exclude: GridPoint[] = []): WirePlan | null {
   const holes = freeHolesInGroup(circuit, point);
-  if (holes.length === 0) return null;
-  const from = rail.startsWith('T') ? holes[0] : holes[holes.length - 1];
-  const to = railHole(circuit, point.boardId, rail, from.x, exclude);
-  return to ? { from, to, path: planWirePath(circuit, from, to, 'v') } : null;
+  const ordered = rail.startsWith('T') ? holes : [...holes].reverse();
+  for (const from of ordered) {
+    for (const to of railHoles(circuit, point.boardId, rail, from.x, exclude).slice(0, 8)) {
+      if (!straightWireProblem(circuit, from, to)) return { from, to, path: [from, to] };
+    }
+  }
+  return null;
 }
 
 export function step(text: string, ...holes: GridPoint[]): ExplainStep {

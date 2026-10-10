@@ -4,7 +4,8 @@ import { explainIssue, plainText } from '../../src/editor/explain';
 import { ISSUE_TEXT } from '../../src/editor/explain/generic';
 import { chooseRail, freeHolesInGroup } from '../../src/editor/explain/helpers';
 import type { Circuit, CircuitError, CircuitErrorCode } from '../../src/types/circuit';
-import { circuit, comp, hole, wire } from '../fixtures/build';
+import { straightWireProblem } from '../../src/editor/manualWire';
+import { circuit, comp, hole, straightWire, wire } from '../fixtures/build';
 
 const fake = (code: CircuitErrorCode, over: Partial<CircuitError> = {}): CircuitError => ({
   code,
@@ -69,12 +70,23 @@ describe('explanations: shared parts', () => {
   });
 });
 
+/** 照建議拉線：手動接線是兩孔之間的直線。 */
 const withWire = (c: Circuit, path: Circuit['wires'][number]['path']): Circuit => ({
   ...c,
-  wires: [...c.wires, { id: 'sug', color: '#22c55e', source: 'manual', start: path[0], end: path[path.length - 1], path }],
+  wires: [...c.wires, straightWire('sug', path[0], path[path.length - 1])],
 });
 
 describe('explanations: power', () => {
+  it('suggests straight wires that do not pass over anything', () => {
+    const c = circuit(icBase(), [gndWire()]);
+    const e = explainIssue(c, issueOf(c, 'IC_POWER_MISSING', 'E10'));
+    expect(e.wires.length).toBeGreaterThan(0);
+    for (const path of e.wires) {
+      expect(path).toHaveLength(2);
+      expect(straightWireProblem(c, path[0], path[1])).toBeNull();
+    }
+  });
+
   it('suggests a wire from the VCC pin row to the + rail, and following it fixes the issue', () => {
     const c = circuit(icBase(), [gndWire()]);
     const issue = issueOf(c, 'IC_POWER_MISSING', 'E10');
@@ -97,7 +109,7 @@ describe('explanations: power', () => {
 
   it('uses the other + rail when only that one has power', () => {
     const c = circuit([comp('U1', '74LS00', 'F10'), comp('V1', 'vcc', 'B+3'), comp('G1', 'gnd', 'B-3')], [gndWire()]);
-    expect(texts(c, issueOf(c, 'IC_POWER_MISSING', 'E10'))).toEqual(['從 U1 第 14 腳（VCC）那一排的空孔 D10，拉一條線到下方的 + 電源軌 B+10。']);
+    expect(texts(c, issueOf(c, 'IC_POWER_MISSING', 'E10'))).toEqual(['從 U1 第 14 腳（VCC）那一排的空孔 C10，拉一條線到下方的 + 電源軌 B+6。']);
   });
 
   it('says so when the pin row has no free hole', () => {
@@ -123,8 +135,8 @@ describe('explanations: power', () => {
     const issue = issueOf(c, 'INPUT_FLOATING', 'F10');
     const e = explainIssue(c, issue);
     expect(texts(c, issue)).toEqual([
-      '如果這隻腳要用：從 G10 拉線到開關，或其他閘的輸出腳所在的那一排。',
-      '如果用不到：從 U1 第 1 腳（1A）那一排的空孔 G10，拉一條線到上方的 + 電源軌 T+9，讓它固定是 HIGH。',
+      '如果這隻腳要用：從 H10 拉線到開關，或其他閘的輸出腳所在的那一排。',
+      '如果用不到：從 U1 第 1 腳（1A）那一排的空孔 H10，拉一條線到上方的 + 電源軌 T+6，讓它固定是 HIGH。',
     ]);
     const fixed = withWire(c, e.wires[0]);
     expect(validateCircuit(fixed).some((x) => x.code === 'INPUT_FLOATING' && x.points[0].x === 10 && x.points[0].y === hole('F10').y)).toBe(false);
@@ -179,7 +191,7 @@ describe('explanations: parts', () => {
     const fixed: Circuit = {
       ...c,
       components: [...c.components, comp('R9', 'resistor', 'F41', { props: { resistance: 220 } })],
-      wires: [...c.wires.filter((w) => w.id !== 'k1'), { id: 'k2', color: '#000000', source: 'manual', start: path[0], end: path[path.length - 1], path }],
+      wires: [...c.wires.filter((w) => w.id !== 'k1'), straightWire('k2', path[0], path[path.length - 1])],
     };
     expect(validateCircuit(fixed).some((x) => x.code === 'LED_NO_RESISTOR')).toBe(false);
   });

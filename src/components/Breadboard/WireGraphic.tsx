@@ -77,6 +77,7 @@ export const WireGraphic = memo(function WireGraphic({ wire, frames, anim, faded
       {ends.map((p, i) => (
         <circle
           key={i}
+          data-wire-end={i === 0 ? 'start' : 'end'}
           cx={p.x}
           cy={p.y}
           r={level !== undefined ? 0.2 * P : 0.16 * P}

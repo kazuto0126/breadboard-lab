@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { groupMembers, MAX_BOARDS, snapBoardMove, snapUnits } from '../../src/editor/boards';
 import { findLibraryItem } from '../../src/editor/library';
-import { planWirePath } from '../../src/editor/manualWire';
 import { emptyCircuit, serializeCircuitFile } from '../../src/editor/fileFormat';
 import { deriveMode, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
 import { acceptanceCircuit, adderCircuit, counterCircuit } from '../fixtures/circuits';
-import { board, circuit, comp, holeOn, latticeWire, wire } from '../fixtures/build';
+import { board, circuit, comp, hole, holeOn, latticeWire, wire } from '../fixtures/build';
 
 /** Node 沒有 Worker，佈線會退回主執行緒（setTimeout）；等它結束。 */
 async function routed() {
@@ -41,11 +40,7 @@ describe('editing with undo / redo', () => {
   });
 
   it('colours a new wire from the rail it touches', () => {
-    s().addWire([
-      { boardId: 'b1', x: 6, y: 2 },
-      { boardId: 'b1', x: 6, y: 3 },
-      { boardId: 'b1', x: 6, y: 4 },
-    ]);
+    s().addWire({ boardId: 'b1', x: 6, y: 2 }, { boardId: 'b1', x: 6, y: 4 });
     expect(s().circuit.wires[0]).toMatchObject({ id: 'w1', color: '#d32f2f', source: 'manual' });
     expect(s().selection).toEqual({ kind: 'wire', id: 'w1' });
   });
@@ -212,7 +207,7 @@ describe('multiple breadboards', () => {
     expect(position('b2')).toEqual([0, 20, 'g-b1']);
     expect(s().toasts.at(-1)?.message).toContain('不能重疊');
 
-    s().addWire(planWirePath(s().circuit, holeOn('b1', 'J12'), holeOn('b2', 'A12'), 'v'));
+    s().addWire(holeOn('b1', 'J12'), holeOn('b2', 'A12'));
     expect(new Set(s().circuit.wires[0].path.map((p) => p.boardId))).toEqual(new Set(['b1', 'b2']));
     s().moveBoards(['b2'], 0, 10);
     expect(position('b2')).toEqual([0, 20, 'g-b1']);
@@ -461,5 +456,28 @@ describe('simulation mode', () => {
     s().startSimulation();
     s().loadCircuit(counterCircuit(), null);
     expect(s().simulation).toBeNull();
+  });
+});
+
+describe('straight manual wires', () => {
+  it('refuses a wire over an IC with a warning, and moves a wire end with undo', () => {
+    s().loadCircuit(circuit([comp('U1', '74LS00', 'F10')]), null);
+    s().addWire(hole('D8'), hole('H14'));
+    expect(s().circuit.wires).toEqual([]);
+    expect(s().toasts.at(-1)).toMatchObject({ kind: 'warning', message: expect.stringContaining('直線不能經過元件') });
+
+    s().addWire(hole('A20'), hole('C24'));
+    expect(s().circuit.wires[0]).toMatchObject({ id: 'w1', straight: true, end: hole('C24') });
+    s().moveWireEnd('w1', 'end', hole('E30'));
+    expect(s().circuit.wires[0]).toMatchObject({ end: hole('E30'), path: [hole('A20'), hole('E30')] });
+    expect(s().history.past.at(-1)?.label).toBe('移動導線 w1 的端點');
+    const before = s().history.past.length;
+    s().moveWireEnd('w1', 'end', hole('E30'));
+    expect(s().history.past.length).toBe(before);
+    s().moveWireEnd('w1', 'end', hole('F10'));
+    expect(s().circuit.wires[0].end).toEqual(hole('E30'));
+    expect(s().toasts.at(-1)?.message).toContain('元件腳');
+    s().undo();
+    expect(s().circuit.wires[0].end).toEqual(hole('C24'));
   });
 });

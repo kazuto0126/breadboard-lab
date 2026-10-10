@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { buildLattice } from '../../core/breadboard/lattice';
-import { getNode } from '../../core/breadboard/naming';
+import { getNode, nodeIdOf } from '../../core/breadboard/naming';
 import { getBoard } from '../../core/breadboard/registry';
 import { resolveFootprint } from '../../core/circuit/footprint';
 import { getComponentDefinition } from '../../core/circuit/library';
@@ -10,7 +10,7 @@ import { groupMembers, moveBoards, snapBoardMove, snapUnits, type BoardMovePlan 
 import { boardFrames, fromWorld, PITCH, toWorld, type BoardFrame, type GridHit, type Point } from '../../editor/geometry';
 import { nextComponentId } from '../../editor/ids';
 import { isChecked } from '../../editor/checklist';
-import { defaultWireColor, isFreeHoleWith, planWirePath, type Axis } from '../../editor/manualWire';
+import { defaultWireColor, straightWireProblem } from '../../editor/manualWire';
 import { centeredAnchor, findPlacement } from '../../editor/placement';
 import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
 import { UI } from '../../render/theme';
@@ -24,7 +24,7 @@ import { BoardBackground } from './BoardBackground';
 import { BoardSelection, GroupOutlines, MovingBoards, SnapPreview } from './boardOverlays';
 import { CanvasHud, ContextMenu, HoverTooltip, type Hover, type MenuState } from './CanvasHud';
 import { ComponentGraphic, type ComponentSim } from './ComponentGraphic';
-import { componentRect, GroupStrip, groupRect, Outline, PathPreview, PinTargets, Ring, SuggestionMarks, WireGlow } from './overlays';
+import { componentRect, GroupStrip, groupRect, Outline, PathPreview, PinTargets, Ring, SuggestionMarks, WireGlow, WireHandles } from './overlays';
 import { WireGraphic } from './WireGraphic';
 
 const DRAG_THRESHOLD = 4;
@@ -54,8 +54,22 @@ type WireDrag = {
   startY: number;
   started: boolean;
   current: GridPoint | null;
-  axis: Axis | null;
+  /** 預覽：[start] 或 [start, current]（直線）。 */
   path: GridPoint[];
+  valid: boolean;
+};
+/** 拖曳選取的導線的一端（規格 2026-10-10 straight-wires 3.2）。 */
+type WireEndDrag = {
+  kind: 'wire-end';
+  pointerId: number;
+  wireId: string;
+  which: 'start' | 'end';
+  /** 不動的另一端。 */
+  fixed: GridPoint;
+  startX: number;
+  startY: number;
+  started: boolean;
+  current: GridPoint | null;
   valid: boolean;
 };
 /** 拖曳麵包板（或整個群組）。 */
@@ -73,7 +87,7 @@ type BoardDrag = {
 };
 /** 觸控：兩指縮放與平移。pointerId 是第一指（和其他拖曳共用欄位）。 */
 type PinchDrag = { kind: 'pinch'; pointerId: number; ids: [number, number]; origin: Viewport; a0: Point; b0: Point };
-type Drag = PanDrag | MoveDrag | WireDrag | BoardDrag | PinchDrag;
+type Drag = PanDrag | MoveDrag | WireDrag | WireEndDrag | BoardDrag | PinchDrag;
 
 interface Ghost {
   instance: ComponentInstance;
@@ -103,6 +117,13 @@ function samePlan(a: BoardMovePlan | null, b: BoardMovePlan | null): boolean {
   if (a === b) return true;
   if (!a || !b) return false;
   return a.dx === b.dx && a.dy === b.dy && a.blocked === b.blocked && a.snap?.side === b.snap?.side && a.snap?.targetId === b.snap?.targetId && a.snap?.movingId === b.snap?.movingId;
+}
+
+/** 可以從這個孔開始拉線：不是元件腳、沒被本體蓋住（手動接線可以一孔多線）。 */
+function canStartWire(circuit: Circuit, p: GridPoint): boolean {
+  const occ = occupancyOf(circuit, p.boardId);
+  const id = nodeIdOf(p);
+  return !occ.pins.has(id) && !occ.bodies.has(id);
 }
 
 function isHole(circuit: Circuit, p: GridPoint): boolean {
@@ -189,6 +210,7 @@ export function BreadboardCanvas() {
   const animation = useStore((s) => s.animation);
   const simResult = useStore((s) => s.simulation?.result ?? null);
   const simPressed = useStore((s) => s.simulation?.pressed ?? null);
+  const simulating = useStore((s) => s.simulation !== null);
   const pressedButton = useRef<{ id: string; pointerId: number } | null>(null);
   const wireColor = useStore((s) => s.wireColor);
   const checklist = useStore((s) => s.checklist);
@@ -531,6 +553,17 @@ export function BreadboardCanvas() {
     }
     if (e.button !== 0) return;
     const target = e.target as Element;
+    const handleEl = target.closest('[data-wire-handle]');
+    if (handleEl) {
+      const wireId = handleEl.getAttribute('data-wire-handle-of')!;
+      const which = handleEl.getAttribute('data-wire-handle') as 'start' | 'end';
+      const w = circuitRef.current.wires.find((x) => x.id === wireId);
+      if (w) {
+        e.currentTarget.setPointerCapture(e.pointerId);
+        setDrag({ kind: 'wire-end', pointerId: e.pointerId, wireId, which, fixed: which === 'start' ? w.end : w.start, startX: e.clientX, startY: e.clientY, started: false, current: null, valid: false });
+      }
+      return;
+    }
     const compEl = target.closest('[data-component-id]');
     if (compEl) {
       const id = compEl.getAttribute('data-component-id')!;
@@ -559,16 +592,19 @@ export function BreadboardCanvas() {
       return;
     }
     const wireEl = target.closest('[data-wire-id]');
-    if (wireEl) {
-      store.select({ kind: 'wire', id: wireEl.getAttribute('data-wire-id')! });
+    const wireId = wireEl?.getAttribute('data-wire-id');
+    // 按在沒被選取的導線端點上：當成按在孔上，可以從這裡再拉一條線（手動接線可以一孔多線）。
+    const onEnd = !!target.closest('[data-wire-end]') && !(store.selection?.kind === 'wire' && store.selection.id === wireId);
+    if (wireEl && wireId && !onEnd) {
+      store.select({ kind: 'wire', id: wireId });
       return;
     }
     const hit = clientToHit(e.clientX, e.clientY);
     const point = hit ? { boardId: hit.boardId, x: hit.x, y: hit.y } : null;
     if (point && isHole(circuitRef.current, point)) {
-      if (isFreeHoleWith(occupancyOf(circuitRef.current, point.boardId), point)) {
+      if (canStartWire(circuitRef.current, point)) {
         e.currentTarget.setPointerCapture(e.pointerId);
-        setDrag({ kind: 'wire', pointerId: e.pointerId, start: point, startX: e.clientX, startY: e.clientY, started: false, current: null, axis: null, path: [point], valid: false });
+        setDrag({ kind: 'wire', pointerId: e.pointerId, start: point, startX: e.clientX, startY: e.clientY, started: false, current: null, path: [point], valid: false });
       } else {
         store.select({ kind: 'hole', point });
       }
@@ -638,18 +674,26 @@ export function BreadboardCanvas() {
     return true;
   };
 
-  const updateWire = (d: WireDrag, clientX: number, clientY: number) => {
+  /** 游標所在的格點；要和 from 在同一個 Board Group（直線可以跨過兩板之間的接縫）。 */
+  const pointUnder = (clientX: number, clientY: number, from: GridPoint): GridPoint | null => {
     const hit = clientToHit(clientX, clientY);
-    // 終點可以在同一個 Board Group 的另一塊板上（導線經過兩板之間的接縫）。
     const groupOf = buildLattice(circuitRef.current.boards).groupOf;
-    const reachable = !!hit && groupOf.get(hit.boardId) === groupOf.get(d.start.boardId);
-    const current = hit && reachable ? { boardId: hit.boardId, x: hit.x, y: hit.y } : null;
-    const axis: Axis = d.axis ?? (Math.abs(clientX - d.startX) >= Math.abs(clientY - d.startY) ? 'h' : 'v');
+    return hit && groupOf.get(hit.boardId) === groupOf.get(from.boardId) ? { boardId: hit.boardId, x: hit.x, y: hit.y } : null;
+  };
+
+  const updateWire = (d: WireDrag, clientX: number, clientY: number) => {
+    const current = pointUnder(clientX, clientY, d.start);
     if (d.started && samePoint(current, d.current)) return;
-    const c = circuitRef.current;
-    const valid = !!current && !samePoint(current, d.start) && isFreeHoleWith(occupancyOf(c, current.boardId), current);
-    const path = current ? planWirePath(c, d.start, current, axis) : d.path;
-    setDrag({ ...d, started: true, current, axis, path, valid });
+    const valid = !!current && !straightWireProblem(circuitRef.current, d.start, current);
+    setDrag({ ...d, started: true, current, path: current ? [d.start, current] : [d.start], valid });
+  };
+
+  const updateWireEnd = (d: WireEndDrag, clientX: number, clientY: number) => {
+    const current = pointUnder(clientX, clientY, d.fixed);
+    if (d.started && samePoint(current, d.current)) return;
+    const [start, end] = d.which === 'start' ? [current, d.fixed] : [d.fixed, current];
+    const valid = !!current && !!start && !!end && !straightWireProblem(circuitRef.current, start, end, d.wireId);
+    setDrag({ ...d, started: true, current, valid });
   };
 
   const updateBoardDrag = (d: BoardDrag, clientX: number, clientY: number) => {
@@ -704,6 +748,7 @@ export function BreadboardCanvas() {
       if (hoverRef.current) setHover(null);
       if (d.kind === 'move') updateMove(d, e.clientX, e.clientY);
       else if (d.kind === 'board') updateBoardDrag(d, e.clientX, e.clientY);
+      else if (d.kind === 'wire-end') updateWireEnd(d, e.clientX, e.clientY);
       else updateWire(d, e.clientX, e.clientY);
       return;
     }
@@ -755,8 +800,10 @@ export function BreadboardCanvas() {
       else if (plan.dx !== 0 || plan.dy !== 0 || plan.blocked) store.moveBoards(d.ids, plan.dx, plan.dy);
     } else if (d.kind === 'wire') {
       if (!d.started) store.select({ kind: 'hole', point: d.start });
-      else if (d.valid && d.path.length >= 2) store.addWire(d.path);
-      else if (d.current && !samePoint(d.current, d.start)) store.toast('info', '導線的終點必須是空孔：沒有元件腳、沒有被元件蓋住，也沒有其他導線');
+      // 不合法時由 store 跳出原因（經過元件、重疊、接在元件腳上…）。
+      else if (d.current) store.addWire(d.start, d.current);
+    } else if (d.kind === 'wire-end') {
+      if (d.started && d.current) store.moveWireEnd(d.wireId, d.which, d.current);
     }
   };
 
@@ -831,7 +878,7 @@ export function BreadboardCanvas() {
   }, [selection, analysis, circuit]);
 
   const hoverGroup = hover?.kind === 'hole' ? groupOf(circuit, hover.point) : null;
-  const hoverFree = hover?.kind === 'hole' && isFreeHoleWith(occupancyOf(circuit, hover.point.boardId), hover.point);
+  const hoverFree = hover?.kind === 'hole' && canStartWire(circuit, hover.point);
   const movingId = drag?.kind === 'move' && drag.started ? drag.id : undefined;
   const wiresById = useMemo(() => new Map(circuit.wires.map((w) => [w.id, w])), [circuit.wires]);
   // 接線清單：已打勾的線變淡；在清單裡點了一條線時，其他線都變淡，方便在板上找到它。
@@ -940,6 +987,9 @@ export function BreadboardCanvas() {
               <Ring frames={frames} point={pinPoint(circuit, selection.componentId, selection.pinNumber) ?? { boardId: '', x: 0, y: 0 }} color={UI.select} r={0.5} width={2.6} />
             )}
             {selection?.kind === 'hole' && <Ring frames={frames} point={selection.point} color={UI.select} r={0.45} width={2.4} />}
+            {selection?.kind === 'wire' && !simulating && !routing && drag?.kind !== 'wire-end' && wiresById.get(selection.id) && (
+              <WireHandles frames={frames} wire={wiresById.get(selection.id)!} />
+            )}
 
             {shownIssues.map((issue, i) => {
               const color = issue.severity === 'error' ? UI.error : UI.warning;
@@ -984,6 +1034,13 @@ export function BreadboardCanvas() {
                   valid={drag.valid}
                 />
                 <Ring frames={frames} point={drag.start} color={UI.ok} r={0.42} width={2.4} />
+                {drag.current && <Ring frames={frames} point={drag.current} color={drag.valid ? UI.ok : UI.bad} r={0.46} width={2.6} />}
+              </g>
+            )}
+            {drag?.kind === 'wire-end' && drag.started && (
+              <g pointerEvents="none">
+                <PathPreview frames={frames} path={drag.current ? [drag.fixed, drag.current] : [drag.fixed]} color={wiresById.get(drag.wireId)?.color ?? wireColor} valid={drag.valid} />
+                <Ring frames={frames} point={drag.fixed} color={UI.ok} r={0.42} width={2.4} />
                 {drag.current && <Ring frames={frames} point={drag.current} color={drag.valid ? UI.ok : UI.bad} r={0.46} width={2.6} />}
               </g>
             )}

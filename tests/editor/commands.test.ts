@@ -3,6 +3,7 @@ import {
   addComponent,
   addWire,
   moveComponent,
+  moveWireEnd,
   removeItems,
   replaceWires,
   rotateComponent,
@@ -11,7 +12,6 @@ import {
   toggleSwitch,
   updateComponentProps,
 } from '../../src/editor/commands';
-import { planWirePath } from '../../src/editor/manualWire';
 import { circuit, comp, hole, wire } from '../fixtures/build';
 
 describe('component commands', () => {
@@ -78,16 +78,16 @@ describe('component commands', () => {
 });
 
 describe('wire commands', () => {
-  it('adds a manual wire from a planned path', () => {
+  it('adds a straight manual wire and moves its ends', () => {
     const c = circuit([]);
-    const path = planWirePath(c, hole('A1'), hole('C4'));
-    const { circuit: after, id } = addWire(c, path, '#2e7d32');
+    const { circuit: after, id } = addWire(c, hole('A1'), hole('C4'), '#2e7d32');
     expect(id).toBe('w1');
-    const w = after.wires[0];
-    expect(w).toMatchObject({ id: 'w1', color: '#2e7d32', source: 'manual', start: hole('A1'), end: hole('C4') });
-    expect(w.path).toEqual(path);
-    expect(w.path).not.toBe(path);
-    expect(() => addWire(c, [hole('A1')], '#000')).toThrow();
+    expect(after.wires[0]).toEqual({ id: 'w1', color: '#2e7d32', source: 'manual', straight: true, start: hole('A1'), end: hole('C4'), path: [hole('A1'), hole('C4')] });
+    const moved = moveWireEnd(after, 'w1', 'end', hole('E9'));
+    expect(moved.wires[0]).toMatchObject({ straight: true, start: hole('A1'), end: hole('E9'), path: [hole('A1'), hole('E9')] });
+    const auto = { ...after, wires: [{ ...wire('w9', 'A1', 'A3', 'C3'), source: 'auto' as const }] };
+    expect(moveWireEnd(auto, 'w9', 'start', hole('E1')).wires[0]).toMatchObject({ source: 'manual', straight: true, start: hole('E1'), end: hole('C3') });
+    expect(moveWireEnd(after, 'nope', 'end', hole('E9'))).toBe(after);
   });
 
   it('recolours and replaces wires', () => {

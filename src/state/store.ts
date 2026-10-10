@@ -19,6 +19,7 @@ import {
   addComponent,
   addWire,
   moveComponent,
+  moveWireEnd,
   removeItems,
   replaceWires,
   rotateComponent,
@@ -31,7 +32,7 @@ import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
 import { boardFrames, gridBounds, worldBounds } from '../editor/geometry';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
 import type { LibraryItem } from '../editor/library';
-import { DEFAULT_WIRE_COLOR, defaultWireColor } from '../editor/manualWire';
+import { DEFAULT_WIRE_COLOR, defaultWireColor, straightProblemText, straightWireProblem } from '../editor/manualWire';
 import { centerOn, DEFAULT_VIEWPORT, fitRect, zoomAt, type Viewport } from '../editor/viewport';
 import type { BreadboardInstance } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
@@ -150,7 +151,10 @@ export interface AppActions {
   deleteSelection(): void;
   deleteComponent(id: string): void;
   deleteWire(id: string): void;
-  addWire(path: GridPoint[]): void;
+  /** 手動接線：兩孔之間的一條直線（規格 2026-10-10 straight-wires）；不合法時跳出提示、不建立。 */
+  addWire(start: GridPoint, end: GridPoint): void;
+  /** 拖曳導線的一端到 point；這條線變成直線導線。 */
+  moveWireEnd(id: string, which: 'start' | 'end', point: GridPoint): void;
   addBoard(): void;
   /** 移動麵包板（位移以格為單位，呼叫端先用 snapBoardMove 算好吸附與檢查）。 */
   moveBoards(ids: string[], dx: number, dy: number): void;
@@ -501,13 +505,33 @@ export const useStore = create<Store>()((set, get) => {
       commit(`刪除導線 ${id}`, removeItems(s.circuit, { wireIds: [id] }), { selection: null });
     },
 
-    addWire(path) {
+    addWire(start, end) {
       if (guardEdit()) return;
       const s = get();
-      if (path.length < 2) return;
-      const color = defaultWireColor(s.circuit, path[0], path[path.length - 1], s.wireColor);
-      const { circuit, id } = addWire(s.circuit, path, color);
+      const problem = straightWireProblem(s.circuit, start, end);
+      if (problem) {
+        if (problem.kind !== 'same-hole') get().toast('warning', straightProblemText(s.circuit, problem));
+        return;
+      }
+      const color = defaultWireColor(s.circuit, start, end, s.wireColor);
+      const { circuit, id } = addWire(s.circuit, start, end, color);
       commit(`接線 ${id}`, circuit, { selection: { kind: 'wire', id } });
+    },
+
+    moveWireEnd(id, which, point) {
+      if (guardEdit()) return;
+      const s = get();
+      const w = s.circuit.wires.find((x) => x.id === id);
+      if (!w) return;
+      const current = which === 'start' ? w.start : w.end;
+      if (current.boardId === point.boardId && current.x === point.x && current.y === point.y) return;
+      const [start, end] = which === 'start' ? [point, w.end] : [w.start, point];
+      const problem = straightWireProblem(s.circuit, start, end, id);
+      if (problem) {
+        if (problem.kind !== 'same-hole') get().toast('warning', straightProblemText(s.circuit, problem));
+        return;
+      }
+      commit(`移動導線 ${id} 的端點`, moveWireEnd(s.circuit, id, which, point), { selection: { kind: 'wire', id } });
     },
 
     addBoard() {
