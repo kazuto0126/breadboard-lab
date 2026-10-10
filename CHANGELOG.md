@@ -3,7 +3,14 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## [未發布] — 進度紀錄：PR #5 已合併
+## [未發布] — 進度紀錄：PR #5 已合併；網站改從公開的 breadboard-lab-site 發布
+
+### 變更
+
+- 網站版改放在另一個公開 repo `kazuto0126/breadboard-lab-site`（https://kazuto0126.github.io/breadboard-lab-site/ ，離線版是
+  `breadboard-lab-offline.html`）：原始碼 repo 維持私人（commit 紀錄裡有作者的 Email），公開的只有建好的網頁檔。
+- 新增 `npm run publish:site`（`scripts/publish-site.ts`）：建置網站版與離線版、推到公開 repo，commit 用 GitHub 的匿名信箱。
+- 移除 `.github/workflows/pages.yml`：私人 repo 在免費方案不能用 Pages，每次推到 main 都會失敗。
 
 ### 文件
 

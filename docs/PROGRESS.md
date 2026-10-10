@@ -8,17 +8,16 @@
 - `main`：子專案 1–5 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說：離線錯誤解說與「問 AI」Gemini 追問）；
   接線清單、單一 HTML 離線版、平板觸控也已合併（PR #3、#4 2026-10-09，PR #5 2026-10-10）。GitHub Actions CI 已設定。
 - 測試：359 個單元測試、24 個 Playwright 端對端測試。
+- 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
+  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布。
 
 ## 進行中
 
-目前沒有進行中的分支。
+- `docs/progress-after-pr5`（PR #6）：進度紀錄與網站發布方式（`scripts/publish-site.ts`，移除私人 repo 裡跑不起來的 `pages.yml`）。
 
 ## 接下來（依優先順序）
 
-1. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），但 repo 還沒啟用 Pages，合併後的部署在 `configure-pages` 失敗（Get Pages site failed: Not Found）。
-   **需要使用者決定**：repo 是私人的，GitHub 免費方案的私人 repo 不能用 Pages（要 GitHub Pro，或把 repo 改成公開）。
-   能用的話，在 Settings → Pages 把 Source 設成 GitHub Actions，再重新執行 Pages workflow。
-2. 子專案 5 之後的方向（回答裡的孔位可以點、佈線解說等，見 `docs/superpowers/specs/2026-10-10-ai-followup-design.md` 第 7 節）：先和使用者討論。
+1. 子專案 5 之後的方向（回答裡的孔位可以點、佈線解說等，見 `docs/superpowers/specs/2026-10-10-ai-followup-design.md` 第 7 節）：先和使用者討論。
 
 ## 注意事項
 
