@@ -7,17 +7,19 @@
 
 - `main`：子專案 1–4 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬）；子專案 5 第一部分（離線錯誤解說）完成；
   接線清單、單一 HTML 離線版、平板觸控也已合併（PR #3、#4，2026-10-09）。GitHub Actions CI 已設定。
-- 測試：340 個單元測試、22 個 Playwright 端對端測試。
+- 測試：main 上 340 個單元測試、22 個 Playwright 端對端測試；`feat/ai-followup` 上 359 個、24 個。
 
 ## 進行中
 
-- `feat/ai-followup`（從 `docs/progress-after-pr4` 開出）：子專案 5 第二部分「問 AI」，接 Google Gemini `gemini-3.5-flash`。
-  規格：`docs/superpowers/specs/2026-10-10-ai-followup-design.md`（已和使用者確認設計）。計畫：`docs/superpowers/plans/2026-10-10-ai-followup.md`（5 個任務）。目前：Task 1（電路摘要）、Task 2（Gemini 連線與錯誤分類）、Task 3（金鑰與對話狀態）、Task 4（畫面與端對端測試）完成，進行 Task 5（文件）與整體審查。
+- `feat/ai-followup`（從 `docs/progress-after-pr4` 開出，含它的進度紀錄 commit）：子專案 5 第二部分「問 AI」（Google Gemini `gemini-3.5-flash`）**已完成**，
+  規格 `docs/superpowers/specs/2026-10-10-ai-followup-design.md`、計畫 `docs/superpowers/plans/2026-10-10-ai-followup.md`。
+  等使用者審查並開 PR（合併後 `docs/progress-after-pr4` 也一起進 main）。
 
 ## 接下來（依優先順序）
 
 1. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），**需要使用者在 Settings → Pages 把 Source 設成 GitHub Actions**；設好後重新執行 Pages workflow（或下一次推到 main）就會上線
-2. 子專案 5 第二部分「問 AI」：照規格與計畫實作（見上面「進行中」）。使用者已決定改用 Gemini 3.5 Flash，不用 Claude API。
+2. 使用者審查 `feat/ai-followup`、用自己的 Gemini 金鑰實際問一次，再開 PR 合併。
+3. 子專案 5 之後的方向（回答裡的孔位可以點、佈線解說等，見規格第 7 節）：先和使用者討論。
 
 ## 注意事項
 
