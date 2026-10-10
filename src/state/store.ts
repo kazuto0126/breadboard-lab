@@ -63,7 +63,7 @@ export interface PlacingTool {
 
 export type Mode = 'manual' | 'auto' | 'compare';
 export type RightTab = 'inspect' | 'nets' | 'check' | 'checklist';
-export type Dialog = 'open' | 'save-as' | 'confirm-new' | 'help' | null;
+export type Dialog = 'open' | 'save-as' | 'confirm-new' | 'help' | 'ai-key' | null;
 /** 窄螢幕（寬度 < 1024 px，例如直放的平板）時，左右面板改成可以開關的抽屜。 */
 export type Drawer = 'library' | 'info' | null;
 

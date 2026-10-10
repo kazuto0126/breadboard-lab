@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { GEMINI_MODEL } from '../../ai/gemini';
+import { useAi } from '../../state/ai';
 import { listProjects, storageAvailable, type ProjectSummary } from '../../state/persistence';
 import { useStore } from '../../state/store';
 
@@ -126,6 +128,71 @@ function ConfirmNewDialog() {
   );
 }
 
+function AiKeyDialog() {
+  const store = useStore.getState();
+  const stored = useAi((s) => s.key);
+  const [value, setValue] = useState('');
+  const [remember, setRemember] = useState(() => stored?.remembered ?? false);
+  const save = () => {
+    if (value.trim()) useAi.getState().setKey(value, remember);
+    else if (stored && stored.remembered !== remember) useAi.getState().setKey(stored.key, remember);
+    store.closeDialog();
+  };
+  const status = !stored ? '目前沒有金鑰。' : stored.remembered ? '已設定，記在這台電腦。' : '已設定，只保留到關掉這個分頁。';
+  return (
+    <Modal title="Gemini API 金鑰" onClose={() => store.closeDialog()} width="w-[520px]">
+      <div className="space-y-2 text-sm text-slate-300">
+        <p>「問 AI」會把目前的電路內容、錯誤說明和你的問題送到 Google Gemini（模型 {GEMINI_MODEL}）。</p>
+        <p>
+          到{' '}
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-sky-300 underline hover:text-sky-200">
+            Google AI Studio
+          </a>{' '}
+          免費申請金鑰。
+        </p>
+        <ul className="list-disc space-y-1 pl-5 text-xs leading-5 text-slate-400">
+          <li>免費額度：不用付費，但內容可能被 Google 用來改進產品，請不要在問題裡寫個人資料；每分鐘有次數上限。</li>
+          <li>付費金鑰：費用由金鑰擁有人支付，一次追問通常不到新台幣 1 元。</li>
+          <li>金鑰只存在這個瀏覽器，只會送到 Google 的 Gemini API。</li>
+        </ul>
+      </div>
+      <label className="mt-3 block text-sm text-slate-300">
+        API 金鑰
+        <input
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          placeholder={stored ? '已設定（輸入新的金鑰會取代）' : '貼上你的 Gemini API 金鑰'}
+          className="mt-1 w-full rounded border border-slate-600 bg-slate-950 px-2 py-1.5 text-slate-100 focus:border-sky-500 focus:outline-none"
+        />
+      </label>
+      <label className="mt-2 flex items-center gap-2 text-sm text-slate-300">
+        <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+        在這台電腦記住（關掉分頁後仍保留）
+      </label>
+      <p data-testid="ai-key-status" className="mt-1 text-xs text-slate-400">
+        {status}
+      </p>
+      <div className="mt-4 flex justify-end gap-2">
+        {stored && (
+          <button type="button" className={`${button} mr-auto bg-slate-700 text-red-200 hover:bg-slate-600`} onClick={() => useAi.getState().clearKey()}>
+            清除金鑰
+          </button>
+        )}
+        <button type="button" className={`${button} bg-slate-700 hover:bg-slate-600`} onClick={() => store.closeDialog()}>
+          取消
+        </button>
+        <button type="button" className={`${button} bg-sky-600 text-white hover:bg-sky-500`} onClick={save}>
+          儲存
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 const SHORTCUTS: Array<[string, string]> = [
   ['拖曳元件庫項目到麵包板', '放置元件（自動吸附到合法孔位）'],
   ['從空孔拖曳到另一個空孔', '建立導線（只有水平 / 垂直）'],
@@ -180,6 +247,8 @@ export function Dialogs() {
       return <ConfirmNewDialog />;
     case 'help':
       return <HelpDialog />;
+    case 'ai-key':
+      return <AiKeyDialog />;
     default:
       return null;
   }

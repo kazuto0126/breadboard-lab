@@ -3,6 +3,7 @@ import { explainIssue, type ExplainStep } from '../../editor/explain';
 import { useStore } from '../../state/store';
 import type { Circuit, CircuitError } from '../../types/circuit';
 import type { GridPoint } from '../../types/geometry';
+import { AskAi } from './AskAi';
 
 const same = (a: GridPoint, b: GridPoint) => a.boardId === b.boardId && a.x === b.x && a.y === b.y;
 
@@ -43,6 +44,7 @@ export function ExplanationCard({ circuit, issue }: { circuit: Circuit; issue: C
         </ol>
       </div>
       {e.wires.length > 0 && <p className="text-slate-400">麵包板上的綠色虛線是建議的導線，照著從 1 號孔拉到 2 號孔就可以。</p>}
+      <AskAi circuit={circuit} issue={issue} />
     </div>
   );
 }
