@@ -14,7 +14,7 @@
 ## 進行中
 
 - `feat/straight-wires`（PR #7）：子專案 6「直線導線」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`、計畫 `docs/superpowers/plans/2026-10-10-straight-wires.md`。
-- `feat/routing-standard`（從 `feat/straight-wires` 開出，要先合併 PR #7）：子專案 7「新的自動佈線標準」。規格 `docs/superpowers/specs/2026-10-10-routing-standard-design.md`；目前：寫實作計畫。
+- `feat/routing-standard`（從 `feat/straight-wires` 開出，要先合併 PR #7）：子專案 7「新的自動佈線標準」（PR #8，草稿）。規格 `docs/superpowers/specs/2026-10-10-routing-standard-design.md`；計畫 `docs/superpowers/plans/2026-10-10-routing-standard.md`（6 個任務）；目前：Task 1。
 
 ## 接下來（依優先順序）
 
