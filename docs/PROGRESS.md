@@ -1,7 +1,7 @@
 # 專案進度
 
 > 每個 Claude Code 對話開始時會自動顯示這份檔案（`.claude/hooks/session-start.sh`）。
-> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-10
+> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-11
 
 ## 目前狀態
 
@@ -15,6 +15,7 @@
 
 - `feat/straight-wires`（PR #7）：子專案 6「直線導線」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`、計畫 `docs/superpowers/plans/2026-10-10-straight-wires.md`。
 - `feat/routing-standard`（PR #8，從 `feat/straight-wires` 開出，要先合併 PR #7）：子專案 7「新的自動佈線標準」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-routing-standard-design.md`、計畫 `docs/superpowers/plans/2026-10-10-routing-standard.md`。
+- `feat/ic-placement`（PR #9，從 `feat/routing-standard` 開出，要先合併 PR #7、#8）：子專案 8「可以移動 IC 的佈線模式」實作中。規格 `docs/superpowers/specs/2026-10-10-ic-placement-design.md`、計畫 `docs/superpowers/plans/2026-10-11-ic-placement.md`。
 
 ## 接下來（依優先順序）
 
