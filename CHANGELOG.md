@@ -3,6 +3,14 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 子專案 6：直線導線
+
+### 文件
+
+- 新增 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`：手動接線改成兩個孔之間的一條直線（可以斜）、可以拖曳端點改接；
+  經過元件或和別條線重疊不允許；手動接線可以一孔多線。另外記下使用者的其他新需求（子專案 7–10）與查到的 EIC-1106、NE555、7 段顯示器規格。
+- README 路線圖加上子專案 6–10。
+
 ## [未發布] — 進度紀錄：PR #5 已合併；網站改從公開的 breadboard-lab-site 發布
 
 ### 變更
