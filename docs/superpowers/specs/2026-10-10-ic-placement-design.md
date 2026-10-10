@@ -1,7 +1,7 @@
 # 可以移動 IC 的佈線模式（子專案 8）設計規格
 
 - 日期：2026-10-10
-- 狀態：設計已確認，等使用者看過規格
+- 狀態：已完成（2026-10-11）
 - 來源：使用者 2026-10-10 的新需求第 6 項「新增另一種佈線模式，允許 AI 移動 IC 元件，但不要移動最終輸出（LED 及其電阻）和輸入（指撥開關）」
 - 前提：子專案 7 的佈線標準（直線跳線＋轉接排，`docs/superpowers/specs/2026-10-10-routing-standard-design.md`）
 
@@ -68,6 +68,9 @@
 依粗估由小到大取前 `candidatesPerIc` 個（預設 3；同分依 3.1 的順序），每個都產生搬移後的電路、跑一次 `autoRoute`，
 用 1 節的好壞順序和目前最好的結果比較。比較的起點是「IC 都不動」的結果（搬移後的電路，搬移為空）。
 
+候選位置的佈線把協商輪數上限設成「`candidateIterations` 和『IC 都不動』用掉的輪數的兩倍，取大的那個」（不超過原本的上限）：
+佈不出來的位置會一直協商到上限（加法器每個約 5 秒），要很快放棄。實作時量到：沒有這個上限時加法器要 20 秒，有了之後約 6 秒，結果相同。
+
 ### 3.4 輪流
 
 - IC 的順序：接到的 Net 腳數多的先，同分依元件 ID。
@@ -79,7 +82,7 @@
 
 ### 3.5 設定
 
-`RoutingConfig` 加一段 `placement: { candidatesPerIc: 3, maxPasses: 2, timeBudgetMs: 20000 }`，`mergeConfig` 一併合併。
+`RoutingConfig` 加一段 `placement: { candidatesPerIc: 3, maxPasses: 2, timeBudgetMs: 20000, candidateIterations: 30 }`，`mergeConfig` 一併合併。
 
 ## 4. 輸出與套用
 
