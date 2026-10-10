@@ -1,4 +1,5 @@
 import type { Wire } from './circuit';
+import type { Rotation } from './component';
 import type { GridPoint } from './geometry';
 
 /** 自動佈線的成本（子專案 7：直線跳線＋轉接排）。 */
@@ -40,12 +41,37 @@ export interface ScoringConfig {
   shortJogMax: number;
 }
 
+/** 子專案 8：IC 的位置（錨點 = 第 1 腳所在的格點）。 */
+export interface IcPlacement {
+  boardId: string;
+  anchor: { x: number; y: number };
+  rotation: Rotation;
+}
+
+/** 「AI 佈線（可移動 IC）」搬動的一顆 IC。 */
+export interface IcMove {
+  componentId: string;
+  from: IcPlacement;
+  to: IcPlacement;
+}
+
+/** 找 IC 位置的設定（規格 2026-10-10 ic-placement 3.5）。 */
+export interface PlacementConfig {
+  /** 每顆 IC 依粗估取前幾個位置實際佈線。 */
+  candidatesPerIc: number;
+  /** 最多輪流幾輪。 */
+  maxPasses: number;
+  /** 找位置加佈線的總時間上限（ms）。 */
+  timeBudgetMs: number;
+}
+
 export interface RoutingConfig {
   weights: RoutingWeights;
   negotiation: NegotiationConfig;
   timeBudgetMs: number;
   priority: PriorityConfig;
   scoring: ScoringConfig;
+  placement: PlacementConfig;
 }
 
 export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] };
@@ -75,6 +101,8 @@ export interface RoutingResult {
   metrics: RoutingMetrics;
   score: number;
   stats: { iterations: number; elapsedMs: number };
+  /** 只有「AI 佈線（可移動 IC）」有：搬動了哪些 IC（沒有搬動時是空陣列）。 */
+  moves?: IcMove[];
 }
 
 /** 需求文件第四章的佈線輸出格式（Wire 是它的超集）。 */

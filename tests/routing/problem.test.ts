@@ -13,6 +13,11 @@ describe('mergeConfig', () => {
     expect(c.negotiation).toEqual(DEFAULT_ROUTING_CONFIG.negotiation);
     expect(mergeConfig()).toEqual(DEFAULT_ROUTING_CONFIG);
   });
+
+  it('merges the IC placement settings', () => {
+    expect(mergeConfig().placement).toEqual({ candidatesPerIc: 3, maxPasses: 2, timeBudgetMs: 20000 });
+    expect(mergeConfig({ placement: { maxPasses: 1 } }).placement).toEqual({ candidatesPerIc: 3, maxPasses: 1, timeBudgetMs: 20000 });
+  });
 });
 
 describe('buildRoutingProblem', () => {
