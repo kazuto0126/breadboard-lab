@@ -13,12 +13,12 @@
 
 - `feat/ai-followup`（從 `docs/progress-after-pr4` 開出，含它的進度紀錄 commit）：子專案 5 第二部分「問 AI」（Google Gemini `gemini-3.5-flash`）**已完成**，
   規格 `docs/superpowers/specs/2026-10-10-ai-followup-design.md`、計畫 `docs/superpowers/plans/2026-10-10-ai-followup.md`。
-  等使用者審查並開 PR（合併後 `docs/progress-after-pr4` 也一起進 main）。
+  PR #5 已開（https://github.com/kazuto0126/breadboard-lab/pull/5）；合併後 `docs/progress-after-pr4` 也一起進 main。
 
 ## 接下來（依優先順序）
 
 1. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），**需要使用者在 Settings → Pages 把 Source 設成 GitHub Actions**；設好後重新執行 Pages workflow（或下一次推到 main）就會上線
-2. 使用者審查 `feat/ai-followup`、用自己的 Gemini 金鑰實際問一次，再開 PR 合併。
+2. 使用者審查 PR #5、用自己的 Gemini 金鑰實際問一次，再合併。
 3. 子專案 5 之後的方向（回答裡的孔位可以點、佈線解說等，見規格第 7 節）：先和使用者討論。
 
 ## 注意事項

@@ -20,6 +20,8 @@
 
 ### 文件
 
+- `docs/PROGRESS.md`：PR #5 已開，等使用者審查與實際用金鑰試問。
+
 - 新增 `docs/superpowers/specs/2026-10-10-ai-followup-design.md`：錯誤解說卡下面加「問 AI」，把電路摘要、錯誤與離線解說連同學生的問題送給
   Google Gemini（`gemini-3.5-flash`），用繁體中文串流回答、可以接著追問；金鑰由學生自己到 Google AI Studio 申請、只存在瀏覽器
   （預設關掉分頁就忘記，可勾選記住）；寫清楚免費額度的內容可能被 Google 用來改進產品，以及付費金鑰的大約費用。
