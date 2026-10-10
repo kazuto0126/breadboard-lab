@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { aiErrorText, classifyAiError } from '../../src/ai/errors';
 import { createGeminiSession, GEMINI_MODEL } from '../../src/ai/gemini';
 
@@ -53,6 +53,11 @@ function turns(call: { contents: Array<{ role: string; parts: Array<{ text?: str
 const open = () => new AbortController().signal;
 
 describe('Gemini session', () => {
+  // 第一次載入套件很慢（整套測試同時跑時會超過 5 秒），先載入好，不算在個別測試的時間裡。
+  beforeAll(async () => {
+    await import('@google/genai');
+  }, 60_000);
+
   it('streams the answer and sends the model, key, system instruction and thinking level', async () => {
     const f = fakeFetch([() => sse('第一段', '第二段')]);
     const session = await createGeminiSession('test-key', '系統指示', f.fetch);
