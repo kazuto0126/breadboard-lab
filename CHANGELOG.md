@@ -3,6 +3,13 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 進度紀錄：PR #5 已合併
+
+### 文件
+
+- `docs/PROGRESS.md`：PR #5（子專案 5 第二部分「問 AI」）已合併到 main，沒有進行中的分支；GitHub Pages 部署因為 repo 還沒啟用 Pages 而失敗，
+  私人 repo 在免費方案不能用 Pages，記為需要使用者決定的事項。
+
 ## [未發布] — 子專案 5 第二部分：問 AI（Gemini）
 
 ### 新增
