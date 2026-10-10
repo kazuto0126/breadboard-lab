@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { groupMembers, MAX_BOARDS, snapBoardMove, snapUnits } from '../../src/editor/boards';
 import { findLibraryItem } from '../../src/editor/library';
 import { emptyCircuit, serializeCircuitFile } from '../../src/editor/fileFormat';
-import { comparisonSides, deriveMode, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
+import { appliedMoves, comparisonSides, deriveMode, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
 import { acceptanceCircuit, adderCircuit, counterCircuit, farIcCircuit } from '../fixtures/circuits';
 import { board, circuit, comp, hole, holeOn, latticeWire, wire } from '../fixtures/build';
 
@@ -503,6 +503,18 @@ describe('AI routing that may move ICs', () => {
     expect(s().circuit.components).toBe(before.components);
     expect(s().circuit.wires).toBe(before.wires);
     expect(isComparisonFresh(s())).toBe(true);
+  }, 30_000);
+
+  it('tells the wiring checklist which ICs to move first, only while the moved layout is on the board', async () => {
+    s().loadCircuit(farIcCircuit(), null);
+    expect(appliedMoves(s())).toEqual([]);
+    s().runAutoRoute('apply', { moveIcs: true });
+    await routed();
+    expect(appliedMoves(s()).map((m) => m.componentId)).toEqual(['U1']);
+    expect(appliedMoves(s())).toBe(appliedMoves(s()));
+    s().undo();
+    expect(appliedMoves(s())).toEqual([]);
+    expect(appliedMoves(s())).toBe(appliedMoves(s()));
   }, 30_000);
 
   it('puts the IC back when switching to manual wiring', async () => {

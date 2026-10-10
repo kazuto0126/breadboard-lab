@@ -7,7 +7,7 @@ import { boardRect, crossBoardWires, groupMembers, MAX_BOARDS } from '../../edit
 import { checklistProgress, checklistRows, type ChecklistRow } from '../../editor/checklist';
 import { formatResistance, LED_COLOR_NAMES, LED_COLORS } from '../../editor/library';
 import { WIRE_COLORS } from '../../editor/manualWire';
-import { deriveMode, isComparisonFresh, useStore, type RightTab, type Selection } from '../../state/store';
+import { appliedMoves, deriveMode, isComparisonFresh, useStore, type RightTab, type Selection } from '../../state/store';
 import type { Circuit, CircuitError, Net } from '../../types/circuit';
 import type { LedColor } from '../../types/component';
 import { groupIdAt } from '../../editor/analysis';
@@ -15,6 +15,7 @@ import { LEVEL_COLORS } from '../../render/theme';
 import type { Level } from '../../types/logic';
 import { boardGroupText, LevelTag } from '../Breadboard/CanvasHud';
 import {
+  describeMove,
   FAILURE_NAMES,
   groupLabel,
   groupOf,
@@ -595,6 +596,7 @@ function ChecklistTab({ circuit }: { circuit: Circuit }) {
   const selection = useStore((s) => s.selection);
   const mode = useStore((s) => deriveMode(s));
   const rows = useMemo(() => checklistRows(circuit, checklist), [circuit, checklist]);
+  const moves = useStore((s) => appliedMoves(s));
   const store = useStore.getState();
   if (rows.length === 0) {
     return (
@@ -633,6 +635,14 @@ function ChecklistTab({ circuit }: { circuit: Circuit }) {
         {mode === 'auto' ? '依照 AI 標準佈線，' : '這是你的手動接線（執行 AI 標準佈線後會換成標準接法）；'}
         先接電源、再接地、最後接訊號。點一列可以在板上找到那條線，插好就打勾。
       </p>
+      {moves.length > 0 && (
+        <div className="mb-2 rounded border border-amber-700 bg-amber-950/50 px-2 py-1.5 text-xs leading-5 text-amber-200" data-testid="checklist-moves">
+          <div className="font-semibold">插線前先把 IC 插到新的位置（第 1 腳所在的孔）：</div>
+          {moves.map((m) => (
+            <div key={m.componentId}>{describeMove(circuit, m)}</div>
+          ))}
+        </div>
+      )}
       <ol className="space-y-0.5">
         {rows.map((row, i) => {
           const active = selection?.kind === 'wire' && selection.id === row.wireId;

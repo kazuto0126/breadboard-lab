@@ -58,6 +58,10 @@ test('AI 佈線（可移動 IC）：IC 搬近 LED、線都是直的，Undo 回�
     expect(w.start.x === w.end.x || w.start.y === w.end.y).toBe(true);
   }
 
+  // 接線清單最上面先提醒把 IC 插到新位置。
+  await page.getByRole('tab', { name: /接線清單/ }).click();
+  await expect(page.getByTestId('checklist-moves')).toContainText('U1：F45 →');
+
   await card.getByRole('button', { name: '復原 Undo' }).click();
   const restored = await savedCircuit(page);
   expect(restored.components.find((c: { id: string }) => c.id === 'U1').anchor).toEqual({ x: 45, y: 11 });

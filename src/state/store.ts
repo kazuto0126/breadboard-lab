@@ -238,6 +238,15 @@ export function comparisonSides(c: Comparison): { before: Circuit; after: Circui
   };
 }
 
+const NO_MOVES: IcMove[] = [];
+
+/** 板上現在是套用了有搬移 IC 的結果時，回傳那些搬移（接線清單要先提醒把 IC 插到新位置）；否則回傳同一個空陣列。 */
+export function appliedMoves(s: Pick<AppState, 'comparison' | 'circuit'>): IcMove[] {
+  const c = s.comparison;
+  if (!c || c.appliedComponents === null || c.appliedComponents !== s.circuit.components || c.boards !== s.circuit.boards) return NO_MOVES;
+  return c.result.moves ?? NO_MOVES;
+}
+
 /** Undo 紀錄的名稱。 */
 function routingLabel(result: RoutingResult): string {
   return result.moves ? 'AI 佈線（可移動 IC）' : 'AI 標準佈線';

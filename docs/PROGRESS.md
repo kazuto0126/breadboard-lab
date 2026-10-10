@@ -7,7 +7,7 @@
 
 - `main`：子專案 1–5 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說：離線錯誤解說與「問 AI」Gemini 追問）；
   接線清單、單一 HTML 離線版、平板觸控也已合併（PR #3、#4 2026-10-09，PR #5 2026-10-10）。GitHub Actions CI 已設定。
-- 測試：main 上 359 個單元測試、24 個端對端測試；`feat/routing-standard`（含子專案 6）上 379 個、26 個；`feat/ic-placement`（含子專案 6、7）上 417 個、27 個。
+- 測試：main 上 359 個單元測試、24 個端對端測試；`feat/routing-standard`（含子專案 6）上 379 個、26 個；`feat/ic-placement`（含子專案 6、7）上 418 個、27 個。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
   原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布。
 
