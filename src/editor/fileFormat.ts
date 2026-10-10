@@ -141,6 +141,7 @@ function parseWire(raw: unknown, path: string, boardIds: Set<string>): Wire {
   const w = obj(raw, path);
   const source = w.source ?? 'manual';
   if (source !== 'manual' && source !== 'auto') fail(`${path}.source`, '必須是 manual 或 auto');
+  if (w.straight !== undefined && w.straight !== true) fail(`${path}.straight`, '只能是 true');
   const points = arr(w.path, `${path}.path`).map((p, i) => parsePoint(p, `${path}.path[${i}]`, boardIds));
   if (points.length < 2) fail(`${path}.path`, '導線至少要有兩個點');
   const wire: Wire = {
@@ -152,6 +153,11 @@ function parseWire(raw: unknown, path: string, boardIds: Set<string>): Wire {
     path: points,
   };
   if (w.netId !== undefined) wire.netId = str(w.netId, `${path}.netId`);
+  // 直線導線：path 一律是兩端（忽略檔案裡多餘的點）。
+  if (w.straight === true) {
+    wire.straight = true;
+    wire.path = [{ ...wire.start }, { ...wire.end }];
+  }
   return wire;
 }
 

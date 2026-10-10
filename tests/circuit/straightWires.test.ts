@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { buildLattice } from '../../src/core/breadboard/lattice';
 import { nodeIdOf } from '../../src/core/breadboard/naming';
 import { analyzeWireInteractions, cellsUnder, pathIssues, segmentCrossing, segmentOverlap, wireLength, wireSegments } from '../../src/core/circuit/wireGeometry';
-import { board, circuit, holeOn, hole, pt, straightWire, wire } from '../fixtures/build';
+import { validateCircuit } from '../../src/core/circuit/validate';
+import { computeMetrics } from '../../src/core/routing/metrics';
+import { parseCircuitData, toCircuitFile } from '../../src/editor/fileFormat';
+import { buildOccupancy } from '../../src/editor/placement';
+import { board, circuit, comp, holeOn, hole, pt, straightWire, wire } from '../fixtures/build';
 
 const ids = (points: Array<{ boardId: string; x: number; y: number }>) => points.map(nodeIdOf);
 const seg = (ax: number, ay: number, bx: number, by: number) => ({ a: { x: ax, y: ay }, b: { x: bx, y: by } });
@@ -71,5 +75,49 @@ describe('straight wire geometry', () => {
     expect(pathIssues(straightWire('s', 'A10', 'A10'), onBoard, lattice)).toContain('TOO_SHORT');
     const apart = buildLattice([board('b1'), board('b2', 0, 40)]);
     expect(pathIssues(straightWire('s', holeOn('b1', 'A1'), holeOn('b2', 'A1')), onBoard, apart)).toContain('NOT_SAME_GROUP');
+  });
+});
+
+const codes = (c: ReturnType<typeof circuit>) => validateCircuit(c).map((e) => e.code);
+
+describe('checking straight wires', () => {
+  it('flags a straight wire that passes over an IC or another wire end, but not a crossing', () => {
+    const ic = comp('U1', '74LS00', 'F10');
+    expect(codes(circuit([ic], [straightWire('s1', 'D8', 'H14')]))).toContain('WIRE_THROUGH_OBSTACLE');
+    expect(codes(circuit([], [straightWire('s1', 'A10', 'A20'), straightWire('s2', 'C15', 'A15')]))).toContain('WIRE_THROUGH_OBSTACLE');
+    const crossing = codes(circuit([], [straightWire('s1', 'B12', 'D14'), straightWire('s2', 'D12', 'B14')]));
+    expect(crossing).not.toContain('WIRE_OVERLAP');
+    expect(crossing).not.toContain('WIRE_THROUGH_OBSTACLE');
+  });
+
+  it('flags collinear overlaps', () => {
+    expect(codes(circuit([], [straightWire('s1', 'A10', 'A20'), straightWire('s2', 'A15', 'A25')]))).toContain('WIRE_OVERLAP');
+  });
+
+  it('allows several wires in one hole', () => {
+    expect(codes(circuit([], [straightWire('s1', 'A10', 'A20'), straightWire('s2', 'A20', 'E25')]))).not.toContain('WIRE_ENDPOINT_INVALID');
+  });
+
+  it('counts straight length, no bends, and crossings in the metrics', () => {
+    const m = computeMetrics([straightWire('s1', 'B12', 'D14'), straightWire('s2', 'D12', 'B14')]);
+    expect(m.totalLength).toBeCloseTo(5.7, 5);
+    expect(m.bends).toBe(0);
+    expect(m.crossings).toBe(1);
+  });
+
+  it('marks the holes a straight wire passes over as wire paths', () => {
+    const occ = buildOccupancy(circuit([], [straightWire('s1', 'A10', 'A13')]), 'b1');
+    expect([...occ.wirePaths].sort()).toEqual([nodeIdOf(hole('A11')), nodeIdOf(hole('A12'))].sort());
+  });
+
+  it('saves and loads the straight flag', () => {
+    const c = circuit([], [straightWire('s1', 'A10', 'C14')]);
+    const text = JSON.stringify(toCircuitFile(c, 't'));
+    const back = parseCircuitData(JSON.parse(text));
+    expect(back.ok && back.circuit.wires[0]).toMatchObject({ straight: true, path: [hole('A10'), hole('C14')] });
+    const raw = JSON.parse(text);
+    raw.circuit.wires[0].path = [hole('A10'), hole('B10'), hole('C14')];
+    const fixed = parseCircuitData(raw);
+    expect(fixed.ok && fixed.circuit.wires[0].path).toEqual([hole('A10'), hole('C14')]);
   });
 });

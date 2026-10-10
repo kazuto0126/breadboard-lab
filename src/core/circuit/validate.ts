@@ -17,7 +17,7 @@ import {
 } from './circuitIndex';
 import { effectiveSpan } from './footprint';
 import { compareIds, extractNetsWith, netByPin, pinKey } from './nets';
-import { analyzeWireInteractions, pathIssues } from './wireGeometry';
+import { analyzeWireInteractions, cellsUnder, pathIssues } from './wireGeometry';
 
 type Report = (error: Pick<CircuitError, 'code' | 'severity' | 'message'> & Partial<CircuitError>) => void;
 
@@ -97,7 +97,6 @@ function checkWires(circuit: Circuit, index: CircuitIndex, report: Report): void
   const isOnBoard = (p: GridPoint) => isRoutablePoint(lattice, p);
   const endsAt = new Map<string, string[]>();
   for (const w of circuit.wires) for (const p of [w.start, w.end]) pushTo(endsAt, nodeIdOf(p), w.id);
-  const sharedEndReported = new Set<string>();
 
   for (const w of circuit.wires) {
     const issues = pathIssues(w, isOnBoard, lattice);
@@ -134,13 +133,11 @@ function checkWires(circuit: Circuit, index: CircuitIndex, report: Report): void
           points: [end],
           componentIds: index.bodiesAt.get(id)!,
         });
-      } else if ((endsAt.get(id)?.length ?? 0) > 1 && !sharedEndReported.has(id)) {
-        sharedEndReported.add(id);
-        report({ code: 'WIRE_ENDPOINT_INVALID', severity: 'error', message: `${node.name} 同時插了多條導線`, wireIds: endsAt.get(id)!, points: [end] });
       }
     }
 
-    const blockedAt = w.path.slice(1, -1).find((p) => {
+    // 手動接線可以一孔多線（規格 2026-10-10 straight-wires 第 1 節）；自動佈線的一孔一線由 checkRoutingLegality 把關。
+    const blockedAt = cellsUnder(w, lattice).find((p) => {
       const id = nodeIdOf(p);
       return index.pinsAt.has(id) || index.bodiesAt.has(id) || (endsAt.get(id) ?? []).some((other) => other !== w.id);
     });

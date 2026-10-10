@@ -1,7 +1,9 @@
+import { buildLattice } from '../core/breadboard/lattice';
 import { getNode, nodeIdOf } from '../core/breadboard/naming';
 import { getBoard } from '../core/breadboard/registry';
 import { effectiveSpan, resolveFootprint } from '../core/circuit/footprint';
 import { getComponentDefinition } from '../core/circuit/library';
+import { cellsUnder } from '../core/circuit/wireGeometry';
 import type { Breadboard } from '../types/board';
 import type { Circuit } from '../types/circuit';
 import type { ComponentDefinition, ComponentInstance, Rotation } from '../types/component';
@@ -48,9 +50,10 @@ export function buildOccupancy(circuit: Circuit, boardId: string, ignoreId?: str
     for (const pin of fp.pins) occ.pins.add(nodeIdOf(pin.point));
     for (const cell of fp.blocked) occ.bodies.add(nodeIdOf(cell));
   }
+  const lattice = buildLattice(circuit.boards);
   for (const w of circuit.wires) {
     for (const end of [w.start, w.end]) if (end.boardId === boardId) occ.wireEnds.add(nodeIdOf(end));
-    for (const p of w.path.slice(1, -1)) if (p.boardId === boardId) occ.wirePaths.add(nodeIdOf(p));
+    for (const p of cellsUnder(w, lattice)) if (p.boardId === boardId) occ.wirePaths.add(nodeIdOf(p));
   }
   return occ;
 }
