@@ -12,7 +12,7 @@
 ## 進行中
 
 - `feat/ai-followup`（從 `docs/progress-after-pr4` 開出）：子專案 5 第二部分「問 AI」，接 Google Gemini `gemini-3.5-flash`。
-  規格：`docs/superpowers/specs/2026-10-10-ai-followup-design.md`（已和使用者確認設計）。目前：寫實作計畫。
+  規格：`docs/superpowers/specs/2026-10-10-ai-followup-design.md`（已和使用者確認設計）。計畫：`docs/superpowers/plans/2026-10-10-ai-followup.md`（5 個任務）。目前：Task 1 電路摘要。
 
 ## 接下來（依優先順序）
 
