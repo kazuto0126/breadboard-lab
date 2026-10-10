@@ -13,7 +13,7 @@
 
 ## 進行中
 
-- `feat/straight-wires`：子專案 6「直線導線」（使用者新需求第 0、4 項）。規格 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`；目前：寫實作計畫。
+- `feat/straight-wires`：子專案 6「直線導線」（使用者新需求第 0、4 項）。規格 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`；計畫 `docs/superpowers/plans/2026-10-10-straight-wires.md`（6 個任務）；目前：Task 1（直線幾何）。
 
 ## 接下來（依優先順序）
 
