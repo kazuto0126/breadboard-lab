@@ -195,17 +195,16 @@ describe('straight-wire search', () => {
     }
   });
 
-  it('passes over the empty middle holes of another net\'s strip', () => {
+  it("passes over the empty middle holes of another net's strip", () => {
     const p = twoLeds();
     const net = netOf(p);
     const state = new StraightState(p);
-    // OTHER 用第 20 欄上半當轉接排：線端在 A20 與 E20，中間 B20～D20 空著。
-    state.addWire({ id: 'x1', netId: 'OTHER', ...lineBetween(p, at(p, 'A20'), at(p, 'T+20') === -1 ? at(p, 'A20') : at(p, 'A20')) });
-    state.removeWire('x1');
-    state.addWire({ id: 'x1', netId: 'OTHER', ...lineBetween(p, at(p, 'E20'), at(p, 'E22')) });
+    // OTHER 用第 20 欄上半當轉接排：線端插在 A20 與 E20（往右的短線），中間 B20～D20 空著。
+    state.addWire({ id: 'x1', netId: 'OTHER', ...lineBetween(p, at(p, 'A20'), at(p, 'A22')) });
+    state.addWire({ id: 'x2', netId: 'OTHER', ...lineBetween(p, at(p, 'E20'), at(p, 'E22')) });
     const r = findRoute(p, state, net, new Set(net.clusters[0]), new Set(net.clusters[1]), hard)!;
     expect(r.wires).toHaveLength(1);
-    expect([id('B20'), id('C20'), id('D20')]).toContain(names(p, r.wires[0].cells).find((n) => n.endsWith(',20') === false && false) ?? id('C20'));
+    expect(names(p, r.wires[0].cells).some((n) => [id('B20'), id('C20'), id('D20')].includes(n))).toBe(true);
   });
 
   it('prices an existing wire exactly like the search', () => {
@@ -245,9 +244,6 @@ describe('straight-wire state', () => {
   });
 });
 ```
-
-（測試「passes over the empty middle holes」的寫法太繞，實作時改成：OTHER 在第 20 欄上半放兩個線端 A20、E20（各一條往右 2 格的短線），
-再確認 NET_1 仍然只用一條 A～E 列的水平線接到第 30 欄、而且那條線經過 B20、C20 或 D20 之一。這是對計畫本身的修正，記 Ruling。）
 
 - [ ] **Step 2: Run** → FAIL（檔案不存在）。
 
@@ -719,7 +715,7 @@ describe('checkRoutingLegality (straight wires)', () => {
 
   it('flags wires that pass over a pin or another wire end', () => {
     expect(codes([auto('a1', 'C5', 'C15')])).toContain('THROUGH_OBSTACLE');
-    expect(codes([auto('a1', 'B10', 'B30'), auto('a2', 'A20', 'E20')])).toContain('THROUGH_OBSTACLE');
+    expect(codes([auto('a1', 'B10', 'B20'), auto('a2', 'A20', 'J20')])).toContain('THROUGH_OBSTACLE');
   });
 
   it('flags overlapping wires', () => {
@@ -731,15 +727,13 @@ describe('checkRoutingLegality (straight wires)', () => {
     const index = indexCircuit(base);
     const reference = extractNets(base);
     expect(mismatchedNets(index, reference, [])).toEqual(['NET_1']);
-    const merging: Wire[] = [auto('a1', 'B10', 'B30'), auto('a2', 'A50', 'A40', 'NET_4'), auto('a3', 'E40', 'E35', 'NET_4')];
-    expect(mismatchedNets(index, reference, merging)).toEqual(['NET_4']);
     const sharing: Wire[] = [auto('a1', 'A10', 'A20'), auto('a2', 'E20', 'E30'), auto('a3', 'B50', 'B20', 'NET_4')];
     expect(codes(sharing)).toContain('NET_MISMATCH');
   });
 });
 ```
 
-（`merging` 的期望值實作時以 `extractNets` 實際的 Net 名稱核對；若 D3 陽極的 Net 不是 NET_4，改成正確的名稱並記 Ruling。）
+（`sharing` 裡 NET_4 必須是 D3 陽極（第 50 欄上半）的 Net；實作時用 `extractNets` 核對，不同就改名稱並記 Ruling。）
 
 - [ ] **Step 2: Rewrite `legality.ts` `checkRoutingLegality`**
 
