@@ -1,12 +1,18 @@
 import type { Wire } from './circuit';
 import type { GridPoint } from './geometry';
 
+/** 自動佈線的成本（子專案 7：直線跳線＋轉接排）。 */
 export interface RoutingWeights {
+  /** 每格。 */
   distance: number;
-  bend: number;
+  /** 每條線（一條直線跳線）。 */
+  wire: number;
+  /** 每用一個新的轉接排。 */
+  via: number;
+  /** 每次交叉。 */
   crossing: number;
+  /** 經過別的 Net 的終端空孔（保留給它們接線）。 */
   congestion: number;
-  aesthetic: number;
 }
 
 export interface NegotiationConfig {
@@ -77,14 +83,6 @@ export interface RoutingPath {
   start: GridPoint;
   end: GridPoint;
   path: GridPoint[];
-}
-
-/** A* 的搜尋狀態（除錯用）。 */
-export interface RoutingNode {
-  index: number;
-  direction: number;
-  longRun: boolean;
-  firstSegment: boolean;
 }
 
 export type LegalityCode = 'PATH_INVALID' | 'ENDPOINT_INVALID' | 'THROUGH_OBSTACLE' | 'OVERLAP' | 'NET_MISMATCH';

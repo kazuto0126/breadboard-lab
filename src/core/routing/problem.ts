@@ -38,6 +38,12 @@ export interface RoutingProblem {
   freeHoles: Map<string, number[]>;
   /** 1 = 某個需要佈線的 Net 的終端群組空孔；導線經過會加 congestion 成本。 */
   terminalHole: Uint8Array;
+  /** 有元件腳的排（不能當別的 Net 的轉接排）。 */
+  pinGroups: Set<string>;
+  /** 電源軌（空的電源軌不當轉接排）。 */
+  railGroups: Set<string>;
+  /** 終端排 → 擁有它的 Net（這張格子上的所有 Net，包括不需要佈線的）。 */
+  groupOwner: Map<string, string>;
   /** 終端群組全部在這張格子上的 Net，依 priority 由高到低排序，同分依 netId。 */
   nets: RoutingNet[];
   referenceNets: Net[];
@@ -186,6 +192,17 @@ function buildCanvasProblem(
   });
   nets.sort((a, b) => b.priority - a.priority || compareIds(a.netId, b.netId));
 
+  const pinGroups = new Set<string>();
+  for (const pc of index.placed) {
+    for (const pin of pc.footprint.pins) {
+      const g = groupOfPoint(index, pin.point);
+      if (g) pinGroups.add(g);
+    }
+  }
+  const railGroups = new Set(groupIds.filter(isRail));
+  const groupOwner = new Map<string, string>();
+  for (const net of nets) for (const g of net.terminalGroups) groupOwner.set(g, net.netId);
+
   const terminalHole = new Uint8Array(size);
   for (const net of nets) {
     if (net.clusters.length < 2) continue;
@@ -204,6 +221,9 @@ function buildCanvasProblem(
     groupAt,
     freeHoles,
     terminalHole,
+    pinGroups,
+    railGroups,
+    groupOwner,
     nets,
     referenceNets,
     index,

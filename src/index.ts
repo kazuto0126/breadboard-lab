@@ -11,7 +11,7 @@ export type {
   ActiveSignal, GateOp, Level, Logic, LogicModelName, LogicSpec,
 } from './types/logic';
 export type {
-  DeepPartial, FailedNet, FailureReason, LegalityCode, LegalityViolation, RoutingConfig, RoutingMetrics, RoutingNode,
+  DeepPartial, FailedNet, FailureReason, LegalityCode, LegalityViolation, RoutingConfig, RoutingMetrics,
   RoutingPath, RoutingResult, RoutingWeights,
 } from './types/routing';
 

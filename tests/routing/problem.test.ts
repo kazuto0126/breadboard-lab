@@ -7,8 +7,8 @@ import { acceptanceCircuit } from '../fixtures/circuits';
 
 describe('mergeConfig', () => {
   it('fills defaults and applies partial overrides', () => {
-    const c = mergeConfig({ weights: { bend: 9 }, timeBudgetMs: 100 });
-    expect(c.weights).toEqual({ ...DEFAULT_ROUTING_CONFIG.weights, bend: 9 });
+    const c = mergeConfig({ weights: { via: 9 }, timeBudgetMs: 100 });
+    expect(c.weights).toEqual({ distance: 1, wire: 6, via: 9, crossing: 1000, congestion: 20 });
     expect(c.timeBudgetMs).toBe(100);
     expect(c.negotiation).toEqual(DEFAULT_ROUTING_CONFIG.negotiation);
     expect(mergeConfig()).toEqual(DEFAULT_ROUTING_CONFIG);
@@ -21,6 +21,14 @@ describe('buildRoutingProblem', () => {
     const p = hole(name);
     return toIndex(problem, p.x, p.y);
   };
+
+  it('knows which groups hold pins, which are rails, and which net owns each terminal group', () => {
+    expect(problem.pinGroups.has('b1:c10-bot')).toBe(true); // U1 第 1 腳 F10
+    expect(problem.pinGroups.has('b1:c40-top')).toBe(false);
+    expect(problem.railGroups.has('b1:rail-T+')).toBe(true);
+    expect(problem.railGroups.has('b1:c10-bot')).toBe(false);
+    for (const net of problem.nets) for (const g of net.terminalGroups) expect(problem.groupOwner.get(g)).toBe(net.netId);
+  });
 
   it('converts between lattice indices and points', () => {
     expect(toIndex(problem, 12, 4)).toBe(3 * 63 + 11);

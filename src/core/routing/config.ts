@@ -2,7 +2,7 @@ import type { DeepPartial, RoutingConfig } from '../../types/routing';
 
 /** 起始值；Task 14 會用固定測試電路校準。 */
 export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
-  weights: { distance: 1, bend: 5, crossing: 1000, congestion: 20, aesthetic: 10 },
+  weights: { distance: 1, wire: 6, via: 3, crossing: 1000, congestion: 20 },
   negotiation: {
     overlapBase: 50,
     presentFactor: 0.5,
