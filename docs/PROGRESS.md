@@ -1,7 +1,7 @@
 # 專案進度
 
 > 每個 Claude Code 對話開始時會自動顯示這份檔案（`.claude/hooks/session-start.sh`）。
-> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-09
+> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-10
 
 ## 目前狀態
 
@@ -11,12 +11,13 @@
 
 ## 進行中
 
-目前沒有進行中的分支。
+- `feat/ai-followup`（從 `docs/progress-after-pr4` 開出）：子專案 5 第二部分「問 AI」，接 Google Gemini `gemini-3.5-flash`。
+  規格：`docs/superpowers/specs/2026-10-10-ai-followup-design.md`（已和使用者確認設計）。目前：寫實作計畫。
 
 ## 接下來（依優先順序）
 
 1. GitHub Pages：部署設定已加入（`.github/workflows/pages.yml`），**需要使用者在 Settings → Pages 把 Source 設成 GitHub Actions**；設好後重新執行 Pages workflow（或下一次推到 main）就會上線
-2. 子專案 5 第二部分：接 Claude API（使用者自己貼金鑰、只存在瀏覽器）。先和使用者討論設計、寫規格。
+2. 子專案 5 第二部分「問 AI」：照規格與計畫實作（見上面「進行中」）。使用者已決定改用 Gemini 3.5 Flash，不用 Claude API。
 
 ## 注意事項
 

@@ -3,6 +3,14 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 子專案 5 第二部分：問 AI（Gemini）
+
+### 文件
+
+- 新增 `docs/superpowers/specs/2026-10-10-ai-followup-design.md`：錯誤解說卡下面加「問 AI」，把電路摘要、錯誤與離線解說連同學生的問題送給
+  Google Gemini（`gemini-3.5-flash`），用繁體中文串流回答、可以接著追問；金鑰由學生自己到 Google AI Studio 申請、只存在瀏覽器
+  （預設關掉分頁就忘記，可勾選記住）；寫清楚免費額度的內容可能被 Google 用來改進產品，以及付費金鑰的大約費用。
+
 ## [未發布] — 進度紀錄：PR #3、#4 已合併
 
 ### 文件
