@@ -77,10 +77,10 @@ test('第三十四章驗收流程：放置、接線、檢查、AI 標準佈線�
   await drawWire(page, 'J41', 'B-41'); // LED 陰極 → GND
   await expect(page.getByTestId('wire-count')).toHaveText('7');
   circuit = await savedCircuit(page);
-  for (const w of circuit.wires as Array<{ path: Array<{ x: number; y: number }> }>) {
-    for (let i = 1; i < w.path.length; i++) {
-      expect(Math.abs(w.path[i].x - w.path[i - 1].x) + Math.abs(w.path[i].y - w.path[i - 1].y)).toBe(1);
-    }
+  // 手動接線是兩孔之間的直線（子專案 6）。
+  for (const w of circuit.wires as Array<{ straight?: boolean; path: unknown[] }>) {
+    expect(w.straight).toBe(true);
+    expect(w.path).toHaveLength(2);
   }
 
   // 8–9. Check Circuit：沒有錯誤（未使用的閘輸入懸空只是警告）。
