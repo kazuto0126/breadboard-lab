@@ -14,7 +14,7 @@
 ## 進行中
 
 - `feat/straight-wires`（PR #7）：子專案 6「直線導線」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`、計畫 `docs/superpowers/plans/2026-10-10-straight-wires.md`。
-- `feat/routing-standard`（從 `feat/straight-wires` 開出，要先合併 PR #7）：子專案 7「新的自動佈線標準」（PR #8，草稿）。規格 `docs/superpowers/specs/2026-10-10-routing-standard-design.md`；計畫 `docs/superpowers/plans/2026-10-10-routing-standard.md`（6 個任務）；目前：Task 1。
+- `feat/routing-standard`（從 `feat/straight-wires` 開出，要先合併 PR #7）：子專案 7「新的自動佈線標準」（PR #8，草稿）。規格 `docs/superpowers/specs/2026-10-10-routing-standard-design.md`；計畫 `docs/superpowers/plans/2026-10-10-routing-standard.md`（6 個任務）；目前：Task 1–4 已完成（新搜尋、生成樹、合法性檢查、autoRoute 換新）。**卡住的地方**：(1) congestion 20 太高，Test 2 繞路用 4 條線（改 0–4 可解）；(2) 74LS283 加法器範例佈不完——開關第 5–12 欄上半 8 個 Net 只能沿 A–D 四列往外走，GND 又用 G/H 列串接佔掉下半；需要讓 GND 直接垂直接到 B− 軌、或調整範例擺放。接下來：Task 5 校準與範例、Task 6 e2e 與文件。
 
 ## 接下來（依優先順序）
 
