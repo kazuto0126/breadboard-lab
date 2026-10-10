@@ -1,3 +1,4 @@
+import { autoPlaceAndRoute } from '../core/icPlacement/autoPlace';
 import { autoRoute } from '../core/routing/autoRoute';
 import type { Circuit } from '../types/circuit';
 import type { DeepPartial, RoutingConfig, RoutingResult } from '../types/routing';
@@ -9,6 +10,11 @@ export interface RoutingJob {
   promise: Promise<RoutingResult>;
   /** 中止計算。promise 會以 RoutingCancelled 拒絕。 */
   cancel(): void;
+}
+
+export interface RoutingOptions {
+  /** true：「AI 佈線（可移動 IC）」。 */
+  moveIcs?: boolean;
 }
 
 export class RoutingCancelled extends Error {
@@ -24,8 +30,8 @@ let nextId = 1;
  * 每次佈線建立一個新的 module Worker；取消時直接 terminate，不需要在引擎內部設中斷點。
  * 沒有 Worker 的環境退回主執行緒（用 setTimeout 讓畫面先更新「計算中」）。
  */
-export function startRouting(circuit: Circuit, config?: DeepPartial<RoutingConfig>): RoutingJob {
-  if (typeof Worker === 'undefined') return runInline(circuit, config);
+export function startRouting(circuit: Circuit, config?: DeepPartial<RoutingConfig>, options: RoutingOptions = {}): RoutingJob {
+  if (typeof Worker === 'undefined') return runInline(circuit, config, options);
 
   const id = nextId++;
   const worker = new RoutingWorker({ name: 'routing' });
@@ -49,11 +55,11 @@ export function startRouting(circuit: Circuit, config?: DeepPartial<RoutingConfi
     event.preventDefault();
     finish((s) => s.reject(new Error(event.message || '佈線 Worker 發生錯誤')));
   };
-  worker.postMessage({ id, circuit, config });
+  worker.postMessage({ id, circuit, config, moveIcs: options.moveIcs === true });
   return { promise, cancel: () => finish((s) => s.reject(new RoutingCancelled())) };
 }
 
-function runInline(circuit: Circuit, config?: DeepPartial<RoutingConfig>): RoutingJob {
+function runInline(circuit: Circuit, config: DeepPartial<RoutingConfig> | undefined, options: RoutingOptions): RoutingJob {
   let cancelled = false;
   let rejectFn: ((e: Error) => void) | null = null;
   const promise = new Promise<RoutingResult>((resolve, reject) => {
@@ -61,7 +67,7 @@ function runInline(circuit: Circuit, config?: DeepPartial<RoutingConfig>): Routi
     setTimeout(() => {
       if (cancelled) return;
       try {
-        resolve(autoRoute(circuit, config));
+        resolve(options.moveIcs ? autoPlaceAndRoute(circuit, config) : autoRoute(circuit, config));
       } catch (err) {
         reject(err instanceof Error ? err : new Error(String(err)));
       }

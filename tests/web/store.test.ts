@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { groupMembers, MAX_BOARDS, snapBoardMove, snapUnits } from '../../src/editor/boards';
 import { findLibraryItem } from '../../src/editor/library';
 import { emptyCircuit, serializeCircuitFile } from '../../src/editor/fileFormat';
-import { deriveMode, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
-import { acceptanceCircuit, adderCircuit, counterCircuit } from '../fixtures/circuits';
+import { comparisonSides, deriveMode, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
+import { acceptanceCircuit, adderCircuit, counterCircuit, farIcCircuit } from '../fixtures/circuits';
 import { board, circuit, comp, hole, holeOn, latticeWire, wire } from '../fixtures/build';
 
 /** Node 沒有 Worker，佈線會退回主執行緒（setTimeout）；等它結束。 */
@@ -480,5 +480,69 @@ describe('straight manual wires', () => {
     expect(s().toasts.at(-1)?.message).toContain('元件腳');
     s().undo();
     expect(s().circuit.wires[0].end).toEqual(hole('C24'));
+  });
+});
+
+describe('AI routing that may move ICs', () => {
+  const u1 = () => s().circuit.components.find((c) => c.id === 'U1')!;
+
+  it('moves the IC and rewires in one undoable step', async () => {
+    s().loadCircuit(farIcCircuit(), null);
+    const before = s().circuit;
+    s().runAutoRoute('apply', { moveIcs: true });
+    expect(s().routing?.moveIcs).toBe(true);
+    await routed();
+    expect(u1().anchor).not.toEqual({ x: 45, y: 11 });
+    expect(s().comparison?.result.moves?.map((m) => m.componentId)).toEqual(['U1']);
+    expect(s().comparison?.appliedComponents).toBe(s().circuit.components);
+    expect(isComparisonFresh(s())).toBe(true);
+    expect(s().animation?.moves).toHaveLength(1);
+    expect(s().history.past.at(-1)?.label).toBe('AI 佈線（可移動 IC）');
+
+    s().undo();
+    expect(s().circuit.components).toBe(before.components);
+    expect(s().circuit.wires).toBe(before.wires);
+    expect(isComparisonFresh(s())).toBe(true);
+  }, 30_000);
+
+  it('puts the IC back when switching to manual wiring', async () => {
+    s().loadCircuit(farIcCircuit(), null);
+    const before = s().circuit;
+    s().runAutoRoute('apply', { moveIcs: true });
+    await routed();
+    s().setMode('manual');
+    expect(s().circuit.components).toBe(before.components);
+    expect(s().circuit.wires).toEqual(before.wires);
+  }, 30_000);
+
+  it('shows the old and the new IC position side by side', async () => {
+    s().loadCircuit(farIcCircuit(), null);
+    s().runAutoRoute('apply', { moveIcs: true });
+    await routed();
+    const sides = comparisonSides(s().comparison!);
+    expect(sides.before.components.find((c) => c.id === 'U1')!.anchor).toEqual({ x: 45, y: 11 });
+    expect(sides.before.wires).toBe(s().comparison!.beforeWires);
+    expect(sides.after.components.find((c) => c.id === 'U1')!.anchor).toEqual(u1().anchor);
+    expect(sides.after.wires).toBe(s().comparison!.result.wires);
+  }, 30_000);
+
+  it('keeps standard routing free of moves', async () => {
+    s().loadCircuit(acceptanceCircuit(), null);
+    s().runAutoRoute('apply');
+    expect(s().routing?.moveIcs).toBe(false);
+    await routed();
+    expect(s().comparison?.result.moves).toBeUndefined();
+    expect(s().comparison?.appliedComponents).toBeNull();
+    expect(s().animation?.moves).toEqual([]);
+  });
+
+  it('delays the wires while the moved ICs are highlighted', () => {
+    const wires = acceptanceCircuit().wires;
+    const at = { boardId: 'b1', anchor: { x: 10, y: 11 }, rotation: 0 as const };
+    const move = { componentId: 'U1', from: at, to: { ...at, anchor: { x: 20, y: 11 } } };
+    const a = planAnimation(wires, [move]);
+    expect(a.delays.w1).toBe(600);
+    expect(a.moves).toEqual([move]);
+    expect(planAnimation(wires).delays.w1).toBe(0);
   });
 });

@@ -6,6 +6,8 @@ export interface RoutingRequest {
   id: number;
   circuit: Circuit;
   config?: DeepPartial<RoutingConfig>;
+  /** true：「AI 佈線（可移動 IC）」。 */
+  moveIcs?: boolean;
 }
 
 /** Worker → 主執行緒。 */
