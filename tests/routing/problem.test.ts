@@ -8,7 +8,7 @@ import { acceptanceCircuit } from '../fixtures/circuits';
 describe('mergeConfig', () => {
   it('fills defaults and applies partial overrides', () => {
     const c = mergeConfig({ weights: { via: 9 }, timeBudgetMs: 100 });
-    expect(c.weights).toEqual({ distance: 1, wire: 6, via: 9, crossing: 1000, congestion: 20 });
+    expect(c.weights).toEqual({ distance: 1, wire: 6, via: 9, crossing: 1000, congestion: 2 });
     expect(c.timeBudgetMs).toBe(100);
     expect(c.negotiation).toEqual(DEFAULT_ROUTING_CONFIG.negotiation);
     expect(mergeConfig()).toEqual(DEFAULT_ROUTING_CONFIG);

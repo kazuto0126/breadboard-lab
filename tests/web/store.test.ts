@@ -389,10 +389,11 @@ describe('simulation mode', () => {
     expect(s().routing).toBeNull();
     expect(s().toasts.at(-1)?.message).toContain('模擬中');
 
-    // A = 3、B = 5：撥開關 3、4、6、8 → 3 + 5 = 8，只有 D4（S4）亮。
-    for (const k of [2, 3, 5, 7]) s().toggleSwitch('SW1', k);
+    // A = 3、B = 5：撥 SW1 的開關 3、4 與 SW2 的開關 2、4 → 3 + 5 = 8，只有 D4（S4）亮。
+    for (const k of [2, 3]) s().toggleSwitch('SW1', k);
+    for (const k of [1, 3]) s().toggleSwitch('SW2', k);
     expect(leds(['D1', 'D2', 'D3', 'D4', 'D5'])).toBe('00010');
-    s().undo(); // 開關 8 OFF → B = 13 → 3 + 13 = 16 → 只有 D5（C4）亮
+    s().undo(); // SW2 開關 4 OFF → B = 13 → 3 + 13 = 16 → 只有 D5（C4）亮
     expect(leds(['D1', 'D2', 'D3', 'D4', 'D5'])).toBe('00001');
     s().stopSimulation();
   });

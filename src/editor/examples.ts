@@ -66,57 +66,65 @@ export function counterCircuit(): Circuit {
   );
 }
 
-/** 8 位元指撥開關 → 74LS283 4 位元加法器 → 5 顆 LED（S1–S4、C4）。開關另一側接 GND。 */
+/**
+ * 74LS283 4 位元加法器，上下貼合的兩塊板：上板 SW1（A1–A4）、SW2（B1–B4）兩個 4 位元指撥開關，
+ * 下板 74LS283 與 5 顆 LED（S1–S4、C4）。第 k 個開關的腳 k（下側）接 IC 輸入、另一腳（上側）接上板的 GND 軌：ON = 0、OFF = 1（輸入懸空）。
+ * 子專案 7 的佈線標準（直線、一孔一線）下，8 個開關擠在同一塊板的一側沒有足夠的列可以把線拉出來，所以開關放在另一塊板，
+ * 每條輸入線各自往下跨過接縫。
+ */
 export function adderCircuit(): Circuit {
-  return circuit(
-    [
-      comp('V1', 'vcc', 'T+3'),
-      comp('G1', 'gnd', 'B-3'),
-      comp('SW1', 'dipsw-8', 'F5'),
-      comp('U1', '74LS283', 'F25'),
-      comp('R1', 'resistor', 'A36'),
-      comp('D1', 'led', 'C40'),
-      comp('R2', 'resistor', 'A43'),
-      comp('D2', 'led', 'C47'),
-      comp('R3', 'resistor', 'A50'),
-      comp('D3', 'led', 'C54'),
-      comp('R4', 'resistor', 'A57'),
-      comp('D4', 'led', 'C61'),
-      comp('R5', 'resistor', 'J36'),
-      comp('D5', 'led', 'H40'),
-    ],
-    [
-      wire('g0', 'T-61', 'B-61'), // 上下 GND 軌接通
-      wire('v1', 'T+25', 'A25'), // VCC → U1 第 16 腳
-      wire('g1', 'B-5', 'J5'), // 開關下側 → GND
-      wire('g2', 'B-6', 'J6'),
-      wire('g3', 'B-7', 'J7'),
-      wire('g4', 'I8', 'I7'),
-      wire('g5', 'B-9', 'J9'),
-      wire('g6', 'B-10', 'J10'),
-      wire('g7', 'B-11', 'J11'),
-      wire('g8', 'B-12', 'J12'),
-      wire('g9', 'J31', 'B-31'), // C0 → GND
-      wire('g10', 'J32', 'B-33'), // U1 GND
-      wire('g11', 'A41', 'T-41'), // LED 陰極 → GND
-      wire('g12', 'A48', 'T-48'),
-      wire('g13', 'A55', 'T-55'),
-      wire('g14', 'B62', [62, 3], [60, 3], 'T-60'),
-      wire('g15', 'J41', 'B-41'),
-      wire('a1', 'A5', 'J29'), // 開關上側 → A1
-      wire('a2', 'A6', 'J27'), // → A2
-      wire('a3', 'A7', 'A27'), // → A3
-      wire('a4', 'A8', 'A29'), // → A4
-      wire('b1', 'A9', 'J30'), // → B1
-      wire('b2', 'A10', 'J26'), // → B2
-      wire('b3', 'A11', 'A26'), // → B3
-      wire('b4', 'A12', 'A30'), // → B4
-      wire('s1', 'J28', 'B36'), // S1 → R1
-      wire('s2', 'J25', 'B43'), // S2 → R2
-      wire('s3', 'A28', 'B50'), // S3 → R3
-      wire('s4', 'A31', 'B57'), // S4 → R4
-      wire('c4', 'A32', 'I36'), // C4 → R5
-    ],
+  const boards = [board('b1'), board('b2', 0, 20)];
+  const on = (boardId: string, name: string) => holeOn(boardId, name);
+  const link = (id: string, from: [string, string], to: [string, string]) => latticeWire(boards, id, on(...from), on(...to));
+  return normalizeBoardGroups(
+    circuit(
+      [
+        comp('G1', 'gnd', 'T-3'),
+        comp('SW1', 'dipsw-4', 'F10'),
+        comp('SW2', 'dipsw-4', 'F40'),
+        comp('V1', 'vcc', 'T+3', { board: 'b2' }),
+        comp('G2', 'gnd', 'B-3', { board: 'b2' }),
+        comp('U1', '74LS283', 'F25', { board: 'b2' }),
+        comp('R1', 'resistor', 'A36', { board: 'b2' }),
+        comp('D1', 'led', 'C40', { board: 'b2' }),
+        comp('R2', 'resistor', 'A43', { board: 'b2' }),
+        comp('D2', 'led', 'C47', { board: 'b2' }),
+        comp('R3', 'resistor', 'A50', { board: 'b2' }),
+        comp('D3', 'led', 'C54', { board: 'b2' }),
+        comp('R4', 'resistor', 'A57', { board: 'b2' }),
+        comp('D4', 'led', 'C61', { board: 'b2' }),
+        comp('R5', 'resistor', 'J36', { board: 'b2' }),
+        comp('D5', 'led', 'H40', { board: 'b2' }),
+      ],
+      [
+        // 開關上側 → 上板的 GND 軌
+        ...[10, 11, 12, 13, 40, 41, 42, 43].map((x, i) => link(`g${i + 1}`, ['b1', `A${x}`], ['b1', `T-${x}`])),
+        // 開關下側 → IC 輸入（故意拉得很亂：斜斜地跨過板子）
+        link('a1', ['b1', 'J10'], ['b2', 'J29']), // → A1
+        link('a2', ['b1', 'J11'], ['b2', 'J27']), // → A2
+        link('a3', ['b1', 'J12'], ['b2', 'A27']), // → A3
+        link('a4', ['b1', 'J13'], ['b2', 'A29']), // → A4
+        link('b1', ['b1', 'J40'], ['b2', 'J30']), // → B1
+        link('b2', ['b1', 'J41'], ['b2', 'J26']), // → B2
+        link('b3', ['b1', 'J42'], ['b2', 'A26']), // → B3
+        link('b4', ['b1', 'J43'], ['b2', 'A30']), // → B4
+        link('v1', ['b2', 'T+25'], ['b2', 'A25']), // VCC → U1 第 16 腳
+        link('g9', ['b2', 'J32'], ['b2', 'B-31']), // U1 GND
+        link('g10', ['b2', 'J31'], ['b2', 'B-30']), // C0 → GND
+        link('g11', ['b2', 'T-61'], ['b2', 'B-61']), // 下板上下 GND 軌接通
+        link('g12', ['b2', 'A41'], ['b2', 'T-41']), // LED 陰極 → GND
+        link('g13', ['b2', 'A48'], ['b2', 'T-48']),
+        link('g14', ['b2', 'A55'], ['b2', 'T-55']),
+        link('g15', ['b2', 'B62'], ['b2', 'T-60']),
+        link('g16', ['b2', 'J41'], ['b2', 'B-41']),
+        link('s1', ['b2', 'J28'], ['b2', 'B36']), // S1 → R1
+        link('s2', ['b2', 'J25'], ['b2', 'B43']), // S2 → R2
+        link('s3', ['b2', 'A28'], ['b2', 'B50']), // S3 → R3
+        link('s4', ['b2', 'A31'], ['b2', 'B57']), // S4 → R4
+        link('c4', ['b2', 'A32'], ['b2', 'I36']), // C4 → R5
+      ],
+      boards,
+    ),
   );
 }
 
@@ -254,7 +262,8 @@ export const EXAMPLES: ExampleCircuit[] = [
   {
     id: 'adder',
     name: '74LS283 4 位元加法器',
-    description: '8 位元指撥開關輸入 A、B，5 顆 LED 顯示和與進位。手動接線故意很亂（穿過 IC、互相重疊），按「AI 標準佈線」看整理後的結果。',
+    description:
+      '上下貼合的兩塊板：上板兩個 4 位元指撥開關輸入 A、B（ON = 0），下板 74LS283 與 5 顆 LED 顯示和與進位。手動接線故意很亂，按「AI 標準佈線」看整理後的結果。',
     build: () => colorize(adderCircuit()),
   },
 ];
