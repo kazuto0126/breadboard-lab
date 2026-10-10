@@ -11,8 +11,8 @@ export type {
   ActiveSignal, GateOp, Level, Logic, LogicModelName, LogicSpec,
 } from './types/logic';
 export type {
-  DeepPartial, FailedNet, FailureReason, LegalityCode, LegalityViolation, RoutingConfig, RoutingMetrics,
-  RoutingPath, RoutingResult, RoutingWeights,
+  DeepPartial, FailedNet, FailureReason, IcMove, IcPlacement, LegalityCode, LegalityViolation, RoutingConfig, RoutingMetrics,
+  PlacementConfig, RoutingPath, RoutingResult, RoutingWeights,
 } from './types/routing';
 
 export { MB102_LAYOUT } from './core/breadboard/layouts';
@@ -33,6 +33,7 @@ export { autoRoute } from './core/routing/autoRoute';
 export { checkRoutingLegality } from './core/routing/legality';
 export { scoreRouting } from './core/routing/score';
 export { applyRouting } from './core/routing/apply';
+export { autoPlaceAndRoute } from './core/icPlacement/autoPlace';
 export { renderAscii } from './debug/ascii';
 export { parseLogic } from './core/circuit/logicSpec';
 export { createModel } from './core/simulation/models';

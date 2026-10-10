@@ -63,6 +63,8 @@ export interface PlacementConfig {
   maxPasses: number;
   /** 找位置加佈線的總時間上限（ms）。 */
   timeBudgetMs: number;
+  /** 候選位置的協商輪數下限：實際上限是它和「IC 都不動」所需輪數的兩倍取大，佈不出來的位置很快放棄。 */
+  candidateIterations: number;
 }
 
 export interface RoutingConfig {

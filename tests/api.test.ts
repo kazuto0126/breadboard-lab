@@ -9,7 +9,7 @@ describe('public API', () => {
       'resolveFootprint', 'getNodeState', 'extractNets', 'validateCircuit', 'autoRoute', 'checkRoutingLegality',
       'scoreRouting', 'applyRouting', 'mergeConfig', 'renderAscii', 'parseLogic', 'createModel', 'compileSimulation',
       'initialSimState', 'adoptSimState', 'settle', 'clockLevel', 'nextClockEdge', 'buildLattice', 'latticeOf', 'pointAt',
-      'buildCanvas',
+      'buildCanvas', 'autoPlaceAndRoute',
     ];
     const exported = api as unknown as Record<string, unknown>;
     for (const name of names) expect(typeof exported[name], name).toBe('function');

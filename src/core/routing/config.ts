@@ -15,7 +15,7 @@ export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   timeBudgetMs: 5000,
   priority: { power: 1000, spread: 10, scarcity: 100 },
   scoring: { overlap: 30, crossing: 8, lengthMax: 20, extraBend: 1.5, extraBendMax: 15, shortJog: 2, shortJogMax: 10 },
-  placement: { candidatesPerIc: 3, maxPasses: 2, timeBudgetMs: 20000 },
+  placement: { candidatesPerIc: 3, maxPasses: 2, timeBudgetMs: 20000, candidateIterations: 30 },
 };
 
 export function mergeConfig(overrides?: DeepPartial<RoutingConfig>): RoutingConfig {
