@@ -29,6 +29,7 @@ src/components/       React 畫面，只負責顯示與操作
 src/state/            Zustand store：動作經 commit() 進 Undo；佈線計算中、模擬中用 guardEdit() 鎖住結構編輯
 src/editor/           編輯邏輯純函式：commands、placement（吸附）、manualWire、boards（多板吸附 / 群組）、fileFormat、geometry
 src/workers/          佈線 Web Worker
+src/ai/               問 AI：Gemini 連線（第一次發問才動態載入 @google/genai）、錯誤分類
 src/core/             核心引擎：breadboard/（版型、孔位命名、lattice）、circuit/（footprint、nets、validate）、
                       routing/（autoRoute、legality、score）、simulation/（models、simulate）
 src/data/components/  元件定義 JSON（74ls/、generic/），IC 行為寫在 `logic` 欄位

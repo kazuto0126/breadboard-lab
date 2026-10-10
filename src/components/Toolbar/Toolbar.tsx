@@ -197,7 +197,14 @@ export function Toolbar() {
         { label: '左右排列', onClick: run(() => store.setCompareLayout('side')), checked: compareLayout === 'side' },
       ],
     ],
-    ['help', '說明', [{ label: '操作說明與快捷鍵', shortcut: '?', onClick: run(() => store.openDialog('help')) }]],
+    [
+      'help',
+      '說明',
+      [
+        { label: '操作說明與快捷鍵', shortcut: '?', onClick: run(() => store.openDialog('help')) },
+        { label: 'Gemini API 金鑰設定…', onClick: run(() => store.openDialog('ai-key')) },
+      ],
+    ],
   ];
 
   return (
