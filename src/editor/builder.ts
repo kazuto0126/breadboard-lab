@@ -9,8 +9,8 @@ import type { GridPoint } from '../types/geometry';
 export const BOARD_ID = 'b1';
 const referenceBoard = getBoard('MB102', BOARD_ID);
 
-/** 孔位名稱（例如 "E12"、"T+5"）或格子座標 [x, y]。 */
-export type Where = string | [number, number];
+/** 孔位名稱（例如 "E12"、"T+5"）、格子座標 [x, y]，或任何板子上的格點。 */
+export type Where = string | [number, number] | GridPoint;
 
 export function hole(name: string): GridPoint {
   const p = parseHoleName(referenceBoard, name);
@@ -23,7 +23,8 @@ export function pt(x: number, y: number): GridPoint {
 }
 
 function toPoint(where: Where): GridPoint {
-  return typeof where === 'string' ? hole(where) : pt(where[0], where[1]);
+  if (typeof where === 'string') return hole(where);
+  return Array.isArray(where) ? pt(where[0], where[1]) : { boardId: where.boardId, x: where.x, y: where.y };
 }
 
 export function comp(
@@ -66,6 +67,13 @@ export function wire(id: string, ...points: Where[]): Wire {
   const path: GridPoint[] = [pts[0]];
   for (let i = 1; i < pts.length; i++) path.push(...run(pts[i - 1], pts[i]).slice(1));
   return { id, color: '#888888', source: 'manual', start: pts[0], end: pts[pts.length - 1], path };
+}
+
+/** 兩孔之間的一條直線導線（可以斜）。 */
+export function straightWire(id: string, from: Where, to: Where): Wire {
+  const start = toPoint(from);
+  const end = toPoint(to);
+  return { id, color: '#888888', source: 'manual', straight: true, start, end, path: [{ ...start }, { ...end }] };
 }
 
 export function circuit(components: ComponentInstance[], wires: Wire[] = [], boards?: BreadboardInstance[]): Circuit {
