@@ -103,9 +103,15 @@ export function findRoute(
     const g = groupAt[c]!;
     if ((s & 1) === 0) {
       if (targets.has(g)) return { wires: reconstruct(problem, parent, s), cost: dist[s] };
-      for (const h of problem.freeHoles.get(g) ?? []) if (h !== c) relax(h * 2 + 1, dist[s] + endCost(state, h, params), s);
+      // 換孔：不能換到剛才那條線經過的孔（同一條路的線也不能經過彼此的端點）。
+      const passed = new Set(lineBetween(problem, parent[s] >> 1, c).cells);
+      for (const h of problem.freeHoles.get(g) ?? []) if (h !== c && !passed.has(h)) relax(h * 2 + 1, dist[s] + endCost(state, h, params), s);
       continue;
     }
+    // 剛換過孔：下一條線不能經過前一條線的端點或沿著它走。
+    const before = parent[s];
+    const arrived = before >= 0 && (before & 1) === 0 ? lineBetween(problem, parent[before] >> 1, before >> 1) : null;
+    const avoid = arrived ? new Set([arrived.b, ...arrived.cells]) : null;
     for (let d = 0; d < 4; d++) {
       const o: 0 | 1 = d % 2 === 0 ? 0 : 1;
       let x = c % width;
@@ -116,7 +122,7 @@ export function findRoute(
         y += DY[d];
         if (x < 0 || y < 0 || x >= width || y >= height) break;
         const q = y * width + x;
-        if (blocked[q]) break;
+        if (blocked[q] || avoid?.has(q)) break;
         const gq = groupAt[q];
         if (gq !== null && gq !== g) {
           const use = groupUse(problem, state, net.netId, gq);

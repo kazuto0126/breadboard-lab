@@ -7,6 +7,7 @@ export type NetRouteResult = { ok: true; cost: number } | { ok: false; reason: F
 
 /**
  * 規格 2.2：Prim 式生成樹。每次從「已連上的排」（終端排與用過的轉接排）找一串直線到任一還沒連上的簇，
+ * 有電源軌的 Net 先只從電源軌出發（星形），找不到才從整棵樹出發；
  * 把線加進 state。呼叫前 state 裡不能有這個 Net 的線。
  */
 export function routeNet(problem: RoutingProblem, state: StraightState, net: RoutingNet, params: SearchParams): NetRouteResult {
@@ -24,7 +25,9 @@ export function routeNet(problem: RoutingProblem, state: StraightState, net: Rou
   let k = 0;
   while (remaining.size > 0) {
     const targets = new Set([...remaining].flatMap((i) => net.clusters[i]));
-    const found = findRoute(problem, state, net, connected, targets, params);
+    // 有電源軌的 Net：每一排直接拉到軌上（學生的接法，也不會用排與排之間的串接佔掉整列）；拉不到才從整棵樹找。
+    const rails = new Set([...connected].filter((g) => problem.railGroups.has(g)));
+    const found = (rails.size > 0 ? findRoute(problem, state, net, rails, targets, params) : null) ?? findRoute(problem, state, net, connected, targets, params);
     if (!found) {
       state.removeNet(net.netId);
       const missing = [...remaining].map((i) => describe(net.clusters[i])).join('、');
@@ -36,6 +39,11 @@ export function routeNet(problem: RoutingProblem, state: StraightState, net: Rou
         const g = problem.groupAt[end]!;
         if (!clusterOf.has(g)) connected.add(g);
       }
+    }
+    // 嚴格模式不能留下衝突：同一條路裡不相鄰的兩條線也可能互相經過端點（搜尋只防相鄰的兩條）。
+    if (params.overlap.kind === 'hard' && state.conflicts().some((x) => state.netsIn([x]).has(net.netId))) {
+      state.removeNet(net.netId);
+      return { ok: false, reason: 'UNROUTABLE', detail: `${net.netId} 的線彼此衝突，找不到合法的接法` };
     }
     cost += found.cost;
     const reached = clusterOf.get(problem.groupAt[found.wires[found.wires.length - 1].b]!)!;
