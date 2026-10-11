@@ -13,7 +13,7 @@
 
 ## 進行中
 
-- `feat/eic-board`（PR #12）：子專案 10「EIC-1106 大型麵包板」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-11-eic-board-design.md`、計畫 `docs/superpowers/plans/2026-10-11-eic-board.md`。
+- `feat/eic-board`（PR #13；PR #12 合併時只帶到規格）：子專案 10「EIC-1106 大型麵包板」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-11-eic-board-design.md`、計畫 `docs/superpowers/plans/2026-10-11-eic-board.md`。
 
 ## 接下來（依優先順序）
 
