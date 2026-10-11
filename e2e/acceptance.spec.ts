@@ -189,7 +189,7 @@ test('Undo / Redo 放置、旋轉、刪除，且電路會自動儲存', async ({
 test('邏輯模擬：在板上撥指撥開關、按按鈕，LED 即時反應', async ({ page }) => {
   const openExample = async (name: string) => {
     await page.getByRole('button', { name: '檔案', exact: true }).click();
-    await page.getByRole('menuitem', { name }).click();
+    await page.getByRole('menuitem', { name, exact: true }).click();
   };
   const litLeds = async (ids: string[]) => {
     const states = await Promise.all(ids.map((id) => page.locator(`g[data-component-id="${id}"][data-lit]`).count()));
