@@ -1,33 +1,39 @@
 import { useState, type KeyboardEvent } from 'react';
 import { aiErrorText } from '../../ai/errors';
-import { useAi, type AiMessage } from '../../state/ai';
+import { sameTopic } from '../../editor/explain/brief';
+import { useAi, type AiMessage, type AiTopic } from '../../state/ai';
 import { useStore } from '../../state/store';
-import type { Circuit, CircuitError } from '../../types/circuit';
+import type { Circuit } from '../../types/circuit';
+import { LinkedText } from './LinkedText';
 
-const SUGGESTED = ['為什麼會這樣？', '有沒有別的改法？', '實體麵包板上要注意什麼？'];
+const SUGGESTED: Record<AiTopic['kind'], string[]> = {
+  issue: ['為什麼會這樣？', '有沒有別的改法？', '實體麵包板上要注意什麼？'],
+  wire: ['為什麼這樣走？', '可以換一種接法嗎？', '實際插線時要注意什麼？'],
+};
 const small = 'rounded px-2 py-1 text-xs disabled:opacity-50';
 
-function Message({ m }: { m: AiMessage }) {
+function Message({ m, circuit }: { m: AiMessage; circuit: Circuit }) {
   const model = m.role === 'model';
   // 一個字都沒收到就出錯：只顯示下面的錯誤原因。
   if (model && !m.text && m.state === 'failed') return null;
   return (
     <li data-ai-message={m.role} className={model ? 'text-slate-100' : 'text-slate-300'}>
       <span className={model ? 'text-sky-300' : 'text-slate-400'}>{model ? 'Gemini：' : '你：'}</span>
-      <span className="whitespace-pre-wrap">{m.text || (m.state === 'streaming' ? '…' : '')}</span>
+      <span className="whitespace-pre-wrap">{m.text ? model ? <LinkedText circuit={circuit} text={m.text} /> : m.text : m.state === 'streaming' ? '…' : ''}</span>
       {m.state === 'stopped' && <span className="text-amber-300">（已停止）</span>}
     </li>
   );
 }
 
 /** 規格 2.1：錯誤解說卡下面的「問 AI」。 */
-export function AskAi({ circuit, issue }: { circuit: Circuit; issue: CircuitError }) {
+/** 規格 5.1：錯誤卡與導線卡共用；topic 決定建議問題與送出的內容。 */
+export function AskAi({ circuit, topic }: { circuit: Circuit; topic: AiTopic }) {
   const hasKey = useAi((s) => s.key !== null);
-  const chat = useAi((s) => (s.chat && s.chat.circuit === circuit && s.chat.issue === issue ? s.chat : null));
+  const chat = useAi((s) => (s.chat && s.chat.circuit === circuit && sameTopic(s.chat.topic, topic) ? s.chat : null));
   const [draft, setDraft] = useState('');
   const sending = chat?.sending ?? false;
   const openKey = () => useStore.getState().openDialog('ai-key');
-  const ask = (question: string) => void useAi.getState().ask(circuit, issue, question);
+  const ask = (question: string) => void useAi.getState().ask(circuit, topic, question);
   const submit = () => {
     if (sending || !draft.trim()) return;
     ask(draft);
@@ -55,7 +61,7 @@ export function AskAi({ circuit, issue }: { circuit: Circuit; issue: CircuitErro
           {chat && (
             <ul className="space-y-1.5">
               {chat.messages.map((m, i) => (
-                <Message key={i} m={m} />
+                <Message key={i} m={m} circuit={circuit} />
               ))}
             </ul>
           )}
@@ -79,7 +85,7 @@ export function AskAi({ circuit, issue }: { circuit: Circuit; issue: CircuitErro
           )}
           {!chat && (
             <div className="flex flex-wrap gap-1">
-              {SUGGESTED.map((q) => (
+              {SUGGESTED[topic.kind].map((q) => (
                 <button key={q} type="button" onClick={() => ask(q)} className={`${small} bg-slate-800 text-slate-100 hover:bg-slate-700`}>
                   {q}
                 </button>

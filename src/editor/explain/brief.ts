@@ -7,20 +7,72 @@ import { colorName } from '../checklist';
 import { formatResistance, LED_COLOR_NAMES } from '../library';
 import { plainText } from './helpers';
 import { explainIssue } from './index';
+import { explainWire } from './wire';
 
-/** 規格 3.1：問 AI 的系統指示。 */
+/** 規格 5.4：問 AI 的系統指示（錯誤與導線共用）。 */
 export const AI_SYSTEM_INSTRUCTION = [
-  '你是數位邏輯實驗課的助教，幫學生理解麵包板電路（MB-102 麵包板、74LS 系列 IC、電阻、LED、電源）的錯誤。',
+  '你是數位邏輯實驗課的助教，幫學生理解麵包板電路的錯誤與接線。',
   '- 用繁體中文回答，白話、先講結論；一般不超過 200 字，學生要求詳細說明時才寫長。',
-  '- 孔位沿用這個網站的寫法：A–J 加上編號（例如 A10、F23）；電源軌 T+、T-、B+、B- 加上編號（例如 T+10）；多塊麵包板時孔位前面有板子 ID（例如 b2:A12）。',
+  '- 孔位沿用這個網站的寫法。MB-102 麵包板：A–J 加上編號（例如 A10、F23），電源軌 T+、T-、B+、B- 加上編號（例如 T+10）。',
+  '  EIC-1106 麵包板：插孔區號-列欄（例如 1-A15、2-F30），電源軌 P1–P5 的 + / −（例如 P2+12），接線柱寫紅柱、黑柱。多塊麵包板時孔位前面有板子 ID（例如 b2:A12）。',
+  '- 提到孔位或元件腳時，照摘要的寫法寫（例如 F12、U1 第 3 腳），學生可以點它在板上找到位置。',
   '- 只根據提供的電路摘要回答，不要編造摘要裡沒有的元件、導線或孔位；摘要不足以判斷時，直接說不確定，並說要檢查什麼。',
   '- 建議修改時寫出要從哪個孔接到哪個孔。',
   '- 不要用 Markdown 語法（不要用 **、#、表格、程式碼區塊）；需要分點時用「1.」「2.」。',
   '- 和這個電路或數位邏輯無關的問題，簡短說明你只能回答這個電路的問題。',
 ].join('\n');
 
-const HOLE_RULE =
+const MB102_RULE =
   '孔位規則：編號相同的 A–E 五個孔相通（例如 A10–E10）、F–J 五個孔相通（例如 F10–J10），中間凹槽隔開；T+、T-、B+、B- 四條電源軌各自整條相通。';
+const EIC1106_RULE =
+  'EIC-1106 孔位規則：有三個插孔區，孔名前面是區號（例如 1-A15、2-F30）；每區同一欄的 A–E 五個孔相通、F–J 五個孔相通。' +
+  '電源軌 P1–P5 各有 + 與 − 兩列，每列整條相通（例如 P2+12）。上方的接線柱：紅柱 = +5 V、黑柱 = GND，黃柱、綠柱不是電源。';
+
+/** 規格 5.4：依電路裡有的板子型號產生孔位規則。 */
+export function holeRule(circuit: Circuit): string {
+  const layouts = new Set(circuit.boards.map((b) => b.layoutId));
+  const rules = [];
+  if (layouts.has('MB102') || layouts.size === 0) rules.push(MB102_RULE);
+  if (layouts.has('EIC1106')) rules.push(EIC1106_RULE);
+  return rules.join('\n');
+}
+
+/** 規格 5.3：AI 標準佈線的規則（只附在自動佈線的導線問題裡）。 */
+export const ROUTING_RULES = [
+  '【AI 標準佈線的規則】',
+  '每條線都是水平或垂直的直線，兩端插在孔上；要轉彎時停在一排相通的孔（轉接排），下一條線從同一排的另一個孔出發。',
+  '轉接排只用空的五孔排或這個 Net 自己的排。每個孔最多插一條線；線不能經過元件腳、元件本體、別條線的端點，也不能和別條線重疊。',
+  '優先順序：最少交叉，其次線的條數少，再其次總長度短。元件的位置不會被移動（除非學生選了「可以移動 IC」）。',
+].join('\n');
+
+/** 一段對話的主題：某個錯誤，或某一條導線。 */
+export type AiTopic = { kind: 'issue'; issue: CircuitError } | { kind: 'wire'; wireId: string };
+
+export function sameTopic(a: AiTopic, b: AiTopic): boolean {
+  if (a.kind === 'issue' && b.kind === 'issue') return a.issue === b.issue;
+  if (a.kind === 'wire' && b.kind === 'wire') return a.wireId === b.wireId;
+  return false;
+}
+
+/** 規格 5.3：學生正在看的導線（不用網路的說明），自動佈線的線另外附上佈線規則。 */
+export function wireBrief(circuit: Circuit, wireId: string): string {
+  const wire = circuit.wires.find((w) => w.id === wireId);
+  const e = explainWire(circuit, wireId);
+  if (!wire || !e) return `【學生正在看的導線】\n${wireId}（已經不在電路裡）`;
+  const auto = wire.source === 'auto';
+  const lines = [
+    '【學生正在看的導線】',
+    `${wire.id}（${auto ? 'AI 標準佈線' : '學生手動接的線'}）：${holeLabel(circuit, wire.start)} → ${holeLabel(circuit, wire.end)}`,
+    e.summary,
+  ];
+  if (e.chain.length > 1) {
+    lines.push(`這段連線共 ${e.chain.length} 條線：`);
+    e.chain.forEach((x, i) => lines.push(`${i + 1}. ${x.text.replace('：', x.wireId === wireId ? '（本條）：' : '：')}`));
+  } else lines.push(e.chain[0].text);
+  if (e.why) lines.push(`為什麼不一條線直接接：${e.why}`);
+  return auto ? [...lines, '', ROUTING_RULES].join('\n') : lines.join('\n');
+}
+
 
 const NET_KIND: Record<Net['kind'], string> = { power: '電源', ground: '地', signal: '訊號' };
 
@@ -70,7 +122,7 @@ export function circuitBrief(circuit: Circuit): string {
   const section = (title: string, lines: string[]) => (lines.length > 0 ? [`${title}：`, ...lines] : [`${title}：（沒有）`]);
   return [
     '【電路摘要】',
-    HOLE_RULE,
+    holeRule(circuit),
     `麵包板：${circuit.boards.map((b) => b.id).join('、')}`,
     ...section('元件', components),
     ...section('導線', wires),
@@ -91,7 +143,8 @@ export function issueBrief(circuit: Circuit, issue: CircuitError): string {
   ].join('\n');
 }
 
-/** 對話的第一則訊息：電路摘要 + 錯誤 + 學生的問題；之後的追問只送問題本身。 */
-export function firstMessage(circuit: Circuit, issue: CircuitError, question: string): string {
-  return [circuitBrief(circuit), '', issueBrief(circuit, issue), '', '【學生的問題】', question.trim()].join('\n');
+/** 對話的第一則訊息：電路摘要 + 錯誤或導線 + 學生的問題；之後的追問只送問題本身。 */
+export function firstMessage(circuit: Circuit, topic: AiTopic, question: string): string {
+  const about = topic.kind === 'issue' ? issueBrief(circuit, topic.issue) : wireBrief(circuit, topic.wireId);
+  return [circuitBrief(circuit), '', about, '', '【學生的問題】', question.trim()].join('\n');
 }

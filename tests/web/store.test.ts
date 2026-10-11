@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { groupMembers, MAX_BOARDS, snapBoardMove, snapUnits } from '../../src/editor/boards';
 import { findLibraryItem } from '../../src/editor/library';
 import { emptyCircuit, serializeCircuitFile } from '../../src/editor/fileFormat';
-import { appliedMoves, comparisonSides, deriveMode, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
+import { appliedMoves, comparisonSides, deriveMode, FLASH_MS, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
 import { acceptanceCircuit, adderCircuit, counterCircuit, farIcCircuit } from '../fixtures/circuits';
 import { board, circuit, comp, hole, holeOn, latticeWire, wire } from '../fixtures/build';
 
@@ -319,6 +319,31 @@ describe('narrow-screen drawers', () => {
       expect(s()).toMatchObject({ rightTab: 'nets', drawer: null });
     } finally {
       vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('flashPoints', () => {
+  it('moves the view, flashes the holes for two seconds and leaves the selection alone', () => {
+    vi.useFakeTimers();
+    try {
+      s().select({ kind: 'board', id: 'b1' });
+      const before = s().viewport;
+      s().flashPoints([hole('A50')]);
+      expect(s().flash?.points).toEqual([hole('A50')]);
+      expect(s().selection).toEqual({ kind: 'board', id: 'b1' });
+      expect(s().viewport).not.toEqual(before);
+      const first = s().flash!.id;
+      vi.advanceTimersByTime(1500);
+      s().flashPoints([hole('A10')]);
+      vi.advanceTimersByTime(1000);
+      expect(s().flash?.id).toBe(first + 1); // 第一次的計時不會清掉第二次
+      vi.advanceTimersByTime(FLASH_MS);
+      expect(s().flash).toBeNull();
+      s().flashPoints([]);
+      expect(s().flash).toBeNull();
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

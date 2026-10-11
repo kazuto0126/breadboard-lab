@@ -185,3 +185,20 @@ export const PinTargets = memo(function PinTargets({ components, frames, hiddenI
     </g>
   );
 });
+
+/** 規格第 4 節：點孔位連結時閃三下的琥珀色圈。key 用 flash.id，同一個孔再點一次會重新閃。 */
+export function FlashRings({ frames, flash }: { frames: BoardFrame[]; flash: { points: GridPoint[]; id: number } | null }) {
+  if (!flash) return null;
+  return (
+    <g key={flash.id} pointerEvents="none">
+      {flash.points.map((p, i) => {
+        const c = toWorld(frames, p);
+        return c ? (
+          <circle key={i} data-testid="flash-ring" cx={c.x} cy={c.y} r={0.6 * P} fill="#fbbf24" fillOpacity={0.25} stroke="#f59e0b" strokeWidth={2.5}>
+            <animate attributeName="r" values={`${0.45 * P};${0.9 * P};${0.45 * P}`} dur="0.65s" repeatCount="3" />
+          </circle>
+        ) : null;
+      })}
+    </g>
+  );
+}

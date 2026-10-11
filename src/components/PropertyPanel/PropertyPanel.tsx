@@ -31,6 +31,7 @@ import {
 } from '../common/describe';
 import { ExplanationCard } from './ExplanationCard';
 import { PinoutDiagram } from './PinoutDiagram';
+import { WireExplanationCard } from './WireExplanationCard';
 
 const CLOCK_FREQUENCIES = [0.5, 1, 2, 5, 10];
 
@@ -478,6 +479,7 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
             ))}
           </div>
           <IssueList issues={issuesOfWire(analysis, w.id)} />
+          <WireExplanationCard circuit={circuit} wireId={w.id} />
         </Section>
       );
     }

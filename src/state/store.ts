@@ -130,6 +130,8 @@ export interface AppState {
   viewport: Viewport;
   /** 使用者還沒自己縮放或平移：畫布大小改變（平板轉向、調整視窗）時自動重新 Fit to Screen。 */
   viewportAuto: boolean;
+  /** 板上正在閃的孔（flashPoints）；id 每次加一，計時只清掉自己那一次。 */
+  flash: { points: GridPoint[]; id: number } | null;
   canvasSize: { width: number; height: number };
   rightTab: RightTab;
   dialog: Dialog;
@@ -178,6 +180,8 @@ export interface AppActions {
   fitToScreen(): void;
   resetView(): void;
   focusPoints(points: GridPoint[]): void;
+  /** 規格（2026-10-11 ai-links）第 4 節：點 AI 回答或說明裡的孔位：畫面移過去並閃一下；不改選取、不進 Undo。 */
+  flashPoints(points: GridPoint[]): void;
   setRightTab(tab: RightTab): void;
   /** 切到右側面板的分頁並打開資訊抽屜（窄螢幕時面板平常收起來）；給面板以外的「顯示…」按鈕用。 */
   showRightTab(tab: RightTab): void;
@@ -339,6 +343,9 @@ export function planAnimation(wires: Wire[], moves: IcMove[] = []): WireAnimatio
 }
 
 /** 初始狀態（有自動儲存就還原）。測試也用它重設 store。 */
+/** 孔位閃爍的時間。 */
+export const FLASH_MS = 2000;
+
 export function initialState(): AppState {
   const restored = typeof window !== 'undefined' ? persistence.loadAutosave() : null;
   const circuit = restored?.circuit ?? emptyCircuit();
@@ -360,6 +367,7 @@ export function initialState(): AppState {
     wireColor: DEFAULT_WIRE_COLOR,
     viewport: DEFAULT_VIEWPORT,
     viewportAuto: true,
+    flash: null,
     canvasSize: { width: 1200, height: 700 },
     rightTab: 'inspect',
     dialog: null,
@@ -698,6 +706,16 @@ export const useStore = create<Store>()((set, get) => {
         viewport: bounds ? centerOn({ ...DEFAULT_VIEWPORT, scale: 1 }, bounds, s.canvasSize.width, s.canvasSize.height) : DEFAULT_VIEWPORT,
         viewportAuto: false,
       });
+    },
+
+    flashPoints(points) {
+      if (points.length === 0) return;
+      get().focusPoints(points);
+      const id = (get().flash?.id ?? 0) + 1;
+      set({ flash: { points, id } });
+      setTimeout(() => {
+        if (get().flash?.id === id) set({ flash: null });
+      }, FLASH_MS);
     },
 
     focusPoints(points) {

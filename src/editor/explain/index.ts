@@ -41,3 +41,4 @@ export function explainIssue(circuit: Circuit, issue: CircuitError): Explanation
   perCircuit.set(issue, result);
   return result;
 }
+export { explainWire, type WireExplanation } from './wire';
