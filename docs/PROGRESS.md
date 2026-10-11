@@ -7,19 +7,19 @@
 
 - `main`：子專案 1–10 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式、新元件與 IC 腳位圖、EIC-1106 大型麵包板）；
   接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#13 於 2026-10-11 合併。GitHub Actions CI 已設定。
-- 測試：main 上 487 個單元測試、29 個端對端測試。
+- 測試：main 上 487 個單元測試、29 個端對端測試；`feat/ai-links` 上 504 個、31 個。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
   原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-11 的 `61d037b`（含子專案 6–10）。
 
 ## 進行中
 
-- 無。
+- `feat/ai-links`：子專案 11「AI 回答裡的孔位可以點、導線解說」**已完成**，等使用者審查（做完才開 PR）。規格 `docs/superpowers/specs/2026-10-11-ai-links-design.md`、計畫 `docs/superpowers/plans/2026-10-11-ai-links.md`。
 
 ## 接下來（依優先順序）
 
 使用者 2026-10-10 提出的 7 項新需求（子專案 6–10）都已完成並合併。
 
-1. 子專案 5 之後的 AI 方向（回答裡的孔位可以點、佈線解說等）：先和使用者討論
+1. 之後的 AI 方向（子專案 11 規格第 8 節）：整次佈線的 AI 總說明、對照實驗題目或真值表檢查、老師提供金鑰的後端代理。先和使用者討論
 
 ## 注意事項
 
