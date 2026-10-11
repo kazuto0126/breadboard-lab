@@ -1,7 +1,7 @@
 import { buildLattice, MM_PER_UNIT, unitsFromMm } from '../core/breadboard/lattice';
 import { getBoard } from '../core/breadboard/registry';
 import { compareIds } from '../core/circuit/nets';
-import type { BoardGroup, BreadboardInstance } from '../types/board';
+import type { BoardGroup, BreadboardInstance, LayoutId } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
 import { PITCH } from './geometry';
 import { nextBoardId } from './ids';
@@ -201,14 +201,14 @@ export function moveBoards(circuit: Circuit, ids: string[], dx: number, dy: numb
   return normalizeBoardGroups({ ...circuit, boards });
 }
 
-/** 新增一塊 MB-102，放在所有板子下方（左邊對齊、間隔 NEW_BOARD_GAP 格）。已達上限時回傳 null。 */
-export function addBoard(circuit: Circuit): { circuit: Circuit; id: string } | null {
+/** 新增一塊麵包板（預設 MB-102），放在所有板子下方（左邊對齊、間隔 NEW_BOARD_GAP 格）。已達上限時回傳 null。 */
+export function addBoard(circuit: Circuit, layoutId: LayoutId = 'MB102'): { circuit: Circuit; id: string } | null {
   if (circuit.boards.length >= MAX_BOARDS) return null;
   const id = nextBoardId(circuit);
   const rects = boardRects(circuit);
   const x = rects.length > 0 ? Math.min(...rects.map((r) => r.x)) : 0;
   const y = rects.length > 0 ? Math.max(...rects.map((r) => r.y + r.height)) + NEW_BOARD_GAP : 0;
-  const instance: BreadboardInstance = { id, layoutId: 'MB102', x: mmFromUnits(x), y: mmFromUnits(y), groupId: null };
+  const instance: BreadboardInstance = { id, layoutId, x: mmFromUnits(x), y: mmFromUnits(y), groupId: null };
   return { circuit: normalizeBoardGroups({ ...circuit, boards: [...circuit.boards, instance] }), id };
 }
 

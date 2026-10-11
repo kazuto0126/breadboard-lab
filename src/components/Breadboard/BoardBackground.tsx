@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { MB102_LAYOUT } from '../../core/breadboard/layouts';
+import { getLayout } from '../../core/breadboard/registry';
 import { localPx, PITCH, type BoardFrame } from '../../editor/geometry';
 import { BOARD } from '../../render/theme';
 
@@ -13,13 +13,20 @@ const COLUMN_LABELS = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
  */
 export const BoardBackground = memo(function BoardBackground({ frame, label }: { frame: BoardFrame; label?: string }) {
   const { board, width, height } = frame;
-  const layout = MB102_LAYOUT;
+  const layout = getLayout(board.layoutId);
   const rails = layout.rows.filter((r) => r.kind === 'rail');
   const terminals = layout.rows.filter((r) => r.kind === 'terminal');
   const xLeft = localPx(0.5, 0).x;
   const xRight = localPx(board.width + 0.5, 0).x;
-  const channelTop = localPx(0, 8.62).y;
-  const channelBottom = localPx(0, 10.38).y;
+  // 每個插孔區的凹槽：E 列與 F 列之間。
+  const channels = layout.rows.flatMap((r) => {
+    if (r.kind !== 'terminal' || r.label !== 'E') return [];
+    const f = layout.rows.find((x) => x.kind === 'terminal' && x.label === 'F' && x.area === r.area);
+    return f ? [{ key: r.area ?? 0, top: localPx(0, r.y + 0.62).y, bottom: localPx(0, f.y - 0.62).y, area: r.area }] : [];
+  });
+  // 欄號：每個插孔區 A 列的上一列與 J 列的下一列。
+  const numberRows = layout.rows.flatMap((r) => (r.kind === 'terminal' && r.label === 'A' ? [r.y - 1] : r.kind === 'terminal' && r.label === 'J' ? [r.y + 1] : []));
+  const POST_FILL = { red: '#d32f2f', black: '#212121', yellow: '#f9a825', green: '#2e7d32' };
 
   return (
     <g transform={`translate(${frame.x} ${frame.y})`} data-board={frame.id}>
@@ -32,10 +39,32 @@ export const BoardBackground = memo(function BoardBackground({ frame, label }: {
         </text>
       )}
 
-      {/* 中央凹槽 */}
-      <rect x={xLeft} y={channelTop} width={xRight - xLeft} height={channelBottom - channelTop} rx={2} fill={BOARD.channel} />
-      <line x1={xLeft} x2={xRight} y1={channelTop + 1} y2={channelTop + 1} stroke={BOARD.channelLine} strokeWidth={1.5} />
-      <line x1={xLeft} x2={xRight} y1={channelBottom - 1} y2={channelBottom - 1} stroke="#ffffff" strokeOpacity={0.7} strokeWidth={1} />
+      {/* 每個插孔區的中央凹槽（EIC-1106 另外印區號） */}
+      {channels.map((c) => (
+        <g key={c.key}>
+          <rect x={xLeft} y={c.top} width={xRight - xLeft} height={c.bottom - c.top} rx={2} fill={BOARD.channel} />
+          <line x1={xLeft} x2={xRight} y1={c.top + 1} y2={c.top + 1} stroke={BOARD.channelLine} strokeWidth={1.5} />
+          <line x1={xLeft} x2={xRight} y1={c.bottom - 1} y2={c.bottom - 1} stroke="#ffffff" strokeOpacity={0.7} strokeWidth={1} />
+          {c.area && (
+            <text x={localPx(1.6, 0).x} y={(c.top + c.bottom) / 2} fill={BOARD.label} fontSize={0.55 * P} fontWeight={800} dominantBaseline="central" data-area={c.area}>
+              {`區 ${c.area}`}
+            </text>
+          )}
+        </g>
+      ))}
+
+      {/* 接線柱（EIC-1106） */}
+      {(layout.posts ?? []).map((p) => {
+        const c = localPx(p.x, p.y);
+        return (
+          <g key={p.name} data-post={p.color}>
+            <circle cx={c.x} cy={c.y} r={0.48 * P} fill={POST_FILL[p.color]} stroke="#00000055" strokeWidth={1} />
+            <text x={c.x + 0.8 * P} y={c.y} fill={BOARD.label} fontSize={0.5 * P} fontWeight={700} dominantBaseline="central">
+              {`${p.name}${p.source === 'vcc' ? ' +5V' : p.source === 'gnd' ? ' GND' : ''}`}
+            </text>
+          </g>
+        );
+      })}
 
       {/* 電源軌色線與 +/− 標記 */}
       {rails.map((row) => {
@@ -55,6 +84,11 @@ export const BoardBackground = memo(function BoardBackground({ frame, label }: {
             <text x={localPx(62.8, 0).x} y={textY} fill={color} fontSize={0.75 * P} fontWeight={700} textAnchor="middle" dominantBaseline="central">
               {sign}
             </text>
+            {row.label.startsWith('P') && plus && (
+              <text x={localPx(0.1, 0).x} y={localPx(0, row.y + 0.5).y} fill={BOARD.label} fontSize={0.42 * P} fontWeight={700} textAnchor="middle" dominantBaseline="central">
+                {row.label.slice(0, 2)}
+              </text>
+            )}
           </g>
         );
       })}
@@ -62,7 +96,7 @@ export const BoardBackground = memo(function BoardBackground({ frame, label }: {
       {/* 排標籤 A–J（左右兩側） */}
       {terminals.map((row) =>
         row.kind === 'terminal' ? (
-          <g key={row.label} fill={BOARD.label} fontSize={0.5 * P} fontWeight={600} textAnchor="middle" dominantBaseline="central">
+          <g key={`${row.area ?? 0}-${row.label}`} fill={BOARD.label} fontSize={0.5 * P} fontWeight={600} textAnchor="middle" dominantBaseline="central">
             <text x={localPx(0.1, 0).x} y={localPx(0, row.y).y}>
               {row.label}
             </text>
@@ -74,7 +108,7 @@ export const BoardBackground = memo(function BoardBackground({ frame, label }: {
       )}
 
       {/* 欄號（印在電源軌與端子區之間的空隙列） */}
-      {[3, 16].map((y) => (
+      {numberRows.map((y) => (
         <g key={y} fill={BOARD.label} fontSize={0.42 * P} textAnchor="middle" dominantBaseline="central">
           {COLUMN_LABELS.map((x) => (
             <text key={x} x={localPx(x, 0).x} y={localPx(0, y).y}>

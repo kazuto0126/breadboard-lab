@@ -315,6 +315,29 @@ export function timerCounterCircuit(): Circuit {
   );
 }
 
+/**
+ * EIC-1106 大型麵包板：74LS00 驗收電路放在插孔區 2。紅色接線柱接 P3 +、黑色接線柱接 P4 −，不用另外放 VCC / GND 符號。
+ * U1 在 2-F10：第 1–7 腳 2-F10–2-F16，第 14–8 腳 2-E10–2-E16。
+ */
+export function eicCircuit(): Circuit {
+  const at = (name: string) => holeOn('b1', name, 'EIC1106');
+  return circuit(
+    [comp('U1', '74LS00', at('2-F10')), comp('R1', 'resistor', at('2-G30')), comp('D1', 'led', at('2-G40'))],
+    [
+      wire('vp', at('紅'), at('P3+5')), // 紅柱 → P3 +
+      wire('vg', at('黑'), at('P4-5')), // 黑柱 → P4 −
+      wire('w1', at('P3+6'), at('2-A10')), // VCC → 第 14 腳
+      wire('w2', at('P4-6'), at('2-J16')), // GND → 第 7 腳
+      wire('w3', at('2-J10'), at('2-I16')), // 第 1 腳 → GND
+      wire('w4', at('2-J11'), at('2-H16')), // 第 2 腳 → GND
+      wire('w5', at('2-J12'), at('2-J30')), // 1Y → R1
+      wire('w6', at('2-J34'), at('2-J40')), // R1 → LED 陽極
+      wire('w7', at('2-J41'), at('P4-41')), // LED 陰極 → GND
+    ],
+    [board('b1', 0, 0, 'EIC1106')],
+  );
+}
+
 export interface ExampleCircuit {
   id: string;
   name: string;
@@ -392,6 +415,16 @@ export const EXAMPLES: ExampleCircuit[] = [
     description: 'NE555 當 1 Hz 時脈（R1、R2、C1 照標準接法擺好），74LS93 數 0–15、4 顆 LED 顯示。導線已套用 AI 標準佈線，按「▶ 模擬」看它自己數。',
     build: () => {
       const c = timerCounterCircuit();
+      const routed = autoRoute(c);
+      return routed.status === 'success' ? applyRouting(c, routed) : colorize(c);
+    },
+  },
+  {
+    id: 'eic-board',
+    name: 'EIC-1106 大型麵包板',
+    description: '74LS00 驗收電路放在 EIC-1106 的插孔區 2，紅色接線柱接 P3 +、黑色接線柱接 P4 −。導線已套用 AI 標準佈線，按「▶ 模擬」LED 會亮。',
+    build: () => {
+      const c = eicCircuit();
       const routed = autoRoute(c);
       return routed.status === 'success' ? applyRouting(c, routed) : colorize(c);
     },

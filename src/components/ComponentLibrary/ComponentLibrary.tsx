@@ -1,4 +1,5 @@
 import { useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { getLayout } from '../../core/breadboard/registry';
 import { MAX_BOARDS } from '../../editor/boards';
 import { formatResistance, LED_COLOR_NAMES, librarySections, searchLibrary, type LibraryItem } from '../../editor/library';
 import { WIRE_COLORS } from '../../editor/manualWire';
@@ -214,7 +215,7 @@ function LibraryRow({ item, active }: { item: LibraryItem; active: boolean }) {
   );
 }
 
-/** 麵包板：新增 MB-102（最多 MAX_BOARDS 塊）。 */
+/** 麵包板：新增 MB-102 或 EIC-1106（最多 MAX_BOARDS 塊）。 */
 function BoardCard() {
   const count = useStore((s) => s.circuit.boards.length);
   const full = count >= MAX_BOARDS;
@@ -235,18 +236,23 @@ function BoardCard() {
       <span className="min-w-0 flex-1" title="貼在一起且對齊的麵包板會自動成為同一個群組，可以跨板接線">
         <span className="block whitespace-nowrap text-[12px] font-medium text-slate-100">麵包板</span>
         <span className="block whitespace-nowrap text-[10px] text-slate-400">
-          MB-102 · {count} / {MAX_BOARDS} 塊
+          MB-102 / EIC-1106 · {count} / {MAX_BOARDS} 塊
         </span>
       </span>
-      <button
-        type="button"
-        disabled={full}
-        onClick={() => useStore.getState().addBoard()}
-        title={full ? `最多 ${MAX_BOARDS} 塊麵包板` : '新增一塊麵包板（放在最下方，再拖曳到想要的位置）'}
-        className="shrink-0 rounded bg-slate-700 px-2 py-1 text-xs text-slate-100 hover:bg-slate-600 disabled:opacity-50"
-      >
-        ＋ 新增麵包板
-      </button>
+      <div className="flex shrink-0 flex-col gap-1">
+        {(['MB102', 'EIC1106'] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            disabled={full}
+            onClick={() => useStore.getState().addBoard(id)}
+            title={full ? `最多 ${MAX_BOARDS} 塊麵包板` : `新增一塊 ${getLayout(id).name}（放在最下方，再拖曳到想要的位置）`}
+            className="rounded bg-slate-700 px-2 py-0.5 text-xs text-slate-100 hover:bg-slate-600 disabled:opacity-50"
+          >
+            ＋ {getLayout(id).name}
+          </button>
+        ))}
+      </div>
     </section>
   );
 }

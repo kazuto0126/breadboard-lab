@@ -71,7 +71,9 @@ export function extractNetsWith(index: CircuitIndex, wires: Wire[]): Net[] {
   let signal = 0;
   return raw.map((b) => {
     const roles = b.pins.map((ref) => pinDefinition(index, ref)?.role);
-    const kind: Net['kind'] = roles.includes('vcc-source') ? 'power' : roles.includes('gnd-source') ? 'ground' : 'signal';
+    const sources = b.groupIds.map((g) => groupInfo(index, g)?.source);
+    const kind: Net['kind'] =
+      roles.includes('vcc-source') || sources.includes('vcc') ? 'power' : roles.includes('gnd-source') || sources.includes('gnd') ? 'ground' : 'signal';
     let name: string;
     if (kind === 'power') name = ++power === 1 ? 'VCC' : `VCC_${power}`;
     else if (kind === 'ground') name = ++ground === 1 ? 'GND' : `GND_${ground}`;
@@ -120,4 +122,10 @@ export function netByPin(nets: Net[]): Map<string, Net> {
   const map = new Map<string, Net>();
   for (const net of nets) for (const ref of net.pins) map.set(pinKey(ref), net);
   return map;
+}
+
+/** Net 有沒有 VCC / GND 來源：電源元件的腳，或 EIC-1106 的紅 / 黑接線柱。 */
+export function netHasSource(net: Net, index: CircuitIndex, source: 'vcc' | 'gnd'): boolean {
+  const role = source === 'vcc' ? 'vcc-source' : 'gnd-source';
+  return net.pins.some((r) => pinDefinition(index, r)?.role === role) || net.groupIds.some((g) => groupInfo(index, g)?.source === source);
 }

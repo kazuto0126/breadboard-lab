@@ -1,7 +1,7 @@
 # EIC-1106 大型麵包板（子專案 10）設計規格
 
 - 日期：2026-10-11
-- 狀態：設計已確認，等使用者看過規格
+- 狀態：已完成（2026-10-11）
 - 來源：使用者 2026-10-10 的新需求第 5 項「新增大型麵包板（型號：EIC 1106）」
 - 查到的資料：網路上找不到「EIC-1106」；2390 孔的 EIC 板子是 EIC-106（ProtoSupplies），同款（ZY-206 / BB-3T5D）是 3 條插孔區（1890 孔）＋ 5 條電源軌（500 孔），
   電源軌整條相通，4 支接線柱（紅、黑、黃、綠）。使用者確認照這個排列做。
@@ -59,8 +59,8 @@ MB-102 的群組 ID 與孔名完全不變。
 - `BoardLayout.id` 與 `BreadboardInstance.layoutId`：`'MB102' | 'EIC1106'`。
 - `LayoutRow` 的 terminal 列加選擇性的 `area`（區號）；rail 列的 `label` 擴充成也可以是 `P1+`…`P5-`。
 - `BoardLayout` 加選擇性的 `posts: Array<{ x; y; name; color: 'red' | 'black' | 'yellow' | 'green'; source?: 'vcc' | 'gnd' }>`。
-- `BreadboardGroup.kind` 加 `'post'`；group 加選擇性的 `source?: 'vcc' | 'gnd'`。
-  接線柱在佈線裡和電源軌一樣：可以是 Net 的終端，不能當轉接排（`legality`、`problem` 的「電源軌」判斷改成「電源軌或接線柱」）。
+- 接線柱是 kind `rail` 的單孔群組（ID `post-…`），group 加選擇性的 `source?: 'vcc' | 'gnd'`。
+  這樣接線柱在佈線裡自動和電源軌一樣：可以是 Net 的終端，不能當轉接排，不用另外改佈線的判斷。
 - `fileFormat` 接受 `EIC1106`；舊檔案（只有 MB102）照常讀。
 
 ## 4. 接線柱當電源

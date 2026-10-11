@@ -115,7 +115,8 @@ export function defaultWireColor(circuit: Circuit, start: GridPoint, end: GridPo
     const instance = circuit.boards.find((b) => b.id === p.boardId);
     return instance ? (holeName(getBoard(instance.layoutId, instance.id), p) ?? '') : '';
   });
-  if (names.some((n) => /^[TB]\+/.test(n))) return WIRE_COLORS[0].value;
-  if (names.some((n) => /^[TB]-/.test(n))) return WIRE_COLORS[1].value;
+  // + 軌（MB-102 的 T+ / B+、EIC-1106 的 P1+…）與紅色接線柱用紅色；− 軌與黑色接線柱用黑色。
+  if (names.some((n) => /^([TB]|P[1-5])\+/.test(n) || n === '紅')) return WIRE_COLORS[0].value;
+  if (names.some((n) => /^([TB]|P[1-5])-/.test(n) || n === '黑')) return WIRE_COLORS[1].value;
   return fallback;
 }

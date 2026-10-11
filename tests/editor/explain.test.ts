@@ -5,6 +5,7 @@ import { ISSUE_TEXT } from '../../src/editor/explain/generic';
 import { chooseRail, freeHolesInGroup } from '../../src/editor/explain/helpers';
 import type { Circuit, CircuitError, CircuitErrorCode } from '../../src/types/circuit';
 import { straightWireProblem } from '../../src/editor/manualWire';
+import { eicCircuit } from '../../src/editor/examples';
 import { circuit, comp, hole, straightWire, wire } from '../fixtures/build';
 
 const fake = (code: CircuitErrorCode, over: Partial<CircuitError> = {}): CircuitError => ({
@@ -244,5 +245,20 @@ describe('explanations: 7-segment display', () => {
     const e = explainIssue(c, issueOf(c, 'LED_NO_RESISTOR'));
     expect(e.why).toContain('每一段');
     expect(e.steps.map((s) => plainText(c, s)).join(' ')).toContain('330');
+  });
+});
+
+describe('explanations on an EIC-1106 board', () => {
+  it('connects a VCC pin to the nearest powered + rail by its P name', () => {
+    const c = { ...eicCircuit(), wires: eicCircuit().wires.filter((w) => w.id !== 'w1') };
+    const steps = texts(c, issueOf(c, 'IC_POWER_MISSING')).join(' ');
+    expect(steps).toContain('P3 的 + 電源軌');
+  });
+
+  it('tells students to wire the red and black posts when there is no power at all', () => {
+    const c = { ...eicCircuit(), wires: eicCircuit().wires.filter((w) => w.id !== 'vp' && w.id !== 'vg') };
+    const steps = texts(c, issueOf(c, 'NO_POWER_SOURCE')).join(' ');
+    expect(steps).toContain('紅色接線柱');
+    expect(steps).toContain('黑色接線柱');
   });
 });

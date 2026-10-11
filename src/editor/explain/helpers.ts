@@ -1,7 +1,8 @@
 import { nodeIdOf } from '../../core/breadboard/naming';
-import { getBoard } from '../../core/breadboard/registry';
+import { getBoard, getLayout } from '../../core/breadboard/registry';
 import { resolveFootprint } from '../../core/circuit/footprint';
 import { getComponentDefinition } from '../../core/circuit/library';
+import type { RailLabel } from '../../types/board';
 import type { Circuit, PinRef } from '../../types/circuit';
 import type { ComponentDefinition, ComponentInstance, PinDefinition, PinRole } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
@@ -90,32 +91,59 @@ export function pinCountInGroup(circuit: Circuit, point: GridPoint): number {
   return holesOfGroup(circuit, point.boardId, groupId).filter((p) => occ.pins.has(nodeIdOf(p))).length;
 }
 
-export type Rail = 'T+' | 'T-' | 'B+' | 'B-';
+export type Rail = RailLabel;
 
+/** 電源軌的說法：MB-102 是「上方的 + 電源軌」，EIC-1106 是「P3 的 + 電源軌」。 */
 export const RAIL_TEXT: Record<Rail, string> = {
   'T+': '上方的 + 電源軌',
   'T-': '上方的 − 電源軌',
   'B+': '下方的 + 電源軌',
   'B-': '下方的 − 電源軌',
-};
+  ...Object.fromEntries([1, 2, 3, 4, 5].flatMap((n) => [[`P${n}+`, `P${n} 的 + 電源軌`], [`P${n}-`, `P${n} 的 − 電源軌`]])),
+} as Record<Rail, string>;
 
 const railGroupId = (boardId: string, rail: Rail) => `${boardId}:rail-${rail}`;
 
 /** 這條電源軌所在的 Net 有沒有 role 這種電源腳（vcc-source / gnd-source）。 */
 export function railCarries(circuit: Circuit, boardId: string, rail: Rail, role: PinRole): boolean {
   const net = analyzeCircuit(circuit).netByGroup.get(railGroupId(boardId, rail));
-  return net !== undefined && net.pins.some((ref) => roleOf(circuit, ref) === role);
+  if (!net) return false;
+  const source = role === 'vcc-source' ? 'vcc' : 'gnd';
+  return net.pins.some((ref) => roleOf(circuit, ref) === role) || net.groupIds.some((g) => groupSourceOf(circuit, g) === source);
 }
 
-/** 規格第 3 節：上半部（A–E）用上方的軌、下半部用下方的軌；那條沒電而另一條同極性的有電時改用另一條。 */
+/** 群組是不是接線柱電源（EIC-1106 的紅 = vcc、黑 = gnd）。 */
+function groupSourceOf(circuit: Circuit, groupId: string): 'vcc' | 'gnd' | undefined {
+  const instance = circuit.boards.find((b) => b.id === groupId.slice(0, groupId.indexOf(':')));
+  return instance ? getBoard(instance.layoutId, instance.id).groups[groupId]?.source : undefined;
+}
+
+/** 這塊板上某個極性的電源軌，依和 y 的距離排序（同距離上面的先）。 */
+function railsNear(circuit: Circuit, boardId: string, polarity: '+' | '-', y: number): Array<{ rail: Rail; y: number }> {
+  const instance = circuit.boards.find((b) => b.id === boardId);
+  if (!instance) return [];
+  return getLayout(instance.layoutId)
+    .rows.flatMap((r) => (r.kind === 'rail' && r.label.endsWith(polarity) ? [{ rail: r.label, y: r.y }] : []))
+    .sort((a, b) => Math.abs(a.y - y) - Math.abs(b.y - y) || a.y - b.y);
+}
+
+/**
+ * 規格第 3 節：用離那一排最近的同極性電源軌（MB-102：上半部用上方的軌、下半部用下方的軌）；
+ * 有電的軌優先，都沒電時用最近的那條。
+ */
 export function chooseRail(circuit: Circuit, point: GridPoint, polarity: '+' | '-'): { rail: Rail; powered: boolean } {
   const role: PinRole = polarity === '+' ? 'vcc-source' : 'gnd-source';
-  const top = point.y < 10;
-  const near = `${top ? 'T' : 'B'}${polarity}` as Rail;
-  const far = `${top ? 'B' : 'T'}${polarity}` as Rail;
-  if (railCarries(circuit, point.boardId, near, role)) return { rail: near, powered: true };
-  if (railCarries(circuit, point.boardId, far, role)) return { rail: far, powered: true };
-  return { rail: near, powered: false };
+  const rails = railsNear(circuit, point.boardId, polarity, point.y);
+  const powered = rails.find((r) => railCarries(circuit, point.boardId, r.rail, role));
+  if (powered) return { rail: powered.rail, powered: true };
+  return { rail: rails[0]?.rail ?? (polarity === '+' ? 'T+' : 'B-'), powered: false };
+}
+
+/** 接線柱的孔（EIC-1106 的紅 = vcc、黑 = gnd）；板上沒有接線柱時回傳 null。 */
+export function postHole(circuit: Circuit, boardId: string, source: 'vcc' | 'gnd'): GridPoint | null {
+  const instance = circuit.boards.find((b) => b.id === boardId);
+  const post = instance ? getLayout(instance.layoutId).posts?.find((p) => p.source === source) : undefined;
+  return post ? { boardId, x: post.x, y: post.y } : null;
 }
 
 /** 電源軌上的空孔，依和 x 的距離排序（同距離 x 小的先）。 */
@@ -143,7 +171,8 @@ export interface WirePlan {
  */
 export function wireToRail(circuit: Circuit, point: GridPoint, rail: Rail, exclude: GridPoint[] = []): WirePlan | null {
   const holes = freeHolesInGroup(circuit, point);
-  const ordered = rail.startsWith('T') ? holes : [...holes].reverse();
+  const railY = railsNear(circuit, point.boardId, rail.endsWith('+') ? '+' : '-', point.y).find((r) => r.rail === rail)?.y ?? 0;
+  const ordered = railY < point.y ? holes : [...holes].reverse();
   for (const from of ordered) {
     for (const to of railHoles(circuit, point.boardId, rail, from.x, exclude).slice(0, 8)) {
       if (!straightWireProblem(circuit, from, to)) return { from, to, path: [from, to] };

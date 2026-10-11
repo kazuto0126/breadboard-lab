@@ -67,13 +67,17 @@ export function toPoint(problem: Pick<RoutingProblem, 'points'>, i: number): Gri
   return p;
 }
 
+const POST_COLORS: Record<string, string> = { red: '紅', black: '黑', yellow: '黃', green: '綠' };
+
 /** 導通群組的中文說明；withBoard 為 true 時加上板子 ID（多塊板時使用）。 */
 export function describeGroup(groupId: string, withBoard = false): string {
   const colon = groupId.indexOf(':');
   const local = groupId.slice(colon + 1);
   const prefix = withBoard ? `${groupId.slice(0, colon)} ` : '';
-  const column = /^c(\d+)-(top|bot)$/.exec(local);
-  if (column) return `${prefix}第 ${column[1]} 欄${column[2] === 'top' ? '上半（A–E）' : '下半（F–J）'}`;
+  const column = /^(?:a(\d+)-)?c(\d+)-(top|bot)$/.exec(local);
+  if (column) return `${prefix}${column[1] ? `第 ${column[1]} 區` : ''}第 ${column[2]} 欄${column[3] === 'top' ? '上半（A–E）' : '下半（F–J）'}`;
+  const post = /^post-(\w+)$/.exec(local);
+  if (post) return `${prefix}${POST_COLORS[post[1]] ?? post[1]}色接線柱`;
   return `${prefix}${local.replace('rail-', '')} 電源軌`;
 }
 
