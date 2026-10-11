@@ -29,6 +29,7 @@ import {
   wireSummary,
 } from '../common/describe';
 import { ExplanationCard } from './ExplanationCard';
+import { PinoutDiagram } from './PinoutDiagram';
 
 const CLOCK_FREQUENCIES = [0.5, 1, 2, 5, 10];
 
@@ -399,8 +400,16 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
   const store = useStore.getState();
   if (!selection) return <CircuitSummary circuit={circuit} analysis={analysis} />;
   switch (selection.kind) {
-    case 'component':
-      return <ComponentInspector id={selection.id} circuit={circuit} analysis={analysis} />;
+    case 'component': {
+      const c = circuit.components.find((x) => x.id === selection.id);
+      const def = c ? getComponentDefinition(c.defId) : undefined;
+      return (
+        <>
+          {c && def && <PinoutDiagram instance={c} def={def} selectedPin={null} />}
+          <ComponentInspector id={selection.id} circuit={circuit} analysis={analysis} />
+        </>
+      );
+    }
     case 'pin': {
       const c = circuit.components.find((x) => x.id === selection.componentId);
       const def = c ? getComponentDefinition(c.defId) : undefined;
@@ -409,6 +418,7 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
       const net = netOfPin(analysis, selection);
       return (
         <>
+          {c && def && <PinoutDiagram instance={c} def={def} selectedPin={selection.pinNumber} />}
           <Section title="腳位">
             <div className="text-base font-semibold text-slate-50">
               {selection.componentId} 腳 {selection.pinNumber} <span className="text-slate-300">· {pin?.name}</span>
