@@ -1,4 +1,5 @@
 import type { Circuit, CircuitError } from '../../types/circuit';
+import { getComponentDefinition } from '../../core/circuit/library';
 import type { ComponentInstance } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
 import { groupIdAt } from '../analysis';
@@ -25,7 +26,18 @@ export function explainPinUnconnected(circuit: Circuit, issue: CircuitError): Ex
   ]);
 }
 
+/** 這個錯誤是不是 7 段顯示器的（共用 LED 的錯誤代碼，但修法不同）。 */
+function isSevenSeg(circuit: Circuit, issue: CircuitError): boolean {
+  const c = circuit.components.find((x) => x.id === issue.componentIds[0]);
+  return !!c && getComponentDefinition(c.defId)?.category === 'seven-seg';
+}
+
 export function explainLedReversed(circuit: Circuit, issue: CircuitError): Explanation {
+  if (isSevenSeg(circuit, issue)) {
+    return explanation('共陽極 7 段顯示器的共陽極（CA，第 3、8 腳）要接 VCC，各段再經電阻接到低電位才會亮；CA 接到 GND 時整個顯示器都不會亮。', [
+      step('把接在共陽極 {0} 那一排、通到 GND 的線拔掉，改從那一排的空孔拉到 VCC（+ 電源軌）。顯示器本身不用轉向。', issue.points[0]),
+    ]);
+  }
   const anode = pinAt(circuit, issue.points[0]);
   const cathode = pinOfRole(anode, 'cathode');
   return explanation(ISSUE_TEXT.LED_REVERSED.why, [
@@ -62,6 +74,11 @@ function resistorSpot(circuit: Circuit, cathode: GridPoint): ResistorSpot | null
 }
 
 export function explainLedNoResistor(circuit: Circuit, issue: CircuitError): Explanation {
+  if (isSevenSeg(circuit, issue)) {
+    return explanation('7 段顯示器的每一段都是一顆 LED，直接接到 74LS47 或 GND 電流太大，會燒掉那一段或 IC 的輸出腳；每一段都要各串一顆電阻。', [
+      step('在每一段（a–g，有用到小數點也算）和 74LS47 的輸出之間各串一顆 330 Ω 電阻：電阻一腳插在段那一排，另一腳插到新的一排，原本接段的線改接到新的那一排。'),
+    ]);
+  }
   const anode = pinAt(circuit, issue.points[0]);
   const cathode = pinOfRole(anode, 'cathode');
   const why = ISSUE_TEXT.LED_NO_RESISTOR.why;

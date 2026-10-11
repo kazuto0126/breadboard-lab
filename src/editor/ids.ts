@@ -12,6 +12,8 @@ export const ID_PREFIX: Record<ComponentCategory, string> = {
   'dip-switch': 'SW',
   pushbutton: 'BTN',
   clock: 'CLK',
+  'seven-seg': 'DS',
+  capacitor: 'C',
 };
 
 function nextNumbered(ids: string[], prefix: string): string {

@@ -1,0 +1,14 @@
+{
+  "id": "capacitor-electrolytic",
+  "name": "電解電容",
+  "description": "電解電容（有極性：第 1 腳 +、第 2 腳 −）",
+  "category": "capacitor",
+  "package": { "type": "two-lead", "defaultSpan": 2, "minSpan": 1, "blocksBetween": false },
+  "pins": [
+    { "number": 1, "name": "+", "role": "passive" },
+    { "number": 2, "name": "−", "role": "passive" }
+  ],
+  "internalConnections": [],
+  "defaultProps": { "capacitance": 1e-5 },
+  "logic": null
+}

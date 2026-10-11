@@ -1,0 +1,14 @@
+{
+  "id": "capacitor-ceramic",
+  "name": "陶瓷電容",
+  "description": "陶瓷電容（不分極性）",
+  "category": "capacitor",
+  "package": { "type": "two-lead", "defaultSpan": 2, "minSpan": 1, "blocksBetween": false },
+  "pins": [
+    { "number": 1, "name": "1", "role": "passive" },
+    { "number": 2, "name": "2", "role": "passive" }
+  ],
+  "internalConnections": [],
+  "defaultProps": { "capacitance": 1e-7 },
+  "logic": null
+}

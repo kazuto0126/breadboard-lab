@@ -1,0 +1,33 @@
+{
+  "id": "74LS151",
+  "name": "74LS151",
+  "description": "8 選 1 多工器（8-to-1 multiplexer），Y 與反相輸出 W",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "D3", "role": "input" },
+    { "number": 2, "name": "D2", "role": "input" },
+    { "number": 3, "name": "D1", "role": "input" },
+    { "number": 4, "name": "D0", "role": "input" },
+    { "number": 5, "name": "Y", "role": "output" },
+    { "number": 6, "name": "W", "role": "output" },
+    { "number": 7, "name": "/G", "role": "input" },
+    { "number": 8, "name": "GND", "role": "ground" },
+    { "number": 9, "name": "C", "role": "input" },
+    { "number": 10, "name": "B", "role": "input" },
+    { "number": 11, "name": "A", "role": "input" },
+    { "number": 12, "name": "D7", "role": "input" },
+    { "number": 13, "name": "D6", "role": "input" },
+    { "number": 14, "name": "D5", "role": "input" },
+    { "number": 15, "name": "D4", "role": "input" },
+    { "number": 16, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": {
+    "model": "mux",
+    "units": [
+      { "select": ["A", "B", "C"], "data": ["D0", "D1", "D2", "D3", "D4", "D5", "D6", "D7"], "enable": [{ "pin": "/G", "active": "low" }], "output": "Y", "outputN": "W" }
+    ]
+  }
+}

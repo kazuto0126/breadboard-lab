@@ -222,3 +222,27 @@ describe('explanations: short circuit', () => {
     expect(e.steps[0].text).toBe('這個 Net 上的元件腳直接把電源和 GND 接在一起（G1、V1），請把其中一個元件移到別的排。');
   });
 });
+
+describe('explanations: 7-segment display', () => {
+  /** 7 段顯示器 DS1 在 H45：下排 H45–H49 = e d CA c dp，上排 D49–D45 = b a CA f g。a 段直接接 GND，沒有電阻。 */
+  const display = (caTo: 'T+47' | 'B-47') =>
+    circuit(
+      [comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3'), comp('DS1', '7seg-ca', 'H45')],
+      [caTo === 'T+47' ? wire('ca', 'A47', 'T+47') : wire('ca', 'J47', 'B-47'), wire('a', 'A48', 'T-48'), wire('gg', 'T-61', 'B-61')],
+    );
+
+  it('tells students to move the common anode to VCC instead of turning the display around', () => {
+    const c = display('B-47');
+    const steps = texts(c, issueOf(c, 'LED_REVERSED')).join(' ');
+    expect(steps).toContain('共陽極');
+    expect(steps).toContain('VCC');
+    expect(steps).not.toContain('轉半圈');
+  });
+
+  it('asks for a resistor on every segment, not just one', () => {
+    const c = display('T+47');
+    const e = explainIssue(c, issueOf(c, 'LED_NO_RESISTOR'));
+    expect(e.why).toContain('每一段');
+    expect(e.steps.map((s) => plainText(c, s)).join(' ')).toContain('330');
+  });
+});

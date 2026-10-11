@@ -23,6 +23,16 @@ const MODELS: Record<string, string> = {
   '74LS154': 'decoder',
   '74LS245': 'transceiver',
   '74LS283': 'adder',
+  '74LS11': 'gates',
+  '74LS21': 'gates',
+  '74LS83': 'adder',
+  '74LS73': 'jkff',
+  '74LS76': 'jkff',
+  '74LS85': 'comparator',
+  '74LS151': 'mux',
+  '74LS153': 'mux',
+  '74LS47': 'bcd7seg',
+  NE555: 'timer555',
 };
 
 describe('logic specs in the component library', () => {
@@ -31,7 +41,7 @@ describe('logic specs in the component library', () => {
       if (def.category === 'ic') expect(def.logic?.model, def.id).toBe(MODELS[def.id]);
       else expect(def.logic, def.id).toBeNull();
     }
-    expect(Object.keys(MODELS)).toHaveLength(20);
+    expect(Object.keys(MODELS)).toHaveLength(30);
   });
 
   it('wires 74LS00 gate 1 to pins 1A, 1B → 1Y', () => {

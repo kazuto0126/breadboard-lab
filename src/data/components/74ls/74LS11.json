@@ -1,0 +1,33 @@
+{
+  "id": "74LS11",
+  "name": "74LS11",
+  "description": "三組 3 輸入 AND 閘（Triple 3-input AND）",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "1A", "role": "input" },
+    { "number": 2, "name": "1B", "role": "input" },
+    { "number": 3, "name": "2A", "role": "input" },
+    { "number": 4, "name": "2B", "role": "input" },
+    { "number": 5, "name": "2C", "role": "input" },
+    { "number": 6, "name": "2Y", "role": "output" },
+    { "number": 7, "name": "GND", "role": "ground" },
+    { "number": 8, "name": "3Y", "role": "output" },
+    { "number": 9, "name": "3A", "role": "input" },
+    { "number": 10, "name": "3B", "role": "input" },
+    { "number": 11, "name": "3C", "role": "input" },
+    { "number": 12, "name": "1Y", "role": "output" },
+    { "number": 13, "name": "1C", "role": "input" },
+    { "number": 14, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": {
+    "model": "gates",
+    "gates": [
+      { "op": "and", "in": ["1A", "1B", "1C"], "out": "1Y" },
+      { "op": "and", "in": ["2A", "2B", "2C"], "out": "2Y" },
+      { "op": "and", "in": ["3A", "3B", "3C"], "out": "3Y" }
+    ]
+  }
+}

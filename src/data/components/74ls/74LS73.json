@@ -1,0 +1,32 @@
+{
+  "id": "74LS73",
+  "name": "74LS73",
+  "description": "雙 JK 正反器，含 Clear，下降緣觸發（Dual JK flip-flop，電源在第 4、11 腳）",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "1CLK", "role": "input" },
+    { "number": 2, "name": "1/CLR", "role": "input" },
+    { "number": 3, "name": "1K", "role": "input" },
+    { "number": 4, "name": "VCC", "role": "power" },
+    { "number": 5, "name": "2CLK", "role": "input" },
+    { "number": 6, "name": "2/CLR", "role": "input" },
+    { "number": 7, "name": "2J", "role": "input" },
+    { "number": 8, "name": "2/Q", "role": "output" },
+    { "number": 9, "name": "2Q", "role": "output" },
+    { "number": 10, "name": "2K", "role": "input" },
+    { "number": 11, "name": "GND", "role": "ground" },
+    { "number": 12, "name": "1Q", "role": "output" },
+    { "number": 13, "name": "1/Q", "role": "output" },
+    { "number": 14, "name": "1J", "role": "input" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": {
+    "model": "jkff",
+    "flipflops": [
+      { "j": "1J", "k": "1K", "clock": "1CLK", "q": "1Q", "qn": "1/Q", "clear": { "pin": "1/CLR", "active": "low" } },
+      { "j": "2J", "k": "2K", "clock": "2CLK", "q": "2Q", "qn": "2/Q", "clear": { "pin": "2/CLR", "active": "low" } }
+    ]
+  }
+}

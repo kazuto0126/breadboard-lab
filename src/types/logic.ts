@@ -128,6 +128,64 @@ export interface TransceiverLogic {
   enable: ActiveSignal[];
 }
 
+export interface JkFlipFlopSpec {
+  j: string;
+  k: string;
+  clock: string;
+  q?: string;
+  qn?: string;
+  preset?: ActiveSignal;
+  clear?: ActiveSignal;
+}
+
+/** 下降緣觸發的 JK 正反器組（74LS73、76）。 */
+export interface JkffLogic {
+  model: 'jkff';
+  flipflops: JkFlipFlopSpec[];
+}
+
+/** 4 位元大小比較器（74LS85），含串接輸入。a、b 都是 LSB 在前。 */
+export interface ComparatorLogic {
+  model: 'comparator';
+  a: string[];
+  b: string[];
+  cascade: { gt: string; eq: string; lt: string };
+  outputs: { gt: string; eq: string; lt: string };
+}
+
+export interface MuxUnit {
+  /** 選擇線，LSB 在前。 */
+  select: string[];
+  data: string[];
+  enable: ActiveSignal[];
+  output?: string;
+  /** 反相輸出（74LS151 的 W）。 */
+  outputN?: string;
+}
+
+/** 多工器（74LS151、153）：不致能時 Y = 0、W = 1。 */
+export interface MuxLogic {
+  model: 'mux';
+  units: MuxUnit[];
+}
+
+/** BCD 轉 7 段解碼器（74LS47）：輸出低電位有效、開集極（亮 = 0、不亮 = Z）。inputs = A B C D，segments = a…g。 */
+export interface Bcd7segLogic {
+  model: 'bcd7seg';
+  inputs: string[];
+  segments: string[];
+  lampTest: string;
+  blanking: string;
+  rippleBlanking: string;
+}
+
+/** NE555：OUT 跟著模擬時間驅動的虛擬振盪腳；reset 有效時 OUT = 0。 */
+export interface Timer555Logic {
+  model: 'timer555';
+  output: string;
+  reset: ActiveSignal;
+}
+
 export type LogicSpec =
   | GatesLogic
   | DecoderLogic
@@ -136,6 +194,11 @@ export type LogicSpec =
   | SyncCounterLogic
   | UpDownCounterLogic
   | AdderLogic
-  | TransceiverLogic;
+  | TransceiverLogic
+  | JkffLogic
+  | ComparatorLogic
+  | MuxLogic
+  | Bcd7segLogic
+  | Timer555Logic;
 
 export type LogicModelName = LogicSpec['model'];

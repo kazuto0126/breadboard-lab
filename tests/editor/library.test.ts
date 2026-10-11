@@ -4,16 +4,17 @@ import { findLibraryItem, formatResistance, librarySections, searchLibrary } fro
 describe('component library sections', () => {
   const sections = librarySections();
 
-  it('groups every part into five sections', () => {
+  it('groups every part into six sections', () => {
     expect(sections.map((s) => [s.id, s.items.length])).toEqual([
-      ['ic', 20],
+      ['ic', 30],
       ['resistor', 8],
-      ['led', 4],
+      ['led', 5],
+      ['capacitor', 5],
       ['power', 3],
       ['input', 4],
     ]);
     const ics = sections[0].items.map((i) => i.defId);
-    expect(ics[0]).toBe('74LS00');
+    expect(ics.slice(0, 2)).toEqual(['NE555', '74LS00']);
     expect(ics.slice(-3)).toEqual(['74LS245', '74LS273', '74LS283']);
     expect(librarySections()).toBe(sections);
   });

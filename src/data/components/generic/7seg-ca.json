@@ -1,0 +1,22 @@
+{
+  "id": "7seg-ca",
+  "name": "7 段顯示器",
+  "description": "共陽極 7 段 LED 顯示器（10 腳，配 74LS47）",
+  "category": "seven-seg",
+  "package": { "type": "dip", "pinCount": 10, "rowSpacing": 6 },
+  "pins": [
+    { "number": 1, "name": "e", "role": "cathode" },
+    { "number": 2, "name": "d", "role": "cathode" },
+    { "number": 3, "name": "CA", "role": "anode" },
+    { "number": 4, "name": "c", "role": "cathode" },
+    { "number": 5, "name": "dp", "role": "cathode" },
+    { "number": 6, "name": "b", "role": "cathode" },
+    { "number": 7, "name": "a", "role": "cathode" },
+    { "number": 8, "name": "CA", "role": "anode" },
+    { "number": 9, "name": "f", "role": "cathode" },
+    { "number": 10, "name": "g", "role": "cathode" }
+  ],
+  "internalConnections": [[3, 8]],
+  "defaultProps": {},
+  "logic": null
+}

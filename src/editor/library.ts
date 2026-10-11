@@ -14,7 +14,7 @@ export interface LibraryItem {
 }
 
 export interface LibrarySection {
-  id: 'ic' | 'resistor' | 'led' | 'power' | 'input';
+  id: 'ic' | 'resistor' | 'led' | 'capacitor' | 'power' | 'input';
   title: string;
   items: LibraryItem[];
 }
@@ -46,6 +46,20 @@ function item(def: ComponentDefinition, key: string, name: string, props: Compon
   };
 }
 
+/** 元件庫的電容：陶瓷 0.01 / 0.1 µF、電解 1 / 10 / 100 µF。 */
+export const CAPACITOR_PRESETS: ReadonlyArray<{ defId: 'capacitor-ceramic' | 'capacitor-electrolytic'; farads: number }> = [
+  { defId: 'capacitor-ceramic', farads: 1e-8 },
+  { defId: 'capacitor-ceramic', farads: 1e-7 },
+  { defId: 'capacitor-electrolytic', farads: 1e-6 },
+  { defId: 'capacitor-electrolytic', farads: 1e-5 },
+  { defId: 'capacitor-electrolytic', farads: 1e-4 },
+];
+
+/** 1e-5 → "10 µF"、1e-8 → "0.01 µF"。 */
+export function formatCapacitance(farads: number): string {
+  return `${Number((farads * 1e6).toPrecision(3))} µF`;
+}
+
 let sections: LibrarySection[] | null = null;
 
 /** 元件庫的分類與項目，全部由元件定義 JSON 產生；新增 IC 只需要新增 JSON。 */
@@ -57,7 +71,7 @@ export function librarySections(): LibrarySection[] {
   const resistor = defs.find((d) => d.id === 'resistor');
   const led = defs.find((d) => d.id === 'led');
   sections = [
-    { id: 'ic', title: '74LS 系列 IC', items: ics.map((d) => item(d, d.id, d.name, {})) },
+    { id: 'ic', title: 'IC（74LS、NE555）', items: ics.map((d) => item(d, d.id, d.name, {})) },
     {
       id: 'resistor',
       title: '電阻 Resistor',
@@ -67,8 +81,19 @@ export function librarySections(): LibrarySection[] {
     },
     {
       id: 'led',
-      title: 'LED',
-      items: led ? LED_COLORS.map((color) => item(led, `led-${color}`, `${LED_COLOR_NAMES[color]}色 LED`, { color })) : [],
+      title: 'LED 與顯示器',
+      items: [
+        ...(led ? LED_COLORS.map((color) => item(led, `led-${color}`, `${LED_COLOR_NAMES[color]}色 LED`, { color })) : []),
+        ...byCategory('seven-seg').map((d) => item(d, d.id, d.name, {})),
+      ],
+    },
+    {
+      id: 'capacitor',
+      title: '電容 Capacitor',
+      items: CAPACITOR_PRESETS.flatMap(({ defId, farads }) => {
+        const def = defs.find((d) => d.id === defId);
+        return def ? [item(def, `${defId}-${formatCapacitance(farads).replace(' µF', 'uF')}`, `${formatCapacitance(farads)} ${def.name}`, { capacitance: farads })] : [];
+      }),
     },
     { id: 'power', title: '電源 Power', items: byCategory('vcc', 'gnd', 'dc-power').map((d) => item(d, d.id, d.name, {})) },
     { id: 'input', title: '輸入 Input', items: byCategory('dip-switch', 'pushbutton', 'clock').map((d) => item(d, d.id, d.name, {})) },

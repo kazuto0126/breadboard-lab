@@ -234,7 +234,7 @@ export function BreadboardCanvas() {
       if (!def) continue;
       const levels: Record<number, Level> = {};
       for (const pin of def.pins) levels[pin.number] = simResult.pinLevels[`${c.id}#${pin.number}`] ?? 'Z';
-      map.set(c.id, { levels, lit: lit.has(c.id), unpowered: unpowered.has(c.id), pressed: simPressed?.[c.id] ?? false });
+      map.set(c.id, { levels, lit: lit.has(c.id), unpowered: unpowered.has(c.id), pressed: simPressed?.[c.id] ?? false, segments: simResult.litSegments[c.id] });
     }
     return map;
   }, [simResult, simPressed, components]);
