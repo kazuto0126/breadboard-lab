@@ -2,7 +2,7 @@ import type { Circuit, CircuitError } from '../../types/circuit';
 import type { GridPoint } from '../../types/geometry';
 import { ISSUE_TEXT } from './generic';
 import {
-  chooseRail, explanation, freeHolesInGroup, pinAt, pinLabel, RAIL_TEXT, railHole, step, wireToRail,
+  chooseRail, explanation, freeHolesInGroup, pinAt, pinLabel, postHole, RAIL_TEXT, railHole, step, wireToRail,
   type PinHit, type Rail,
 } from './helpers';
 import type { ExplainStep, Explanation } from './types';
@@ -24,9 +24,11 @@ function connectToRail(circuit: Circuit, hit: PinHit, polarity: '+' | '-', lead 
   const exclude: GridPoint[] = [];
   if (!powered) {
     const source = polarity === '+' ? 'VCC' : 'GND';
-    const at = railHole(circuit, hit.point.boardId, rail, 0);
+    const post = postHole(circuit, hit.point.boardId, polarity === '+' ? 'vcc' : 'gnd');
+    const at = railHole(circuit, hit.point.boardId, rail, post?.x ?? 0);
     if (at) exclude.push(at);
-    steps.push(at ? step(`${lead}先從元件庫放一個 ${source} 到${RAIL_TEXT[rail]}，例如 {0}。`, at) : step(`${lead}先從元件庫放一個 ${source} 到${RAIL_TEXT[rail]}。`));
+    if (post && at) steps.push(step(`${lead}先從${polarity === '+' ? '紅' : '黑'}色接線柱 {0} 拉一條線到${RAIL_TEXT[rail]} {1}。`, post, at));
+    else steps.push(at ? step(`${lead}先從元件庫放一個 ${source} 到${RAIL_TEXT[rail]}，例如 {0}。`, at) : step(`${lead}先從元件庫放一個 ${source} 到${RAIL_TEXT[rail]}。`));
     lead = '';
   }
   if (freeHolesInGroup(circuit, hit.point).length === 0) {
@@ -50,6 +52,20 @@ export function explainPowerMissing(circuit: Circuit, issue: CircuitError): Expl
 
 export function explainNoPowerSource(circuit: Circuit): Explanation {
   const boardId = circuit.components[0]?.boardId ?? circuit.boards[0].id;
+  const red = postHole(circuit, boardId, 'vcc');
+  const black = postHole(circuit, boardId, 'gnd');
+  if (red && black) {
+    const plus = chooseRail(circuit, red, '+').rail;
+    const minus = chooseRail(circuit, black, '-').rail;
+    const toPlus = railHole(circuit, boardId, plus, red.x);
+    const toMinus = railHole(circuit, boardId, minus, black.x);
+    return explanation(ISSUE_TEXT.NO_POWER_SOURCE.why, [
+      toPlus ? step(`從紅色接線柱 {0} 拉一條線到${RAIL_TEXT[plus]} {1}（紅柱接電源供應器的 +5 V）。`, red, toPlus) : step('從紅色接線柱拉一條線到 + 電源軌。'),
+      toMinus ? step(`從黑色接線柱 {0} 拉一條線到${RAIL_TEXT[minus]} {1}（黑柱接電源供應器的 GND）。`, black, toMinus) : step('從黑色接線柱拉一條線到 − 電源軌。'),
+      step('再把 IC 的 VCC 腳接到 + 軌、GND 腳接到 − 軌；其他元件也從這兩條軌拿電。'),
+    ]);
+  }
+  // MB-102：放 VCC / GND 符號。
   const vcc = railHole(circuit, boardId, 'T+', 0);
   const gnd = railHole(circuit, boardId, 'B-', 0);
   return explanation(ISSUE_TEXT.NO_POWER_SOURCE.why, [
