@@ -59,8 +59,8 @@ MB-102 的群組 ID 與孔名完全不變。
 - `BoardLayout.id` 與 `BreadboardInstance.layoutId`：`'MB102' | 'EIC1106'`。
 - `LayoutRow` 的 terminal 列加選擇性的 `area`（區號）；rail 列的 `label` 擴充成也可以是 `P1+`…`P5-`。
 - `BoardLayout` 加選擇性的 `posts: Array<{ x; y; name; color: 'red' | 'black' | 'yellow' | 'green'; source?: 'vcc' | 'gnd' }>`。
-- `BreadboardGroup.kind` 加 `'post'`；group 加選擇性的 `source?: 'vcc' | 'gnd'`。
-  接線柱在佈線裡和電源軌一樣：可以是 Net 的終端，不能當轉接排（`legality`、`problem` 的「電源軌」判斷改成「電源軌或接線柱」）。
+- 接線柱是 kind `rail` 的單孔群組（ID `post-…`），group 加選擇性的 `source?: 'vcc' | 'gnd'`。
+  這樣接線柱在佈線裡自動和電源軌一樣：可以是 Net 的終端，不能當轉接排，不用另外改佈線的判斷。
 - `fileFormat` 接受 `EIC1106`；舊檔案（只有 MB102）照常讀。
 
 ## 4. 接線柱當電源

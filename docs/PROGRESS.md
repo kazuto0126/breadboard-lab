@@ -5,15 +5,15 @@
 
 ## 目前狀態
 
-- `main`：子專案 1–8 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式）；
+- `main`：子專案 1–9 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式、新元件與 IC 腳位圖）；
   接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#10 於 2026-10-11 合併（#10 合併時只含子專案 9 的規格）。GitHub Actions CI 已設定。
-- 測試：main 上 418 個單元測試、27 個端對端測試；`feat/new-parts` 上 467 個、28 個。
+- 測試：main 上 467 個單元測試、28 個端對端測試。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
   原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布。
 
 ## 進行中
 
-- `feat/new-parts`（PR #11）：子專案 9「新元件與 IC 腳位圖」**已完成**，等使用者審查（PR #10 合併時只帶到規格，實作在這個 PR）。規格 `docs/superpowers/specs/2026-10-11-new-parts-design.md`、計畫 `docs/superpowers/plans/2026-10-11-new-parts.md`。
+- `feat/eic-board`（PR #12）：子專案 10「EIC-1106 大型麵包板」實作中。規格 `docs/superpowers/specs/2026-10-11-eic-board-design.md`、計畫 `docs/superpowers/plans/2026-10-11-eic-board.md`。
 
 ## 接下來（依優先順序）
 
