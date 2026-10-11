@@ -22,6 +22,7 @@
     "src/data",
     "src/debug",
     "src/editor",
+    "src/logic",
     "src/types",
     "src/index.ts",
     "tests",
