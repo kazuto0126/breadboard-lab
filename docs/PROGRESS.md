@@ -16,6 +16,7 @@
 - `feat/straight-wires`（PR #7）：子專案 6「直線導線」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`、計畫 `docs/superpowers/plans/2026-10-10-straight-wires.md`。
 - `feat/routing-standard`（PR #8，從 `feat/straight-wires` 開出，要先合併 PR #7）：子專案 7「新的自動佈線標準」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-routing-standard-design.md`、計畫 `docs/superpowers/plans/2026-10-10-routing-standard.md`。
 - `feat/ic-placement`（PR #9，從 `feat/routing-standard` 開出，要先合併 PR #7、#8）：子專案 8「可以移動 IC 的佈線模式」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-ic-placement-design.md`、計畫 `docs/superpowers/plans/2026-10-11-ic-placement.md`。
+- `feat/new-parts`（PR #10，從 `feat/ic-placement` 開出，要先合併 PR #7–#9）：子專案 9「新元件與 IC 腳位圖」實作中。規格 `docs/superpowers/specs/2026-10-11-new-parts-design.md`、計畫 `docs/superpowers/plans/2026-10-11-new-parts.md`。
 
 ## 接下來（依優先順序）
 
