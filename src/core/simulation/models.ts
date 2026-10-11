@@ -1,6 +1,11 @@
 import type {
   ActiveSignal,
   AdderLogic,
+  Bcd7segLogic,
+  ComparatorLogic,
+  JkffLogic,
+  MuxLogic,
+  Timer555Logic,
   DecoderLogic,
   DffLogic,
   GateOp,
@@ -312,6 +317,135 @@ function transceiverModel(spec: TransceiverLogic): LogicModel {
 }
 
 /** 依元件 JSON 的 logic 建立行為模型。 */
+function jkffModel(spec: JkffLogic): LogicModel {
+  const clocks = [...new Set(spec.flipflops.map((f) => f.clock))];
+  return {
+    outputs: spec.flipflops.flatMap((f) => [f.q, f.qn].filter((p): p is string => p !== undefined)),
+    init: () => ({ prev: {}, bits: zeros(spec.flipflops.length) }),
+    evaluate(read, state) {
+      const outputs: Record<string, Level> = {};
+      const bits = spec.flipflops.map((ff, i) => {
+        let q = state.bits[i] ?? 0;
+        const pre = ff.preset ? asserted(read, ff.preset) : 0;
+        const clr = ff.clear ? asserted(read, ff.clear) : 0;
+        // 和 74LS74 相同：/PRE 與 /CLR 同時有效時 Q 與 /Q 都是 HIGH。
+        const both = pre === 1 && clr === 1;
+        if (both || pre === 1) q = 1;
+        else if (clr === 1) q = 0;
+        else if (pre === 'X' || clr === 'X') q = 'X';
+        else if (falling(state.prev[ff.clock], read(ff.clock))) {
+          const j = read(ff.j);
+          const k = read(ff.k);
+          if (j === 'X' || k === 'X') q = 'X';
+          else if (j === 1 && k === 1) q = not(q);
+          else if (j === 1) q = 1;
+          else if (k === 1) q = 0;
+        }
+        if (ff.q) outputs[ff.q] = q;
+        if (ff.qn) outputs[ff.qn] = both ? 1 : not(q);
+        return q;
+      });
+      return { outputs, state: { prev: snapshot(read, clocks), bits } };
+    },
+  };
+}
+
+function comparatorModel(spec: ComparatorLogic): LogicModel {
+  const o = spec.outputs;
+  const c = spec.cascade;
+  return {
+    outputs: [o.gt, o.eq, o.lt],
+    init: () => ({ prev: {}, bits: [] }),
+    evaluate(read, state) {
+      const a = toNumber(readAll(read, spec.a));
+      const b = toNumber(readAll(read, spec.b));
+      let gt: Logic;
+      let eq: Logic;
+      let lt: Logic;
+      if (a === 'X' || b === 'X') gt = eq = lt = 'X';
+      else if (a > b) [gt, eq, lt] = [1, 0, 0];
+      else if (a < b) [gt, eq, lt] = [0, 0, 1];
+      else {
+        // 資料表的串接真值表。
+        const ig = read(c.gt);
+        const ie = read(c.eq);
+        const il = read(c.lt);
+        eq = ie;
+        gt = and([not(ie), not(il)]);
+        lt = and([not(ie), not(ig)]);
+      }
+      return { outputs: { [o.gt]: gt, [o.eq]: eq, [o.lt]: lt }, state };
+    },
+  };
+}
+
+function muxModel(spec: MuxLogic): LogicModel {
+  return {
+    outputs: spec.units.flatMap((u) => [u.output, u.outputN].filter((p): p is string => p !== undefined)),
+    init: () => ({ prev: {}, bits: [] }),
+    evaluate(read, state) {
+      const outputs: Record<string, Level> = {};
+      for (const u of spec.units) {
+        const enabled = allAsserted(read, u.enable);
+        const selected = toNumber(readAll(read, u.select));
+        const y: Logic = enabled === 0 ? 0 : enabled === 'X' || selected === 'X' ? 'X' : read(u.data[selected]);
+        if (u.output) outputs[u.output] = y;
+        if (u.outputN) outputs[u.outputN] = not(y);
+      }
+      return { outputs, state };
+    },
+  };
+}
+
+/** 74LS47 的字形（亮的段 a–g），索引是輸入值 0–15（資料表：6 上面沒有橫、9 下面沒有橫）。 */
+export const BCD_GLYPHS: readonly string[] = [
+  'abcdef', 'bc', 'abdeg', 'abcdg', 'bcfg', 'acdfg', 'cdefg', 'abc', 'abcdefg', 'abcfg', 'deg', 'cdg', 'bfg', 'adfg', 'defg', '',
+];
+const SEGMENT_LETTERS = 'abcdefg';
+
+function bcd7segModel(spec: Bcd7segLogic): LogicModel {
+  return {
+    outputs: [...spec.segments],
+    init: () => ({ prev: {}, bits: [] }),
+    evaluate(read, state) {
+      const outputs: Record<string, Level> = {};
+      // 亮 → 驅動 0；不亮 → 開集極斷開（Z）。
+      const show = (on: (segment: string) => Logic) =>
+        spec.segments.forEach((pin, i) => {
+          const v = on(SEGMENT_LETTERS[i]);
+          outputs[pin] = v === 1 ? 0 : v === 0 ? 'Z' : 'X';
+        });
+      const bi = read(spec.blanking);
+      const lt = read(spec.lampTest);
+      const rbi = read(spec.rippleBlanking);
+      const value = toNumber(readAll(read, spec.inputs));
+      if (bi === 0) show(() => 0);
+      else if (bi === 'X') show(() => 'X');
+      else if (lt === 0) show(() => 1);
+      else if (lt === 'X' || value === 'X') show(() => 'X');
+      else if (value === 0 && rbi === 0) show(() => 0);
+      else if (value === 0 && rbi === 'X') show(() => 'X');
+      else show((segment) => (BCD_GLYPHS[value].includes(segment) ? 1 : 0));
+      return { outputs, state };
+    },
+  };
+}
+
+/** NE555 的虛擬振盪腳：編譯模擬時接到一個由模擬時間驅動的節點（見 simulate.ts）。 */
+export const OSC_PIN = '~OSC';
+
+function timer555Model(spec: Timer555Logic): LogicModel {
+  return {
+    outputs: [spec.output],
+    init: () => ({ prev: {}, bits: [] }),
+    evaluate(read, state) {
+      const reset = asserted(read, spec.reset);
+      const v: Logic = reset === 1 ? 0 : reset === 'X' ? 'X' : read(OSC_PIN);
+      return { outputs: { [spec.output]: v }, state };
+    },
+  };
+}
+
 export function createModel(spec: LogicSpec): LogicModel {
   switch (spec.model) {
     case 'gates':
@@ -328,6 +462,16 @@ export function createModel(spec: LogicSpec): LogicModel {
       return upDownCounterModel(spec);
     case 'adder':
       return adderModel(spec);
+    case 'jkff':
+      return jkffModel(spec);
+    case 'comparator':
+      return comparatorModel(spec);
+    case 'mux':
+      return muxModel(spec);
+    case 'bcd7seg':
+      return bcd7segModel(spec);
+    case 'timer555':
+      return timer555Model(spec);
     case 'transceiver':
       return transceiverModel(spec);
   }

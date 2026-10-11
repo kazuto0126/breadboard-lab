@@ -158,6 +158,67 @@ export function parseLogic(id: string, raw: unknown, pinNames: ReadonlySet<strin
         enable: signals(spec.enable ?? [], 'enable', 0),
       };
     }
+    case 'jkff':
+      return {
+        model: 'jkff',
+        flipflops: arr(spec.flipflops, 'flipflops').map((f, i) => {
+          const ff = obj(f, `flipflops[${i}]`);
+          if (ff.q === undefined && ff.qn === undefined) fail(`flipflops[${i}] needs q or qn`);
+          return {
+            j: pin(ff.j, `flipflops[${i}].j`),
+            k: pin(ff.k, `flipflops[${i}].k`),
+            clock: pin(ff.clock, `flipflops[${i}].clock`),
+            ...(ff.q !== undefined ? { q: pin(ff.q, `flipflops[${i}].q`) } : {}),
+            ...(ff.qn !== undefined ? { qn: pin(ff.qn, `flipflops[${i}].qn`) } : {}),
+            ...(ff.preset !== undefined ? { preset: signal(ff.preset, `flipflops[${i}].preset`) } : {}),
+            ...(ff.clear !== undefined ? { clear: signal(ff.clear, `flipflops[${i}].clear`) } : {}),
+          };
+        }),
+      };
+    case 'comparator': {
+      const a = pins(spec.a, 'a');
+      const b = pins(spec.b, 'b');
+      sameLength(a, b, 'a and b');
+      const triple = (v: unknown, path: string) => {
+        const t = obj(v, path);
+        return { gt: pin(t.gt, `${path}.gt`), eq: pin(t.eq, `${path}.eq`), lt: pin(t.lt, `${path}.lt`) };
+      };
+      return { model: 'comparator', a, b, cascade: triple(spec.cascade, 'cascade'), outputs: triple(spec.outputs, 'outputs') };
+    }
+    case 'mux':
+      return {
+        model: 'mux',
+        units: arr(spec.units, 'units').map((u, i) => {
+          const unit = obj(u, `units[${i}]`);
+          const select = pins(unit.select, `units[${i}].select`);
+          const data = pins(unit.data, `units[${i}].data`);
+          if (data.length !== 2 ** select.length) fail(`units[${i}].data must have 2^select inputs`);
+          if (unit.output === undefined && unit.outputN === undefined) fail(`units[${i}] needs output or outputN`);
+          return {
+            select,
+            data,
+            enable: signals(unit.enable ?? [], `units[${i}].enable`, 0),
+            ...(unit.output !== undefined ? { output: pin(unit.output, `units[${i}].output`) } : {}),
+            ...(unit.outputN !== undefined ? { outputN: pin(unit.outputN, `units[${i}].outputN`) } : {}),
+          };
+        }),
+      };
+    case 'bcd7seg': {
+      const inputs = pins(spec.inputs, 'inputs');
+      const segments = pins(spec.segments, 'segments');
+      if (inputs.length !== 4) fail('inputs must be the 4 BCD lines A B C D');
+      if (segments.length !== 7) fail('segments must list the 7 outputs a…g');
+      return {
+        model: 'bcd7seg',
+        inputs,
+        segments,
+        lampTest: pin(spec.lampTest, 'lampTest'),
+        blanking: pin(spec.blanking, 'blanking'),
+        rippleBlanking: pin(spec.rippleBlanking, 'rippleBlanking'),
+      };
+    }
+    case 'timer555':
+      return { model: 'timer555', output: pin(spec.output, 'output'), reset: signal(spec.reset, 'reset') };
     default:
       return fail(`model is unknown (${String(spec.model)})`);
   }
