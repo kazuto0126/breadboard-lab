@@ -419,4 +419,14 @@ export const EXAMPLES: ExampleCircuit[] = [
       return routed.status === 'success' ? applyRouting(c, routed) : colorize(c);
     },
   },
+  {
+    id: 'eic-board',
+    name: 'EIC-1106 大型麵包板',
+    description: '74LS00 驗收電路放在 EIC-1106 的插孔區 2，紅色接線柱接 P3 +、黑色接線柱接 P4 −。導線已套用 AI 標準佈線，按「▶ 模擬」LED 會亮。',
+    build: () => {
+      const c = eicCircuit();
+      const routed = autoRoute(c);
+      return routed.status === 'success' ? applyRouting(c, routed) : colorize(c);
+    },
+  },
 ];

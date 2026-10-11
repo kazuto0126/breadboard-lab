@@ -244,7 +244,7 @@ test('第三十八章：新增麵包板、拖曳吸附成群組、整組移動�
   };
 
   // 測試 1：新增第二塊板（放在第一塊下方、隔 4 格）。
-  await page.getByRole('button', { name: '＋ 新增麵包板' }).click();
+  await page.getByRole('button', { name: '＋ MB-102', exact: true }).click();
   await expect(page.locator('[data-hole]')).toHaveCount(1660);
   let circuit = await savedCircuit(page);
   expect(circuit.boards.map((b: { id: string; y: number; groupId: string | null }) => [b.id, Math.round(b.y / 2.54), b.groupId])).toEqual([
