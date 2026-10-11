@@ -241,7 +241,7 @@ function JumperWireCard() {
     <section className="mx-2 mb-3 mt-1 rounded-md border border-slate-700 bg-slate-950/40 p-2">
       <div className="text-[13px] font-medium text-slate-100">Jumper Wire 跳線</div>
       <p className="mt-1 text-[11px] leading-4 text-slate-400">
-        從一個<b className="text-slate-300">空孔</b>按住拖曳到另一個空孔。導線只走水平 / 垂直，會自動繞過元件。接 + 軌自動用紅色、接 − 軌用黑色。
+        從一個<b className="text-slate-300">孔</b>按住拖曳到另一個孔，拉出一條直線（可以斜），但不能經過元件或和別條線重疊。選取導線後拖曳兩端的白點可以改接。接 + 軌自動用紅色、接 − 軌用黑色。
       </p>
       <div className="mt-2 flex flex-wrap gap-1.5" role="radiogroup" aria-label="新導線的顏色">
         {WIRE_COLORS.map((c) => (

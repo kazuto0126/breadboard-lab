@@ -107,7 +107,12 @@ describe('需求文件 38.19：Board Group 的電氣與佈線規則', () => {
     expect(checkRoutingLegality(c, r.wires)).toEqual([]);
     expect(crossingWires(r.wires)).toHaveLength(2);
     const lattice = buildLattice(c.boards);
-    for (const w of r.wires) for (let i = 1; i < w.path.length; i++) expect(stepDirection(w.path[i - 1], w.path[i], lattice)).not.toBeNull();
+    for (const w of r.wires) {
+      const a = latticeOf(lattice, w.start)!;
+      const b = latticeOf(lattice, w.end)!;
+      expect(w.straight).toBe(true);
+      expect(a.x === b.x || a.y === b.y).toBe(true);
+    }
     expect(r.metrics.overlaps).toBe(0);
     expect(r.metrics.crossings).toBe(0);
     expect(scoreRouting(c, r.wires).score).toBeGreaterThanOrEqual(90);

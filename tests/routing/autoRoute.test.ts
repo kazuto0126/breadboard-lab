@@ -34,9 +34,15 @@ describe('autoRoute', () => {
     expect(withoutTiming(autoRoute(c))).toEqual(withoutTiming(r));
   });
 
-  it('uses one wire per extra terminal group', () => {
-    // VCC 2 群組、GND 5 群組、1Y 2 群組、R1→LED 2 群組 → 1 + 4 + 1 + 1
-    expect(autoRoute(acceptanceCircuit()).metrics.wireCount).toBe(7);
+  it('routes with straight horizontal or vertical wires only, one wire end per hole', () => {
+    const r = autoRoute(acceptanceCircuit());
+    expect(r.metrics.wireCount).toBeGreaterThanOrEqual(7);
+    for (const w of r.wires) {
+      expect(w.straight).toBe(true);
+      expect(w.start.x === w.end.x || w.start.y === w.end.y).toBe(true);
+    }
+    const ends = r.wires.flatMap((w) => [nodeIdOf(w.start), nodeIdOf(w.end)]);
+    expect(new Set(ends).size).toBe(ends.length);
   });
 
   it('reports "No valid routing solution." when a group has no free hole', () => {

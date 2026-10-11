@@ -90,6 +90,28 @@ export function WireGlow({ frames, wire, color, width = 0.85, opacity = 0.45 }: 
   );
 }
 
+/**
+ * 選取的導線兩端的把手：拖曳到別的孔改接（規格 2026-10-10 straight-wires 3.2）。
+ * 點擊範圍不超過半格：太大會蓋住隔壁的孔，從隔壁的孔拉新線時會抓到把手（觸控時放大畫面就有更大的目標）。
+ */
+export function WireHandles({ frames, wire }: { frames: BoardFrame[]; wire: Wire }) {
+  const hit = 0.48 * P;
+  return (
+    <g>
+      {(['start', 'end'] as const).map((which) => {
+        const p = toWorld(frames, wire[which]);
+        if (!p) return null;
+        return (
+          <g key={which} data-wire-handle={which} data-wire-handle-of={wire.id} style={{ cursor: 'grab' }}>
+            <circle cx={p.x} cy={p.y} r={hit} fill="transparent" />
+            <circle cx={p.x} cy={p.y} r={0.28 * P} fill="#ffffff" stroke={UI.select} strokeWidth={2} pointerEvents="none" />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 export function PathPreview({ frames, path, color, valid }: { frames: BoardFrame[]; path: GridPoint[]; color: string; valid: boolean }) {
   const points = path.map((p) => toWorld(frames, p)).filter((p): p is NonNullable<typeof p> => p !== null);
   if (points.length < 2) return null;

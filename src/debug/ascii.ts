@@ -1,6 +1,6 @@
 import { getNode, nodeIdOf } from '../core/breadboard/naming';
 import { indexCircuit } from '../core/circuit/circuitIndex';
-import { stepDirection } from '../core/circuit/wireGeometry';
+import { cellsUnder, isStraight, stepDirection } from '../core/circuit/wireGeometry';
 import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentCategory } from '../types/component';
 import type { Direction, GridPoint } from '../types/geometry';
@@ -37,21 +37,24 @@ export function renderAscii(circuit: Circuit, wires: Wire[] = circuit.wires): st
   const dirs = new Map<string, Set<Direction>>();
   const uses = new Map<string, number>();
   const ends = new Set<string>();
+  // 直線導線：兩端加上經過的格點（斜線經過的格點彼此不相鄰，畫成 *）。
+  const pointsOf = (w: Wire) => (isStraight(w) ? [w.start, ...cellsUnder(w), w.end] : w.path);
   for (const w of wires) {
-    w.path.forEach((p, i) => {
+    const path = pointsOf(w);
+    path.forEach((p, i) => {
       const id = nodeIdOf(p);
       uses.set(id, (uses.get(id) ?? 0) + 1);
-      if (i === 0 || i === w.path.length - 1) ends.add(id);
+      if (i === 0 || i === path.length - 1) ends.add(id);
       const set = dirs.get(id) ?? new Set<Direction>();
-      const prev = i > 0 ? stepDirection(p, w.path[i - 1]) : null;
-      const next = i < w.path.length - 1 ? stepDirection(p, w.path[i + 1]) : null;
+      const prev = i > 0 ? stepDirection(p, path[i - 1]) : null;
+      const next = i < path.length - 1 ? stepDirection(p, path[i + 1]) : null;
       if (prev) set.add(prev);
       if (next) set.add(next);
       dirs.set(id, set);
     });
   }
   for (const w of wires) {
-    for (const p of w.path) {
+    for (const p of pointsOf(w)) {
       const id = nodeIdOf(p);
       const count = uses.get(id)!;
       const key = (['E', 'N', 'S', 'W'] as Direction[]).filter((d) => dirs.get(id)!.has(d)).join('');

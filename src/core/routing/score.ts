@@ -2,7 +2,7 @@ import { buildLattice, isRoutablePoint, latticeOf, type Lattice } from '../bread
 import { nodeIdOf, parseNodeId } from '../breadboard/naming';
 import { groupInfo, indexCircuit, nodeAt, type CircuitIndex } from '../circuit/circuitIndex';
 import { extractNetsWith, terminalClusters } from '../circuit/nets';
-import { pathIssues } from '../circuit/wireGeometry';
+import { cellsUnder, pathIssues } from '../circuit/wireGeometry';
 import type { Circuit, Wire } from '../../types/circuit';
 import type { GridPoint } from '../../types/geometry';
 import type { DeepPartial, RoutingConfig, RoutingMetrics } from '../../types/routing';
@@ -65,7 +65,7 @@ export function scoreRouting(
   if (broken || mismatchedNets(index, reference, wires).length > 0) return { metrics, score: 0 };
 
   const obstacleHits = wires.filter((w) =>
-    w.path.slice(1, -1).some((p) => {
+    cellsUnder(w, lattice).some((p) => {
       const id = nodeIdOf(p);
       return index.pinsAt.has(id) || index.bodiesAt.has(id);
     }),

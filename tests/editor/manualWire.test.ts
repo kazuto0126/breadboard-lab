@@ -1,15 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { nodeIdOf } from '../../src/core/breadboard/naming';
-import { stepDirection } from '../../src/core/circuit/wireGeometry';
-import { validateCircuit } from '../../src/core/circuit/validate';
-import { addWire } from '../../src/editor/commands';
-import { defaultWireColor, isFreeHole, lShapePath, planWirePath, WIRE_COLORS } from '../../src/editor/manualWire';
-import { buildOccupancy } from '../../src/editor/placement';
-import { circuit, comp, hole, pt, wire } from '../fixtures/build';
+import { defaultWireColor, isFreeHole, straightProblemText, straightWireProblem, WIRE_COLORS } from '../../src/editor/manualWire';
+import { board, circuit, comp, hole, holeOn, pt, straightWire, wire } from '../fixtures/build';
 
-function isOrthogonal(path: ReturnType<typeof planWirePath>): boolean {
-  return path.every((p, i) => i === 0 || stepDirection(path[i - 1], p) !== null);
-}
 
 describe('isFreeHole', () => {
   const c = circuit([comp('U1', '74LS00', 'F10'), comp('R1', 'resistor', 'A30')], [wire('w1', 'C40', 'C45')]);
@@ -25,50 +17,45 @@ describe('isFreeHole', () => {
   });
 });
 
-describe('planWirePath', () => {
-  it('draws a straight wire when the way is clear', () => {
-    const path = planWirePath(circuit([]), hole('A1'), hole('A5'));
-    expect(path.map(nodeIdOf)).toEqual(['A1', 'A2', 'A3', 'A4', 'A5'].map((n) => nodeIdOf(hole(n))));
+describe('straightWireProblem', () => {
+  const base = () => circuit([comp('U1', '74LS00', 'F10'), comp('R1', 'resistor', 'A30')], [straightWire('w1', 'C40', 'C45')]);
+
+  it('accepts a clear straight or diagonal wire, also into a hole that already has a wire', () => {
+    expect(straightWireProblem(base(), hole('A1'), hole('E5'))).toBeNull();
+    expect(straightWireProblem(base(), hole('A40'), hole('C40'))).toBeNull();
   });
 
-  it('makes a single bend, choosing the preferred axis first', () => {
-    const h = planWirePath(circuit([]), hole('A1'), hole('C4'), 'h');
-    expect(stepDirection(h[0], h[1])).toBe('E');
-    const v = planWirePath(circuit([]), hole('A1'), hole('C4'), 'v');
-    expect(stepDirection(v[0], v[1])).toBe('S');
-    for (const path of [h, v]) {
-      expect(path).toHaveLength(6);
-      expect(isOrthogonal(path)).toBe(true);
-    }
+  it('refuses ends on pins, bodies, non-holes, the same hole and another group', () => {
+    expect(straightWireProblem(base(), hole('A1'), hole('F10'))).toEqual({ kind: 'pin', point: hole('F10') });
+    expect(straightWireProblem(base(), hole('A1'), hole('A31'))).toEqual({ kind: 'pin', point: hole('A31') });
+    expect(straightWireProblem(base(), hole('A1'), pt(12, 9))).toEqual({ kind: 'not-hole' });
+    expect(straightWireProblem(base(), hole('A1'), hole('A1'))).toEqual({ kind: 'same-hole' });
+    const apart = circuit([], [], [board('b1'), board('b2', 0, 40)]);
+    expect(straightWireProblem(apart, holeOn('b1', 'A1'), holeOn('b2', 'A1'))).toEqual({ kind: 'other-group' });
   });
 
-  it('goes around components instead of through them', () => {
-    const c = circuit([comp('U1', '74LS00', 'F10')]);
-    const path = planWirePath(c, hole('D8'), hole('D18'));
-    const occ = buildOccupancy(c, 'b1');
-    expect(isOrthogonal(path)).toBe(true);
-    for (const p of path.slice(1, -1)) {
-      expect(occ.pins.has(nodeIdOf(p)) || occ.bodies.has(nodeIdOf(p))).toBe(false);
-    }
-    const withWire = addWire(c, path, '#000').circuit;
-    expect(validateCircuit(withWire).map((e) => e.code)).not.toContain('WIRE_THROUGH_OBSTACLE');
+  it('refuses passing over an IC, a wire end, or overlapping a wire', () => {
+    expect(straightWireProblem(base(), hole('D8'), hole('H14'))?.kind).toBe('obstacle');
+    expect(straightWireProblem(base(), hole('A40'), hole('E40'))).toEqual({ kind: 'obstacle', point: hole('C40') });
+    expect(straightWireProblem(base(), hole('C42'), hole('C48'))).toEqual({ kind: 'overlap', wireId: 'w1' });
   });
 
-  it('avoids running along other wires when there is room', () => {
-    const c = circuit([], [wire('w1', 'C3', 'C9')]);
-    const path = planWirePath(c, hole('C2'), hole('C10'));
-    const used = new Set(c.wires[0].path.map(nodeIdOf));
-    expect(path.some((p) => used.has(nodeIdOf(p)))).toBe(false);
+  it('refuses an end under another wire', () => {
+    expect(straightWireProblem(base(), hole('A42'), hole('C42'))).toEqual({ kind: 'covered', wireId: 'w1', point: hole('C42') });
   });
 
-  it('falls back to an L shape when the target is walled in', () => {
-    const c = circuit([], [wire('a', [2, 4], [5, 4]), wire('b', [1, 5], [1, 7]), wire('c', [1, 3], [3, 3])]);
-    const path = planWirePath(c, hole('E1'), hole('A1'), 'h');
-    expect(path).toEqual(lShapePath(hole('E1'), hole('A1'), 'h'));
+  it('ignores the wire whose end is being moved', () => {
+    expect(straightWireProblem(base(), hole('C40'), hole('C47'), 'w1')).toBeNull();
   });
 
-  it('returns a single point when start equals end', () => {
-    expect(planWirePath(circuit([]), hole('A1'), hole('A1'))).toEqual([hole('A1')]);
+  it('explains every problem in Chinese', () => {
+    const c = base();
+    expect(straightProblemText(c, { kind: 'obstacle', point: hole('E12') })).toBe('直線不能經過元件或其他導線的端點（經過 E12）');
+    expect(straightProblemText(c, { kind: 'overlap', wireId: 'w1' })).toBe('直線不能和導線 w1 重疊');
+    expect(straightProblemText(c, { kind: 'covered', wireId: 'w1', point: hole('C42') })).toBe('C42 上面有導線 w1 經過，不能接在這裡');
+    expect(straightProblemText(c, { kind: 'pin', point: hole('F10') })).toBe('導線不能接在元件腳或被元件蓋住的孔（F10）');
+    expect(straightProblemText(c, { kind: 'other-group' })).toBe('兩端要在同一塊板，或貼在一起的板子上');
+    expect(straightProblemText(c, { kind: 'not-hole' })).toBe('導線的兩端要插在孔上');
   });
 });
 

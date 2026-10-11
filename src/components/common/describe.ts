@@ -1,15 +1,15 @@
 import { buildLattice } from '../../core/breadboard/lattice';
 import { getNode } from '../../core/breadboard/naming';
 import { getBoard } from '../../core/breadboard/registry';
-import { countBends } from '../../core/circuit/wireGeometry';
+import { cellsUnder, countBends, isStraight, wireLength } from '../../core/circuit/wireGeometry';
 import { describeGroup } from '../../core/routing/problem';
 import type { CircuitAnalysis } from '../../editor/analysis';
-import { occupancyOf } from '../../editor/analysis';
+import { holeLabel, occupancyOf } from '../../editor/analysis';
 import type { BoardGroup } from '../../types/board';
 import type { Circuit, CircuitError, Wire } from '../../types/circuit';
 import type { PinRole } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
-import type { FailureReason } from '../../types/routing';
+import type { FailureReason, IcMove, IcPlacement } from '../../types/routing';
 import { getComponentDefinition } from '../../core/circuit/library';
 import { resolveFootprint } from '../../core/circuit/footprint';
 
@@ -75,7 +75,7 @@ export function holeContents(circuit: Circuit, p: GridPoint): string[] {
   }
   for (const w of circuit.wires) {
     if (`${w.start.boardId}:${w.start.x},${w.start.y}` === id || `${w.end.boardId}:${w.end.x},${w.end.y}` === id) out.push(`導線 ${w.id} 的端點`);
-    else if (w.path.slice(1, -1).some((q) => q.boardId === p.boardId && q.x === p.x && q.y === p.y)) out.push(`導線 ${w.id} 從上面經過`);
+    else if (cellsUnder(w, buildLattice(circuit.boards)).some((q) => q.boardId === p.boardId && q.x === p.x && q.y === p.y)) out.push(`導線 ${w.id} 從上面經過`);
   }
   const occ = occupancyOf(circuit, p.boardId);
   if (out.length === 0 && occ.board && getNode(occ.board, p.x, p.y)?.kind === 'hole') out.push('空孔：可以從這裡拖曳接線');
@@ -83,9 +83,11 @@ export function holeContents(circuit: Circuit, p: GridPoint): string[] {
 }
 
 export function wireSummary(wire: Wire, circuit: Pick<Circuit, 'boards'>): string {
+  const lattice = buildLattice(circuit.boards);
   const boards = new Set(wire.path.map((p) => p.boardId));
   const across = boards.size > 1 ? ` · 跨 ${[...boards].join('、')}` : '';
-  return `${wire.path.length - 1} 格 · ${countBends(wire.path, buildLattice(circuit.boards))} 個轉彎${across}`;
+  if (isStraight(wire)) return `直線 · ${Math.round(wireLength(wire, lattice) * 10) / 10} 格${across}`;
+  return `${wire.path.length - 1} 格 · ${countBends(wire.path, lattice)} 個轉彎${across}`;
 }
 
 export function issuesAtPoint(analysis: CircuitAnalysis, p: GridPoint): CircuitError[] {
@@ -100,4 +102,11 @@ export function issuesOfComponent(analysis: CircuitAnalysis, id: string): Circui
 
 export function issuesOfWire(analysis: CircuitAnalysis, id: string): CircuitError[] {
   return analysis.issues.filter((e) => e.severity !== 'info' && e.wireIds.includes(id));
+}
+
+/** 「U1：F10 → F22（轉 180 度）」：第 1 腳所在的孔；多塊板時加板子 ID。 */
+export function describeMove(circuit: Pick<Circuit, 'boards'>, m: IcMove): string {
+  const at = (p: IcPlacement) => holeLabel(circuit, { boardId: p.boardId, x: p.anchor.x, y: p.anchor.y });
+  const turned = m.from.rotation !== m.to.rotation ? '（轉 180 度）' : '';
+  return `${m.componentId}：${at(m.from)} → ${at(m.to)}${turned}`;
 }

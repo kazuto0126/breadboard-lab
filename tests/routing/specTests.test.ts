@@ -1,20 +1,24 @@
 import { describe, expect, it } from 'vitest';
+import { buildLattice } from '../../src/core/breadboard/lattice';
 import { nodeIdOf } from '../../src/core/breadboard/naming';
 import { indexCircuit } from '../../src/core/circuit/circuitIndex';
-import { analyzeWireInteractions, stepDirection } from '../../src/core/circuit/wireGeometry';
+import { analyzeWireInteractions, cellsUnder } from '../../src/core/circuit/wireGeometry';
 import { autoRoute } from '../../src/core/routing/autoRoute';
 import { checkRoutingLegality } from '../../src/core/routing/legality';
 import { circuit, comp, wire } from '../fixtures/build';
 import { acceptanceCircuit } from '../fixtures/circuits';
 
 describe('需求文件第三十三章 Test 1–6', () => {
-  it('Test 1：兩個孔之間的線只走水平/垂直', () => {
+  it('Test 1：每條線都是水平或垂直的直線（轉彎靠轉接排）', () => {
     const c = circuit([comp('R1', 'resistor', 'C10'), comp('R2', 'resistor', 'H30')], [wire('u1', 'A14', 'J30')]);
     const r = autoRoute(c);
     expect(r.status).toBe('success');
-    expect(r.wires).toHaveLength(1);
-    const path = r.wires[0].path;
-    for (let i = 1; i < path.length; i++) expect(stepDirection(path[i - 1], path[i])).not.toBeNull();
+    expect(r.wires.length).toBeGreaterThanOrEqual(1);
+    for (const w of r.wires) {
+      expect(w.straight).toBe(true);
+      expect(w.start.x === w.end.x || w.start.y === w.end.y).toBe(true);
+    }
+    expect(checkRoutingLegality(c, r.wires)).toEqual([]);
   });
 
   it('Test 2：兩條線不能重疊', () => {
@@ -46,7 +50,8 @@ describe('需求文件第三十三章 Test 1–6', () => {
     const r = autoRoute(c);
     expect(r.status).toBe('success');
     const icCells = new Set(indexCircuit(c).placedById.get('U1')!.footprint.blocked.map(nodeIdOf));
-    expect(r.wires.flatMap((w) => w.path).some((p) => icCells.has(nodeIdOf(p)))).toBe(false);
+    const lattice = buildLattice(c.boards);
+    expect(r.wires.flatMap((w) => [w.start, w.end, ...cellsUnder(w, lattice)]).some((p) => icCells.has(nodeIdOf(p)))).toBe(false);
   });
 
   it('Test 5：多個 Net 全部完成', () => {

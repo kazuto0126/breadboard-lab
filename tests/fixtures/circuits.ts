@@ -21,3 +21,19 @@ export function syntheticCircuit(): Circuit {
   const wires = parts.map((part, k) => wire(`u${k}`, part.pins[0], parts[(k + 17) % parts.length].pins[1]));
   return circuit(parts.map((p) => p.instance), wires);
 }
+
+/** 子專案 8：74LS00 放在最右邊，電阻與 LED 在最左邊，1Y 的線要橫跨整塊板。 */
+export function farIcCircuit(): Circuit {
+  return circuit(
+    [comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3'), comp('U1', '74LS00', 'F45'), comp('R1', 'resistor', 'G5'), comp('D1', 'led', 'G15')],
+    [
+      wire('w1', 'T+45', 'A45'), // VCC → U1 第 14 腳
+      wire('w2', 'B-51', 'J51'), // GND → U1 第 7 腳
+      wire('w3', 'J45', 'B-45'), // 第 1 腳 → GND
+      wire('w4', 'J46', 'B-46'), // 第 2 腳 → GND
+      wire('w5', 'J47', 'J5'), // 1Y → R1
+      wire('w6', 'J9', 'J15'), // R1 → LED 陽極
+      wire('w7', 'J16', 'B-16'), // LED 陰極 → GND
+    ],
+  );
+}

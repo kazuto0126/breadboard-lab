@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { groupMembers, MAX_BOARDS, snapBoardMove, snapUnits } from '../../src/editor/boards';
 import { findLibraryItem } from '../../src/editor/library';
-import { planWirePath } from '../../src/editor/manualWire';
 import { emptyCircuit, serializeCircuitFile } from '../../src/editor/fileFormat';
-import { deriveMode, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
-import { acceptanceCircuit, adderCircuit, counterCircuit } from '../fixtures/circuits';
-import { board, circuit, comp, holeOn, latticeWire, wire } from '../fixtures/build';
+import { appliedMoves, comparisonSides, deriveMode, initialState, isComparisonFresh, isDirty, planAnimation, useStore } from '../../src/state/store';
+import { acceptanceCircuit, adderCircuit, counterCircuit, farIcCircuit } from '../fixtures/circuits';
+import { board, circuit, comp, hole, holeOn, latticeWire, wire } from '../fixtures/build';
 
 /** Node 沒有 Worker，佈線會退回主執行緒（setTimeout）；等它結束。 */
 async function routed() {
@@ -41,11 +40,7 @@ describe('editing with undo / redo', () => {
   });
 
   it('colours a new wire from the rail it touches', () => {
-    s().addWire([
-      { boardId: 'b1', x: 6, y: 2 },
-      { boardId: 'b1', x: 6, y: 3 },
-      { boardId: 'b1', x: 6, y: 4 },
-    ]);
+    s().addWire({ boardId: 'b1', x: 6, y: 2 }, { boardId: 'b1', x: 6, y: 4 });
     expect(s().circuit.wires[0]).toMatchObject({ id: 'w1', color: '#d32f2f', source: 'manual' });
     expect(s().selection).toEqual({ kind: 'wire', id: 'w1' });
   });
@@ -212,7 +207,7 @@ describe('multiple breadboards', () => {
     expect(position('b2')).toEqual([0, 20, 'g-b1']);
     expect(s().toasts.at(-1)?.message).toContain('不能重疊');
 
-    s().addWire(planWirePath(s().circuit, holeOn('b1', 'J12'), holeOn('b2', 'A12'), 'v'));
+    s().addWire(holeOn('b1', 'J12'), holeOn('b2', 'A12'));
     expect(new Set(s().circuit.wires[0].path.map((p) => p.boardId))).toEqual(new Set(['b1', 'b2']));
     s().moveBoards(['b2'], 0, 10);
     expect(position('b2')).toEqual([0, 20, 'g-b1']);
@@ -394,10 +389,11 @@ describe('simulation mode', () => {
     expect(s().routing).toBeNull();
     expect(s().toasts.at(-1)?.message).toContain('模擬中');
 
-    // A = 3、B = 5：撥開關 3、4、6、8 → 3 + 5 = 8，只有 D4（S4）亮。
-    for (const k of [2, 3, 5, 7]) s().toggleSwitch('SW1', k);
+    // A = 3、B = 5：撥 SW1 的開關 3、4 與 SW2 的開關 2、4 → 3 + 5 = 8，只有 D4（S4）亮。
+    for (const k of [2, 3]) s().toggleSwitch('SW1', k);
+    for (const k of [1, 3]) s().toggleSwitch('SW2', k);
     expect(leds(['D1', 'D2', 'D3', 'D4', 'D5'])).toBe('00010');
-    s().undo(); // 開關 8 OFF → B = 13 → 3 + 13 = 16 → 只有 D5（C4）亮
+    s().undo(); // SW2 開關 4 OFF → B = 13 → 3 + 13 = 16 → 只有 D5（C4）亮
     expect(leds(['D1', 'D2', 'D3', 'D4', 'D5'])).toBe('00001');
     s().stopSimulation();
   });
@@ -461,5 +457,104 @@ describe('simulation mode', () => {
     s().startSimulation();
     s().loadCircuit(counterCircuit(), null);
     expect(s().simulation).toBeNull();
+  });
+});
+
+describe('straight manual wires', () => {
+  it('refuses a wire over an IC with a warning, and moves a wire end with undo', () => {
+    s().loadCircuit(circuit([comp('U1', '74LS00', 'F10')]), null);
+    s().addWire(hole('D8'), hole('H14'));
+    expect(s().circuit.wires).toEqual([]);
+    expect(s().toasts.at(-1)).toMatchObject({ kind: 'warning', message: expect.stringContaining('直線不能經過元件') });
+
+    s().addWire(hole('A20'), hole('C24'));
+    expect(s().circuit.wires[0]).toMatchObject({ id: 'w1', straight: true, end: hole('C24') });
+    s().moveWireEnd('w1', 'end', hole('E30'));
+    expect(s().circuit.wires[0]).toMatchObject({ end: hole('E30'), path: [hole('A20'), hole('E30')] });
+    expect(s().history.past.at(-1)?.label).toBe('移動導線 w1 的端點');
+    const before = s().history.past.length;
+    s().moveWireEnd('w1', 'end', hole('E30'));
+    expect(s().history.past.length).toBe(before);
+    s().moveWireEnd('w1', 'end', hole('F10'));
+    expect(s().circuit.wires[0].end).toEqual(hole('E30'));
+    expect(s().toasts.at(-1)?.message).toContain('元件腳');
+    s().undo();
+    expect(s().circuit.wires[0].end).toEqual(hole('C24'));
+  });
+});
+
+describe('AI routing that may move ICs', () => {
+  const u1 = () => s().circuit.components.find((c) => c.id === 'U1')!;
+
+  it('moves the IC and rewires in one undoable step', async () => {
+    s().loadCircuit(farIcCircuit(), null);
+    const before = s().circuit;
+    s().runAutoRoute('apply', { moveIcs: true });
+    expect(s().routing?.moveIcs).toBe(true);
+    await routed();
+    expect(u1().anchor).not.toEqual({ x: 45, y: 11 });
+    expect(s().comparison?.result.moves?.map((m) => m.componentId)).toEqual(['U1']);
+    expect(s().comparison?.appliedComponents).toBe(s().circuit.components);
+    expect(isComparisonFresh(s())).toBe(true);
+    expect(s().animation?.moves).toHaveLength(1);
+    expect(s().history.past.at(-1)?.label).toBe('AI 佈線（可移動 IC）');
+
+    s().undo();
+    expect(s().circuit.components).toBe(before.components);
+    expect(s().circuit.wires).toBe(before.wires);
+    expect(isComparisonFresh(s())).toBe(true);
+  }, 30_000);
+
+  it('tells the wiring checklist which ICs to move first, only while the moved layout is on the board', async () => {
+    s().loadCircuit(farIcCircuit(), null);
+    expect(appliedMoves(s())).toEqual([]);
+    s().runAutoRoute('apply', { moveIcs: true });
+    await routed();
+    expect(appliedMoves(s()).map((m) => m.componentId)).toEqual(['U1']);
+    expect(appliedMoves(s())).toBe(appliedMoves(s()));
+    s().undo();
+    expect(appliedMoves(s())).toEqual([]);
+    expect(appliedMoves(s())).toBe(appliedMoves(s()));
+  }, 30_000);
+
+  it('puts the IC back when switching to manual wiring', async () => {
+    s().loadCircuit(farIcCircuit(), null);
+    const before = s().circuit;
+    s().runAutoRoute('apply', { moveIcs: true });
+    await routed();
+    s().setMode('manual');
+    expect(s().circuit.components).toBe(before.components);
+    expect(s().circuit.wires).toEqual(before.wires);
+  }, 30_000);
+
+  it('shows the old and the new IC position side by side', async () => {
+    s().loadCircuit(farIcCircuit(), null);
+    s().runAutoRoute('apply', { moveIcs: true });
+    await routed();
+    const sides = comparisonSides(s().comparison!);
+    expect(sides.before.components.find((c) => c.id === 'U1')!.anchor).toEqual({ x: 45, y: 11 });
+    expect(sides.before.wires).toBe(s().comparison!.beforeWires);
+    expect(sides.after.components.find((c) => c.id === 'U1')!.anchor).toEqual(u1().anchor);
+    expect(sides.after.wires).toBe(s().comparison!.result.wires);
+  }, 30_000);
+
+  it('keeps standard routing free of moves', async () => {
+    s().loadCircuit(acceptanceCircuit(), null);
+    s().runAutoRoute('apply');
+    expect(s().routing?.moveIcs).toBe(false);
+    await routed();
+    expect(s().comparison?.result.moves).toBeUndefined();
+    expect(s().comparison?.appliedComponents).toBeNull();
+    expect(s().animation?.moves).toEqual([]);
+  });
+
+  it('delays the wires while the moved ICs are highlighted', () => {
+    const wires = acceptanceCircuit().wires;
+    const at = { boardId: 'b1', anchor: { x: 10, y: 11 }, rotation: 0 as const };
+    const move = { componentId: 'U1', from: at, to: { ...at, anchor: { x: 20, y: 11 } } };
+    const a = planAnimation(wires, [move]);
+    expect(a.delays.w1).toBe(600);
+    expect(a.moves).toEqual([move]);
+    expect(planAnimation(wires).delays.w1).toBe(0);
   });
 });

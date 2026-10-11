@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { buildLattice, latticeStep } from '../../src/core/breadboard/lattice';
 import { validateCircuit } from '../../src/core/circuit/validate';
 import {
   addBoard,
@@ -18,7 +17,7 @@ import {
   snapUnits,
 } from '../../src/editor/boards';
 import { addWire, moveComponent } from '../../src/editor/commands';
-import { planWirePath } from '../../src/editor/manualWire';
+import { straightWireProblem } from '../../src/editor/manualWire';
 import type { Circuit } from '../../src/types/circuit';
 import { board, circuit, comp, holeOn, latticeWire } from '../fixtures/build';
 
@@ -189,22 +188,17 @@ describe('board editing', () => {
 describe('manual wires across a board group', () => {
   const stacked = normalizeBoardGroups(circuit([comp('D1', 'led', 'H11'), comp('D2', 'led', 'C12', { board: 'b2' })], [], [board('b1'), board('b2', 0, 20)]));
 
-  it('plans a path from one board to the other through the seam', () => {
-    const path = planWirePath(stacked, holeOn('b1', 'J12'), holeOn('b2', 'A12'), 'v');
-    const lattice = buildLattice(stacked.boards);
-    expect(path[0]).toEqual(holeOn('b1', 'J12'));
-    expect(path[path.length - 1]).toEqual(holeOn('b2', 'A12'));
-    expect(new Set(path.map((p) => p.boardId))).toEqual(new Set(['b1', 'b2']));
-    for (let i = 1; i < path.length; i++) expect(latticeStep(lattice, path[i - 1], path[i])).not.toBeNull();
-    const c = addWire(stacked, path, '#1565c0').circuit;
+  it('draws a straight wire from one board to the other across the seam', () => {
+    const c = addWire(stacked, holeOn('b1', 'J12'), holeOn('b2', 'A12'), '#1565c0').circuit;
+    expect(new Set(c.wires[0].path.map((p) => p.boardId))).toEqual(new Set(['b1', 'b2']));
+    expect(straightWireProblem(stacked, holeOn('b1', 'J12'), holeOn('b2', 'A12'))).toBeNull();
     const codes = validateCircuit(c).map((e) => e.code);
     for (const code of ['WIRE_PATH_INVALID', 'WIRE_ENDPOINT_INVALID', 'WIRE_THROUGH_OBSTACLE']) expect(codes).not.toContain(code);
   });
 
   it('cannot wire boards that are not grouped', () => {
     const apart = moveBoards(stacked, ['b2'], 0, 10);
-    const path = planWirePath(apart, holeOn('b1', 'J12'), holeOn('b2', 'A12'));
-    const codes = validateCircuit(addWire(apart, path, '#1565c0').circuit).map((e) => e.code);
+    const codes = validateCircuit(addWire(apart, holeOn('b1', 'J12'), holeOn('b2', 'A12'), '#1565c0').circuit).map((e) => e.code);
     expect(codes).toContain('WIRE_PATH_INVALID');
   });
 });

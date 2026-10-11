@@ -1,12 +1,12 @@
 import type { Circuit, Wire } from '../../types/circuit';
 import type { DeepPartial, FailedNet, FailureReason, RoutingConfig, RoutingResult } from '../../types/routing';
 import { compareIds } from '../circuit/nets';
-import { evaluatePath, type SearchParams } from './astar';
 import { mergeConfig } from './config';
 import { checkRoutingLegality } from './legality';
-import { routeNet } from './netTree';
+import { routeNet } from './straightNet';
+import { wireCost, type SearchParams } from './straightSearch';
 import { buildRoutingProblems, toPoint, type RoutingNet, type RoutingProblem } from './problem';
-import { RouteState, type StoredWire } from './routeState';
+import { StraightState, type PlacedWire } from './straightState';
 import { scoreRouting } from './score';
 
 export function autoRoute(circuit: Circuit, overrides?: DeepPartial<RoutingConfig>): RoutingResult {
@@ -66,7 +66,7 @@ function routeCanvas(
   failed: Map<string, FailedNet>,
   outOfTime: () => boolean,
 ): { wires: Wire[]; iterations: number; routable: number } {
-  const state = new RouteState(problem.size);
+  const state = new StraightState(problem);
   const markFailed = (net: RoutingNet, reason: FailureReason, detail: string) => {
     state.removeNet(net.netId);
     failed.set(net.netId, { netId: net.netId, reason, detail });
@@ -92,7 +92,7 @@ function routeCanvas(
       if (!result.ok) markFailed(net, result.reason, result.detail);
     }
     active = active.filter((n) => !failed.has(n.netId));
-    const conflicts = state.conflictedNodes();
+    const conflicts = state.conflicts();
     if (conflicts.length === 0) break;
     if (iterations >= config.negotiation.maxIterations || outOfTime()) {
       const reason: FailureReason = outOfTime() ? 'TIME_LIMIT' : 'ITERATION_LIMIT';
@@ -101,9 +101,9 @@ function routeCanvas(
       );
       break;
     }
-    for (const node of conflicts) state.history[node] += config.negotiation.historyIncrement;
+    state.bumpHistory(conflicts, config.negotiation.historyIncrement);
     presentFactor *= config.negotiation.presentFactorGrowth;
-    const touched = state.netsAt(conflicts);
+    const touched = state.netsIn(conflicts);
     toRoute = active.filter((n) => touched.has(n.netId));
   }
 
@@ -124,14 +124,14 @@ function routeCanvas(
 /** 把優先序最低、仍有衝突的 Net 逐一拿掉直到沒有衝突，再用嚴格模式試著放回去（優先序高的先放）。 */
 function dropConflicts(
   problem: RoutingProblem,
-  state: RouteState,
+  state: StraightState,
   active: RoutingNet[],
   hard: SearchParams,
   onFail: (net: RoutingNet) => void,
 ): RoutingNet[] {
   const dropped: RoutingNet[] = [];
-  for (let conflicts = state.conflictedNodes(); conflicts.length > 0; conflicts = state.conflictedNodes()) {
-    const touched = state.netsAt(conflicts);
+  for (let conflicts = state.conflicts(); conflicts.length > 0; conflicts = state.conflicts()) {
+    const touched = state.netsIn(conflicts);
     const victim = [...active].reverse().find((n) => touched.has(n.netId) && !dropped.includes(n));
     if (!victim) break;
     state.removeNet(victim.netId);
@@ -149,12 +149,12 @@ function dropConflicts(
 }
 
 /** 在其他線都不准碰的條件下重排 net；總成本下降才保留，否則還原。 */
-function rerouteIfCheaper(problem: RoutingProblem, state: RouteState, net: RoutingNet, hard: SearchParams): boolean {
-  const old = state.wiresOf(net.netId).map((w) => ({ ...w, path: [...w.path] }));
+function rerouteIfCheaper(problem: RoutingProblem, state: StraightState, net: RoutingNet, hard: SearchParams): boolean {
+  const old = state.wiresOf(net.netId).map((w) => ({ ...w, cells: [...w.cells] }));
   state.removeNet(net.netId);
   let oldCost = 0;
   for (const w of old) {
-    oldCost += evaluatePath(problem, state, w.path, hard);
+    oldCost += wireCost(problem, state, net, w, hard);
     state.addWire(w);
   }
   state.removeNet(net.netId);
@@ -165,15 +165,18 @@ function rerouteIfCheaper(problem: RoutingProblem, state: RouteState, net: Routi
   return false;
 }
 
-function toWire(problem: RoutingProblem, stored: StoredWire, net: RoutingNet, k: number): Wire {
-  const path = stored.path.map((i) => toPoint(problem, i));
+/** 規格 2026-10-10 routing-standard：輸出的每條線都是水平或垂直的直線導線。 */
+function toWire(problem: RoutingProblem, placed: PlacedWire, net: RoutingNet, k: number): Wire {
+  const start = toPoint(problem, placed.a);
+  const end = toPoint(problem, placed.b);
   return {
     id: `w_${net.netId}_${k + 1}`,
     color: net.color,
     source: 'auto',
     netId: net.netId,
-    start: path[0],
-    end: path[path.length - 1],
-    path,
+    straight: true,
+    start,
+    end,
+    path: [{ ...start }, { ...end }],
   };
 }

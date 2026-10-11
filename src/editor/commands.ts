@@ -107,12 +107,24 @@ export function toggleSwitch(circuit: Circuit, id: string, index: number): Circu
   return updateComponentProps(circuit, id, { switchStates });
 }
 
-export function addWire(circuit: Circuit, path: GridPoint[], color: string): { circuit: Circuit; id: string } {
-  if (path.length < 2) throw new Error('A wire needs at least two points');
+/** 手動接線：兩孔之間的一條直線導線（可以斜）。 */
+export function addWire(circuit: Circuit, start: GridPoint, end: GridPoint, color: string): { circuit: Circuit; id: string } {
   const id = nextWireId(circuit);
-  const copy = path.map((p) => ({ boardId: p.boardId, x: p.x, y: p.y }));
-  const wire: Wire = { id, color, source: 'manual', start: { ...copy[0] }, end: { ...copy[copy.length - 1] }, path: copy };
+  const a = { boardId: start.boardId, x: start.x, y: start.y };
+  const b = { boardId: end.boardId, x: end.x, y: end.y };
+  const wire: Wire = { id, color, source: 'manual', straight: true, start: a, end: b, path: [{ ...a }, { ...b }] };
   return { circuit: { ...circuit, wires: [...circuit.wires, wire] }, id };
+}
+
+/** 拖曳端點：這條線改成直線，which 那一端換到 point；顏色與 ID 不變，來源變成手動。 */
+export function moveWireEnd(circuit: Circuit, id: string, which: 'start' | 'end', point: GridPoint): Circuit {
+  const w = circuit.wires.find((x) => x.id === id);
+  if (!w) return circuit;
+  const p = { boardId: point.boardId, x: point.x, y: point.y };
+  const start = which === 'start' ? p : { ...w.start };
+  const end = which === 'end' ? p : { ...w.end };
+  const moved: Wire = { id: w.id, color: w.color, source: 'manual', straight: true, start, end, path: [{ ...start }, { ...end }] };
+  return { ...circuit, wires: circuit.wires.map((x) => (x.id === id ? moved : x)) };
 }
 
 export function setWireColor(circuit: Circuit, ids: string[], color: string): Circuit {

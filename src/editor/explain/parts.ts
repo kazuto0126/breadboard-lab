@@ -2,7 +2,7 @@ import type { Circuit, CircuitError } from '../../types/circuit';
 import type { ComponentInstance } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
 import { groupIdAt } from '../analysis';
-import { planWirePath } from '../manualWire';
+import { straightWireProblem } from '../manualWire';
 import { checkPlacement } from '../placement';
 import { ISSUE_TEXT } from './generic';
 import {
@@ -83,14 +83,16 @@ export function explainLedNoResistor(circuit: Circuit, issue: CircuitError): Exp
       const end = inCathodeRow(w.start) ? w.start : w.end;
       const other = end === w.start ? w.end : w.start;
       const without: Circuit = { ...withResistor, wires: withResistor.wires.filter((x) => x.id !== w.id) };
+      // 改插的孔：直線拉到另一端不能經過障礙（手動接線的規則）。
       const target = freeHolesInGroup(without, spot.far)
         .filter((p) => !used.some((u) => samePoint(u, p)))
-        .sort((a, b) => distance(a, other) - distance(b, other) || a.y - b.y || a.x - b.x)[0];
+        .sort((a, b) => distance(a, other) - distance(b, other) || a.y - b.y || a.x - b.x)
+        .find((p) => !straightWireProblem(without, p, other));
       if (!target) return fallback;
       used.push(target);
       steps.push(step(`把 ${w.id} 插在 {0} 的那一端拔起來，改插到 {1}。`, end, target));
       removeWireIds.push(w.id);
-      wires.push(planWirePath(without, target, other, 'v'));
+      wires.push([target, other]);
     }
     return explanation(why, steps, wires, removeWireIds);
   }

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { getComponentDefinition } from '../core/circuit/library';
+import { applyMoves } from '../core/icPlacement/relocate';
 import { applyRouting } from '../core/routing/apply';
 import {
   adoptSimState,
@@ -19,6 +20,7 @@ import {
   addComponent,
   addWire,
   moveComponent,
+  moveWireEnd,
   removeItems,
   replaceWires,
   rotateComponent,
@@ -31,13 +33,13 @@ import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
 import { boardFrames, gridBounds, worldBounds } from '../editor/geometry';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
 import type { LibraryItem } from '../editor/library';
-import { DEFAULT_WIRE_COLOR, defaultWireColor } from '../editor/manualWire';
+import { DEFAULT_WIRE_COLOR, defaultWireColor, straightProblemText, straightWireProblem } from '../editor/manualWire';
 import { centerOn, DEFAULT_VIEWPORT, fitRect, zoomAt, type Viewport } from '../editor/viewport';
 import type { BreadboardInstance } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance, ComponentProps, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
-import type { RoutingMetrics, RoutingResult } from '../types/routing';
+import type { IcMove, RoutingMetrics, RoutingResult } from '../types/routing';
 import { RoutingCancelled, startRouting, type RoutingJob } from '../workers/routingClient';
 import * as persistence from './persistence';
 
@@ -75,6 +77,8 @@ export interface Comparison {
   /** 佈線當時的元件與麵包板陣列（參照）；元件或板子一改變，這份對照就過期。 */
   components: ComponentInstance[];
   boards: BreadboardInstance[];
+  /** 套用了有搬移 IC 的結果之後的元件陣列（參照）；沒有搬移時為 null。 */
+  appliedComponents: ComponentInstance[] | null;
 }
 
 export interface WireAnimation {
@@ -83,6 +87,8 @@ export interface WireAnimation {
   delays: Record<string, number>;
   drawMs: number;
   totalMs: number;
+  /** 子專案 8：這次搬動的 IC（動畫期間畫出原位置與新位置）。 */
+  moves: IcMove[];
 }
 
 /** 模擬模式的執行狀態（不存檔、不進 Undo）。 */
@@ -115,7 +121,7 @@ export interface AppState {
   view: 'edit' | 'compare';
   compareLayout: 'side' | 'stacked';
   showCheck: boolean;
-  routing: { startedAt: number; purpose: 'apply' | 'compare' } | null;
+  routing: { startedAt: number; purpose: 'apply' | 'compare'; moveIcs: boolean } | null;
   comparison: Comparison | null;
   animation: WireAnimation | null;
   resultVisible: boolean;
@@ -150,7 +156,10 @@ export interface AppActions {
   deleteSelection(): void;
   deleteComponent(id: string): void;
   deleteWire(id: string): void;
-  addWire(path: GridPoint[]): void;
+  /** 手動接線：兩孔之間的一條直線（規格 2026-10-10 straight-wires）；不合法時跳出提示、不建立。 */
+  addWire(start: GridPoint, end: GridPoint): void;
+  /** 拖曳導線的一端到 point；這條線變成直線導線。 */
+  moveWireEnd(id: string, which: 'start' | 'end', point: GridPoint): void;
   addBoard(): void;
   /** 移動麵包板（位移以格為單位，呼叫端先用 snapBoardMove 算好吸附與檢查）。 */
   moveBoards(ids: string[], dx: number, dy: number): void;
@@ -173,7 +182,7 @@ export interface AppActions {
   showRightTab(tab: RightTab): void;
   setShowCheck(show: boolean): void;
   runCheck(): void;
-  runAutoRoute(purpose: 'apply' | 'compare'): void;
+  runAutoRoute(purpose: 'apply' | 'compare', options?: { moveIcs?: boolean }): void;
   cancelRouting(): void;
   finishAnimation(): void;
   dismissResult(): void;
@@ -217,7 +226,35 @@ export function deriveMode(s: Pick<AppState, 'view' | 'circuit'>): Mode {
 }
 
 export function isComparisonFresh(s: Pick<AppState, 'comparison' | 'circuit'>): boolean {
-  return s.comparison !== null && s.comparison.components === s.circuit.components && s.comparison.boards === s.circuit.boards;
+  const c = s.comparison;
+  return c !== null && c.boards === s.circuit.boards && (c.components === s.circuit.components || c.appliedComponents === s.circuit.components);
+}
+
+/** 比較畫面左右兩邊的電路：左邊是佈線前的元件與手動導線，右邊是（搬移後的）元件與 AI 導線。 */
+export function comparisonSides(c: Comparison): { before: Circuit; after: Circuit } {
+  return {
+    before: { version: 1, boards: c.boards, components: c.components, wires: c.beforeWires },
+    after: { version: 1, boards: c.boards, components: applyMoves(c.components, c.result.moves ?? []), wires: c.result.wires },
+  };
+}
+
+const NO_MOVES: IcMove[] = [];
+
+/** 板上現在是套用了有搬移 IC 的結果時，回傳那些搬移（接線清單要先提醒把 IC 插到新位置）；否則回傳同一個空陣列。 */
+export function appliedMoves(s: Pick<AppState, 'comparison' | 'circuit'>): IcMove[] {
+  const c = s.comparison;
+  if (!c || c.appliedComponents === null || c.appliedComponents !== s.circuit.components || c.boards !== s.circuit.boards) return NO_MOVES;
+  return c.result.moves ?? NO_MOVES;
+}
+
+/** Undo 紀錄的名稱。 */
+function routingLabel(result: RoutingResult): string {
+  return result.moves ? 'AI 佈線（可移動 IC）' : 'AI 標準佈線';
+}
+
+/** 套用之後記住新的元件陣列，讓「切回手動接線」與比較畫面仍認得這份對照。 */
+function withApplied(c: Comparison, applied: Circuit): Comparison {
+  return { ...c, appliedComponents: applied.components !== c.components ? applied.components : null };
 }
 
 export function isDirty(s: Pick<AppState, 'circuit' | 'savedCircuit'>): boolean {
@@ -286,14 +323,18 @@ function clearAnimationTimer() {
   animationTimer = null;
 }
 
-/** 依佈線順序逐條描線：每條最多間隔 160 ms，總長約 2.5 秒內。 */
-export function planAnimation(wires: Wire[]): WireAnimation {
+/** 搬過的 IC 先標示這麼久，導線才開始出現。 */
+export const MOVE_HIGHLIGHT_MS = 600;
+
+/** 依佈線順序逐條描線：每條最多間隔 160 ms，總長約 2.5 秒內；有搬移 IC 時整體延後 MOVE_HIGHLIGHT_MS。 */
+export function planAnimation(wires: Wire[], moves: IcMove[] = []): WireAnimation {
   const n = wires.length;
+  const offset = moves.length > 0 ? MOVE_HIGHLIGHT_MS : 0;
   const stepMs = n > 0 ? Math.min(160, 2000 / n) : 0;
   const drawMs = Math.max(260, Math.min(520, stepMs * 3));
   const delays: Record<string, number> = {};
-  wires.forEach((w, i) => (delays[w.id] = Math.round(i * stepMs)));
-  return { key: animationKey++, delays, drawMs, totalMs: Math.round((n - 1) * stepMs + drawMs) };
+  wires.forEach((w, i) => (delays[w.id] = offset + Math.round(i * stepMs)));
+  return { key: animationKey++, delays, drawMs, totalMs: offset + Math.round((n - 1) * stepMs + drawMs), moves };
 }
 
 /** 初始狀態（有自動儲存就還原）。測試也用它重設 store。 */
@@ -378,9 +419,9 @@ export const useStore = create<Store>()((set, get) => {
   /** 結構編輯（放置、移動、旋轉、刪除、接線、自動佈線…）在佈線計算中或模擬中都不允許。 */
   const guardEdit = (): boolean => guardRouting() || guardSimulation();
 
-  const startAnimation = (wires: Wire[]) => {
+  const startAnimation = (wires: Wire[], moves: IcMove[] = []) => {
     clearAnimationTimer();
-    const animation = planAnimation(wires);
+    const animation = planAnimation(wires, moves);
     set({ animation, resultVisible: false });
     animationTimer = setTimeout(() => get().finishAnimation(), animation.totalMs + 120);
   };
@@ -501,13 +542,33 @@ export const useStore = create<Store>()((set, get) => {
       commit(`刪除導線 ${id}`, removeItems(s.circuit, { wireIds: [id] }), { selection: null });
     },
 
-    addWire(path) {
+    addWire(start, end) {
       if (guardEdit()) return;
       const s = get();
-      if (path.length < 2) return;
-      const color = defaultWireColor(s.circuit, path[0], path[path.length - 1], s.wireColor);
-      const { circuit, id } = addWire(s.circuit, path, color);
+      const problem = straightWireProblem(s.circuit, start, end);
+      if (problem) {
+        if (problem.kind !== 'same-hole') get().toast('warning', straightProblemText(s.circuit, problem));
+        return;
+      }
+      const color = defaultWireColor(s.circuit, start, end, s.wireColor);
+      const { circuit, id } = addWire(s.circuit, start, end, color);
       commit(`接線 ${id}`, circuit, { selection: { kind: 'wire', id } });
+    },
+
+    moveWireEnd(id, which, point) {
+      if (guardEdit()) return;
+      const s = get();
+      const w = s.circuit.wires.find((x) => x.id === id);
+      if (!w) return;
+      const current = which === 'start' ? w.start : w.end;
+      if (current.boardId === point.boardId && current.x === point.x && current.y === point.y) return;
+      const [start, end] = which === 'start' ? [point, w.end] : [w.start, point];
+      const problem = straightWireProblem(s.circuit, start, end, id);
+      if (problem) {
+        if (problem.kind !== 'same-hole') get().toast('warning', straightProblemText(s.circuit, problem));
+        return;
+      }
+      commit(`移動導線 ${id} 的端點`, moveWireEnd(s.circuit, id, which, point), { selection: { kind: 'wire', id } });
     },
 
     addBoard() {
@@ -665,7 +726,8 @@ export const useStore = create<Store>()((set, get) => {
       else get().toast('success', '✓ Circuit Valid：電路檢查通過');
     },
 
-    runAutoRoute(purpose) {
+    runAutoRoute(purpose, options = {}) {
+      const moveIcs = options.moveIcs === true;
       const s = get();
       if (s.routing || guardSimulation()) return;
       const circuit = s.circuit;
@@ -674,8 +736,8 @@ export const useStore = create<Store>()((set, get) => {
         return;
       }
       clearAnimationTimer();
-      set({ routing: { startedAt: performance.now(), purpose }, animation: null, resultVisible: false, placing: null });
-      const job = startRouting(circuit);
+      set({ routing: { startedAt: performance.now(), purpose, moveIcs }, animation: null, resultVisible: false, placing: null });
+      const job = startRouting(circuit, undefined, { moveIcs });
       routingJob = job;
       job.promise
         .then((result) => {
@@ -691,6 +753,7 @@ export const useStore = create<Store>()((set, get) => {
             result,
             components: circuit.components,
             boards: circuit.boards,
+            appliedComponents: null,
           };
           if (result.status === 'success' && result.wires.length === 0) {
             set({ comparison: null });
@@ -710,8 +773,9 @@ export const useStore = create<Store>()((set, get) => {
             set({ comparison, resultVisible: true });
             return;
           }
-          commit('AI 標準佈線', applyRouting(circuit, result), { comparison, selection: null, view: 'edit' });
-          startAnimation(get().circuit.wires);
+          const applied = applyRouting(circuit, result);
+          commit(routingLabel(result), applied, { comparison: withApplied(comparison, applied), selection: null, view: 'edit' });
+          startAnimation(get().circuit.wires, result.moves ?? []);
         })
         .catch((err: unknown) => {
           if (err instanceof RoutingCancelled) get().toast('info', '已取消 AI 標準佈線');
@@ -762,8 +826,9 @@ export const useStore = create<Store>()((set, get) => {
       const s = get();
       const cmp = s.comparison;
       if (!cmp || !isComparisonFresh(s) || cmp.result.status !== 'success') return;
-      commit('AI 標準佈線', applyRouting(s.circuit, cmp.result), { view: 'edit', selection: null });
-      startAnimation(get().circuit.wires);
+      const applied = applyRouting(s.circuit, cmp.result);
+      commit(routingLabel(cmp.result), applied, { view: 'edit', selection: null, comparison: withApplied(cmp, applied) });
+      startAnimation(get().circuit.wires, cmp.result.moves ?? []);
     },
 
     restoreManualWires() {
@@ -773,7 +838,8 @@ export const useStore = create<Store>()((set, get) => {
         get().toast('info', '找不到佈線前的手動導線（元件或麵包板已經變動）。可以用 Undo 回到之前的狀態。');
         return;
       }
-      commit('切回手動接線', replaceWires(s.circuit, s.comparison.beforeWires), { view: 'edit', selection: null });
+      const cmp = s.comparison;
+      commit('切回手動接線', { ...replaceWires(s.circuit, cmp.beforeWires), components: cmp.components }, { view: 'edit', selection: null });
     },
 
     setCompareLayout(compareLayout) {

@@ -9,8 +9,10 @@ export interface Wire {
   netId?: string;
   start: GridPoint;
   end: GridPoint;
-  /** 含起點與終點；相鄰兩點距離必須為 1。 */
+  /** 含起點與終點。路徑導線相鄰兩點距離必須為 1；直線導線固定是 [start, end]。 */
   path: GridPoint[];
+  /** 直線導線（手動拉的線、拖曳端點後的線）：兩孔之間的一條直線，可以是斜的。沒有這個欄位的是相鄰格點組成的路徑導線。 */
+  straight?: true;
 }
 
 export interface Circuit {

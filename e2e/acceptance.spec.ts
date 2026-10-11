@@ -77,10 +77,10 @@ test('第三十四章驗收流程：放置、接線、檢查、AI 標準佈線�
   await drawWire(page, 'J41', 'B-41'); // LED 陰極 → GND
   await expect(page.getByTestId('wire-count')).toHaveText('7');
   circuit = await savedCircuit(page);
-  for (const w of circuit.wires as Array<{ path: Array<{ x: number; y: number }> }>) {
-    for (let i = 1; i < w.path.length; i++) {
-      expect(Math.abs(w.path[i].x - w.path[i - 1].x) + Math.abs(w.path[i].y - w.path[i - 1].y)).toBe(1);
-    }
+  // 手動接線是兩孔之間的直線（子專案 6）。
+  for (const w of circuit.wires as Array<{ straight?: boolean; path: unknown[] }>) {
+    expect(w.straight).toBe(true);
+    expect(w.path).toHaveLength(2);
   }
 
   // 8–9. Check Circuit：沒有錯誤（未使用的閘輸入懸空只是警告）。
@@ -97,6 +97,14 @@ test('第三十四章驗收流程：放置、接線、檢查、AI 標準佈線�
   await expect(page.getByTestId('mode')).toHaveText('AUTO ROUTE');
   circuit = await savedCircuit(page);
   expect(circuit.wires.every((w: { source: string }) => w.source === 'auto')).toBe(true);
+  // 子專案 7：每條線都是水平或垂直的直線，每個孔只插一條線。
+  type Saved = { straight?: boolean; start: { x: number; y: number }; end: { x: number; y: number } };
+  for (const w of circuit.wires as Saved[]) {
+    expect(w.straight).toBe(true);
+    expect(w.start.x === w.end.x || w.start.y === w.end.y).toBe(true);
+  }
+  const ends = (circuit.wires as Saved[]).flatMap((w) => [`${w.start.x},${w.start.y}`, `${w.end.x},${w.end.y}`]);
+  expect(new Set(ends).size).toBe(ends.length);
 
   // 19. 最佳化前後差異。
   await card.getByRole('button', { name: '比較 Compare' }).click();
@@ -194,8 +202,9 @@ test('邏輯模擬：在板上撥指撥開關、按按鈕，LED 即時反應', a
   await expect(page.getByTestId('simulation-bar')).toContainText('模擬中');
   await expect.poll(() => litLeds(['D1', 'D2', 'D3', 'D4', 'D5'])).toBe('01111');
 
-  // A = 3（開關 3、4 ON）、B = 5（開關 6、8 ON）→ 8 = 0 1000。
-  for (const k of [2, 3, 5, 7]) await page.locator(`g[data-component-id="SW1"] [data-switch="${k}"]`).click();
+  // A = 3（SW1 開關 3、4 ON）、B = 5（SW2 開關 2、4 ON）→ 8 = 0 1000。
+  for (const k of [2, 3]) await page.locator(`g[data-component-id="SW1"] [data-switch="${k}"]`).click();
+  for (const k of [1, 3]) await page.locator(`g[data-component-id="SW2"] [data-switch="${k}"]`).click();
   await expect.poll(() => litLeds(['D1', 'D2', 'D3', 'D4', 'D5'])).toBe('00010');
 
   // 模擬中不能移動元件。

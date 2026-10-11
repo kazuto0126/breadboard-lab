@@ -1,4 +1,6 @@
+import { buildLattice } from '../core/breadboard/lattice';
 import { nodeIdOf } from '../core/breadboard/naming';
+import { wireLength } from '../core/circuit/wireGeometry';
 import type { Circuit, Net, Wire } from '../types/circuit';
 import { analyzeCircuit, holeLabel } from './analysis';
 import { WIRE_COLORS } from './manualWire';
@@ -77,7 +79,7 @@ export function checklistRows(circuit: Circuit, state: ChecklistState): Checklis
       colorName: colorName(w.color),
       from: holeLabel(circuit, w.start),
       to: holeLabel(circuit, w.end),
-      length: w.path.length - 1,
+      length: Math.round(wireLength(w, buildLattice(circuit.boards)) * 10) / 10,
       netName: net?.name ?? null,
       kind: net?.kind ?? null,
       done: isChecked(state, w),

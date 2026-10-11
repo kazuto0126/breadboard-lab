@@ -192,9 +192,10 @@ describe('settle', () => {
       return ['D1', 'D2', 'D3', 'D4', 'D5'].reduce((acc, id, bit) => acc + (lit.includes(id) ? 2 ** bit : 0), 0);
     };
     expect(sum()).toBe(15 + 15); // 全部 OFF：A = B = 1111，C0 = 0
-    // A = 3（開關 3、4 ON → A3、A4 = 0）；B = 5（開關 6、8 ON → B2、B4 = 0）。
+    // A = 3（SW1 開關 3、4 ON → A3、A4 = 0）；B = 5（SW2 開關 2、4 ON → B2、B4 = 0）。
     let c = s.circuit;
-    for (const k of [2, 3, 5, 7]) c = toggleSwitch(c, 'SW1', k);
+    for (const k of [2, 3]) c = toggleSwitch(c, 'SW1', k);
+    for (const k of [1, 3]) c = toggleSwitch(c, 'SW2', k);
     s.setCircuit(c);
     expect(sum()).toBe(3 + 5);
   });
