@@ -4,18 +4,22 @@ import { sameTopic } from '../../editor/explain/brief';
 import { useAi, type AiMessage, type AiTopic } from '../../state/ai';
 import { useStore } from '../../state/store';
 import type { Circuit } from '../../types/circuit';
+import { LinkedText } from './LinkedText';
 
-const SUGGESTED = ['為什麼會這樣？', '有沒有別的改法？', '實體麵包板上要注意什麼？'];
+const SUGGESTED: Record<AiTopic['kind'], string[]> = {
+  issue: ['為什麼會這樣？', '有沒有別的改法？', '實體麵包板上要注意什麼？'],
+  wire: ['為什麼這樣走？', '可以換一種接法嗎？', '實際插線時要注意什麼？'],
+};
 const small = 'rounded px-2 py-1 text-xs disabled:opacity-50';
 
-function Message({ m }: { m: AiMessage }) {
+function Message({ m, circuit }: { m: AiMessage; circuit: Circuit }) {
   const model = m.role === 'model';
   // 一個字都沒收到就出錯：只顯示下面的錯誤原因。
   if (model && !m.text && m.state === 'failed') return null;
   return (
     <li data-ai-message={m.role} className={model ? 'text-slate-100' : 'text-slate-300'}>
       <span className={model ? 'text-sky-300' : 'text-slate-400'}>{model ? 'Gemini：' : '你：'}</span>
-      <span className="whitespace-pre-wrap">{m.text || (m.state === 'streaming' ? '…' : '')}</span>
+      <span className="whitespace-pre-wrap">{m.text ? model ? <LinkedText circuit={circuit} text={m.text} /> : m.text : m.state === 'streaming' ? '…' : ''}</span>
       {m.state === 'stopped' && <span className="text-amber-300">（已停止）</span>}
     </li>
   );
@@ -57,7 +61,7 @@ export function AskAi({ circuit, topic }: { circuit: Circuit; topic: AiTopic }) 
           {chat && (
             <ul className="space-y-1.5">
               {chat.messages.map((m, i) => (
-                <Message key={i} m={m} />
+                <Message key={i} m={m} circuit={circuit} />
               ))}
             </ul>
           )}
@@ -81,7 +85,7 @@ export function AskAi({ circuit, topic }: { circuit: Circuit; topic: AiTopic }) 
           )}
           {!chat && (
             <div className="flex flex-wrap gap-1">
-              {SUGGESTED.map((q) => (
+              {SUGGESTED[topic.kind].map((q) => (
                 <button key={q} type="button" onClick={() => ask(q)} className={`${small} bg-slate-800 text-slate-100 hover:bg-slate-700`}>
                   {q}
                 </button>

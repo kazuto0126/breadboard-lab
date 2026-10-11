@@ -20,7 +20,7 @@ export function ExplanationCard({ circuit, issue }: { circuit: Circuit; issue: C
         <button
           key={i}
           type="button"
-          onClick={() => useStore.getState().focusPoints([p])}
+          onClick={() => useStore.getState().flashPoints([p])}
           className="mx-0.5 inline-flex items-center gap-1 rounded bg-emerald-900/70 px-1.5 font-mono text-emerald-100 hover:bg-emerald-800"
           title="在麵包板上顯示這個孔"
         >

@@ -25,7 +25,7 @@ import { BoardBackground } from './BoardBackground';
 import { BoardSelection, GroupOutlines, MovingBoards, SnapPreview } from './boardOverlays';
 import { CanvasHud, ContextMenu, HoverTooltip, type Hover, type MenuState } from './CanvasHud';
 import { ComponentGraphic, type ComponentSim } from './ComponentGraphic';
-import { componentRect, GroupStrip, groupRect, Outline, PathPreview, PinTargets, Ring, SuggestionMarks, WireGlow, WireHandles } from './overlays';
+import { componentRect, FlashRings, GroupStrip, groupRect, Outline, PathPreview, PinTargets, Ring, SuggestionMarks, WireGlow, WireHandles } from './overlays';
 import { WireGraphic } from './WireGraphic';
 
 const DRAG_THRESHOLD = 4;
@@ -872,6 +872,8 @@ export function BreadboardCanvas() {
     return list;
   }, [showCheck, analysis, selection]);
 
+  const flash = useStore((s) => s.flash);
+
   // 選取一個檢查錯誤時：解說的建議孔位、建議導線與要拔掉的導線（規格：子專案 5 第 2.2 節）。
   const explanation = useMemo(() => {
     const picked = selection?.kind === 'issue' ? analysis.issues[selection.index] : undefined;
@@ -1017,6 +1019,7 @@ export function BreadboardCanvas() {
               );
             })}
             {explanation && <SuggestionMarks frames={frames} circuit={circuit} explanation={explanation} />}
+            <FlashRings frames={frames} flash={flash} />
 
             {hover?.kind === 'hole' && <Ring frames={frames} point={hover.point} color={hoverFree ? UI.hover : '#94a3b8'} r={0.36} width={2} />}
             {selectedBoardId && !boardDrag && <BoardSelection boards={displayBoards} id={selectedBoardId} />}

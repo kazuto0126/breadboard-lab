@@ -133,3 +133,16 @@ test('記住金鑰、金鑰錯誤時顯示原因，可以從選單重新設定�
   await dialog.getByRole('button', { name: '取消' }).click();
   await expect(ask.getByRole('button', { name: '設定 Gemini API 金鑰' })).toBeVisible();
 });
+test('回答裡的孔位與腳位可以點，點了在板上閃一下，對話還在', async ({ page }) => {
+  await page.evaluate((k) => sessionStorage.setItem(k, 'test-key-123'), KEY);
+  await page.reload();
+  await fakeGemini(page, () => ({ status: 200, type: 'text/event-stream', body: sse('從 A1', '0 拉一條線到 T+10，接上 U1 第 14 腳。') }));
+  const ask = await openVccIssue(page);
+  await ask.getByRole('button', { name: '為什麼會這樣？' }).click();
+  const answer = ask.locator('[data-ai-message="model"]');
+  await expect(answer.locator('[data-ai-link]')).toHaveText(['A10', 'T+10', 'U1 第 14 腳']);
+  await answer.locator('[data-ai-link]').first().click();
+  await expect(page.getByTestId('flash-ring')).toHaveCount(1);
+  await expect(ask.locator('[data-ai-message="model"]')).toHaveCount(1);
+  await expect(page.getByTestId('flash-ring')).toHaveCount(0, { timeout: 4000 });
+});
