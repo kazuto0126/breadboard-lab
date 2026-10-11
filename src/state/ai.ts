@@ -1,10 +1,12 @@
 import { create } from 'zustand';
 import { classifyAiError, type AiError } from '../ai/errors';
 import { createGeminiSession, type AiSession } from '../ai/gemini';
-import { AI_SYSTEM_INSTRUCTION, firstMessage } from '../editor/explain/brief';
-import type { Circuit, CircuitError } from '../types/circuit';
+import { AI_SYSTEM_INSTRUCTION, firstMessage, sameTopic, type AiTopic } from '../editor/explain/brief';
+import type { Circuit } from '../types/circuit';
 import { clearApiKey, loadApiKey, saveApiKey, type StoredKey } from './apiKey';
 import { useStore } from './store';
+
+export type { AiTopic };
 
 export interface AiMessage {
   role: 'user' | 'model';
@@ -13,10 +15,10 @@ export interface AiMessage {
   state?: 'streaming' | 'done' | 'stopped' | 'failed';
 }
 
-/** 一段對話屬於「某個電路 + 某個錯誤」（參照比較）；畫面只在兩者都和目前一樣時顯示。 */
+/** 一段對話屬於「某個電路（參照比較）+ 某個主題（錯誤或導線）」；畫面只在兩者都和目前一樣時顯示。 */
 export interface AiChat {
   circuit: Circuit;
-  issue: CircuitError;
+  topic: AiTopic;
   messages: AiMessage[];
   sending: boolean;
   error: AiError | null;
@@ -27,15 +29,15 @@ interface AiState {
   chat: AiChat | null;
   setKey(key: string, remember: boolean): void;
   clearKey(): void;
-  ask(circuit: Circuit, issue: CircuitError, question: string): Promise<void>;
+  ask(circuit: Circuit, topic: AiTopic, question: string): Promise<void>;
   stop(): void;
 }
 
 /** 目前這段對話在 Gemini 那邊的連線；換對話、換金鑰就丟掉。 */
-let link: { circuit: Circuit; issue: CircuitError; session: Promise<AiSession> } | null = null;
+let link: { circuit: Circuit; topic: AiTopic; session: Promise<AiSession> } | null = null;
 let controller: AbortController | null = null;
 
-const sameChat = (chat: AiChat | null, circuit: Circuit, issue: CircuitError): chat is AiChat => !!chat && chat.circuit === circuit && chat.issue === issue;
+const sameChat = (chat: AiChat | null, circuit: Circuit, topic: AiTopic): chat is AiChat => !!chat && chat.circuit === circuit && sameTopic(chat.topic, topic);
 
 function forget(): void {
   controller?.abort();
@@ -69,18 +71,18 @@ export const useAi = create<AiState>((set, get) => ({
     controller?.abort();
   },
 
-  async ask(circuit, issue, question) {
+  async ask(circuit, topic, question) {
     const text = question.trim();
     const key = get().key?.key;
     const previous = get().chat;
-    const same = sameChat(previous, circuit, issue);
+    const same = sameChat(previous, circuit, topic);
     if (!text || !key || (same && previous.sending)) return;
 
     controller?.abort(); // 另一段對話還在回答：停掉它
-    const fresh = !link || link.circuit !== circuit || link.issue !== issue;
+    const fresh = !link || link.circuit !== circuit || !sameTopic(link.topic, topic);
     if (fresh) {
       const session = createGeminiSession(key, AI_SYSTEM_INSTRUCTION);
-      const mine = { circuit, issue, session };
+      const mine = { circuit, topic, session };
       link = mine;
       // 套件載入失敗（例如離線）：下一次發問重新建立。
       session.catch(() => {
@@ -92,12 +94,12 @@ export const useAi = create<AiState>((set, get) => ({
     controller = ctrl;
 
     const messages: AiMessage[] = [...(same ? previous.messages : []), { role: 'user', text }, { role: 'model', text: '', state: 'streaming' }];
-    set({ chat: { circuit, issue, messages, sending: true, error: null } });
+    set({ chat: { circuit, topic, messages, sending: true, error: null } });
 
     /** 更新最後一則回答；對話已經被換掉時不動。 */
     const finish = (patch: Partial<AiMessage>, extra: Partial<AiChat> = {}) => {
       const chat = get().chat;
-      if (!sameChat(chat, circuit, issue)) return;
+      if (!sameChat(chat, circuit, topic)) return;
       const list = chat.messages.slice();
       list[list.length - 1] = { ...list[list.length - 1], ...patch };
       set({ chat: { ...chat, messages: list, ...extra } });
@@ -111,7 +113,7 @@ export const useAi = create<AiState>((set, get) => ({
     let answer = '';
     try {
       const session = await pending.session;
-      for await (const delta of session.send(fresh ? firstMessage(circuit, issue, text) : text, ctrl.signal)) {
+      for await (const delta of session.send(fresh ? firstMessage(circuit, topic, text) : text, ctrl.signal)) {
         if (ctrl.signal.aborted) break;
         answer += delta;
         finish({ text: answer });
@@ -121,7 +123,7 @@ export const useAi = create<AiState>((set, get) => ({
       else finish({ state: 'failed' }, { sending: false, error: { kind: 'empty' } });
     } catch (error) {
       if (stale()) {
-        if (sameChat(get().chat, circuit, issue)) set({ chat: null });
+        if (sameChat(get().chat, circuit, topic)) set({ chat: null });
         if (link === pending) link = null;
       } else if (ctrl.signal.aborted) finish({ state: 'stopped' }, { sending: false });
       else finish({ state: 'failed' }, { sending: false, error: classifyAiError(error) });

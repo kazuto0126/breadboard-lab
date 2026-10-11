@@ -44,7 +44,7 @@ export function ExplanationCard({ circuit, issue }: { circuit: Circuit; issue: C
         </ol>
       </div>
       {e.wires.length > 0 && <p className="text-slate-400">麵包板上的綠色虛線是建議的導線，照著從 1 號孔拉到 2 號孔就可以。</p>}
-      <AskAi circuit={circuit} issue={issue} />
+      <AskAi circuit={circuit} topic={{ kind: 'issue', issue }} />
     </div>
   );
 }

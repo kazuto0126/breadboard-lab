@@ -1,8 +1,9 @@
 import { useState, type KeyboardEvent } from 'react';
 import { aiErrorText } from '../../ai/errors';
-import { useAi, type AiMessage } from '../../state/ai';
+import { sameTopic } from '../../editor/explain/brief';
+import { useAi, type AiMessage, type AiTopic } from '../../state/ai';
 import { useStore } from '../../state/store';
-import type { Circuit, CircuitError } from '../../types/circuit';
+import type { Circuit } from '../../types/circuit';
 
 const SUGGESTED = ['為什麼會這樣？', '有沒有別的改法？', '實體麵包板上要注意什麼？'];
 const small = 'rounded px-2 py-1 text-xs disabled:opacity-50';
@@ -21,13 +22,14 @@ function Message({ m }: { m: AiMessage }) {
 }
 
 /** 規格 2.1：錯誤解說卡下面的「問 AI」。 */
-export function AskAi({ circuit, issue }: { circuit: Circuit; issue: CircuitError }) {
+/** 規格 5.1：錯誤卡與導線卡共用；topic 決定建議問題與送出的內容。 */
+export function AskAi({ circuit, topic }: { circuit: Circuit; topic: AiTopic }) {
   const hasKey = useAi((s) => s.key !== null);
-  const chat = useAi((s) => (s.chat && s.chat.circuit === circuit && s.chat.issue === issue ? s.chat : null));
+  const chat = useAi((s) => (s.chat && s.chat.circuit === circuit && sameTopic(s.chat.topic, topic) ? s.chat : null));
   const [draft, setDraft] = useState('');
   const sending = chat?.sending ?? false;
   const openKey = () => useStore.getState().openDialog('ai-key');
-  const ask = (question: string) => void useAi.getState().ask(circuit, issue, question);
+  const ask = (question: string) => void useAi.getState().ask(circuit, topic, question);
   const submit = () => {
     if (sending || !draft.trim()) return;
     ask(draft);
