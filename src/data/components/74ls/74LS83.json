@@ -1,0 +1,35 @@
+{
+  "id": "74LS83",
+  "name": "74LS83",
+  "description": "4 位元二進位全加器（4-bit full adder，電源在第 5、12 腳）",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "A4", "role": "input" },
+    { "number": 2, "name": "S3", "role": "output" },
+    { "number": 3, "name": "A3", "role": "input" },
+    { "number": 4, "name": "B3", "role": "input" },
+    { "number": 5, "name": "VCC", "role": "power" },
+    { "number": 6, "name": "S2", "role": "output" },
+    { "number": 7, "name": "B2", "role": "input" },
+    { "number": 8, "name": "A2", "role": "input" },
+    { "number": 9, "name": "S1", "role": "output" },
+    { "number": 10, "name": "A1", "role": "input" },
+    { "number": 11, "name": "B1", "role": "input" },
+    { "number": 12, "name": "GND", "role": "ground" },
+    { "number": 13, "name": "C0", "role": "input" },
+    { "number": 14, "name": "C4", "role": "output" },
+    { "number": 15, "name": "S4", "role": "output" },
+    { "number": 16, "name": "B4", "role": "input" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": {
+    "model": "adder",
+    "a": ["A1", "A2", "A3", "A4"],
+    "b": ["B1", "B2", "B3", "B4"],
+    "carryIn": "C0",
+    "sum": ["S1", "S2", "S3", "S4"],
+    "carryOut": "C4"
+  }
+}

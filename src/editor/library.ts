@@ -57,7 +57,7 @@ export function librarySections(): LibrarySection[] {
   const resistor = defs.find((d) => d.id === 'resistor');
   const led = defs.find((d) => d.id === 'led');
   sections = [
-    { id: 'ic', title: '74LS 系列 IC', items: ics.map((d) => item(d, d.id, d.name, {})) },
+    { id: 'ic', title: 'IC（74LS、NE555）', items: ics.map((d) => item(d, d.id, d.name, {})) },
     {
       id: 'resistor',
       title: '電阻 Resistor',

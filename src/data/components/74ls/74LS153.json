@@ -1,0 +1,34 @@
+{
+  "id": "74LS153",
+  "name": "74LS153",
+  "description": "雙 4 選 1 多工器（Dual 4-to-1 multiplexer）",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "/1G", "role": "input" },
+    { "number": 2, "name": "B", "role": "input" },
+    { "number": 3, "name": "1C3", "role": "input" },
+    { "number": 4, "name": "1C2", "role": "input" },
+    { "number": 5, "name": "1C1", "role": "input" },
+    { "number": 6, "name": "1C0", "role": "input" },
+    { "number": 7, "name": "1Y", "role": "output" },
+    { "number": 8, "name": "GND", "role": "ground" },
+    { "number": 9, "name": "2Y", "role": "output" },
+    { "number": 10, "name": "2C0", "role": "input" },
+    { "number": 11, "name": "2C1", "role": "input" },
+    { "number": 12, "name": "2C2", "role": "input" },
+    { "number": 13, "name": "2C3", "role": "input" },
+    { "number": 14, "name": "A", "role": "input" },
+    { "number": 15, "name": "/2G", "role": "input" },
+    { "number": 16, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": {
+    "model": "mux",
+    "units": [
+      { "select": ["A", "B"], "data": ["1C0", "1C1", "1C2", "1C3"], "enable": [{ "pin": "/1G", "active": "low" }], "output": "1Y" },
+      { "select": ["A", "B"], "data": ["2C0", "2C1", "2C2", "2C3"], "enable": [{ "pin": "/2G", "active": "low" }], "output": "2Y" }
+    ]
+  }
+}

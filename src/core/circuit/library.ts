@@ -16,16 +16,26 @@ import led from '../../data/components/generic/led.json';
 import pushbutton from '../../data/components/generic/pushbutton.json';
 import resistor from '../../data/components/generic/resistor.json';
 import vcc from '../../data/components/generic/vcc.json';
+import ne555 from '../../data/components/generic/ne555.json';
 import ls00 from '../../data/components/74ls/74LS00.json';
 import ls02 from '../../data/components/74ls/74LS02.json';
 import ls04 from '../../data/components/74ls/74LS04.json';
 import ls08 from '../../data/components/74ls/74LS08.json';
+import ls11 from '../../data/components/74ls/74LS11.json';
+import ls21 from '../../data/components/74ls/74LS21.json';
 import ls32 from '../../data/components/74ls/74LS32.json';
+import ls47 from '../../data/components/74ls/74LS47.json';
+import ls73 from '../../data/components/74ls/74LS73.json';
 import ls74 from '../../data/components/74ls/74LS74.json';
+import ls76 from '../../data/components/74ls/74LS76.json';
+import ls83 from '../../data/components/74ls/74LS83.json';
+import ls85 from '../../data/components/74ls/74LS85.json';
 import ls86 from '../../data/components/74ls/74LS86.json';
 import ls90 from '../../data/components/74ls/74LS90.json';
 import ls93 from '../../data/components/74ls/74LS93.json';
 import ls138 from '../../data/components/74ls/74LS138.json';
+import ls151 from '../../data/components/74ls/74LS151.json';
+import ls153 from '../../data/components/74ls/74LS153.json';
 import ls154 from '../../data/components/74ls/74LS154.json';
 import ls161 from '../../data/components/74ls/74LS161.json';
 import ls163 from '../../data/components/74ls/74LS163.json';
@@ -38,9 +48,9 @@ import ls273 from '../../data/components/74ls/74LS273.json';
 import ls283 from '../../data/components/74ls/74LS283.json';
 
 const RAW_DEFINITIONS: unknown[] = [
-  resistor, led, vcc, gnd, dcPower, dipsw4, dipsw8, pushbutton, clock,
-  ls00, ls02, ls04, ls08, ls32, ls74, ls86, ls90, ls93, ls138,
-  ls154, ls161, ls163, ls173, ls174, ls175, ls193, ls245, ls273, ls283,
+  resistor, led, vcc, gnd, dcPower, dipsw4, dipsw8, pushbutton, clock, ne555,
+  ls00, ls02, ls04, ls08, ls11, ls21, ls32, ls47, ls73, ls74, ls76, ls83, ls85, ls86, ls90, ls93, ls138,
+  ls151, ls153, ls154, ls161, ls163, ls173, ls174, ls175, ls193, ls245, ls273, ls283,
 ];
 
 export const RESISTOR_PRESETS: readonly number[] = [220, 330, 470, 1000, 2200, 4700, 10000, 100000];

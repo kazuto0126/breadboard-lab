@@ -1,0 +1,32 @@
+{
+  "id": "74LS21",
+  "name": "74LS21",
+  "description": "兩組 4 輸入 AND 閘（Dual 4-input AND）",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 14, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "1A", "role": "input" },
+    { "number": 2, "name": "1B", "role": "input" },
+    { "number": 3, "name": "NC", "role": "nc" },
+    { "number": 4, "name": "1C", "role": "input" },
+    { "number": 5, "name": "1D", "role": "input" },
+    { "number": 6, "name": "1Y", "role": "output" },
+    { "number": 7, "name": "GND", "role": "ground" },
+    { "number": 8, "name": "2Y", "role": "output" },
+    { "number": 9, "name": "2A", "role": "input" },
+    { "number": 10, "name": "2B", "role": "input" },
+    { "number": 11, "name": "NC", "role": "nc" },
+    { "number": 12, "name": "2C", "role": "input" },
+    { "number": 13, "name": "2D", "role": "input" },
+    { "number": 14, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": {
+    "model": "gates",
+    "gates": [
+      { "op": "and", "in": ["1A", "1B", "1C", "1D"], "out": "1Y" },
+      { "op": "and", "in": ["2A", "2B", "2C", "2D"], "out": "2Y" }
+    ]
+  }
+}

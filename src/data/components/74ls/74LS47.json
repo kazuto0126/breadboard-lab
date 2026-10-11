@@ -1,0 +1,35 @@
+{
+  "id": "74LS47",
+  "name": "74LS47",
+  "description": "BCD 轉 7 段解碼器 / 驅動器（低電位有效、開集極，配共陽極顯示器）",
+  "category": "ic",
+  "package": { "type": "dip", "pinCount": 16, "rowSpacing": 3 },
+  "pins": [
+    { "number": 1, "name": "B", "role": "input" },
+    { "number": 2, "name": "C", "role": "input" },
+    { "number": 3, "name": "/LT", "role": "input" },
+    { "number": 4, "name": "/BI/RBO", "role": "input" },
+    { "number": 5, "name": "/RBI", "role": "input" },
+    { "number": 6, "name": "D", "role": "input" },
+    { "number": 7, "name": "A", "role": "input" },
+    { "number": 8, "name": "GND", "role": "ground" },
+    { "number": 9, "name": "/e", "role": "output" },
+    { "number": 10, "name": "/d", "role": "output" },
+    { "number": 11, "name": "/c", "role": "output" },
+    { "number": 12, "name": "/b", "role": "output" },
+    { "number": 13, "name": "/a", "role": "output" },
+    { "number": 14, "name": "/g", "role": "output" },
+    { "number": 15, "name": "/f", "role": "output" },
+    { "number": 16, "name": "VCC", "role": "power" }
+  ],
+  "internalConnections": [],
+  "defaultProps": {},
+  "logic": {
+    "model": "bcd7seg",
+    "inputs": ["A", "B", "C", "D"],
+    "segments": ["/a", "/b", "/c", "/d", "/e", "/f", "/g"],
+    "lampTest": "/LT",
+    "blanking": "/BI/RBO",
+    "rippleBlanking": "/RBI"
+  }
+}

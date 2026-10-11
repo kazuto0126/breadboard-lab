@@ -27,10 +27,10 @@ const EXPECTED: Record<string, { pinCount: number; rowSpacing: 3 | 6; vcc: numbe
 const pin = (id: string, n: number) => getComponentDefinition(id)!.pins.find((p) => p.number === n)!;
 
 describe('component library', () => {
-  it('loads 29 definitions with unique ids', () => {
+  it('loads 39 definitions with unique ids', () => {
     const defs = getComponentDefinitions();
-    expect(defs).toHaveLength(29);
-    expect(new Set(defs.map((d) => d.id)).size).toBe(29);
+    expect(defs).toHaveLength(39);
+    expect(new Set(defs.map((d) => d.id)).size).toBe(39);
     expect(getComponentDefinitions()).toBe(defs);
   });
 

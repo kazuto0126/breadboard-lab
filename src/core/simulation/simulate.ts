@@ -3,7 +3,7 @@ import { pinKey } from '../circuit/nets';
 import { UnionFind } from '../circuit/unionFind';
 import type { Circuit } from '../../types/circuit';
 import type { Level, Logic } from '../../types/logic';
-import { createModel, type LogicModel, type ModelState } from './models';
+import { createModel, OSC_PIN, type LogicModel, type ModelState } from './models';
 
 /** 超過這個輪數還沒有穩定，就判定電路在震盪。 */
 export const MAX_ITERATIONS = 100;
@@ -173,6 +173,12 @@ export function compileSimulation(circuit: Circuit): SimCircuit {
         }
         const nodesWithRole = (role: string) =>
           def.pins.filter((p) => p.role === role).map((p) => nodeOf(id, p.number) ?? `missing:${id}#${p.number}`);
+        // NE555：替它建一個虛擬振盪節點，和時脈元件一樣由模擬時間驅動（單步也會停在它的邊緣）。
+        if (def.logic.model === 'timer555') {
+          const osc = `osc:${id}`;
+          pinNodes.set(OSC_PIN, osc);
+          sim.clocks.push({ componentId: id, node: osc, frequency: props.frequency ?? 1 });
+        }
         sim.ics.push({
           componentId: id,
           defId: def.id,
