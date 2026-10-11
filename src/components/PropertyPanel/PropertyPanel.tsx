@@ -1,4 +1,5 @@
 import { useMemo, type ReactNode } from 'react';
+import { getBoard, getLayout } from '../../core/breadboard/registry';
 import { resolveFootprint, effectiveSpan } from '../../core/circuit/footprint';
 import { getComponentDefinition, RESISTOR_PRESETS } from '../../core/circuit/library';
 import { netColor } from '../../core/routing/colors';
@@ -329,6 +330,10 @@ function BoardInspector({ id, circuit }: { id: string; circuit: Circuit }) {
   const parts = circuit.components.filter((c) => c.boardId === id).length;
   const wires = circuit.wires.filter((w) => w.path.some((p) => p.boardId === id)).length;
   const last = circuit.boards.length <= 1;
+  const layout = getLayout(instance.layoutId);
+  const holeNodes = getBoard(instance.layoutId, instance.id).nodes.filter((n) => n.kind === 'hole');
+  const posts = holeNodes.filter((n) => n.groupId?.includes(':post-')).length;
+  const holes = holeNodes.length - posts;
   return (
     <Section
       title="麵包板"
@@ -348,7 +353,7 @@ function BoardInspector({ id, circuit }: { id: string; circuit: Circuit }) {
       }
     >
       <div className="text-base font-semibold text-slate-50">
-        {id} <span className="text-slate-300">· MB-102（830 孔）</span>
+        {id} <span className="text-slate-300">· {layout.name}（{holes} 孔{posts > 0 ? `、${posts} 支接線柱` : ''}）</span>
       </div>
       <Row label="位置（格）">{`x ${rect.x} · y ${rect.y}`}</Row>
       <Row label="大小（格）">{`${rect.width} × ${rect.height}`}</Row>

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getLayout } from '../core/breadboard/registry';
 import { getComponentDefinition } from '../core/circuit/library';
 import { applyMoves } from '../core/icPlacement/relocate';
 import { applyRouting } from '../core/routing/apply';
@@ -35,7 +36,7 @@ import { emptyHistory, record, redo, undo, type History } from '../editor/histor
 import type { LibraryItem } from '../editor/library';
 import { DEFAULT_WIRE_COLOR, defaultWireColor, straightProblemText, straightWireProblem } from '../editor/manualWire';
 import { centerOn, DEFAULT_VIEWPORT, fitRect, zoomAt, type Viewport } from '../editor/viewport';
-import type { BreadboardInstance } from '../types/board';
+import type { BreadboardInstance, LayoutId } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance, ComponentProps, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
@@ -160,7 +161,7 @@ export interface AppActions {
   addWire(start: GridPoint, end: GridPoint): void;
   /** 拖曳導線的一端到 point；這條線變成直線導線。 */
   moveWireEnd(id: string, which: 'start' | 'end', point: GridPoint): void;
-  addBoard(): void;
+  addBoard(layoutId?: LayoutId): void;
   /** 移動麵包板（位移以格為單位，呼叫端先用 snapBoardMove 算好吸附與檢查）。 */
   moveBoards(ids: string[], dx: number, dy: number): void;
   removeBoard(id: string): void;
@@ -571,14 +572,14 @@ export const useStore = create<Store>()((set, get) => {
       commit(`移動導線 ${id} 的端點`, moveWireEnd(s.circuit, id, which, point), { selection: { kind: 'wire', id } });
     },
 
-    addBoard() {
+    addBoard(layoutId) {
       if (guardEdit()) return;
-      const added = addBoard(get().circuit);
+      const added = addBoard(get().circuit, layoutId);
       if (!added) {
         get().toast('warning', `最多只能放 ${MAX_BOARDS} 塊麵包板`);
         return;
       }
-      commit(`新增麵包板 ${added.id}`, added.circuit, { selection: { kind: 'board', id: added.id }, view: 'edit' });
+      commit(`新增麵包板 ${added.id}（${getLayout(layoutId ?? 'MB102').name}）`, added.circuit, { selection: { kind: 'board', id: added.id }, view: 'edit' });
       get().fitToScreen();
       get().toast('info', `已新增麵包板 ${added.id}。拖曳它沒有孔的地方，靠近另一塊板的邊就會自動吸附成群組。`);
     },

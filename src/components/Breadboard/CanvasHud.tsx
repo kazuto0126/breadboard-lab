@@ -250,7 +250,8 @@ export function ContextMenu({ menu, onClose }: { menu: MenuState; onClose: () =>
       )}
       {t.kind === 'canvas' && (
         <>
-          <MenuItem onClick={run(() => store.addBoard())}>＋ 新增麵包板</MenuItem>
+          <MenuItem onClick={run(() => store.addBoard('MB102'))}>＋ 新增 MB-102</MenuItem>
+          <MenuItem onClick={run(() => store.addBoard('EIC1106'))}>＋ 新增 EIC-1106</MenuItem>
           <MenuItem onClick={run(() => store.fitToScreen())} shortcut="F">
             Fit to Screen
           </MenuItem>
@@ -278,7 +279,8 @@ function BoardMenuItems({ id, run }: { id: string; run: (fn: () => void) => () =
           移出群組{wired ? '（有跨板導線）' : ''}
         </MenuItem>
       )}
-      {circuit.boards.length < MAX_BOARDS && <MenuItem onClick={run(() => store.addBoard())}>＋ 新增麵包板</MenuItem>}
+      {circuit.boards.length < MAX_BOARDS && <MenuItem onClick={run(() => store.addBoard('MB102'))}>＋ 新增 MB-102</MenuItem>}
+      {circuit.boards.length < MAX_BOARDS && <MenuItem onClick={run(() => store.addBoard('EIC1106'))}>＋ 新增 EIC-1106</MenuItem>}
       {circuit.boards.length > 1 && (
         <MenuItem onClick={run(() => store.removeBoard(id))} shortcut="Del" danger>
           刪除麵包板 {id}
