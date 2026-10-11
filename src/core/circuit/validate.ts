@@ -262,10 +262,36 @@ function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void
     }
     for (const pin of pc.def.pins) {
       if (pin.role !== 'passive' && pin.role !== 'anode' && pin.role !== 'cathode') continue;
+      // 7 段顯示器沒用到的段（例如 dp）是正常的。
+      if (pc.def.category === 'seven-seg' && pin.role === 'cathode') continue;
       const ref = refOf(pc, pin.number);
       const net = byPin.get(pinKey(ref));
       if (!net || net.pins.length === 1) {
         report({ code: 'PIN_UNCONNECTED', severity: 'warning', message: `⚠ ${label} 第 ${pin.number} 腳未連接`, componentIds: [pc.instance.id], points: pointsOf([ref]) });
+      }
+    }
+    if (pc.def.category === 'seven-seg') {
+      const anode = pc.def.pins.find((p) => p.role === 'anode');
+      if (anode) {
+        const anodeRef = refOf(pc, anode.number);
+        const anodeNet = byPin.get(pinKey(anodeRef));
+        const where = pointsOf([anodeRef]);
+        if (netHas(anodeNet, 'gnd-source')) {
+          report({ code: 'LED_REVERSED', severity: 'warning', message: `⚠ ${label} 的共陽極（CA）接到 GND 了，要接 VCC`, componentIds: [pc.instance.id], points: where });
+        }
+        const withResistor = (net: Net | undefined) =>
+          net !== undefined && net.pins.some((r) => index.placedById.get(r.componentId)?.def.category === 'resistor');
+        const bare = pc.def.pins
+          .filter((p) => p.role === 'cathode')
+          .filter((p) => {
+            const net = byPin.get(pinKey(refOf(pc, p.number)));
+            return net !== undefined && net.pins.length > 1 && !withResistor(net) && !withResistor(anodeNet);
+          })
+          .map((p) => p.name)
+          .sort((x, y) => 'abcdefg.'.indexOf(x[0]) - 'abcdefg.'.indexOf(y[0]) || x.length - y.length);
+        if (bare.length > 0) {
+          report({ code: 'LED_NO_RESISTOR', severity: 'warning', message: `⚠ ${label} 的 ${bare.join('、')} 段沒有串聯限流電阻`, componentIds: [pc.instance.id], points: where });
+        }
       }
     }
     if (pc.def.category === 'led') {

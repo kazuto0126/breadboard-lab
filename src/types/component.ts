@@ -14,7 +14,7 @@ export type PinRole =
   | 'vcc-source'
   | 'gnd-source';
 
-export type ComponentCategory = 'ic' | 'resistor' | 'led' | 'vcc' | 'gnd' | 'dc-power' | 'dip-switch' | 'pushbutton' | 'clock';
+export type ComponentCategory = 'ic' | 'resistor' | 'led' | 'vcc' | 'gnd' | 'dc-power' | 'dip-switch' | 'pushbutton' | 'clock' | 'seven-seg' | 'capacitor';
 
 export type PackageSpec =
   | { type: 'dip'; pinCount: number; rowSpacing: 3 | 6 }
@@ -37,6 +37,8 @@ export interface ComponentProps {
   switchStates?: boolean[];
   /** 時脈頻率（Hz）。 */
   frequency?: number;
+  /** 電容量（法拉）。 */
+  capacitance?: number;
 }
 
 export interface ComponentDefinition {

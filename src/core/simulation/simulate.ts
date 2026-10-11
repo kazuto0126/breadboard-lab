@@ -5,6 +5,9 @@ import type { Circuit } from '../../types/circuit';
 import type { Level, Logic } from '../../types/logic';
 import { createModel, OSC_PIN, type LogicModel, type ModelState } from './models';
 
+/** 7 段顯示器的段，依這個順序回報。 */
+export const SEGMENT_ORDER = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'];
+
 /** 超過這個輪數還沒有穩定，就判定電路在震盪。 */
 export const MAX_ITERATIONS = 100;
 
@@ -34,6 +37,8 @@ export interface SimCircuit {
   clocks: Array<{ componentId: string; node: string; frequency: number }>;
   ics: SimIC[];
   leds: Array<{ componentId: string; anode: string | null; cathode: string | null }>;
+  /** 7 段顯示器：共陽極節點與每一段的節點（依 SEGMENT_ORDER）。 */
+  displays: Array<{ componentId: string; anode: string | null; segments: Array<{ name: string; node: string | null }> }>;
 }
 
 /** 模擬的外部輸入：按鈕是否按下、每個時脈目前的電位。 */
@@ -56,6 +61,8 @@ export interface SimResult {
   /** `${componentId}#${pinNumber}` → 電位。 */
   pinLevels: Record<string, Level>;
   litLeds: string[];
+  /** 7 段顯示器 → 亮的段（依 SEGMENT_ORDER）。 */
+  litSegments: Record<string, string[]>;
   /** 沒有供電（VCC 腳不是強驅動 1 或 GND 腳不是強驅動 0）的 IC。 */
   unpowered: string[];
   /** 電位衝突（X）的導通群組。 */
@@ -112,6 +119,7 @@ export function compileSimulation(circuit: Circuit): SimCircuit {
     clocks: [],
     ics: [],
     leds: [],
+    displays: [],
   };
 
   for (const pc of index.placed) {
@@ -160,6 +168,15 @@ export function compileSimulation(circuit: Circuit): SimCircuit {
           anode: anode ? nodeOf(id, anode.number) : null,
           cathode: cathode ? nodeOf(id, cathode.number) : null,
         });
+        break;
+      }
+      case 'seven-seg': {
+        const anode = def.pins.find((p) => p.role === 'anode');
+        const segments = def.pins
+          .filter((p) => p.role === 'cathode')
+          .sort((a, b) => SEGMENT_ORDER.indexOf(a.name) - SEGMENT_ORDER.indexOf(b.name))
+          .map((p) => ({ name: p.name, node: nodeOf(id, p.number) }));
+        sim.displays.push({ componentId: id, anode: anode ? nodeOf(id, anode.number) : null, segments });
         break;
       }
       case 'ic': {
@@ -352,9 +369,14 @@ export function settle(sim: SimCircuit, state: SimState, inputs: SimInputs): { s
   for (const [key, n] of sim.nodeOfPin) pinLevels[key] = levelOf(n);
   const litLeds = sim.leds.filter((l) => levelOf(l.anode) === 1 && levelOf(l.cathode) === 0).map((l) => l.componentId);
 
+  const litSegments: Record<string, string[]> = {};
+  for (const d of sim.displays) {
+    litSegments[d.componentId] = levelOf(d.anode) === 1 ? d.segments.filter((s) => levelOf(s.node) === 0).map((s) => s.name) : [];
+  }
+
   return {
     state: { models, outputs },
-    result: { stable, iterations, groupLevels, pinLevels, litLeds, unpowered, conflicts },
+    result: { stable, iterations, groupLevels, pinLevels, litLeds, litSegments, unpowered, conflicts },
   };
 }
 

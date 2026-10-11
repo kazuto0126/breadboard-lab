@@ -13,6 +13,9 @@ import dipsw4 from '../../data/components/generic/dipsw-4.json';
 import dipsw8 from '../../data/components/generic/dipsw-8.json';
 import gnd from '../../data/components/generic/gnd.json';
 import led from '../../data/components/generic/led.json';
+import sevenSeg from '../../data/components/generic/7seg-ca.json';
+import capCeramic from '../../data/components/generic/capacitor-ceramic.json';
+import capElectrolytic from '../../data/components/generic/capacitor-electrolytic.json';
 import pushbutton from '../../data/components/generic/pushbutton.json';
 import resistor from '../../data/components/generic/resistor.json';
 import vcc from '../../data/components/generic/vcc.json';
@@ -48,14 +51,14 @@ import ls273 from '../../data/components/74ls/74LS273.json';
 import ls283 from '../../data/components/74ls/74LS283.json';
 
 const RAW_DEFINITIONS: unknown[] = [
-  resistor, led, vcc, gnd, dcPower, dipsw4, dipsw8, pushbutton, clock, ne555,
+  resistor, led, sevenSeg, capCeramic, capElectrolytic, vcc, gnd, dcPower, dipsw4, dipsw8, pushbutton, clock, ne555,
   ls00, ls02, ls04, ls08, ls11, ls21, ls32, ls47, ls73, ls74, ls76, ls83, ls85, ls86, ls90, ls93, ls138,
   ls151, ls153, ls154, ls161, ls163, ls173, ls174, ls175, ls193, ls245, ls273, ls283,
 ];
 
 export const RESISTOR_PRESETS: readonly number[] = [220, 330, 470, 1000, 2200, 4700, 10000, 100000];
 
-const CATEGORIES = new Set<string>(['ic', 'resistor', 'led', 'vcc', 'gnd', 'dc-power', 'dip-switch', 'pushbutton', 'clock']);
+const CATEGORIES = new Set<string>(['ic', 'resistor', 'led', 'vcc', 'gnd', 'dc-power', 'dip-switch', 'pushbutton', 'clock', 'seven-seg', 'capacitor']);
 const ROLES = new Set<string>([
   'input', 'output', 'bidir', 'power', 'ground', 'nc', 'passive', 'anode', 'cathode', 'vcc-source', 'gnd-source',
 ]);

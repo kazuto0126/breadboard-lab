@@ -15,6 +15,8 @@ const PIN_CHAR: Record<ComponentCategory, string> = {
   'dip-switch': 'S',
   pushbutton: 'B',
   clock: 'K',
+  'seven-seg': '8',
+  capacitor: 'C',
 };
 
 const LINE_CHAR: Record<string, string> = { EW: '─', NS: '│', ES: '┌', SW: '┐', EN: '└', NW: '┘', ENSW: '┼' };

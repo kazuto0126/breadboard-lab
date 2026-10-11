@@ -96,6 +96,11 @@ function parseProps(raw: unknown, path: string): ComponentProps {
     if (f <= 0) fail(`${path}.frequency`, '必須大於 0');
     props.frequency = f;
   }
+  if (p.capacitance !== undefined) {
+    const c = num(p.capacitance, `${path}.capacitance`);
+    if (c <= 0) fail(`${path}.capacitance`, '必須大於 0');
+    props.capacitance = c;
+  }
   if (p.switchStates !== undefined) {
     const states = arr(p.switchStates, `${path}.switchStates`);
     if (!states.every((s) => typeof s === 'boolean')) fail(`${path}.switchStates`, '必須是 true / false 陣列');
