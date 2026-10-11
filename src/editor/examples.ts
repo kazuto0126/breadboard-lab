@@ -205,6 +205,116 @@ export function twoBoardCircuit(): Circuit {
   );
 }
 
+/** 把只用一塊板的電路整個搬到 boardId 這塊板上（元件與導線的格點都換板子 ID）。 */
+function onBoard(c: Circuit, boardId: string): Circuit {
+  return {
+    ...c,
+    components: c.components.map((k) => ({ ...k, boardId })),
+    wires: c.wires.map((w) => ({ ...w, start: { ...w.start, boardId }, end: { ...w.end, boardId }, path: w.path.map((p) => ({ ...p, boardId })) })),
+  };
+}
+
+/**
+ * 74LS47 + 共陽極 7 段顯示器，上下貼合的兩塊板。下板（b2）：SW1 的 4 個開關是 BCD 的 A–D（ON = 0、OFF = 1，輸入浮接讀成 HIGH）與 74LS47；
+ * 上板（b1）：7 顆 330 Ω 電阻直立跨過凹槽、7 段顯示器（CA 接 VCC）。一開始 4 個開關都 ON，顯示 0。
+ * 74LS47 的 7 個輸出排在相鄰的 7 欄，在同一塊板上沒有足夠的列把線拉出來（和加法器的開關一樣），所以電阻與顯示器放在上板，每條輸出線各自往上跨過接縫。
+ */
+export function sevenSegmentCircuit(): Circuit {
+  const boards = [board('b1'), board('b2', 0, 20)];
+  const link = (id: string, from: [string, string | [number, number]], to: [string, string | [number, number]]) => {
+    const at = ([b, h]: [string, string | [number, number]]) => (typeof h === 'string' ? holeOn(b, h) : { boardId: b, x: h[0], y: h[1] });
+    return latticeWire(boards, id, at(from), at(to));
+  };
+  // 段、74LS47 輸出所在的孔（下板上半）、顯示器的腳（上板）
+  const segs: Array<[string, string, string]> = [
+    ['a', 'A18', 'A55'],
+    ['b', 'A19', 'A56'],
+    ['c', 'A20', 'J55'],
+    ['d', 'A21', 'J53'],
+    ['e', 'A22', 'J52'],
+    ['f', 'A16', 'A53'],
+    ['g', 'A17', 'A52'],
+  ];
+  // 第 k 顆電阻在上板第 25 + 3k 欄，直立跨過凹槽（E 列與 F 列各一隻腳）。
+  const col = (k: number) => 25 + 3 * k;
+  return normalizeBoardGroups(
+    circuit(
+      [
+        comp('V2', 'vcc', 'T+3'),
+        ...segs.map((_, k) => comp(`R${k + 1}`, 'resistor', [col(k), 8], { rotation: 90, span: 3, props: { resistance: 330 } })),
+        comp('DS1', '7seg-ca', 'H52'),
+        comp('V1', 'vcc', 'T+3', { board: 'b2' }),
+        comp('G1', 'gnd', 'B-3', { board: 'b2' }),
+        comp('G2', 'gnd', 'T-3', { board: 'b2' }),
+        comp('SW1', 'dipsw-4', 'F5', { board: 'b2', props: { switchStates: [true, true, true, true] } }),
+        comp('U1', '74LS47', 'F15', { board: 'b2' }),
+      ],
+      [
+        // 開關上側 → GND（下板 T- 軌）
+        link('s1', ['b2', 'T-5'], ['b2', 'A5']),
+        link('s2', ['b2', 'T-6'], ['b2', 'A6']),
+        link('s3', ['b2', 'T-7'], ['b2', 'A7']),
+        link('s4', ['b2', 'T-9'], ['b2', 'A8']),
+        // 開關下側 → 74LS47 的 A（F21）、B（F15）、C（F16）、D（F20）
+        link('ia', ['b2', 'J5'], ['b2', 'J21']),
+        link('ib', ['b2', 'J6'], ['b2', 'I15']),
+        link('ic', ['b2', 'J7'], ['b2', 'I16']),
+        link('id', ['b2', 'J8'], ['b2', 'J20']),
+        link('vcc', ['b2', 'T+15'], ['b2', 'B15']), // 第 16 腳 VCC（E15）
+        link('gnd', ['b2', 'J22'], ['b2', 'B-22']), // 第 8 腳 GND
+        link('gg', ['b2', 'T-61'], ['b2', 'B-61']), // 下板上下兩條 GND 軌接通
+        link('ca', ['b1', 'A54'], ['b1', 'T+54']), // 共陽極 → VCC
+        // 74LS47 輸出 → 電阻下端（上板 F 列那一排）；電阻上端（E 列那一排）→ 顯示器的段
+        ...segs.flatMap(([name, out, seg], k) => [
+          link(`${name}1`, ['b2', out], ['b1', [col(k), 15]]),
+          link(`${name}2`, ['b1', [col(k), 4]], ['b1', seg]),
+        ]),
+      ],
+      boards,
+    ),
+  );
+}
+
+/**
+ * NE555 當 1 Hz 時脈推動 74LS93，上下貼合的兩塊板。上板（b1）：NE555（U2）在 F10，R5 = 1 kΩ、R6 = 68 kΩ、C1 = 10 µF 照標準無穩態接法，
+ * C2 = 0.01 µF 接 CONT；下板（b2）是「74LS93 計數器」範例拿掉按鈕的電路。NE555 的 OUT 往下接到 74LS93 的 CKA。按「▶ 模擬」就會自己數。
+ */
+export function timerCounterCircuit(): Circuit {
+  const boards = [board('b1'), board('b2', 0, 20)];
+  const counter = onBoard(counterCircuit(), 'b2');
+  const drop = new Set(['g4', 'c1']); // 按鈕的兩條線
+  const link = (id: string, from: [string, string], to: [string, string]) => latticeWire(boards, id, holeOn(...from), holeOn(...to));
+  return normalizeBoardGroups(
+    circuit(
+      [
+        comp('V2', 'vcc', 'T+3'),
+        comp('G3', 'gnd', 'T-3'),
+        comp('U2', 'NE555', 'F10'), // 第 1–4 腳 F10–F13（GND TRIG OUT /RESET），第 5–8 腳 E13–E10（CONT THRES DISCH VCC）
+        comp('R5', 'resistor', 'A20', { props: { resistance: 1000 } }), // VCC（第 20 欄）↔ DISCH（第 24 欄）
+        comp('R6', 'resistor', 'B24', { props: { resistance: 68000 } }), // DISCH（第 24 欄）↔ THRES / TRIG（第 28 欄）
+        comp('C1', 'capacitor-electrolytic', 'C28', { props: { capacitance: 1e-5 } }), // + 在第 28 欄、− 在第 30 欄
+        comp('C2', 'capacitor-ceramic', 'G20', { props: { capacitance: 1e-8 } }), // CONT（第 20 欄下半）↔ GND（第 22 欄下半）
+        ...counter.components.filter((c) => c.id !== 'SW1'),
+      ],
+      [
+        link('t1', ['b1', 'T+10'], ['b1', 'A10']), // NE555 VCC（第 8 腳）
+        link('t2', ['b1', 'J10'], ['b1', 'T-9']), // NE555 GND（第 1 腳）
+        link('t3', ['b1', 'J13'], ['b1', 'T+13']), // /RESET 接 VCC
+        link('t4', ['b1', 'T+21'], ['b1', 'E20']), // R5 上端 → VCC
+        link('t5', ['b1', 'D24'], ['b1', 'A11']), // DISCH（第 7 腳 E11）
+        link('t6', ['b1', 'D28'], ['b1', 'A12']), // THRES（第 6 腳 E12）
+        link('t7', ['b1', 'J11'], ['b1', 'E28']), // TRIG（第 2 腳 F11）接 THRES
+        link('t8', ['b1', 'D30'], ['b1', 'T-30']), // C1 負極 → GND
+        link('t9', ['b1', 'A13'], ['b1', 'J20']), // CONT（第 5 腳 E13）→ C2
+        link('t10', ['b1', 'J22'], ['b1', 'T-22']), // C2 另一腳 → GND
+        link('t11', ['b1', 'J12'], ['b2', 'A10']), // OUT（第 3 腳 F12）→ 74LS93 CKA（下板 E10）
+        ...counter.wires.filter((w) => !drop.has(w.id)),
+      ],
+      boards,
+    ),
+  );
+}
+
 export interface ExampleCircuit {
   id: string;
   name: string;
@@ -265,5 +375,25 @@ export const EXAMPLES: ExampleCircuit[] = [
     description:
       '上下貼合的兩塊板：上板兩個 4 位元指撥開關輸入 A、B（ON = 0），下板 74LS283 與 5 顆 LED 顯示和與進位。手動接線故意很亂，按「AI 標準佈線」看整理後的結果。',
     build: () => colorize(adderCircuit()),
+  },
+  {
+    id: 'seven-segment',
+    name: '74LS47 + 7 段顯示器',
+    description: '4 位元指撥開關輸入 BCD（ON = 0），74LS47 經電阻推動共陽極 7 段顯示器。導線已套用 AI 標準佈線，按「▶ 模擬」撥開關看數字。',
+    build: () => {
+      const c = sevenSegmentCircuit();
+      const routed = autoRoute(c);
+      return routed.status === 'success' ? applyRouting(c, routed) : colorize(c);
+    },
+  },
+  {
+    id: 'timer-counter',
+    name: 'NE555 時脈 + 74LS93 計數器',
+    description: 'NE555 當 1 Hz 時脈（R1、R2、C1 照標準接法擺好），74LS93 數 0–15、4 顆 LED 顯示。導線已套用 AI 標準佈線，按「▶ 模擬」看它自己數。',
+    build: () => {
+      const c = timerCounterCircuit();
+      const routed = autoRoute(c);
+      return routed.status === 'success' ? applyRouting(c, routed) : colorize(c);
+    },
   },
 ];
