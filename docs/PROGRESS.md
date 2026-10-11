@@ -5,18 +5,15 @@
 
 ## 目前狀態
 
-- `main`：子專案 1–5 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說：離線錯誤解說與「問 AI」Gemini 追問）；
-  接線清單、單一 HTML 離線版、平板觸控也已合併（PR #3、#4 2026-10-09，PR #5 2026-10-10）。GitHub Actions CI 已設定。
-- 測試：main 上 359 個單元測試、24 個端對端測試；`feat/routing-standard`（含子專案 6）上 379 個、26 個；`feat/ic-placement`（含子專案 6、7）上 418 個、27 個；`feat/new-parts`（含子專案 6–8）上 467 個、28 個。
+- `main`：子專案 1–8 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式）；
+  接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#10 於 2026-10-11 合併（#10 合併時只含子專案 9 的規格）。GitHub Actions CI 已設定。
+- 測試：main 上 418 個單元測試、27 個端對端測試；`feat/new-parts` 上 467 個、28 個。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
   原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布。
 
 ## 進行中
 
-- `feat/straight-wires`（PR #7）：子專案 6「直線導線」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-straight-wires-design.md`、計畫 `docs/superpowers/plans/2026-10-10-straight-wires.md`。
-- `feat/routing-standard`（PR #8，從 `feat/straight-wires` 開出，要先合併 PR #7）：子專案 7「新的自動佈線標準」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-routing-standard-design.md`、計畫 `docs/superpowers/plans/2026-10-10-routing-standard.md`。
-- `feat/ic-placement`（PR #9，從 `feat/routing-standard` 開出，要先合併 PR #7、#8）：子專案 8「可以移動 IC 的佈線模式」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-10-ic-placement-design.md`、計畫 `docs/superpowers/plans/2026-10-11-ic-placement.md`。
-- `feat/new-parts`（PR #10，從 `feat/ic-placement` 開出，要先合併 PR #7–#9）：子專案 9「新元件與 IC 腳位圖」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-11-new-parts-design.md`、計畫 `docs/superpowers/plans/2026-10-11-new-parts.md`。
+- `feat/new-parts`（PR #11）：子專案 9「新元件與 IC 腳位圖」**已完成**，等使用者審查（PR #10 合併時只帶到規格，實作在這個 PR）。規格 `docs/superpowers/specs/2026-10-11-new-parts-design.md`、計畫 `docs/superpowers/plans/2026-10-11-new-parts.md`。
 
 ## 接下來（依優先順序）
 
