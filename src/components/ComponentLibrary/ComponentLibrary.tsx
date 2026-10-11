@@ -45,6 +45,22 @@ export function PartIcon({ item }: { item: LibraryItem }) {
         </svg>
       );
     }
+    case 'seven-seg':
+      return (
+        <svg {...box} aria-hidden>
+          <rect x={9} y={1} width={16} height={22} rx={2} fill="#1f1f1f" />
+          <path d="M13 5h8M22 6v5M22 13v5M13 19h8M12 13v5M12 6v5M13 12h8" stroke="#ff3b30" strokeWidth={1.6} />
+        </svg>
+      );
+    case 'capacitor': {
+      const electrolytic = item.defId === 'capacitor-electrolytic';
+      return (
+        <svg {...box} aria-hidden>
+          <line x1={1} y1={12} x2={33} y2={12} stroke={PART.lead} strokeWidth={2} />
+          {electrolytic ? <rect x={11} y={4} width={12} height={16} rx={3} fill="#1e3a8a" /> : <circle cx={17} cy={12} r={7} fill="#e8a33d" />}
+        </svg>
+      );
+    }
     case 'vcc':
     case 'gnd': {
       const vcc = item.category === 'vcc';
@@ -261,8 +277,8 @@ function JumperWireCard() {
   );
 }
 
-const GRID_SECTIONS = new Set(['ic', 'resistor', 'led']);
-const SHORT_TITLES: Record<string, string> = { ic: '74LS', resistor: '電阻', led: 'LED', power: '電源', input: '輸入' };
+const GRID_SECTIONS = new Set(['ic', 'resistor', 'led', 'capacitor']);
+const SHORT_TITLES: Record<string, string> = { ic: 'IC', resistor: '電阻', led: 'LED', capacitor: '電容', power: '電源', input: '輸入' };
 
 /** 左側元件庫：分類、搜尋、拖曳放置。 */
 export function ComponentLibrary() {

@@ -5,7 +5,7 @@ import { netColor } from '../../core/routing/colors';
 import { analyzeCircuit, netOfPin, type CircuitAnalysis } from '../../editor/analysis';
 import { boardRect, crossBoardWires, groupMembers, MAX_BOARDS } from '../../editor/boards';
 import { checklistProgress, checklistRows, type ChecklistRow } from '../../editor/checklist';
-import { formatResistance, LED_COLOR_NAMES, LED_COLORS } from '../../editor/library';
+import { CAPACITOR_PRESETS, formatCapacitance, formatResistance, LED_COLOR_NAMES, LED_COLORS } from '../../editor/library';
 import { WIRE_COLORS } from '../../editor/manualWire';
 import { appliedMoves, deriveMode, isComparisonFresh, useStore, type RightTab, type Selection } from '../../state/store';
 import type { Circuit, CircuitError, Net } from '../../types/circuit';
@@ -230,12 +230,28 @@ function ComponentInspector({ id, circuit, analysis }: { id: string; circuit: Ci
           </Row>
         )}
         {(def.category === 'vcc' || def.category === 'dc-power') && <Row label="電壓">{props.voltage ?? 5} V</Row>}
-        {def.category === 'clock' && (
+        {(def.category === 'clock' || def.logic?.model === 'timer555') && (
           <Row label="頻率">
             <select className={select} value={props.frequency ?? 1} onChange={(e) => store.updateProps(id, { frequency: Number(e.target.value) })} aria-label="時脈頻率">
               {CLOCK_FREQUENCIES.map((f) => (
                 <option key={f} value={f}>
                   {f} Hz
+                </option>
+              ))}
+            </select>
+          </Row>
+        )}
+        {def.logic?.model === 'timer555' && (
+          <p className="mt-1 text-xs leading-5 text-slate-400">
+            實際頻率由外接元件決定：f ≈ 1.44 ÷ ((R1 + 2 × R2) × C)。例：R1 = 1 kΩ、R2 = 68 kΩ、C = 10 µF → 約 1 Hz。
+          </p>
+        )}
+        {def.category === 'capacitor' && (
+          <Row label="容量">
+            <select className={select} value={props.capacitance} onChange={(e) => store.updateProps(id, { capacitance: Number(e.target.value) })} aria-label="電容量">
+              {CAPACITOR_PRESETS.filter((p) => p.defId === def.id).map((p) => (
+                <option key={p.farads} value={p.farads}>
+                  {formatCapacitance(p.farads)}
                 </option>
               ))}
             </select>

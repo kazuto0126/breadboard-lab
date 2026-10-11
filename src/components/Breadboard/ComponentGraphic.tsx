@@ -1,6 +1,6 @@
 import { memo, type ReactNode } from 'react';
 import { effectiveSpan } from '../../core/circuit/footprint';
-import { formatResistance } from '../../editor/library';
+import { formatCapacitance, formatResistance } from '../../editor/library';
 import { PITCH, type Point } from '../../editor/geometry';
 import { LED_FILL, levelColor, PART, resistorBands } from '../../render/theme';
 import type { ComponentDefinition, ComponentInstance, LedColor, Rotation } from '../../types/component';
@@ -15,6 +15,8 @@ export interface ComponentSim {
   lit?: boolean;
   unpowered?: boolean;
   pressed?: boolean;
+  /** 7 段顯示器亮的段。 */
+  segments?: string[];
 }
 
 interface Props {
@@ -30,6 +32,30 @@ interface Props {
   interactive?: boolean;
   /** 模擬中：腳位電位、LED 是否發光、IC 是否供電、按鈕是否按下。 */
   sim?: ComponentSim;
+}
+
+/** 7 段顯示器的段：以字的中心為原點，P 為一格。 */
+const SEGMENT_SHAPES: Record<string, { x: number; y: number; w: number; h: number }> = {
+  a: { x: -0.75, y: -2.05, w: 1.5, h: 0.3 },
+  b: { x: 0.8, y: -1.85, w: 0.3, h: 1.7 },
+  c: { x: 0.8, y: 0.15, w: 0.3, h: 1.7 },
+  d: { x: -0.75, y: 1.75, w: 1.5, h: 0.3 },
+  e: { x: -1.1, y: 0.15, w: 0.3, h: 1.7 },
+  f: { x: -1.1, y: -1.85, w: 0.3, h: 1.7 },
+  g: { x: -0.75, y: -0.15, w: 1.5, h: 0.3 },
+};
+
+function SevenSegFace({ cx, cy, lit }: { cx: number; cy: number; lit: string[] }) {
+  const on = new Set(lit);
+  const color = (name: string) => (on.has(name) ? '#ff3b30' : '#4a1512');
+  return (
+    <g transform={`translate(${cx} ${cy})`} data-segments={lit.join('')}>
+      {Object.entries(SEGMENT_SHAPES).map(([name, s]) => (
+        <rect key={name} x={s.x * P} y={s.y * P} width={s.w * P} height={s.h * P} rx={0.12 * P} fill={color(name)} />
+      ))}
+      <circle cx={1.35 * P} cy={1.9 * P} r={0.17 * P} fill={color('dp')} />
+    </g>
+  );
 }
 
 /** 文字永遠保持正向：抵銷元件本身的旋轉。 */
@@ -84,6 +110,7 @@ function Dip({ instance, def, sim }: { instance: ComponentInstance; def: Compone
   const half = pinCount / 2;
   const r = instance.rotation;
   const isSwitch = def.category === 'dip-switch';
+  const isDisplay = def.category === 'seven-seg';
   const w = (half - 1) * P;
   const top = -rowSpacing * P + 0.42 * P;
   const bottom = -0.42 * P;
@@ -104,8 +131,8 @@ function Dip({ instance, def, sim }: { instance: ComponentInstance; def: Compone
         width={w + 0.96 * P}
         height={bottom - top}
         rx={0.14 * P}
-        fill={isSwitch ? PART.switchBody : PART.icBody}
-        stroke={isSwitch ? PART.switchEdge : PART.icEdge}
+        fill={isSwitch ? PART.switchBody : isDisplay ? '#1f1f1f' : PART.icBody}
+        stroke={isSwitch ? PART.switchEdge : isDisplay ? '#000000' : PART.icEdge}
         strokeWidth={1}
       />
       {isSwitch ? (
@@ -122,6 +149,13 @@ function Dip({ instance, def, sim }: { instance: ComponentInstance; def: Compone
               </Upright>
             </g>
           ))}
+        </>
+      ) : isDisplay ? (
+        <>
+          <SevenSegFace cx={w / 2} cy={mid} lit={sim?.segments ?? []} />
+          <Upright x={w / 2} y={top - 0.35 * P} rotation={r} fill="#cfd8dc" fontSize={0.36 * P} fontWeight={700}>
+            {instance.id}
+          </Upright>
         </>
       ) : (
         <>
@@ -234,6 +268,34 @@ function Led({ instance, def, sim }: { instance: ComponentInstance; def: Compone
   );
 }
 
+function Capacitor({ instance, def, sim }: { instance: ComponentInstance; def: ComponentDefinition; sim?: ComponentSim }) {
+  const span = effectiveSpan(instance, def);
+  const cx = (span * P) / 2;
+  const farads = instance.props.capacitance ?? def.defaultProps.capacitance ?? 1e-7;
+  const electrolytic = def.id === 'capacitor-electrolytic';
+  return (
+    <>
+      <line x1={0} y1={0} x2={span * P} y2={0} stroke={PART.lead} strokeWidth={1.6} />
+      <PinStub x={0} y={0} level={sim?.levels[1]} />
+      <PinStub x={span * P} y={0} level={sim?.levels[2]} />
+      {electrolytic ? (
+        <>
+          <rect x={cx - 0.5 * P} y={-0.6 * P} width={P} height={1.2 * P} rx={0.2 * P} fill="#1e3a8a" stroke="#0b1d4d" strokeWidth={1} />
+          <rect x={cx + 0.22 * P} y={-0.6 * P} width={0.2 * P} height={1.2 * P} fill="#e2e8f0" />
+          <Upright x={cx - 0.25 * P} y={0} rotation={instance.rotation} fill="#ffffff" fontSize={0.42 * P} fontWeight={800}>
+            +
+          </Upright>
+        </>
+      ) : (
+        <circle cx={cx} cy={0} r={0.45 * P} fill="#e8a33d" stroke="#9a5b12" strokeWidth={1} />
+      )}
+      <Upright x={cx} y={-0.95 * P} rotation={instance.rotation} fill="#cfd8dc" fontSize={0.34 * P} fontWeight={700}>
+        {`${instance.id} ${formatCapacitance(farads)}`}
+      </Upright>
+    </>
+  );
+}
+
 function Terminal({ instance, def }: { instance: ComponentInstance; def: ComponentDefinition }) {
   const isVcc = def.category === 'vcc';
   const volts = instance.props.voltage ?? def.defaultProps.voltage ?? 5;
@@ -330,6 +392,8 @@ export const ComponentGraphic = memo(function ComponentGraphic({ instance, def, 
           <Resistor instance={instance} def={def} sim={sim} />
         ) : def.category === 'led' ? (
           <Led instance={instance} def={def} sim={sim} />
+        ) : def.category === 'capacitor' ? (
+          <Capacitor instance={instance} def={def} sim={sim} />
         ) : (
           <DcPower instance={instance} def={def} />
         );
