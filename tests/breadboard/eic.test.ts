@@ -68,3 +68,17 @@ describe('EIC-1106 layout', () => {
     expect(r.ok && r.circuit.boards[1].layoutId).toBe('EIC1106');
   });
 });
+
+describe('wire colours on an EIC-1106', () => {
+  it('colours wires to a + rail or the red post red, and to a − rail or the black post black', async () => {
+    const { defaultWireColor } = await import('../../src/editor/manualWire');
+    const { holeOn } = await import('../fixtures/build');
+    const c = circuit([], [], [board('b1', 0, 0, 'EIC1106')]);
+    const at = (n: string) => holeOn('b1', n, 'EIC1106');
+    expect(defaultWireColor(c, at('2-A10'), at('P3+6'))).toBe('#d32f2f');
+    expect(defaultWireColor(c, at('紅'), at('2-A10'))).toBe('#d32f2f');
+    expect(defaultWireColor(c, at('2-J16'), at('P4-6'), 'x')).not.toBe('x');
+    expect(defaultWireColor(c, at('黑'), at('2-A10'), 'x')).not.toBe('x');
+    expect(defaultWireColor(c, at('黃'), at('2-A10'), 'x')).toBe('x');
+  });
+});
