@@ -1,6 +1,6 @@
 export type { Direction, GridPoint } from './types/geometry';
 export type {
-  BoardGroup, BoardLayout, Breadboard, BreadboardGroup, BreadboardInstance, BreadboardNode, LayoutRow, NodeKind, RailLabel,
+  BindingPost, BoardGroup, BoardLayout, Breadboard, BreadboardGroup, BreadboardInstance, BreadboardNode, LayoutId, LayoutRow, NodeKind, RailLabel,
 } from './types/board';
 export type {
   ComponentCategory, ComponentDefinition, ComponentInstance, ComponentProps, Footprint, LedColor, PackageSpec,
@@ -15,9 +15,9 @@ export type {
   PlacementConfig, RoutingPath, RoutingResult, RoutingWeights,
 } from './types/routing';
 
-export { MB102_LAYOUT } from './core/breadboard/layouts';
+export { EIC1106_LAYOUT, MB102_LAYOUT } from './core/breadboard/layouts';
 export { buildBoard } from './core/breadboard/buildBoard';
-export { getBoard } from './core/breadboard/registry';
+export { getBoard, getLayout } from './core/breadboard/registry';
 export { getNode, holeName, nodeIdOf, parseHoleName, parseNodeId } from './core/breadboard/naming';
 export {
   buildCanvas, buildLattice, isRoutablePoint, isSeamPoint, latticeOf, latticeStep, MM_PER_UNIT, pointAt, unitsFromMm,

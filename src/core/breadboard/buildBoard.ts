@@ -4,6 +4,7 @@ export function buildBoard(layout: BoardLayout, boardId: string): Breadboard {
   const nodes: BreadboardNode[] = [];
   const groups: Record<string, BreadboardGroup> = {};
   const rowByY = new Map<number, LayoutRow>(layout.rows.map((row) => [row.y, row]));
+  const postAt = new Map((layout.posts ?? []).map((p) => [`${p.x},${p.y}`, p]));
 
   for (let y = 1; y <= layout.height; y++) {
     const row: LayoutRow = rowByY.get(y) ?? { y, kind: 'surface' };
@@ -11,10 +12,15 @@ export function buildBoard(layout: BoardLayout, boardId: string): Breadboard {
       let kind: NodeKind = 'surface';
       let name: string | null = null;
       let groupId: string | null = null;
-      if (row.kind === 'terminal') {
+      const post = postAt.get(`${x},${y}`);
+      if (post) {
         kind = 'hole';
-        name = `${row.label}${x}`;
-        groupId = `${boardId}:c${x}-${row.half}`;
+        name = post.name;
+        groupId = `${boardId}:post-${post.color}`;
+      } else if (row.kind === 'terminal') {
+        kind = 'hole';
+        name = `${row.area ? `${row.area}-` : ''}${row.label}${x}`;
+        groupId = `${boardId}:${row.area ? `a${row.area}-` : ''}c${x}-${row.half}`;
       } else if (row.kind === 'rail' && row.holeColumns.includes(x)) {
         kind = 'hole';
         name = `${row.label}${x}`;
@@ -26,8 +32,9 @@ export function buildBoard(layout: BoardLayout, boardId: string): Breadboard {
         const group = (groups[groupId] ??= {
           id: groupId,
           boardId,
-          kind: row.kind === 'rail' ? 'rail' : 'terminal',
+          kind: post || row.kind === 'rail' ? 'rail' : 'terminal',
           nodeIds: [],
+          ...(post?.source ? { source: post.source } : {}),
         });
         group.nodeIds.push(id);
       }

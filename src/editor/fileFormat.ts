@@ -74,8 +74,8 @@ const LED_COLORS = new Set<string>(['red', 'green', 'yellow', 'blue']);
 
 function parseBoard(raw: unknown, path: string): BreadboardInstance {
   const b = obj(raw, path);
-  if (b.layoutId !== 'MB102') fail(`${path}.layoutId`, `不支援的麵包板版型 ${String(b.layoutId)}（目前只有 MB102）`);
-  return { id: str(b.id, `${path}.id`), layoutId: 'MB102', x: num(b.x ?? 0, `${path}.x`), y: num(b.y ?? 0, `${path}.y`), groupId: null };
+  if (b.layoutId !== 'MB102' && b.layoutId !== 'EIC1106') fail(`${path}.layoutId`, `不支援的麵包板版型 ${String(b.layoutId)}（目前有 MB102、EIC1106）`);
+  return { id: str(b.id, `${path}.id`), layoutId: b.layoutId, x: num(b.x ?? 0, `${path}.x`), y: num(b.y ?? 0, `${path}.y`), groupId: null };
 }
 
 function parseProps(raw: unknown, path: string): ComponentProps {

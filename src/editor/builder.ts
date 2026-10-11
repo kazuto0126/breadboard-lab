@@ -1,7 +1,7 @@
 import { buildLattice, latticeOf, MM_PER_UNIT, pointAt } from '../core/breadboard/lattice';
 import { parseHoleName } from '../core/breadboard/naming';
 import { getBoard } from '../core/breadboard/registry';
-import type { BreadboardInstance } from '../types/board';
+import type { BreadboardInstance, LayoutId } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance, ComponentProps, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
@@ -80,14 +80,16 @@ export function circuit(components: ComponentInstance[], wires: Wire[] = [], boa
   return { version: 1, boards: boards ?? [board(BOARD_ID)], components, wires };
 }
 
-/** 一塊 MB-102，位置以格（0.1 吋）為單位。上下貼合時下面那塊 y = 20，左右貼合時右邊那塊 x = 65。 */
-export function board(id: string, unitsX = 0, unitsY = 0): BreadboardInstance {
-  return { id, layoutId: 'MB102', x: unitsX * MM_PER_UNIT, y: unitsY * MM_PER_UNIT, groupId: null };
+/** 一塊麵包板（預設 MB-102），位置以格（0.1 吋）為單位。上下貼合時下面那塊 y = 20（EIC-1106 高 58 格），左右貼合時右邊那塊 x = 65。 */
+export function board(id: string, unitsX = 0, unitsY = 0, layoutId: LayoutId = 'MB102'): BreadboardInstance {
+  return { id, layoutId, x: unitsX * MM_PER_UNIT, y: unitsY * MM_PER_UNIT, groupId: null };
 }
 
-/** 指定板子上的孔（所有板子同一種版型）。 */
-export function holeOn(boardId: string, name: string): GridPoint {
-  return { ...hole(name), boardId };
+/** 指定板子上的孔；layoutId 是那塊板的版型（預設 MB-102）。 */
+export function holeOn(boardId: string, name: string, layoutId: LayoutId = 'MB102'): GridPoint {
+  const p = parseHoleName(getBoard(layoutId, boardId), name);
+  if (!p) throw new Error(`Unknown hole ${name} on ${layoutId}`);
+  return p;
 }
 
 /** 依序經過每個點、在全域格子上先水平再垂直走的導線，可以跨過同群組兩塊板之間的接縫。 */
