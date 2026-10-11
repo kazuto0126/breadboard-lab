@@ -1,4 +1,4 @@
-import { indexCircuit, groupOfPoint, propsOf } from '../circuit/circuitIndex';
+import { groupInfo, indexCircuit, groupOfPoint, propsOf } from '../circuit/circuitIndex';
 import { pinKey } from '../circuit/nets';
 import { UnionFind } from '../circuit/unionFind';
 import type { Circuit } from '../../types/circuit';
@@ -121,6 +121,12 @@ export function compileSimulation(circuit: Circuit): SimCircuit {
     leds: [],
     displays: [],
   };
+
+  // EIC-1106 的接線柱：紅 = 強驅動 1、黑 = 0（只在有接線、被編進節點時）。
+  for (const [g, node] of nodeOfGroup) {
+    const source = groupInfo(index, g)?.source;
+    if (source) sim.sources.push({ componentId: `post:${g}`, node, level: source === 'vcc' ? 1 : 0 });
+  }
 
   for (const pc of index.placed) {
     const id = pc.instance.id;

@@ -5,6 +5,7 @@ import type { PinRole } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
 import {
   componentLabel,
+  groupInfo,
   groupOfPoint,
   indexCircuit,
   nodeAt,
@@ -16,7 +17,7 @@ import {
   type PlacedComponent,
 } from './circuitIndex';
 import { effectiveSpan } from './footprint';
-import { compareIds, extractNetsWith, netByPin, pinKey } from './nets';
+import { compareIds, extractNetsWith, netByPin, netHasSource, pinKey } from './nets';
 import { analyzeWireInteractions, cellsUnder, pathIssues } from './wireGeometry';
 
 type Report = (error: Pick<CircuitError, 'code' | 'severity' | 'message'> & Partial<CircuitError>) => void;
@@ -167,12 +168,18 @@ function checkWires(circuit: Circuit, index: CircuitIndex, report: Report): void
 function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void {
   const byPin = netByPin(nets);
   const role = (ref: PinRef): PinRole | undefined => pinDefinition(index, ref)?.role;
-  const netHas = (net: Net | undefined, wanted: PinRole) => net !== undefined && net.pins.some((r) => role(r) === wanted);
+  const netHas = (net: Net | undefined, wanted: PinRole) =>
+    net !== undefined &&
+    (net.pins.some((r) => role(r) === wanted) ||
+      (wanted === 'vcc-source' && netHasSource(net, index, 'vcc')) ||
+      (wanted === 'gnd-source' && netHasSource(net, index, 'gnd')));
   const pointsOf = (refs: PinRef[]) => refs.map((r) => pinPoint(index, r)).filter((p): p is GridPoint => p !== undefined);
   const componentsOf = (refs: PinRef[]) => [...new Set(refs.map((r) => r.componentId))].sort(compareIds);
   const refOf = (pc: PlacedComponent, pinNumber: number): PinRef => ({ componentId: pc.instance.id, pinNumber });
 
-  const hasSource = index.placed.some((pc) => pc.def.pins.some((p) => p.role === 'vcc-source' || p.role === 'gnd-source'));
+  const hasSource =
+    index.placed.some((pc) => pc.def.pins.some((p) => p.role === 'vcc-source' || p.role === 'gnd-source')) ||
+    nets.some((n) => netHasSource(n, index, 'vcc') || netHasSource(n, index, 'gnd'));
   if (index.placed.length > 0 && !hasSource) {
     report({ code: 'NO_POWER_SOURCE', severity: 'error', message: '電路沒有電源：請放入 VCC 與 GND' });
   }
@@ -180,8 +187,10 @@ function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void
   for (const net of nets) {
     const vccPins = net.pins.filter((r) => role(r) === 'vcc-source');
     const voltages = new Set(vccPins.map((r) => propsOf(index.placedById.get(r.componentId)!).voltage ?? 5));
+    // EIC-1106 的紅色接線柱：固定 5 V。
+    if (net.groupIds.some((g) => groupInfo(index, g)?.source === 'vcc')) voltages.add(5);
     const hasGnd = netHas(net, 'gnd-source');
-    if ((vccPins.length > 0 && hasGnd) || voltages.size > 1) {
+    if ((voltages.size > 0 && hasGnd) || voltages.size > 1) {
       report({
         code: 'SHORT_CIRCUIT',
         severity: 'error',
@@ -192,7 +201,7 @@ function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void
       });
     }
     const outputs = net.pins.filter((r) => role(r) === 'output');
-    if (outputs.length > 1 || (outputs.length === 1 && (vccPins.length > 0 || hasGnd))) {
+    if (outputs.length > 1 || (outputs.length === 1 && (voltages.size > 0 || hasGnd))) {
       report({
         code: 'OUTPUT_CONFLICT',
         severity: 'error',
