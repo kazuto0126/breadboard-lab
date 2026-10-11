@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { validateCircuit } from '../../src/core/circuit/validate';
-import { AI_SYSTEM_INSTRUCTION, circuitBrief, firstMessage, issueBrief } from '../../src/editor/explain/brief';
-import { board, circuit, comp, wire } from '../fixtures/build';
+import { AI_SYSTEM_INSTRUCTION, circuitBrief, firstMessage, holeRule, issueBrief, sameTopic, wireBrief } from '../../src/editor/explain/brief';
+import { board, circuit, comp, straightWire, wire } from '../fixtures/build';
 
 /** 和 explain.test.ts 一樣：74LS00 第 1 腳在 F10，VCC 在 T+3、GND 在 B-3，第 7 腳已接 GND，第 14 腳還沒接。 */
 const icCircuit = () => circuit([comp('U1', '74LS00', 'F10'), comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3')], [wire('g1', 'J16', 'B-16')]);
@@ -57,10 +57,55 @@ describe('circuit brief for Gemini', () => {
 
   it('puts the brief, the issue and the trimmed question in that order', () => {
     const c = icCircuit();
-    const m = firstMessage(c, vccIssue(c), '  為什麼會這樣？ \n');
+    const m = firstMessage(c, { kind: 'issue', issue: vccIssue(c) }, '  為什麼會這樣？ \n');
     expect(m.indexOf('【電路摘要】')).toBe(0);
     expect(m.indexOf('【學生正在看的錯誤】')).toBeGreaterThan(0);
     expect(m.endsWith('【學生的問題】\n為什麼會這樣？')).toBe(true);
     expect(AI_SYSTEM_INSTRUCTION).toContain('繁體中文');
+  });
+});
+
+describe('wire brief for Gemini', () => {
+  const routed = () =>
+    circuit([comp('R1', 'resistor', 'A10'), comp('R2', 'resistor', 'H20')], [
+      { ...straightWire('w1', 'B14', 'B20'), source: 'auto' },
+      { ...straightWire('w2', 'E20', 'G20'), source: 'auto' },
+    ]);
+
+  it('describes the wire, its chain and the routing rules for auto wires', () => {
+    const m = firstMessage(routed(), { kind: 'wire', wireId: 'w1' }, '為什麼這樣走？');
+    expect(m).toMatch(/^【電路摘要】/);
+    expect(m).toContain('【學生正在看的導線】\nw1（AI 標準佈線）：B14 → B20');
+    expect(m).toContain('這段連線共 2 條線：');
+    expect(m).toContain('為什麼不一條線直接接：');
+    expect(m).toContain('【AI 標準佈線的規則】');
+    expect(m.endsWith('【學生的問題】\n為什麼這樣走？')).toBe(true);
+  });
+
+  it('leaves the rules out for manual wires', () => {
+    const c = circuit([comp('R1', 'resistor', 'A10')], [straightWire('m1', 'B14', 'B20')]);
+    const m = wireBrief(c, 'm1');
+    expect(m).toContain('m1（學生手動接的線）');
+    expect(m).not.toContain('【AI 標準佈線的規則】');
+    expect(m).not.toContain('為什麼不一條線直接接');
+  });
+
+  it('explains EIC-1106 hole names only when the circuit has that board', () => {
+    expect(holeRule(circuit([]))).not.toContain('P1');
+    const eic = circuit([], [], [board('b1', 0, 0, 'EIC1106')]);
+    expect(holeRule(eic)).toMatch(/1-A15/);
+    expect(holeRule(eic)).toMatch(/P1.*P5/);
+    expect(circuitBrief(eic)).toContain(holeRule(eic));
+    expect(AI_SYSTEM_INSTRUCTION).toContain('1-A15');
+    expect(AI_SYSTEM_INSTRUCTION).toContain('U1 第 3 腳');
+  });
+
+  it('compares topics by issue reference or wire id', () => {
+    const c = icCircuit();
+    const issue = vccIssue(c);
+    expect(sameTopic({ kind: 'issue', issue }, { kind: 'issue', issue })).toBe(true);
+    expect(sameTopic({ kind: 'wire', wireId: 'w1' }, { kind: 'wire', wireId: 'w1' })).toBe(true);
+    expect(sameTopic({ kind: 'wire', wireId: 'w1' }, { kind: 'wire', wireId: 'w2' })).toBe(false);
+    expect(sameTopic({ kind: 'issue', issue }, { kind: 'wire', wireId: 'w1' })).toBe(false);
   });
 });
