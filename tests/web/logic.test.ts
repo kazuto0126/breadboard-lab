@@ -1,0 +1,62 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { addNode } from '../../src/logic/edit';
+import { majorityDiagram } from '../../src/logic/examples';
+import { emptyDiagram } from '../../src/logic/types';
+import { initialLogicState, logicDirty, useLogic } from '../../src/state/logic';
+import { initialState, isDirty, useStore } from '../../src/state/store';
+import { circuit, comp } from '../fixtures/build';
+
+const L = () => useLogic.getState();
+const S = () => useStore.getState();
+
+beforeEach(() => {
+  useStore.setState(initialState());
+  useLogic.setState(initialLogicState());
+});
+
+describe('logic store', () => {
+  it('places parts with its own undo history, separate from the breadboard', () => {
+    expect(L().place('AND', 4, 0)).toBe(true);
+    expect(L().place('AND', 5, 0)).toBe(false);
+    expect(L().diagram.nodes).toHaveLength(1);
+    const breadboard = circuit([comp('R1', 'resistor', 'A10')]);
+    useStore.setState({ circuit: breadboard });
+    L().undo();
+    expect(L().diagram.nodes).toHaveLength(0);
+    expect(S().circuit.components).toHaveLength(1);
+    L().redo();
+    expect(L().diagram.nodes).toHaveLength(1);
+  });
+
+  it('toggles switches without undo, and deletes the selection', () => {
+    L().load(majorityDiagram());
+    L().toggleInput('i1');
+    expect(L().diagram.nodes.find((n) => n.id === 'i1')!.value).toBe(1);
+    expect(L().history.past).toHaveLength(0);
+    L().setInputs({ i1: 0, i2: 1, i3: 1 });
+    expect(L().diagram.nodes.filter((n) => n.kind === 'INPUT').map((n) => n.value)).toEqual([0, 1, 1]);
+    L().select({ kind: 'node', id: 'g4' });
+    L().deleteSelection();
+    expect(L().diagram.nodes.some((n) => n.id === 'g4')).toBe(false);
+    expect(L().diagram.wires.some((w) => w.from === 'g4' || w.to.node === 'g4')).toBe(false);
+    expect(L().selection).toBeNull();
+  });
+
+  it('counts as unsaved work and is cleared by a new circuit', () => {
+    expect(logicDirty()).toBe(false);
+    L().apply(addNode(L().diagram, 'INPUT', 0, 0), '新增輸入端');
+    expect(logicDirty()).toBe(true);
+    expect(isDirty(S())).toBe(true);
+    S().newCircuit();
+    expect(L().diagram).toEqual(emptyDiagram());
+    expect(logicDirty()).toBe(false);
+  });
+
+  it('loads the figure 2-5 example into the logic workspace', () => {
+    S().loadExampleLogic('majority');
+    expect(S().workspace).toBe('logic');
+    expect(L().diagram.nodes).toHaveLength(8);
+    expect(S().circuit.components).toHaveLength(0);
+    expect(logicDirty()).toBe(false);
+  });
+});

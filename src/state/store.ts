@@ -31,6 +31,9 @@ import {
   updateComponentProps,
 } from '../editor/commands';
 import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
+import { LOGIC_EXAMPLES } from '../logic/examples';
+import { emptyDiagram, type LogicDiagram } from '../logic/types';
+import { logicDirty, useLogic } from './logic';
 import { boardFrames, gridBounds, worldBounds } from '../editor/geometry';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
 import type { LibraryItem } from '../editor/library';
@@ -120,6 +123,8 @@ export interface AppState {
   selection: Selection;
   placing: PlacingTool | null;
   view: 'edit' | 'compare';
+  /** 規格（2026-10-11 logic-diagram）第 5 節：「邏輯圖｜麵包板」切換；和 view（edit / compare）無關。 */
+  workspace: 'breadboard' | 'logic';
   compareLayout: 'side' | 'stacked';
   showCheck: boolean;
   routing: { startedAt: number; purpose: 'apply' | 'compare'; moveIcs: boolean } | null;
@@ -197,7 +202,10 @@ export interface AppActions {
   restoreManualWires(): void;
   setCompareLayout(layout: 'side' | 'stacked'): void;
   newCircuit(): void;
-  loadCircuit(circuit: Circuit, name: string | null, message?: string, checklist?: ChecklistState): void;
+  loadCircuit(circuit: Circuit, name: string | null, message?: string, checklist?: ChecklistState, logic?: LogicDiagram): void;
+  setWorkspace(workspace: 'breadboard' | 'logic'): void;
+  /** 載入邏輯圖範例：麵包板清空，切到邏輯圖。 */
+  loadExampleLogic(id: string): void;
   saveProject(name?: string): void;
   openProject(name: string): void;
   deleteProject(name: string): void;
@@ -264,6 +272,8 @@ function withApplied(c: Comparison, applied: Circuit): Comparison {
 
 export function isDirty(s: Pick<AppState, 'circuit' | 'savedCircuit'>): boolean {
   const c = s.circuit;
+  // 邏輯圖也算（子專案 12）。
+  if (logicDirty()) return true;
   return c !== s.savedCircuit && (c.components.length > 0 || c.wires.length > 0 || c.boards.length > 1);
 }
 
@@ -358,6 +368,7 @@ export function initialState(): AppState {
     selection: null,
     placing: null,
     view: 'edit',
+    workspace: 'breadboard',
     compareLayout: 'stacked',
     showCheck: false,
     routing: null,
@@ -870,7 +881,7 @@ export const useStore = create<Store>()((set, get) => {
       get().loadCircuit(emptyCircuit(), null, '已建立新電路');
     },
 
-    loadCircuit(circuit, name, message, checklist) {
+    loadCircuit(circuit, name, message, checklist, logic) {
       if (guardRouting()) return;
       clearAnimationTimer();
       set({
@@ -889,9 +900,23 @@ export const useStore = create<Store>()((set, get) => {
         showCheck: false,
         dialog: null,
       });
+      useLogic.getState().load(logic ?? emptyDiagram());
       syncSimTimer();
       get().fitToScreen();
       if (message) get().toast('success', message);
+    },
+
+    setWorkspace(workspace) {
+      if (workspace === get().workspace) return;
+      useLogic.getState().startPlacing(null);
+      set({ workspace, placing: null, drawer: null });
+    },
+
+    loadExampleLogic(id) {
+      const ex = LOGIC_EXAMPLES.find((e) => e.id === id);
+      if (!ex) return;
+      get().loadCircuit(emptyCircuit(), ex.name, `已載入範例「${ex.name}」：${ex.description}`, undefined, ex.build());
+      set({ workspace: 'logic' });
     },
 
     saveProject(name) {
@@ -901,10 +926,11 @@ export const useStore = create<Store>()((set, get) => {
         set({ dialog: 'save-as' });
         return;
       }
-      if (!persistence.saveProject(target, s.circuit, pruneChecklist(s.checklist, s.circuit))) {
+      if (!persistence.saveProject(target, s.circuit, pruneChecklist(s.checklist, s.circuit), useLogic.getState().diagram)) {
         get().toast('error', '無法儲存：瀏覽器不允許使用本機儲存空間。請改用「匯出 JSON」。');
         return;
       }
+      useLogic.getState().markSaved();
       set({ projectName: target, savedCircuit: s.circuit, dialog: null });
       get().toast('success', `已儲存「${target}」`);
     },
@@ -915,7 +941,7 @@ export const useStore = create<Store>()((set, get) => {
         get().toast('error', result.error);
         return;
       }
-      get().loadCircuit(result.circuit, name, `已開啟「${name}」`, result.checklist);
+      get().loadCircuit(result.circuit, name, `已開啟「${name}」`, result.checklist, result.logic);
     },
 
     deleteProject(name) {
@@ -929,7 +955,7 @@ export const useStore = create<Store>()((set, get) => {
         get().toast('error', `匯入失敗：${result.error}`);
         return;
       }
-      get().loadCircuit(result.circuit, result.name, `已匯入${result.name ? `「${result.name}」` : ' JSON'}`, result.checklist);
+      get().loadCircuit(result.circuit, result.name, `已匯入${result.name ? `「${result.name}」` : ' JSON'}`, result.checklist, result.logic);
     },
 
     openDialog(dialog) {
@@ -1042,16 +1068,27 @@ let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** 電路、專案名稱、存檔狀態或接線清單的勾選改變後 400 ms 寫入 localStorage；第一次失敗時提示一次。 */
 export function startAutosave(): () => void {
-  return useStore.subscribe((s, prev) => {
-    if (s.circuit === prev.circuit && s.projectName === prev.projectName && s.checklist === prev.checklist && s.savedCircuit === prev.savedCircuit) return;
+  const schedule = () => {
     if (autosaveTimer) clearTimeout(autosaveTimer);
     autosaveTimer = setTimeout(() => {
       const now = useStore.getState();
       const checklist = pruneChecklist(now.checklist, now.circuit);
-      if (!persistence.writeAutosave(now.circuit, now.projectName, checklist, isDirty(now)) && !now.storageWarned) {
+      if (!persistence.writeAutosave(now.circuit, now.projectName, checklist, isDirty(now), useLogic.getState().diagram) && !now.storageWarned) {
         useStore.setState({ storageWarned: true });
         now.toast('warning', '瀏覽器不允許使用本機儲存空間，無法自動儲存。請記得「匯出 JSON」。');
       }
     }, 400);
+  };
+  const offStore = useStore.subscribe((s, prev) => {
+    if (s.circuit === prev.circuit && s.projectName === prev.projectName && s.checklist === prev.checklist && s.savedCircuit === prev.savedCircuit) return;
+    schedule();
   });
+  // 邏輯圖（含開關狀態）改變也要暫存。
+  const offLogic = useLogic.subscribe((l, prev) => {
+    if (l.diagram !== prev.diagram || l.saved !== prev.saved) schedule();
+  });
+  return () => {
+    offStore();
+    offLogic();
+  };
 }

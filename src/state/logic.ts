@@ -1,0 +1,123 @@
+import { create } from 'zustand';
+import { emptyHistory, record, redo, undo, type History } from '../editor/history';
+import { DEFAULT_VIEWPORT, fitRect, type Viewport } from '../editor/viewport';
+import { addNode, removeNodes, removeWire, setInputValue, type EditResult } from '../logic/edit';
+import { nodeSize } from '../logic/shapes';
+import { emptyDiagram, type LogicDiagram, type NodeKind } from '../logic/types';
+import * as persistence from './persistence';
+
+export type LogicSelection = { kind: 'node'; id: string } | { kind: 'wire'; id: string } | null;
+export type LogicTab = 'inspect' | 'table' | 'check';
+/** 邏輯圖一格的畫面大小（px，縮放 1 時）。 */
+export const LOGIC_CELL = 20;
+
+export interface LogicState {
+  diagram: LogicDiagram;
+  saved: LogicDiagram;
+  history: History<LogicDiagram>;
+  selection: LogicSelection;
+  placing: NodeKind | null;
+  viewport: Viewport;
+  canvasSize: { width: number; height: number };
+  tab: LogicTab;
+  load(d: LogicDiagram): void;
+  markSaved(): void;
+  apply(r: EditResult, label: string, selection?: LogicSelection): boolean;
+  undo(): void;
+  redo(): void;
+  select(sel: LogicSelection): void;
+  startPlacing(kind: NodeKind | null): void;
+  place(kind: NodeKind, x: number, y: number): boolean;
+  deleteSelection(): void;
+  toggleInput(id: string): void;
+  setInputs(values: Record<string, 0 | 1>): void;
+  setViewport(v: Viewport): void;
+  setCanvasSize(width: number, height: number): void;
+  fit(): void;
+  setTab(tab: LogicTab): void;
+}
+
+export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'viewport' | 'canvasSize' | 'tab'> {
+  const restored = typeof window !== 'undefined' ? persistence.loadAutosave()?.logic : undefined;
+  const diagram = restored ?? emptyDiagram();
+  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect' };
+}
+
+/** 規格第 1、2 節：邏輯圖自己的狀態與 Undo（不進主 store 的 Undo）。 */
+export const useLogic = create<LogicState>((set, get) => ({
+  ...initialLogicState(),
+
+  load(d) {
+    set({ diagram: d, saved: d, history: emptyHistory(), selection: null, placing: null });
+    get().fit();
+  },
+  markSaved() {
+    set({ saved: get().diagram });
+  },
+  apply(r, label, selection) {
+    if (!r.ok) return false;
+    if (r.diagram === get().diagram) return true;
+    set({ history: record(get().history, get().diagram, label), diagram: r.diagram, ...(selection !== undefined ? { selection } : {}) });
+    return true;
+  },
+  undo() {
+    const step = undo(get().history, get().diagram);
+    if (step) set({ history: step.history, diagram: step.state, selection: null });
+  },
+  redo() {
+    const step = redo(get().history, get().diagram);
+    if (step) set({ history: step.history, diagram: step.state, selection: null });
+  },
+  select(selection) {
+    set({ selection });
+  },
+  startPlacing(placing) {
+    set({ placing, selection: null });
+  },
+  place(kind, x, y) {
+    const r = addNode(get().diagram, kind, x, y);
+    const done = get().apply(r, `新增 ${kind === 'INPUT' ? '輸入端' : kind === 'OUTPUT' ? '輸出端' : kind}`, r.ok && r.id ? { kind: 'node', id: r.id } : undefined);
+    if (done) set({ placing: null });
+    return done;
+  },
+  deleteSelection() {
+    const { selection, diagram } = get();
+    if (!selection) return;
+    const next = selection.kind === 'node' ? removeNodes(diagram, [selection.id]) : removeWire(diagram, selection.id);
+    get().apply({ ok: true, diagram: next }, selection.kind === 'node' ? `刪除 ${selection.id}` : '刪除線', null);
+  },
+  toggleInput(id) {
+    const node = get().diagram.nodes.find((n) => n.id === id);
+    if (node?.kind === 'INPUT') set({ diagram: setInputValue(get().diagram, id, node.value === 1 ? 0 : 1) });
+  },
+  setInputs(values) {
+    let d = get().diagram;
+    for (const [id, v] of Object.entries(values)) d = setInputValue(d, id, v);
+    set({ diagram: d });
+  },
+  setViewport(viewport) {
+    set({ viewport });
+  },
+  setCanvasSize(width, height) {
+    set({ canvasSize: { width, height } });
+  },
+  fit() {
+    const { diagram, canvasSize } = get();
+    if (diagram.nodes.length === 0) {
+      set({ viewport: DEFAULT_VIEWPORT });
+      return;
+    }
+    const xs = diagram.nodes.flatMap((n) => [n.x, n.x + nodeSize(n).w + 1]);
+    const ys = diagram.nodes.flatMap((n) => [n.y, n.y + nodeSize(n).h]);
+    const rect = { x: (Math.min(...xs) - 2) * LOGIC_CELL, y: (Math.min(...ys) - 2) * LOGIC_CELL, width: (Math.max(...xs) - Math.min(...xs) + 4) * LOGIC_CELL, height: (Math.max(...ys) - Math.min(...ys) + 4) * LOGIC_CELL };
+    set({ viewport: fitRect(rect, canvasSize.width, canvasSize.height, 32) });
+  },
+  setTab(tab) {
+    set({ tab });
+  },
+}));
+
+/** 邏輯圖有沒有還沒儲存的修改（開關切換也算：開關狀態會存檔）。 */
+export function logicDirty(s: LogicState = useLogic.getState()): boolean {
+  return s.diagram !== s.saved && (s.diagram.nodes.length > 0 || s.saved.nodes.length > 0);
+}
