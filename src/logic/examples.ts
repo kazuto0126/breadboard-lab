@@ -23,7 +23,7 @@ export function majorityDiagram(): LogicDiagram {
   d = must(setInputCount(d, 'g4', 3));
   const links: Array<[string, string, number]> = [
     ['i1', 'g1', 0], ['i2', 'g1', 1],
-    ['i3', 'g2', 0], ['i1', 'g2', 1],
+    ['i1', 'g2', 0], ['i3', 'g2', 1],
     ['i2', 'g3', 0], ['i3', 'g3', 1],
     ['g1', 'g4', 0], ['g2', 'g4', 1], ['g3', 'g4', 2],
     ['g4', 'o1', 0],

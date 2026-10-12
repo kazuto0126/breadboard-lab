@@ -3,7 +3,10 @@ import logoUrl from '../../assets/logo.svg';
 import { MAX_BOARDS } from '../../editor/boards';
 import { EXAMPLES } from '../../editor/examples';
 import { redoLabel, undoLabel } from '../../editor/history';
+import { zoomAt } from '../../editor/viewport';
+import { LOGIC_EXAMPLES } from '../../logic/examples';
 import { exportJson, exportPng, exportSvg, importJsonFile } from '../../state/fileActions';
+import { logicDirty, useLogic } from '../../state/logic';
 import { deriveMode, isComparisonFresh, isDirty, useStore, type Mode } from '../../state/store';
 
 type Item = { label: string; shortcut?: string; onClick: () => void; disabled?: boolean; checked?: boolean } | 'separator' | { heading: string };
@@ -101,7 +104,13 @@ export function Toolbar() {
   const simulating = useStore((s) => s.simulation !== null);
   const boardCount = useStore((s) => s.circuit.boards.length);
   const drawer = useStore((s) => s.drawer);
+  const workspace = useStore((s) => s.workspace);
+  const logicHistory = useLogic((l) => l.history);
+  const logicSelection = useLogic((l) => l.selection);
+  const logicChanged = useLogic((l) => logicDirty(l));
   const store = useStore.getState();
+  const logic = useLogic.getState();
+  const isLogic = workspace === 'logic';
 
   useEffect(() => {
     if (!open) return;
@@ -129,7 +138,7 @@ export function Toolbar() {
       'file',
       '檔案',
       [
-        { label: '新電路 New Circuit', onClick: run(() => (dirty ? store.openDialog('confirm-new') : store.newCircuit())) },
+        { label: '新電路 New Circuit', onClick: run(() => (dirty || logicChanged ? store.openDialog('confirm-new') : store.newCircuit())) },
         { label: '開啟… Load', shortcut: `${MOD}O`, onClick: run(() => store.openDialog('open')) },
         { label: '儲存 Save', shortcut: `${MOD}S`, onClick: run(() => store.saveProject()) },
         { label: '另存新檔… Save As', shortcut: `${MOD}⇧S`, onClick: run(() => store.openDialog('save-as')) },
@@ -141,12 +150,22 @@ export function Toolbar() {
         'separator',
         { heading: '範例電路' },
         ...EXAMPLES.map((ex) => ({ label: ex.name, onClick: run(() => store.loadCircuit(ex.build(), ex.name, `已載入範例「${ex.name}」：${ex.description}`)) })),
+        { heading: '邏輯圖範例' },
+        ...LOGIC_EXAMPLES.map((ex) => ({ label: ex.name, onClick: run(() => store.loadExampleLogic(ex.id)) })),
       ],
     ],
     [
       'edit',
       '編輯',
-      [
+      isLogic
+        ? [
+            { label: `復原 Undo${undoLabel(logicHistory) ? `：${undoLabel(logicHistory)}` : ''}`, shortcut: `${MOD}Z`, onClick: run(() => logic.undo()), disabled: logicHistory.past.length === 0 },
+            { label: `重做 Redo${redoLabel(logicHistory) ? `：${redoLabel(logicHistory)}` : ''}`, shortcut: `${MOD}⇧Z`, onClick: run(() => logic.redo()), disabled: logicHistory.future.length === 0 },
+            'separator',
+            { label: '刪除 Delete', shortcut: 'Del', onClick: run(() => logic.deleteSelection()), disabled: !logicSelection },
+            { label: '取消選取', shortcut: 'Esc', onClick: run(() => logic.select(null)), disabled: !logicSelection },
+          ]
+        : [
         { label: `復原 Undo${undoLabel(history) ? `：${undoLabel(history)}` : ''}`, shortcut: `${MOD}Z`, onClick: run(() => store.undo()), disabled: history.past.length === 0 },
         { label: `重做 Redo${redoLabel(history) ? `：${redoLabel(history)}` : ''}`, shortcut: `${MOD}⇧Z`, onClick: run(() => store.redo()), disabled: history.future.length === 0 },
         'separator',
@@ -188,7 +207,13 @@ export function Toolbar() {
     [
       'view',
       '檢視',
-      [
+      isLogic
+        ? [
+            { label: 'Fit to Screen', shortcut: 'F', onClick: run(() => logic.fit()) },
+            { label: '放大 Zoom In', shortcut: '+', onClick: run(() => logic.setViewport(zoomAt(logic.viewport, 1.25, logic.canvasSize.width / 2, logic.canvasSize.height / 2))) },
+            { label: '縮小 Zoom Out', shortcut: '-', onClick: run(() => logic.setViewport(zoomAt(logic.viewport, 0.8, logic.canvasSize.width / 2, logic.canvasSize.height / 2))) },
+          ]
+        : [
         { label: 'Fit to Screen', shortcut: 'F', onClick: run(() => store.fitToScreen()) },
         { label: 'Reset View', shortcut: '0', onClick: run(() => store.resetView()) },
         { label: '放大 Zoom In', shortcut: '+', onClick: run(() => store.zoomBy(1.25)) },
@@ -236,12 +261,14 @@ export function Toolbar() {
           <div className="text-sm font-bold text-slate-50">Breadboard Lab</div>
           <div className="max-w-[180px] truncate text-[11px] text-slate-400" title={projectName ?? '未命名電路'}>
             {projectName ?? '未命名電路'}
-            {dirty && <span className="text-amber-400"> •</span>}
+            {(dirty || logicChanged) && <span className="text-amber-400"> •</span>}
           </div>
         </div>
       </div>
       <nav className="flex items-center">
-        {menus.map(([id, label, items]) => (
+        {menus
+          .filter(([id]) => !isLogic || (id !== 'circuit' && id !== 'route'))
+          .map(([id, label, items]) => (
           <MenuButton
             key={id}
             label={label}
@@ -252,7 +279,29 @@ export function Toolbar() {
           />
         ))}
       </nav>
+      {/* 規格（2026-10-11 logic-diagram）第 5 節：「邏輯圖｜麵包板」切換。 */}
+      <div data-testid="view-switch" className="flex overflow-hidden rounded-md border border-slate-700" role="group" aria-label="畫面">
+        {(
+          [
+            ['logic', '邏輯圖'],
+            ['breadboard', '麵包板'],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={workspace === id}
+            disabled={routing || simulating}
+            onClick={() => store.setWorkspace(id)}
+            className={`px-3 py-1 text-xs font-semibold ${workspace === id ? 'bg-amber-500 text-black' : 'bg-slate-900 text-slate-300 hover:bg-slate-800'} disabled:opacity-60`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="flex-1" />
+      {!isLogic && (
+        <>
       <div className="flex overflow-hidden rounded-md border border-slate-700" role="radiogroup" aria-label="模式">
         {MODES.map(([id, label, title]) => (
           <button
@@ -300,6 +349,8 @@ export function Toolbar() {
       >
         ⚡ 可移動 IC
       </button>
+        </>
+      )}
     </header>
   );
 }

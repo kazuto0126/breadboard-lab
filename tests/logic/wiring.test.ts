@@ -17,3 +17,17 @@ describe('logic wire drawing', () => {
     expect(dots.every((p) => Number.isInteger(p.x) && Number.isInteger(p.y))).toBe(true);
   });
 });
+
+describe('bus columns', () => {
+  it('gives sources in the same column their own bus so wires do not overlap', () => {
+    const d = majorityDiagram();
+    const busOf = (from: string) => {
+      const w = d.wires.find((x) => x.from === from)!;
+      return wireRoute(d, w)[1].x;
+    };
+    // A、B、C 的輸出腳都在 x = 2：匯流線依上到下排在 3、4、5。
+    expect([busOf('i1'), busOf('i2'), busOf('i3')]).toEqual([3, 4, 5]);
+    // 閘的輸出（g1、g2、g3 在同一欄）也分開。
+    expect(new Set([busOf('g1'), busOf('g2'), busOf('g3')]).size).toBe(3);
+  });
+});

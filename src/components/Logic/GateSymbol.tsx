@@ -35,7 +35,7 @@ function gatePath(kind: GateKind, w: number, h: number): string {
 }
 
 /** 閘的本體與腳的短線；value 是輸出值，inputs 是每個輸入腳的值（決定短線顏色）。 */
-export function GateBody({ node, value, inputs, selected }: { node: LogicNode; value?: Bit; inputs?: Bit[]; selected?: boolean }) {
+export function GateBody({ node, value, inputs, selected }: { node: LogicNode; value?: Bit; inputs?: Array<Bit | undefined>; selected?: boolean }) {
   const kind = node.kind as GateKind;
   const { w, h } = nodeSize(node);
   const n = inputCountOf(node);
