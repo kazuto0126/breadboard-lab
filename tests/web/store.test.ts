@@ -348,6 +348,16 @@ describe('flashPoints', () => {
   });
 });
 
+describe('placing resistors', () => {
+  it('places new resistors three holes apart and leaves older ones alone', () => {
+    s().placeComponent(findLibraryItem('resistor-220')!, 0, 'b1', { x: 10, y: 4 });
+    const r = s().circuit.components[0];
+    expect(r.span).toBe(3);
+    expect(findLibraryItem('resistor-220')!.span).toBe(3);
+    expect(findLibraryItem('led-red')!.span).toBeUndefined();
+  });
+});
+
 describe('viewport', () => {
   it('refits when the canvas resizes until the user zooms or pans', () => {
     s().setCanvasSize(1200, 700);

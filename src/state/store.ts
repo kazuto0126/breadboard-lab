@@ -502,7 +502,7 @@ export const useStore = create<Store>()((set, get) => {
     placeComponent(item, rotation, boardId, anchor) {
       if (guardEdit()) return;
       const s = get();
-      const { circuit, id } = addComponent(s.circuit, { defId: item.defId, rotation, props: item.props }, boardId, anchor);
+      const { circuit, id } = addComponent(s.circuit, { defId: item.defId, rotation, props: item.props, span: item.span }, boardId, anchor);
       commit(`放置 ${item.name} ${id}`, circuit, { selection: { kind: 'component', id }, placing: null });
     },
 

@@ -440,9 +440,10 @@ export function BreadboardCanvas() {
         id: nextComponentId(c, def.category),
         defId: def.id,
         boardId: hit.boardId,
-        anchor: centeredAnchor(def, placing.rotation, undefined, hit.fx, hit.fy),
+        anchor: centeredAnchor(def, placing.rotation, placing.item.span, hit.fx, hit.fy),
         rotation: placing.rotation,
         props: { ...placing.item.props },
+        ...(placing.item.span !== undefined ? { span: placing.item.span } : {}),
       };
       const snapped = findPlacement(c, base, { ignoreId: base.id });
       const ghost = { instance: snapped ?? base, valid: snapped !== null };

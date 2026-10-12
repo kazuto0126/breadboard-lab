@@ -8,7 +8,7 @@ export const BOARD = {
   shadow: '#000000',
   channel: '#e3dccd',
   channelLine: '#d2c9b6',
-  hole: '#3a3936',
+  hole: '#5f5b53',
   holeRim: '#d9d1c0',
   label: '#8f8775',
   railPlus: '#d32f2f',
