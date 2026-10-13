@@ -26,12 +26,12 @@ describe('verifyBreadboard', () => {
     const result = verifyBreadboard(majorityDiagram(), flipped, 'vcc', r);
     expect(result.rows).toBe(8);
     expect(result.mismatches.map((m) => m.inputs)).toEqual(['011', '101', '110', '111']);
-    expect(result.mismatches[0]).toEqual({ inputs: '011', expected: '1', actual: '0' });
+    expect(result.mismatches[0]).toEqual({ inputs: '011', expected: ['1'], actual: ['0'] });
   });
 
   it('describes the result in plain words', () => {
     expect(verifyText({ rows: 8, mismatches: [] }, ['X'])).toBe('8 種輸入組合，麵包板的模擬結果和真值表全部一致');
-    expect(verifyText({ rows: 8, mismatches: [{ inputs: '011', expected: '1', actual: '0' }] }, ['X'])).toBe('有 1 列不一致：輸入 011 應該是 X = 1，麵包板是 X = 0');
+    expect(verifyText({ rows: 8, mismatches: [{ inputs: '011', expected: ['1'], actual: ['0'] }] }, ['X'])).toBe('有 1 列不一致：輸入 011 應該是 X = 1，麵包板是 X = 0');
   });
 });
 
@@ -51,5 +51,29 @@ describe('NAND-only conversion and labels', () => {
     const r = convert('vcc');
     expect(r.circuit.components.find((c) => c.id === 'SW1')!.props.labels).toEqual(['A', 'B', 'C', '']);
     expect(r.circuit.components.find((c) => c.id === 'D1')!.props.labels).toEqual(['X']);
+  });
+});
+
+describe('7-segment displays', () => {
+  it('reads the digit off the display for all 16 rows, before and after routing', async () => {
+    const { bcdDiagram } = await import('../../src/logic/examples');
+    const r = toBreadboard(bcdDiagram(), { switchTo: 'vcc', board: 'auto' });
+    if (!r.ok) throw new Error(r.reason);
+    expect(verifyBreadboard(bcdDiagram(), r.circuit, 'vcc', r)).toEqual({ rows: 16, mismatches: [] });
+    const routed = autoPlaceAndRoute(r.circuit);
+    expect(routed.status).toBe('success');
+    expect(verifyBreadboard(bcdDiagram(), applyRouting(r.circuit, routed), 'vcc', r)).toEqual({ rows: 16, mismatches: [] });
+  }, 60_000);
+
+  it('finds the digits that change when segment a is not connected', async () => {
+    const { bcdDiagram } = await import('../../src/logic/examples');
+    const r = toBreadboard(bcdDiagram(), { switchTo: 'gnd', board: 'auto' });
+    if (!r.ok) throw new Error(r.reason);
+    const ra = Object.keys(r.netOf).find((pin) => r.netOf[pin] === 'DS1:a' && pin.startsWith('R'))!.split('#')[0];
+    const broken = { ...r.circuit, components: r.circuit.components.filter((c) => c.id !== ra) };
+    const result = verifyBreadboard(bcdDiagram(), broken, 'gnd', r);
+    expect(result.mismatches.map((m) => parseInt(m.inputs, 2))).toEqual([0, 2, 3, 5, 7, 8, 9, 13]);
+    expect(result.mismatches.find((m) => m.inputs === '0111')).toEqual({ inputs: '0111', expected: ['7'], actual: ['1'] });
+    expect(verifyText(result, ['S1'])).toContain('輸入 0111 應該是 S1 = 7，麵包板是 S1 = 1');
   });
 });

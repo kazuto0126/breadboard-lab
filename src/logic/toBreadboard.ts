@@ -87,7 +87,9 @@ function unitsFor(d: LogicDiagram, options: ConvertOptions) {
 export function toBreadboard(d: LogicDiagram, options: ConvertOptions): ConvertResult {
   const problem = convertProblem(d);
   if (problem) return { ok: false, reason: problem };
-  const layouts: LayoutId[] = options.board === 'auto' ? ['MB102', 'EIC1106'] : [options.board];
+  // 有 7 段顯示器時 MB-102 的線排不完（規格 2026-10-13 seven-seg 第 6 節），自動選板直接用 EIC-1106。
+  const hasDisplay = d.nodes.some((n) => n.kind === 'DISPLAY');
+  const layouts: LayoutId[] = options.board !== 'auto' ? [options.board] : hasDisplay ? ['EIC1106'] : ['MB102', 'EIC1106'];
   for (const layout of layouts) {
     try {
       return build(d, options, layout);

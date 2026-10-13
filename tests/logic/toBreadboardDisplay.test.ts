@@ -32,7 +32,7 @@ const SEG = { a: 7, b: 6, c: 4, d: 2, e: 1, f: 9, g: 10, CA: [3, 8] };
 describe('converting a 7-segment display', () => {
   it('uses a 74LS47, a common-anode display and 7 resistors', () => {
     const r = ok(toBreadboard(bcdDiagram(), { switchTo: 'vcc', board: 'auto' }));
-    expect(r.bom).toMatchObject({ ics: { '74LS47': 1 }, displays: 1, resistors: 4 + 7, leds: 0 });
+    expect(r.bom).toMatchObject({ ics: { '74LS47': 1 }, displays: 1, resistors: 4 + 7, leds: 0, layout: 'EIC1106' });
     expect(r.displays).toEqual({ d1: 'DS1' });
     const u = r.circuit.components.find((c) => c.defId === '74LS47')!;
     const ds = r.circuit.components.find((c) => c.id === 'DS1')!;
