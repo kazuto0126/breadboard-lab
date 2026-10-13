@@ -62,7 +62,7 @@ test('第三十四章驗收流程：放置、接線、檢查、AI 標準佈線�
   expect(circuit.components.map((c: { id: string; anchor: { x: number; y: number } }) => [c.id, c.anchor.x, c.anchor.y])).toEqual([
     ['U1', 10, 11],
     ['D1', 40, 12],
-    ['R1', 30, 12],
+    ['R1', 31, 12],
     ['V1', 5, 2],
     ['G1', 5, 18],
   ]);
@@ -72,7 +72,7 @@ test('第三十四章驗收流程：放置、接線、檢查、AI 標準佈線�
   await drawWire(page, 'B-15', 'J16'); // GND → U1 第 7 腳
   await drawWire(page, 'J10', 'B-10'); // 第 1 腳接地
   await drawWire(page, 'J11', 'B-11'); // 第 2 腳接地
-  await drawWire(page, 'H12', 'H30'); // 1Y → 電阻
+  await drawWire(page, 'H12', 'H31'); // 1Y → 電阻
   await drawWire(page, 'J34', 'J40'); // 電阻 → LED 陽極
   await drawWire(page, 'J41', 'B-41'); // LED 陰極 → GND
   await expect(page.getByTestId('wire-count')).toHaveText('7');

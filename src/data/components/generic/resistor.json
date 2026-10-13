@@ -1,7 +1,7 @@
 {
   "id": "resistor",
   "name": "Resistor",
-  "description": "碳膜電阻，兩腳預設相距 4 孔，可調整",
+  "description": "碳膜電阻，新放的兩腳相距 3 孔，可以在屬性裡調整",
   "category": "resistor",
   "package": { "type": "two-lead", "defaultSpan": 4, "minSpan": 1, "blocksBetween": true },
   "pins": [
