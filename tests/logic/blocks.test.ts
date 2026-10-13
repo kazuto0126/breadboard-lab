@@ -147,3 +147,52 @@ describe('drawing wires from block outputs', () => {
     expect(wireRoute(d, w2, cols)[0]).toEqual({ x: 12, y: 4 });
   });
 });
+
+describe('converting blocks and constants to the breadboard', () => {
+  /** 2 位元加法：A1 A2、B1 B2 是輸入端，A3 A4 B3 B4 C0 接 GND，S1 S2 S3 接 LED。 */
+  async function adder() {
+    let d = emptyDiagram();
+    for (const [k, y] of [0, 2, 4, 6].entries()) d = ok(addNode(d, 'INPUT', 0, y + k * 0)); // i1–i4：A B C D
+    d = ok(addNode(d, 'LOW', 0, 10)); // k1
+    d = ok(addNode(d, 'BLOCK', 8, 0, '74LS83')); // b1
+    for (let k = 0; k < 3; k++) d = ok(addNode(d, 'OUTPUT', 20, k * 2)); // o1–o3
+    const links: Array<[string, number]> = [['i1', 0], ['i2', 1], ['k1', 2], ['k1', 3], ['i3', 4], ['i4', 5], ['k1', 6], ['k1', 7], ['k1', 8]];
+    for (const [from, pin] of links) d = ok(connect(d, from, { node: 'b1', pin }));
+    for (let k = 0; k < 3; k++) d = ok(connect(d, 'b1', { node: `o${k + 1}`, pin: 0 }, k));
+    return d;
+  }
+
+  it('places the chip, ties constants to the rails and leaves unused outputs open', async () => {
+    const { toBreadboard } = await import('../../src/logic/toBreadboard');
+    const r = toBreadboard(await adder(), { switchTo: 'vcc', board: 'auto' });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.bom.ics).toEqual({ '74LS83': 1 });
+    const u = r.circuit.components.find((c) => c.defId === '74LS83')!;
+    const pin = (name: string) => [`${u.id}#${{ A1: 10, A2: 8, A3: 3, A4: 1, B1: 11, B2: 7, B3: 4, B4: 16, C0: 13, S1: 9, S2: 6, S3: 2, S4: 15, C4: 14 }[name]}`];
+    const net = (name: string) => r.netOf[pin(name)[0]];
+    expect(['A1', 'A2', 'B1', 'B2'].map(net)).toEqual(['i1', 'i2', 'i3', 'i4']);
+    expect(['A3', 'A4', 'B3', 'B4', 'C0'].map(net)).toEqual(['GND', 'GND', 'GND', 'GND', 'GND']);
+    expect(['S1', 'S2', 'S3'].map(net)).toEqual(['b1', 'b1.1', 'b1.2']);
+    expect(r.netOf[`${u.id}#5`]).toBe('VCC');
+    expect(r.netOf[`${u.id}#12`]).toBe('GND');
+  });
+
+  it('matches the truth table on the breadboard, also in NAND-only mode', async () => {
+    const { toBreadboard } = await import('../../src/logic/toBreadboard');
+    const { verifyBreadboard } = await import('../../src/logic/verifyBreadboard');
+    const d = await adder();
+    for (const gates of ['direct', 'nand'] as const) {
+      const r = toBreadboard(d, { switchTo: 'gnd', board: 'auto', gates });
+      if (!r.ok) throw new Error(r.reason);
+      expect(r.bom.ics).toEqual({ '74LS83': 1 });
+      expect(verifyBreadboard(d, r.circuit, 'gnd', r)).toEqual({ rows: 16, mismatches: [] });
+    }
+  });
+
+  it('refuses a block with an open input', async () => {
+    const { convertProblem } = await import('../../src/logic/synth');
+    const d = await adder();
+    const open = { ...d, wires: d.wires.filter((w) => !(w.to.node === 'b1' && w.to.pin === 8)) };
+    expect(convertProblem(open)).toMatch(/還有沒接好的腳/);
+  });
+});

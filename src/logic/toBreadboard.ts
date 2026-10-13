@@ -11,8 +11,9 @@ import type { ComponentInstance } from '../types/component';
 import type { GridPoint } from '../types/geometry';
 import { sortedIo } from './evaluate';
 import { toNandUnits } from './nandOnly';
-import { assignIcs, convertProblem, decompose, gateSlots } from './synth';
-import { isSink, type LogicDiagram } from './types';
+import { BLOCK_PINS } from './blocks';
+import { assignIcs, convertProblem, decompose, drivers, gateSlots } from './synth';
+import { isSink, signalOf, type LogicDiagram } from './types';
 
 export interface ConvertOptions {
   /** 開關的另一側接 +5 V（撥 ON = 1，330 Ω 下拉）或 GND（撥 ON = 0，1 kΩ 上拉）。 */
@@ -79,7 +80,14 @@ class NoRoom extends Error {}
 function unitsFor(d: LogicDiagram, options: ConvertOptions) {
   const units = decompose(d);
   if (options.gates !== 'nand') return units;
-  const keep = d.wires.filter((w) => isSink(d.nodes.find((n) => n.id === w.to.node)?.kind ?? 'AND')).map((w) => w.from);
+  // 接到輸出端、顯示器、IC 方塊的訊號一定保留（方塊照原本的 IC 放，不換成 NAND）。
+  const driver = drivers(d);
+  const keep = d.wires
+    .filter((w) => {
+      const kind = d.nodes.find((n) => n.id === w.to.node)?.kind ?? 'AND';
+      return isSink(kind) || kind === 'BLOCK';
+    })
+    .map((w) => driver.get(`${w.to.node}#${w.to.pin}`)!);
   return toNandUnits(units, keep);
 }
 
@@ -108,8 +116,9 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const { inputs, outputs: sinks } = sortedIo(d);
   const outputs = sinks.filter((n) => n.kind === 'OUTPUT');
   const displays = sinks.filter((n) => n.kind === 'DISPLAY');
-  const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, w.from]));
+  const driver = drivers(d);
   const plans = assignIcs(unitsFor(d, options));
+  const chips = d.nodes.filter((n) => n.kind === 'BLOCK' && n.chip);
   const swDef = inputs.length <= 4 ? 'dipsw-4' : 'dipsw-8';
   const swPins = swDef === 'dipsw-4' ? 8 : 16;
 
@@ -155,9 +164,24 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     });
   }
 
+  // ---- IC 方塊：放那顆 IC，腳依名稱接（規格 2026-10-13 logic-blocks 第 7 節）；沒用到的輸出只有自己一隻腳，不會拉線 ----
+  chips.forEach((node, k) => {
+    const chip = node.chip!;
+    const ic = `U${plans.length + k + 1}`;
+    const def = getComponentDefinition(chip)!;
+    icBlocks.push({ width: def.pins.length / 2, place: (x) => components.push(comp(ic, chip, hole(`F${x}`, icArea), { board: BOARD_ID })) });
+    const numberOf = (name: string) => def.pins.find((p) => p.name === name)!.number;
+    for (const p of def.pins) {
+      if (p.role === 'power') tie(`${ic}#${p.number}`, VCC);
+      if (p.role === 'ground') tie(`${ic}#${p.number}`, GND);
+    }
+    BLOCK_PINS[chip].inputs.forEach((name, i) => tie(`${ic}#${numberOf(name)}`, driver.get(`${node.id}#${i}`)!));
+    BLOCK_PINS[chip].outputs.forEach((name, i) => tie(`${ic}#${numberOf(name)}`, signalOf(node.id, i)));
+  });
+
   // ---- 7 段顯示器：74LS47 + 共陽極顯示器 + 7 顆 220 Ω（規格 2026-10-13 seven-seg 第 6 節） ----
   const pinNo = (defId: string, name: string) => getComponentDefinition(defId)!.pins.filter((p) => p.name === name).map((p) => p.number);
-  const displayParts: Array<{ node: (typeof displays)[number]; ic: string; ds: string }> = displays.map((node, k) => ({ node, ic: `U${plans.length + k + 1}`, ds: `DS${k + 1}` }));
+  const displayParts: Array<{ node: (typeof displays)[number]; ic: string; ds: string }> = displays.map((node, k) => ({ node, ic: `U${plans.length + chips.length + k + 1}`, ds: `DS${k + 1}` }));
   for (const { node, ic } of displayParts) {
     icBlocks.push({ width: 8, place: (x) => components.push(comp(ic, '74LS47', hole(`F${x}`, icArea), { board: BOARD_ID })) });
     ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo('74LS47', name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
@@ -310,6 +334,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
 
   const ics: Record<string, number> = {};
   for (const p of plans) ics[p.defId] = (ics[p.defId] ?? 0) + 1;
+  for (const b of chips) ics[b.chip!] = (ics[b.chip!] ?? 0) + 1;
   if (displays.length > 0) ics['74LS47'] = displays.length;
   return {
     ok: true,
