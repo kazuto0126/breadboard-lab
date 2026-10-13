@@ -34,6 +34,7 @@ import { verifyBreadboard, verifyText } from '../../logic/verifyBreadboard';
 import { useLogic } from '../../state/logic';
 import { ExplanationCard } from './ExplanationCard';
 import { PinoutDiagram } from './PinoutDiagram';
+import { RoutingSummaryCard } from './RoutingSummaryCard';
 import { WireExplanationCard } from './WireExplanationCard';
 
 const CLOCK_FREQUENCIES = [0.5, 1, 2, 5, 10];
@@ -437,7 +438,13 @@ function NetInspector({ net, circuit, analysis }: { net: Net; circuit: Circuit; 
 
 function Inspector({ selection, circuit, analysis }: { selection: Selection; circuit: Circuit; analysis: CircuitAnalysis }) {
   const store = useStore.getState();
-  if (!selection) return <CircuitSummary circuit={circuit} analysis={analysis} />;
+  if (!selection)
+    return (
+      <>
+        <RoutingSummaryCard circuit={circuit} />
+        <CircuitSummary circuit={circuit} analysis={analysis} />
+      </>
+    );
   switch (selection.kind) {
     case 'component': {
       const c = circuit.components.find((x) => x.id === selection.id);

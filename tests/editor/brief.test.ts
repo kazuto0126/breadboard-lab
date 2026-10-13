@@ -109,3 +109,27 @@ describe('wire brief for Gemini', () => {
     expect(sameTopic({ kind: 'issue', issue }, { kind: 'wire', wireId: 'w1' })).toBe(false);
   });
 });
+
+describe('asking about the whole routing', () => {
+  it('compares routing topics by result and sends the summary with the rules', async () => {
+    const { autoRoute } = await import('../../src/core/routing/autoRoute');
+    const { applyRouting } = await import('../../src/core/routing/apply');
+    const { analyzeCircuit } = await import('../../src/editor/analysis');
+    const before = circuit([comp('R1', 'resistor', 'A10'), comp('R2', 'resistor', 'H20')], [straightWire('w1', 'B14', 'I20')]);
+    const result = autoRoute(before);
+    const after = applyRouting(before, result);
+    const topic = { kind: 'routing' as const, result };
+    expect(sameTopic(topic, { kind: 'routing', result })).toBe(true);
+    expect(sameTopic(topic, { kind: 'routing', result: { ...result } })).toBe(false);
+    expect(sameTopic(topic, { kind: 'wire', wireId: 'w1' })).toBe(false);
+    const text = firstMessage(after, topic, ' 整體說明這次佈線 ', { beforeScore: analyzeCircuit(before).routing, result });
+    expect(text).toContain('【電路摘要】');
+    expect(text).toContain('【這次 AI 標準佈線】');
+    expect(text).toMatch(/佈線成功：\d+ 條線/);
+    expect(text).toContain('【AI 標準佈線的規則】');
+    expect(text.endsWith('【學生的問題】\n整體說明這次佈線')).toBe(true);
+    // 沒有佈線結果時只附規則。
+    expect(firstMessage(after, topic, 'q')).not.toContain('【這次 AI 標準佈線】');
+    expect(AI_SYSTEM_INSTRUCTION).toContain('學生問整次佈線時');
+  });
+});

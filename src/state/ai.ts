@@ -4,7 +4,7 @@ import { createGeminiSession, type AiSession } from '../ai/gemini';
 import { AI_SYSTEM_INSTRUCTION, firstMessage, sameTopic, type AiTopic } from '../editor/explain/brief';
 import type { Circuit } from '../types/circuit';
 import { clearApiKey, loadApiKey, saveApiKey, type StoredKey } from './apiKey';
-import { useStore } from './store';
+import { isComparisonFresh, useStore } from './store';
 
 export type { AiTopic };
 
@@ -42,6 +42,13 @@ const sameChat = (chat: AiChat | null, circuit: Circuit, topic: AiTopic): chat i
 function forget(): void {
   controller?.abort();
   link = null;
+}
+
+/** 整次佈線的對話：目前沒有過期、而且就是這個結果的 comparison。 */
+function routingContext(topic: AiTopic) {
+  const s = useStore.getState();
+  if (topic.kind !== 'routing' || !s.comparison || s.comparison.result !== topic.result || !isComparisonFresh(s)) return undefined;
+  return s.comparison;
 }
 
 /** 規格 1、2、4：問 AI 的金鑰與對話（獨立於主 store，不進 Undo）。 */
@@ -113,7 +120,7 @@ export const useAi = create<AiState>((set, get) => ({
     let answer = '';
     try {
       const session = await pending.session;
-      for await (const delta of session.send(fresh ? firstMessage(circuit, topic, text) : text, ctrl.signal)) {
+      for await (const delta of session.send(fresh ? firstMessage(circuit, topic, text, routingContext(topic)) : text, ctrl.signal)) {
         if (ctrl.signal.aborted) break;
         answer += delta;
         finish({ text: answer });

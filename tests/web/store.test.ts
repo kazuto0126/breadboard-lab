@@ -593,3 +593,24 @@ describe('AI routing that may move ICs', () => {
     expect(planAnimation(wires).delays.w1).toBe(0);
   });
 });
+
+describe('routing summary (sub-project 17)', () => {
+  it('is available only for an applied, fresh routing and opens the inspect tab', async () => {
+    const { appliedRouting } = await import('../../src/state/store');
+    s().loadCircuit(acceptanceCircuit(), '驗收電路');
+    expect(appliedRouting(s())).toBeNull();
+    s().runAutoRoute('compare');
+    await routed();
+    expect(s().view).toBe('compare');
+    expect(appliedRouting(s())).toBeNull();
+    s().applyComparison();
+    expect(appliedRouting(s())).toBe(s().comparison);
+    s().select({ kind: 'component', id: s().circuit.components[0].id });
+    s().setRightTab('nets');
+    s().showRoutingSummary();
+    expect(s().selection).toBeNull();
+    expect(s().rightTab).toBe('inspect');
+    s().moveComponent(s().circuit.components[0].id, { x: 50, y: 11 });
+    expect(appliedRouting(s())).toBeNull();
+  });
+});

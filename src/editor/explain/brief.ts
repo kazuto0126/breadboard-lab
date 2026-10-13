@@ -2,11 +2,13 @@ import { resolveFootprint } from '../../core/circuit/footprint';
 import { getComponentDefinition } from '../../core/circuit/library';
 import type { Circuit, CircuitError, Net, PinRef } from '../../types/circuit';
 import type { ComponentDefinition, ComponentInstance } from '../../types/component';
+import type { RoutingMetrics, RoutingResult } from '../../types/routing';
 import { analyzeCircuit, holeLabel } from '../analysis';
 import { colorName } from '../checklist';
 import { formatResistance, LED_COLOR_NAMES } from '../library';
 import { plainText } from './helpers';
 import { explainIssue } from './index';
+import { routingSummaryText, summarizeRouting } from './routing';
 import { explainWire } from './wire';
 
 /** 規格 5.4：問 AI 的系統指示（錯誤與導線共用）。 */
@@ -18,6 +20,7 @@ export const AI_SYSTEM_INSTRUCTION = [
   '- 提到孔位或元件腳時，照摘要的寫法寫（例如 F12、U1 第 3 腳），學生可以點它在板上找到位置。',
   '- 只根據提供的電路摘要回答，不要編造摘要裡沒有的元件、導線或孔位；摘要不足以判斷時，直接說不確定，並說要檢查什麼。',
   '- 建議修改時寫出要從哪個孔接到哪個孔。',
+  '- 學生問整次佈線時，先講整體（線數、交叉、搬動的 IC），再挑一兩個最繞的訊號說明為什麼。',
   '- 不要用 Markdown 語法（不要用 **、#、表格、程式碼區塊）；需要分點時用「1.」「2.」。',
   '- 和這個電路或數位邏輯無關的問題，簡短說明你只能回答這個電路的問題。',
 ].join('\n');
@@ -45,12 +48,19 @@ export const ROUTING_RULES = [
   '優先順序：最少交叉，其次線的條數少，再其次總長度短。元件的位置不會被移動（除非學生選了「可以移動 IC」）。',
 ].join('\n');
 
-/** 一段對話的主題：某個錯誤，或某一條導線。 */
-export type AiTopic = { kind: 'issue'; issue: CircuitError } | { kind: 'wire'; wireId: string };
+/** 一段對話的主題：某個錯誤、某一條導線，或整次佈線（子專案 17）。 */
+export type AiTopic = { kind: 'issue'; issue: CircuitError } | { kind: 'wire'; wireId: string } | { kind: 'routing'; result: RoutingResult };
+
+/** 整次佈線的對話需要的佈線結果（store 的 comparison 有這兩項）。 */
+export interface RoutingContext {
+  beforeScore: { metrics: RoutingMetrics };
+  result: RoutingResult;
+}
 
 export function sameTopic(a: AiTopic, b: AiTopic): boolean {
   if (a.kind === 'issue' && b.kind === 'issue') return a.issue === b.issue;
   if (a.kind === 'wire' && b.kind === 'wire') return a.wireId === b.wireId;
+  if (a.kind === 'routing' && b.kind === 'routing') return a.result === b.result;
   return false;
 }
 
@@ -143,8 +153,15 @@ export function issueBrief(circuit: Circuit, issue: CircuitError): string {
   ].join('\n');
 }
 
-/** 對話的第一則訊息：電路摘要 + 錯誤或導線 + 學生的問題；之後的追問只送問題本身。 */
-export function firstMessage(circuit: Circuit, topic: AiTopic, question: string): string {
-  const about = topic.kind === 'issue' ? issueBrief(circuit, topic.issue) : wireBrief(circuit, topic.wireId);
+/** 規格（2026-10-13 routing-summary）第 4 節：整次佈線的說明 + 佈線規則。 */
+export function routingBrief(circuit: Circuit, routing?: RoutingContext): string {
+  const lines = routing ? ['【這次 AI 標準佈線】', ...routingSummaryText(summarizeRouting(circuit, routing)), ''] : [];
+  return [...lines, ROUTING_RULES].join('\n');
+}
+
+/** 對話的第一則訊息：電路摘要 + 錯誤、導線或整次佈線 + 學生的問題；之後的追問只送問題本身。 */
+export function firstMessage(circuit: Circuit, topic: AiTopic, question: string, routing?: RoutingContext): string {
+  const about =
+    topic.kind === 'issue' ? issueBrief(circuit, topic.issue) : topic.kind === 'wire' ? wireBrief(circuit, topic.wireId) : routingBrief(circuit, routing);
   return [circuitBrief(circuit), '', about, '', '【學生的問題】', question.trim()].join('\n');
 }
