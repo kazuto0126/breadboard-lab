@@ -1,6 +1,6 @@
 import { getComponentDefinition } from '../core/circuit/library';
 import type { BreadboardInstance } from '../types/board';
-import type { Circuit, Wire } from '../types/circuit';
+import type { Circuit, Wire, Note, NoteColor } from '../types/circuit';
 import type { ComponentInstance, ComponentProps, LedColor, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
 import { boardRects, MAX_BOARDS, normalizeBoardGroups, rectsOverlap } from './boards';
@@ -8,6 +8,7 @@ import type { ChecklistState } from './checklist';
 import { LABEL_MAX } from './commands';
 import { parseLogicDiagram } from '../logic/file';
 import type { LogicDiagram } from '../logic/types';
+import { NOTE_COLORS, NOTE_MAX } from './notes';
 
 export const FILE_FORMAT = 'breadboard-lab/circuit';
 export const FILE_VERSION = 1;
@@ -186,6 +187,18 @@ function assertUnique(ids: string[], what: string): void {
   }
 }
 
+/** 規格（2026-10-13 notes）第 3 節：便條。指向不存在的元件時忽略指向；文字太長截斷。 */
+function parseNote(raw: unknown, path: string, componentIds: Set<string>): Note {
+  const n = obj(raw, path);
+  const note: Note = { id: str(n.id, `${path}.id`), x: num(n.x, `${path}.x`), y: num(n.y, `${path}.y`), text: '', color: 'yellow' };
+  if (typeof n.text !== 'string') fail(`${path}.text`, '必須是文字');
+  note.text = (n.text as string).slice(0, NOTE_MAX);
+  if (!NOTE_COLORS.includes(n.color as NoteColor)) fail(`${path}.color`, `顏色不認得（${String(n.color)}）`);
+  note.color = n.color as NoteColor;
+  if (typeof n.target === 'string' && componentIds.has(n.target)) note.target = n.target;
+  return note;
+}
+
 function parseCircuit(raw: unknown): Circuit {
   const c = obj(raw, 'circuit');
   if (c.version !== 1) fail('circuit.version', `不支援的電路版本 ${String(c.version)}`);
@@ -215,8 +228,14 @@ function parseCircuit(raw: unknown): Circuit {
     wires.map((x) => x.id),
     '導線',
   );
+  const componentIds = new Set(components.map((x) => x.id));
+  const notes = arr(c.notes ?? [], 'circuit.notes').map((x, i) => parseNote(x, `circuit.notes[${i}]`, componentIds));
+  assertUnique(
+    notes.map((x) => x.id),
+    '便條',
+  );
   // 位置對齊格點、依幾何重新推導 Board Group（檔案裡的 groupId 不採信）。
-  return normalizeBoardGroups({ version: 1, boards, components, wires });
+  return normalizeBoardGroups({ version: 1, boards, components, wires, ...(notes.length > 0 ? { notes } : {}) });
 }
 
 /** 勾選進度只是輔助資訊：格式不對的項目直接略過，不讓整個檔案打不開。 */
