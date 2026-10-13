@@ -46,7 +46,32 @@ export function bcdDiagram(): LogicDiagram {
   return d;
 }
 
+/** 子專案 21：74LS83 方塊做 2 位元加法。A1 A2、B1 B2 是兩個數（A1、B1 是最低位元），A3 A4 B3 B4 C0 接 GND。 */
+export function adderBlockDiagram(): LogicDiagram {
+  let d = emptyDiagram();
+  const inputs: Array<[string, number]> = [['A1', 0], ['A2', 1], ['B1', 4], ['B2', 5]];
+  for (const [name, y] of inputs) {
+    const id = nextNodeId(d, 'INPUT');
+    d = must(renameNode(must(addNode(d, 'INPUT', 0, y)), id, name));
+  }
+  d = must(addNode(d, 'LOW', 0, 8)); // k1
+  d = must(addNode(d, 'BLOCK', 10, 0, '74LS83')); // b1
+  const outputs: Array<[string, number]> = [['S1', 0], ['S2', 1], ['S3', 3]];
+  for (const [name, y] of outputs) {
+    const id = nextNodeId(d, 'OUTPUT');
+    d = must(renameNode(must(addNode(d, 'OUTPUT', 22, y)), id, name));
+  }
+  // 74LS83 的輸入順序：A1 A2 A3 A4 B1 B2 B3 B4 C0
+  const links: Array<[string, number]> = [['i1', 0], ['i2', 1], ['k1', 2], ['k1', 3], ['i3', 4], ['i4', 5], ['k1', 6], ['k1', 7], ['k1', 8]];
+  for (const [from, pin] of links) d = must(connect(d, from, { node: 'b1', pin }));
+  // S1 S2 S3 → 輸出端（A3、B3 都是 0，2 位元相加的進位出現在 S3）
+  const sums: Array<[number, string]> = [[0, 'o1'], [1, 'o2'], [2, 'o3']];
+  for (const [k, o] of sums) d = must(connect(d, 'b1', { node: o, pin: 0 }, k));
+  return d;
+}
+
 export const LOGIC_EXAMPLES = [
   { id: 'majority', name: '多數決電路（圖 2-5）', description: 'X = AB + AC + BC：三個輸入有兩個以上是 1 時 X = 1', build: majorityDiagram },
   { id: 'bcd', name: 'BCD 顯示（7 段顯示器）', description: 'W X Y Z 四個開關當成 BCD 數字（W 是最高位元），7 段顯示器顯示 0–9', build: bcdDiagram },
+  { id: 'adder-block', name: '2 位元加法器（74LS83 方塊）', description: '用 74LS83 方塊把 A2A1 與 B2B1 相加，結果 S3S2S1；用不到的腳接 GND', build: adderBlockDiagram },
 ];

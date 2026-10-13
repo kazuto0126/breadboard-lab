@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
 import { canPlace, connect, moveNodes, nodesInRect } from '../../logic/edit';
 import { evaluate, type Bit } from '../../logic/evaluate';
-import { inputPins, nodeSize, outputPin, type GridXY } from '../../logic/shapes';
-import { isGate, isSink, type LogicNode } from '../../logic/types';
+import { inputPins, nodeSize, outputPin, outputPins, type GridXY } from '../../logic/shapes';
+import { isGate, isSink, signalOf, type LogicNode } from '../../logic/types';
+import { BlockBody, ConstantBody } from './BlockBody';
 import { DisplayBody } from './DisplayBody';
 import { busColumns, junctions, wireRoute } from '../../logic/wiring';
 import { LOGIC_CELL, selectedIds, useLogic } from '../../state/logic';
@@ -12,12 +13,13 @@ import { bitColor, GateBody } from './GateSymbol';
 const C = LOGIC_CELL;
 
 /** 腳的識別：`g1:out` 或 `g1:in:0`。 */
-type PinId = { node: string; out: true } | { node: string; out: false; pin: number };
+/** 輸出腳：pin 是第幾個輸出（IC 方塊才會大於 0）；data-logic-pin 寫成 `id:out` 或 `id:out:k`。 */
+type PinId = { node: string; out: true; pin: number } | { node: string; out: false; pin: number };
 
 function parsePin(text: string | null | undefined): PinId | null {
   if (!text) return null;
   const [node, side, pin] = text.split(':');
-  if (side === 'out') return { node, out: true };
+  if (side === 'out') return { node, out: true, pin: pin === undefined ? 0 : Number(pin) };
   if (side === 'in') return { node, out: false, pin: Number(pin) };
   return null;
 }
@@ -96,7 +98,8 @@ export function LogicCanvas() {
 
   const values = useMemo(() => evaluate(diagram), [diagram]);
   const valueOf = (id: string): Bit | undefined => (values.loop ? undefined : values.nodes.get(id));
-  const driver = useMemo(() => new Map(diagram.wires.map((w) => [`${w.to.node}#${w.to.pin}`, w.from])), [diagram]);
+  const driver = useMemo(() => new Map(diagram.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)])), [diagram]);
+  const placingChip = useLogic((s) => s.placingChip);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -233,16 +236,16 @@ export function LogicCanvas() {
     if (drag.kind === 'wire') {
       const to = pinUnder(e.clientX, e.clientY);
       const pair = wirePair(drag.from, to);
-      if (pair) s.apply(connect(s.diagram, pair.from, pair.to), '連線');
+      if (pair) s.apply(connect(s.diagram, pair.from, pair.to, pair.fromPin), '連線');
     }
     setDrag(null);
   };
 
   /** 一端是輸出腳、另一端是輸入腳才能連。 */
-  const wirePair = (a: PinId, b: PinId | null): { from: string; to: { node: string; pin: number } } | null => {
+  const wirePair = (a: PinId, b: PinId | null): { from: string; fromPin: number; to: { node: string; pin: number } } | null => {
     if (!b || a.node === b.node) return null;
-    if (a.out && !b.out) return { from: a.node, to: { node: b.node, pin: b.pin } };
-    if (!a.out && b.out) return { from: b.node, to: { node: a.node, pin: a.pin } };
+    if (a.out && !b.out) return { from: a.node, fromPin: a.pin, to: { node: b.node, pin: b.pin } };
+    if (!a.out && b.out) return { from: b.node, fromPin: b.pin, to: { node: a.node, pin: a.pin } };
     return null;
   };
 
@@ -251,11 +254,11 @@ export function LogicCanvas() {
   const pinXY = (p: PinId): GridXY | null => {
     const node = view.nodes.find((n) => n.id === p.node);
     if (!node) return null;
-    return p.out ? outputPin(node) : (inputPins(node)[p.pin] ?? null);
+    return p.out ? outputPin(node, p.pin) : (inputPins(node)[p.pin] ?? null);
   };
 
   const ghost: LogicNode | null =
-    placing && hover ? { id: '__ghost', kind: placing, x: hover.x, y: hover.y, inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: isGate(placing) ? undefined : '?', value: 0 } : null;
+    placing && hover ? { id: '__ghost', kind: placing, x: hover.x, y: hover.y, inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: isGate(placing) ? undefined : '?', value: 0, ...(placing === 'BLOCK' && placingChip ? { chip: placingChip } : {}) } : null;
   const ghostOk = ghost ? canPlace(diagram, ghost) : true;
   const moveOk = drag?.kind === 'move' ? moveNodes(diagram, drag.ids, drag.dx, drag.dy).ok : true;
   const wireOk = drag?.kind === 'wire' ? drag.to === null || wirePair(drag.from, drag.to) !== null : true;
@@ -286,7 +289,7 @@ export function LogicCanvas() {
           const pts = wireRoute(view, w, columns);
           if (pts.length < 2) return null;
           const sel = selection?.kind === 'wire' && selection.id === w.id;
-          const color = bitColor(valueOf(w.from));
+          const color = bitColor(valueOf(signalOf(w.from, w.fromPin)));
           const d = pts.map((p) => `${p.x * C},${p.y * C}`).join(' ');
           return (
             <g key={w.id} data-logic-wire={w.id}>
@@ -331,7 +334,11 @@ export function LogicCanvas() {
                 onPointerDown={(e) => onNodeDown(e, node)}
               />
               <g pointerEvents="none">
-                {node.kind === 'INPUT' ? null : node.kind === 'DISPLAY' ? (
+                {node.kind === 'INPUT' ? null : node.kind === 'BLOCK' ? (
+                  <BlockBody node={node} inputs={ins} outputs={outputPins(node).map((_, k) => valueOf(signalOf(node.id, k)))} selected={sel} />
+                ) : node.kind === 'HIGH' || node.kind === 'LOW' ? (
+                  <ConstantBody node={node} selected={sel} />
+                ) : node.kind === 'DISPLAY' ? (
                   <DisplayBody node={node} value={values.loop ? undefined : values.displays.get(node.id)} inputs={ins} selected={sel} />
                 ) : node.kind === 'OUTPUT' ? (
                   <OutputTerminal node={node} value={values.loop ? undefined : values.nodes.get(node.id)} selected={sel} />
@@ -358,20 +365,18 @@ export function LogicCanvas() {
                   onPointerDown={(e) => onPinDown(e, { node: node.id, out: false, pin: i })}
                 />
               ))}
-              {(() => {
-                const o = outputPin({ ...node, x: 0, y: 0 });
-                return o ? (
-                  <circle
-                    data-logic-pin={`${node.id}:out`}
-                    cx={o.x * C}
-                    cy={o.y * C}
-                    r={0.32 * C}
-                    fill={drag?.kind === 'wire' && drag.to?.node === node.id && drag.to.out ? (wireOk ? '#7dd3fc' : '#fca5a5') : 'transparent'}
-                    style={{ cursor: 'crosshair' }}
-                    onPointerDown={(e) => onPinDown(e, { node: node.id, out: true })}
-                  />
-                ) : null;
-              })()}
+              {outputPins({ ...node, x: 0, y: 0 }).map((o, k) => (
+                <circle
+                  key={`out${k}`}
+                  data-logic-pin={k === 0 ? `${node.id}:out` : `${node.id}:out:${k}`}
+                  cx={o.x * C}
+                  cy={o.y * C}
+                  r={0.32 * C}
+                  fill={drag?.kind === 'wire' && drag.to?.node === node.id && drag.to.out && drag.to.pin === k ? (wireOk ? '#7dd3fc' : '#fca5a5') : 'transparent'}
+                  style={{ cursor: 'crosshair' }}
+                  onPointerDown={(e) => onPinDown(e, { node: node.id, out: true, pin: k })}
+                />
+              ))}
             </g>
           );
         })}
@@ -392,7 +397,7 @@ export function LogicCanvas() {
 
         {ghost && (
           <g transform={`translate(${ghost.x * C} ${ghost.y * C})`} opacity={0.55} pointerEvents="none">
-            {ghost.kind === 'INPUT' ? <InputTerminal node={ghost} selected={false} /> : ghost.kind === 'DISPLAY' ? <DisplayBody node={ghost} /> : ghost.kind === 'OUTPUT' ? <OutputTerminal node={ghost} value={undefined} selected={false} /> : <GateBody node={ghost} />}
+            {ghost.kind === 'INPUT' ? <InputTerminal node={ghost} selected={false} /> : ghost.kind === 'BLOCK' ? <BlockBody node={ghost} /> : ghost.kind === 'HIGH' || ghost.kind === 'LOW' ? <ConstantBody node={ghost} /> : ghost.kind === 'DISPLAY' ? <DisplayBody node={ghost} /> : ghost.kind === 'OUTPUT' ? <OutputTerminal node={ghost} value={undefined} selected={false} /> : <GateBody node={ghost} />}
             {!ghostOk && <rect x={0} y={-0.5 * C} width={nodeSize(ghost).w * C} height={nodeSize(ghost).h * C} fill="#ef4444" opacity={0.35} />}
           </g>
         )}

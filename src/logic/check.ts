@@ -1,4 +1,5 @@
 import { topoOrder } from './evaluate';
+import { BLOCK_PINS } from './blocks';
 import { inputCountOf } from './shapes';
 import { isGate, isSink, type LogicDiagram, type LogicNode } from './types';
 
@@ -13,6 +14,9 @@ export function nodeLabel(node: LogicNode): string {
   if (node.kind === 'INPUT') return `輸入 ${node.name}`;
   if (node.kind === 'OUTPUT') return `輸出 ${node.name}`;
   if (node.kind === 'DISPLAY') return `顯示器 ${node.name}`;
+  if (node.kind === 'HIGH') return `5V ${node.id}`;
+  if (node.kind === 'LOW') return `GND ${node.id}`;
+  if (node.kind === 'BLOCK') return `方塊 ${node.id}（${node.chip}）`;
   return `${node.id}（${node.kind}）`;
 }
 
@@ -37,6 +41,18 @@ export function checkDiagram(d: LogicDiagram): LogicIssue[] {
         if (!driven.has(`${node.id}#${pin}`))
           issues.push({ code: 'LOGIC_INPUT_OPEN', severity: 'warning', message: `顯示器 ${node.name} 的 ${'ABCD'[pin]} 腳沒有接線，值不確定`, nodeIds: [node.id] });
       }
+      continue;
+    }
+    if (node.kind === 'HIGH' || node.kind === 'LOW') {
+      if (!used.has(node.id)) issues.push({ code: 'LOGIC_UNUSED', severity: 'warning', message: `${nodeLabel(node)} 沒有接到任何地方`, nodeIds: [node.id] });
+      continue;
+    }
+    if (node.kind === 'BLOCK' && node.chip) {
+      BLOCK_PINS[node.chip].inputs.forEach((name, pin) => {
+        if (!driven.has(`${node.id}#${pin}`))
+          issues.push({ code: 'LOGIC_INPUT_OPEN', severity: 'warning', message: `${nodeLabel(node)}的 ${name} 腳沒有接線，值不確定`, nodeIds: [node.id] });
+      });
+      if (!used.has(node.id)) issues.push({ code: 'LOGIC_UNUSED', severity: 'warning', message: `${nodeLabel(node)}的輸出沒有接到任何地方`, nodeIds: [node.id] });
       continue;
     }
     for (let pin = 0; pin < inputCountOf(node); pin++) {

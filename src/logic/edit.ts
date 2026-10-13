@@ -1,10 +1,11 @@
-import { inputCountOf, nodeSize, overlaps } from './shapes';
-import { isGate, isSink, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
+import { isBlockChip } from './blocks';
+import { inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
+import { isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
 
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
 
 const fail = (diagram: LogicDiagram, reason: string): EditResult => ({ ok: false, diagram, reason });
-const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd' };
+const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b' };
 const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
 const OUTPUT_NAMES = ['X', 'Y', 'Z', 'W', 'V', 'U', 'T', 'S', 'R', 'Q', 'P'];
 const INPUT_NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -37,10 +38,15 @@ function defaultInputs(kind: GateKind): number {
   return kind === 'NOT' ? 1 : 2;
 }
 
-export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number): EditResult {
+export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, chip?: BlockChip): EditResult {
   const id = nextNodeId(d, kind);
+  if (kind === 'BLOCK' && !isBlockChip(chip)) return fail(d, '要指定哪一顆 IC');
   const node: LogicNode =
-    kind === 'INPUT'
+    kind === 'BLOCK'
+      ? { id, kind, x, y, chip }
+      : kind === 'HIGH' || kind === 'LOW'
+        ? { id, kind, x, y }
+        : kind === 'INPUT'
       ? { id, kind, x, y, name: defaultName(d, 'INPUT'), value: 0 }
       : kind === 'OUTPUT' || kind === 'DISPLAY'
         ? { id, kind, x, y, name: defaultName(d, kind) }
@@ -71,18 +77,19 @@ export function removeWire(d: LogicDiagram, id: string): LogicDiagram {
   return { ...d, wires: d.wires.filter((w) => w.id !== id) };
 }
 
-export function connect(d: LogicDiagram, from: string, to: { node: string; pin: number }): EditResult {
+export function connect(d: LogicDiagram, from: string, to: { node: string; pin: number }, fromPin = 0): EditResult {
   const source = d.nodes.find((n) => n.id === from);
   const target = d.nodes.find((n) => n.id === to.node);
   if (!source || !target) return fail(d, '找不到元件');
   if (source.kind === 'OUTPUT') return fail(d, '輸出端沒有可以接出去的腳');
   if (source.kind === 'DISPLAY') return fail(d, '顯示器沒有可以接出去的腳');
+  if (!Number.isInteger(fromPin) || fromPin < 0 || fromPin >= outputCountOf(source)) return fail(d, '沒有這個輸出腳');
   if (target.kind === 'INPUT') return fail(d, '輸入端沒有可以接進來的腳');
   if (source.id === target.id) return fail(d, '不能把自己的輸出接回自己的輸入');
   if (!Number.isInteger(to.pin) || to.pin < 0 || to.pin >= inputCountOf(target)) return fail(d, '沒有這個輸入腳');
   const kept = d.wires.filter((w) => !(w.to.node === to.node && w.to.pin === to.pin));
-  if (kept.length !== d.wires.length && d.wires.some((w) => w.to.node === to.node && w.to.pin === to.pin && w.from === from)) return { ok: true, diagram: d };
-  const wire = { id: nextWireId({ ...d, wires: kept }), from, to: { node: to.node, pin: to.pin } };
+  if (kept.length !== d.wires.length && d.wires.some((w) => w.to.node === to.node && w.to.pin === to.pin && w.from === from && (w.fromPin ?? 0) === fromPin)) return { ok: true, diagram: d };
+  const wire: LogicWire = { id: nextWireId({ ...d, wires: kept }), from, ...(fromPin > 0 ? { fromPin } : {}), to: { node: to.node, pin: to.pin } };
   return { ok: true, diagram: { ...d, wires: [...kept, wire] }, id: wire.id };
 }
 
@@ -114,6 +121,13 @@ export function renameNode(d: LogicDiagram, id: string, raw: string): EditResult
   if (!NAME_RULE.test(name)) return fail(d, '名稱要用英文字母開頭，只能有英文字母、數字、底線，最多 8 個字');
   if (d.nodes.some((n) => n.id !== id && n.name === name)) return fail(d, `名稱 ${name} 已經用過了`);
   return { ok: true, diagram: replaceNode(d, { ...node, name }) };
+}
+
+/** 子專案 21：5V 與 GND 互換。 */
+export function setConstant(d: LogicDiagram, id: string, kind: 'HIGH' | 'LOW'): EditResult {
+  const node = d.nodes.find((n) => n.id === id);
+  if (!node || (node.kind !== 'HIGH' && node.kind !== 'LOW')) return fail(d, '只有 5V、GND 可以切換');
+  return { ok: true, diagram: node.kind === kind ? d : replaceNode(d, { ...node, kind }) };
 }
 
 export function setInputValue(d: LogicDiagram, id: string, value: 0 | 1): LogicDiagram {
@@ -171,14 +185,14 @@ export function pasteNodes(d: LogicDiagram, clip: LogicClipboard): { ok: true; d
       const id = nextNodeId(next, n.kind);
       idMap.set(n.id, id);
       const node: LogicNode = { ...n, id };
-      if (!isGate(n.kind)) {
+      if (n.kind === 'INPUT' || n.kind === 'OUTPUT' || n.kind === 'DISPLAY') {
         const taken = next.nodes.some((o) => o.name === n.name);
         node.name = taken || !n.name ? defaultName(next, n.kind) : n.name;
       }
       next = { ...next, nodes: [...next.nodes, node] };
     }
     for (const w of clip.wires) {
-      const r = connect(next, idMap.get(w.from)!, { node: idMap.get(w.to.node)!, pin: w.to.pin });
+      const r = connect(next, idMap.get(w.from)!, { node: idMap.get(w.to.node)!, pin: w.to.pin }, w.fromPin ?? 0);
       if (r.ok) next = r.diagram;
     }
     return { ok: true, diagram: next, ids: [...idMap.values()] };

@@ -1,7 +1,7 @@
 import { getComponentDefinition } from '../core/circuit/library';
 import { checkDiagram } from './check';
 import { sortedIo, MAX_TABLE_INPUTS } from './evaluate';
-import { isGate, type LogicDiagram } from './types';
+import { isGate, signalOf, type LogicDiagram } from './types';
 
 /** 拆開後的單元：每個都能放進 74LS 的一組閘。 */
 export type UnitKind = 'AND2' | 'AND3' | 'AND4' | 'OR2' | 'NOT' | 'NAND2' | 'NOR2' | 'XOR2';
@@ -41,9 +41,23 @@ export function convertProblem(d: LogicDiagram): string | null {
   return null;
 }
 
+/**
+ * 每個輸入腳接到的訊號（`${節點}#${腳}` → 訊號名稱）。子專案 21：5V、GND 常數的訊號就是電源 `VCC` / `GND`，
+ * IC 方塊第 k 個輸出是 `signalOf(id, k)`。
+ */
+export function drivers(d: LogicDiagram): Map<string, string> {
+  const kind = new Map(d.nodes.map((n) => [n.id, n.kind]));
+  return new Map(
+    d.wires.map((w) => {
+      const k = kind.get(w.from);
+      return [`${w.to.node}#${w.to.pin}`, k === 'HIGH' ? 'VCC' : k === 'LOW' ? 'GND' : signalOf(w.from, w.fromPin)];
+    }),
+  );
+}
+
 /** 規格第 3 節的拆法：OR / NOR 用 2 輸入 OR 串起來，NAND 前面先用 AND，最後一級才反相。 */
 export function decompose(d: LogicDiagram): Unit[] {
-  const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, w.from]));
+  const driver = drivers(d);
   const units: Unit[] = [];
   for (const node of d.nodes) {
     if (!isGate(node.kind)) continue;

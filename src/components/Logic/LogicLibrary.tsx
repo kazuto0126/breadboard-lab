@@ -1,3 +1,4 @@
+import { BLOCK_CHIPS, BLOCK_NAMES } from '../../logic/blocks';
 import { LOGIC_EXAMPLES } from '../../logic/examples';
 import type { NodeKind } from '../../logic/types';
 import { useLogic } from '../../state/logic';
@@ -13,12 +14,15 @@ const PARTS: Array<[NodeKind, string, string]> = [
   ['XOR', 'XOR', '互斥或閘'],
   ['INPUT', '輸入端', '開關，點一下切換 0 / 1'],
   ['OUTPUT', '輸出端', '燈號，顯示結果'],
+  ['HIGH', '5V', '常數 1，接到要固定是 1 的腳'],
+  ['LOW', 'GND', '常數 0，接到要固定是 0 的腳（例如 /G）'],
   ['DISPLAY', '7 段顯示器', 'A–D 四條線當成 BCD 數字，顯示 0–9'],
 ];
 
 /** 規格第 5 節：邏輯圖時的元件庫（邏輯閘、輸入端、輸出端）。 */
 export function LogicLibrary() {
   const placing = useLogic((s) => s.placing);
+  const placingChip = useLogic((s) => s.placingChip);
   const open = useStore((s) => s.drawer === 'library');
   return (
     <aside
@@ -48,6 +52,30 @@ export function LogicLibrary() {
               <span className="min-w-0">
                 <span className="block text-[12px] font-medium leading-4 text-slate-100">{label}</span>
                 <span className="block truncate text-[10px] leading-4 text-slate-400">{hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">IC 方塊</div>
+        <div className="mt-1 grid grid-cols-1 gap-1.5">
+          {BLOCK_CHIPS.map((chip) => (
+            <button
+              key={chip}
+              type="button"
+              data-logic-part={`BLOCK:${chip}`}
+              title={`${chip} ${BLOCK_NAMES[chip]}：照實際的腳名當輸入、輸出（點一下再點畫布放下）`}
+              onPointerDown={() => {
+                useLogic.getState().startPlacing('BLOCK', chip);
+                useStore.getState().toggleDrawer(null);
+              }}
+              className={`flex items-center gap-2 rounded-md border px-2 py-1.5 text-left ${placing === 'BLOCK' && placingChip === chip ? 'border-sky-500 bg-sky-900/40' : 'border-slate-700 bg-slate-800/60 hover:bg-slate-800'}`}
+            >
+              <span className="flex h-6 w-10 shrink-0 items-center justify-center rounded bg-slate-100">
+                <PartIcon kind="BLOCK" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[12px] font-medium leading-4 text-slate-100">{chip}</span>
+                <span className="block truncate text-[10px] leading-4 text-slate-400">{BLOCK_NAMES[chip]}</span>
               </span>
             </button>
           ))}

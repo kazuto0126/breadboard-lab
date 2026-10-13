@@ -1,5 +1,8 @@
+import { getComponentDefinition } from '../core/circuit/library';
+import { createModel } from '../core/simulation/models';
+import { BLOCK_PINS } from './blocks';
 import { inputCountOf } from './shapes';
-import { isGate, isSink, type GateKind, type LogicDiagram, type LogicNode } from './types';
+import { isGate, isSink, signalOf, type BlockChip, type GateKind, type LogicDiagram, type LogicNode } from './types';
 
 export type Bit = 0 | 1 | 'X';
 /** 真值表的一格：輸出端是 0 / 1 / X，顯示器是 0–15 或 X。 */
@@ -64,6 +67,21 @@ export function topoOrder(d: LogicDiagram): { order: LogicNode[]; loop: string[]
   return { order, loop: onCycle.sort() };
 }
 
+/** 規格（2026-10-13 logic-blocks）第 4 節：IC 方塊的輸出，用元件定義的 74LS 模型算；任何輸入是 X 時全部是 X。 */
+export function blockOutputs(chip: BlockChip, inputs: Bit[]): Bit[] {
+  const pins = BLOCK_PINS[chip];
+  if (inputs.includes('X')) return pins.outputs.map(() => 'X');
+  const spec = getComponentDefinition(chip)?.logic;
+  if (!spec) return pins.outputs.map(() => 'X');
+  const model = createModel(spec);
+  const byName = new Map(pins.inputs.map((name, i) => [name, inputs[i]]));
+  const out = model.evaluate((pin) => (byName.get(pin) ?? 1) as 0 | 1, model.init()).outputs;
+  return pins.outputs.map((name) => {
+    const v = out[name];
+    return v === 0 || v === 1 ? v : 'X';
+  });
+}
+
 /** values：輸入端 id → 0 / 1；沒給的用節點自己的 value。displays：顯示器 id → 0–15（A + 2B + 4C + 8D）或 X。 */
 export function evaluate(
   d: LogicDiagram,
@@ -73,14 +91,19 @@ export function evaluate(
   const nodes = new Map<string, Bit>();
   const displays = new Map<string, number | 'X'>();
   if (loop) return { loop, nodes, displays };
-  const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, w.from]));
+  const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)]));
   const inputOf = (node: LogicNode, pin: number): Bit => {
     const from = driver.get(`${node.id}#${pin}`);
     return from === undefined ? 'X' : (nodes.get(from) ?? 'X');
   };
   for (const node of order) {
     if (node.kind === 'INPUT') nodes.set(node.id, values[node.id] ?? node.value ?? 0);
-    else if (node.kind === 'OUTPUT') nodes.set(node.id, inputOf(node, 0));
+    else if (node.kind === 'HIGH') nodes.set(node.id, 1);
+    else if (node.kind === 'LOW') nodes.set(node.id, 0);
+    else if (node.kind === 'BLOCK' && node.chip) {
+      const ins = Array.from({ length: inputCountOf(node) }, (_, i) => inputOf(node, i));
+      blockOutputs(node.chip, ins).forEach((v, k) => nodes.set(signalOf(node.id, k), v));
+    } else if (node.kind === 'OUTPUT') nodes.set(node.id, inputOf(node, 0));
     else if (node.kind === 'DISPLAY') {
       const bits = [0, 1, 2, 3].map((i) => inputOf(node, i));
       displays.set(node.id, bits.includes('X') ? 'X' : bits.reduce<number>((sum, b, i) => sum + (b as number) * (1 << i), 0));
