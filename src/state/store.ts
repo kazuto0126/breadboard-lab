@@ -37,18 +37,19 @@ import { toBreadboard, type ConvertOptions } from '../logic/toBreadboard';
 import type { VerifyMap } from '../logic/verifyBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../logic/types';
 import { logicDirty, useLogic } from './logic';
-import { boardFrames, gridBounds, worldBounds } from '../editor/geometry';
+import { boardFrames, gridBounds, MM_TO_PX, worldBounds } from '../editor/geometry';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
 import type { LibraryItem } from '../editor/library';
 import { DEFAULT_WIRE_COLOR, defaultWireColor, straightProblemText, straightWireProblem } from '../editor/manualWire';
-import { centerOn, DEFAULT_VIEWPORT, fitRect, zoomAt, type Viewport } from '../editor/viewport';
+import { centerOn, DEFAULT_VIEWPORT, fitRect, screenToWorld, zoomAt, type Viewport } from '../editor/viewport';
 import type { BreadboardInstance, LayoutId } from '../types/board';
-import type { Circuit, Wire } from '../types/circuit';
+import type { Circuit, NoteColor, Wire } from '../types/circuit';
 import type { ComponentInstance, ComponentProps, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
 import type { IcMove, RoutingMetrics, RoutingResult } from '../types/routing';
 import { RoutingCancelled, startRouting, type RoutingJob } from '../workers/routingClient';
 import * as persistence from './persistence';
+import { addNote, moveNote, NOTE_WIDTH_MM, removeNote, setNoteColor, setNoteTarget, setNoteText } from '../editor/notes';
 
 export type Selection =
   | { kind: 'component'; id: string }
@@ -58,6 +59,8 @@ export type Selection =
   | { kind: 'board'; id: string }
   | { kind: 'net'; netId: string }
   | { kind: 'issue'; index: number }
+  /** 子專案 18：便條。 */
+  | { kind: 'note'; id: string }
   | null;
 
 /** 從元件庫拿起、還沒放下的元件。 */
@@ -143,6 +146,8 @@ export interface AppState {
   /** 板上正在閃的孔（flashPoints）；id 每次加一，計時只清掉自己那一次。 */
   flash: { points: GridPoint[]; id: number } | null;
   canvasSize: { width: number; height: number };
+  /** 子專案 18：正在雙擊編輯的便條。 */
+  editingNote: string | null;
   rightTab: RightTab;
   dialog: Dialog;
   drawer: Drawer;
@@ -181,6 +186,17 @@ export interface AppActions {
   updateProps(id: string, patch: ComponentProps): void;
   /** 子專案 14：開關第 index 個開關或 LED 的名稱（進 Undo）。 */
   setLabel(id: string, index: number, text: string): void;
+  /** 在目前畫面中間新增便條，選取並開始編輯。 */
+  addNoteAtCenter(): void;
+  startNoteEdit(id: string): void;
+  /** 結束編輯並寫回文字；空白時刪掉這張便條。 */
+  finishNoteEdit(text: string): void;
+  setNoteText(id: string, text: string): void;
+  setNoteColor(id: string, color: NoteColor): void;
+  setNoteTarget(id: string, target: string | null): void;
+  /** 位置是世界座標 mm（會對齊格點）。 */
+  moveNote(id: string, x: number, y: number): void;
+  deleteNote(id: string): void;
   setSpan(id: string, span: number): void;
   toggleSwitch(id: string, index: number): void;
   setWireColors(ids: string[], color: string): void;
@@ -309,6 +325,8 @@ function pruneSelection(selection: Selection, circuit: Circuit): Selection {
       return analyzeCircuit(circuit).netById.has(selection.netId) ? selection : null;
     case 'issue':
       return null;
+    case 'note':
+      return (circuit.notes ?? []).some((n) => n.id === selection.id) ? selection : null;
     default:
       return selection;
   }
@@ -417,6 +435,7 @@ export function initialState(): AppState {
     viewportAuto: true,
     flash: null,
     canvasSize: { width: 1200, height: 700 },
+    editingNote: null,
     rightTab: 'inspect',
     dialog: null,
     drawer: null,
@@ -585,6 +604,7 @@ export const useStore = create<Store>()((set, get) => {
       else if (sel?.kind === 'pin') get().deleteComponent(sel.componentId);
       else if (sel?.kind === 'wire') get().deleteWire(sel.id);
       else if (sel?.kind === 'board') get().removeBoard(sel.id);
+      else if (sel?.kind === 'note') get().deleteNote(sel.id);
     },
 
     deleteComponent(id) {
@@ -686,6 +706,46 @@ export const useStore = create<Store>()((set, get) => {
       }
       const next = detachBoard(s.circuit, id);
       if (next) commit(`移出群組 ${id}`, next);
+    },
+
+    // ---- 子專案 18：便條（不是結構編輯，佈線、模擬中也可以改） ----
+    addNoteAtCenter() {
+      const s = get();
+      const center = screenToWorld(s.viewport, s.canvasSize.width / 2, s.canvasSize.height / 2);
+      const { circuit, id } = addNote(s.circuit, center.x / MM_TO_PX - NOTE_WIDTH_MM / 2, center.y / MM_TO_PX - 2.54);
+      commit(`新增便條 ${id}`, circuit, { selection: { kind: 'note', id }, editingNote: id });
+    },
+
+    startNoteEdit(id) {
+      if ((get().circuit.notes ?? []).some((n) => n.id === id)) set({ editingNote: id, selection: { kind: 'note', id } });
+    },
+
+    finishNoteEdit(text) {
+      const id = get().editingNote;
+      if (!id) return;
+      set({ editingNote: null });
+      if (!text.trim()) get().deleteNote(id);
+      else get().setNoteText(id, text);
+    },
+
+    setNoteText(id, text) {
+      commit(`修改便條 ${id}`, setNoteText(get().circuit, id, text));
+    },
+
+    setNoteColor(id, color) {
+      commit(`便條 ${id} 換顏色`, setNoteColor(get().circuit, id, color));
+    },
+
+    setNoteTarget(id, target) {
+      commit(target ? `便條 ${id} 指向 ${target}` : `便條 ${id} 不指向元件`, setNoteTarget(get().circuit, id, target));
+    },
+
+    moveNote(id, x, y) {
+      commit(`移動便條 ${id}`, moveNote(get().circuit, id, x, y));
+    },
+
+    deleteNote(id) {
+      commit(`刪除便條 ${id}`, removeNote(get().circuit, id), { selection: null, editingNote: null });
     },
 
     setLabel(id, index, text) {
@@ -945,6 +1005,7 @@ export const useStore = create<Store>()((set, get) => {
         animation: null,
         resultVisible: false,
         showCheck: false,
+        editingNote: null,
         dialog: null,
       });
       useLogic.getState().load(logic ?? emptyDiagram());

@@ -614,3 +614,40 @@ describe('routing summary (sub-project 17)', () => {
     expect(appliedRouting(s())).toBeNull();
   });
 });
+
+describe('notes (sub-project 18)', () => {
+  it('adds a note in the middle of the view, edits it and drops it when left empty', () => {
+    s().setViewport({ scale: 1, x: 0, y: 0 });
+    s().setCanvasSize(800, 600);
+    s().addNoteAtCenter();
+    const id = s().circuit.notes![0].id;
+    expect(s().selection).toEqual({ kind: 'note', id });
+    expect(s().editingNote).toBe(id);
+    // 畫面中間 (400, 300) px → mm，扣掉半張便條寬，對齊格點。
+    expect(s().circuit.notes![0].x % 2.54).toBeCloseTo(0);
+    s().finishNoteEdit('   ');
+    expect(s().circuit.notes).toBeUndefined();
+    expect(s().editingNote).toBeNull();
+    expect(s().selection).toBeNull();
+  });
+
+  it('edits, recolours, points, moves and deletes, each undoable', () => {
+    s().loadCircuit(circuit([comp('U1', '74LS00', 'F10')]), 'x');
+    s().addNoteAtCenter();
+    const id = s().circuit.notes![0].id;
+    s().finishNoteEdit('先接電源');
+    expect(s().circuit.notes![0].text).toBe('先接電源');
+    s().setNoteColor(id, 'pink');
+    s().setNoteTarget(id, 'U1');
+    s().moveNote(id, 50.8, 25.4);
+    expect(s().circuit.notes![0]).toMatchObject({ x: 50.8, y: 25.4, color: 'pink', target: 'U1' });
+    s().undo();
+    expect(s().circuit.notes![0]).toMatchObject({ target: 'U1' });
+    expect(s().circuit.notes![0].x).not.toBe(50.8);
+    s().select({ kind: 'note', id });
+    s().deleteSelection();
+    expect(s().circuit.notes).toBeUndefined();
+    s().undo();
+    expect(s().circuit.notes).toHaveLength(1);
+  });
+});
