@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addNode } from '../../src/logic/edit';
 import { majorityDiagram } from '../../src/logic/examples';
 import { emptyDiagram } from '../../src/logic/types';
@@ -58,5 +58,36 @@ describe('logic store', () => {
     expect(L().diagram.nodes).toHaveLength(8);
     expect(S().circuit.components).toHaveLength(0);
     expect(logicDirty()).toBe(false);
+  });
+});
+
+describe('several parts at once', () => {
+  it('deletes, copies and pastes a selection, each as one undo step', () => {
+    L().load(majorityDiagram());
+    L().select({ kind: 'nodes', ids: ['i1', 'i2', 'g1'] });
+    L().copy();
+    L().paste();
+    expect(L().diagram.nodes).toHaveLength(11);
+    expect(L().selection).toEqual({ kind: 'nodes', ids: ['i4', 'i5', 'g5'] });
+    L().deleteSelection();
+    expect(L().diagram.nodes).toHaveLength(8);
+    L().undo();
+    expect(L().diagram.nodes).toHaveLength(11);
+    L().undo();
+    expect(L().diagram.nodes).toHaveLength(8);
+  });
+
+  it('remembers which side was open', () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('localStorage', { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) });
+    try {
+      S().setWorkspace('logic');
+      expect(store.get('breadboard-lab:workspace')).toBe('logic');
+      expect(initialState().workspace).toBe('logic');
+      S().setWorkspace('breadboard');
+      expect(initialState().workspace).toBe('breadboard');
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

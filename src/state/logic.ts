@@ -1,12 +1,13 @@
 import { create } from 'zustand';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
 import { DEFAULT_VIEWPORT, fitRect, type Viewport } from '../editor/viewport';
-import { addNode, removeNodes, removeWire, setInputValue, type EditResult } from '../logic/edit';
+import { addNode, copyNodes, pasteNodes, removeNodes, removeWire, setInputValue, type EditResult, type LogicClipboard } from '../logic/edit';
 import { nodeSize } from '../logic/shapes';
 import { emptyDiagram, type LogicDiagram, type NodeKind } from '../logic/types';
 import * as persistence from './persistence';
 
-export type LogicSelection = { kind: 'node'; id: string } | { kind: 'wire'; id: string } | null;
+/** 選取：一個元件、一條線，或框選的多個元件（子專案 15）。 */
+export type LogicSelection = { kind: 'node'; id: string } | { kind: 'wire'; id: string } | { kind: 'nodes'; ids: string[] } | null;
 export type LogicTab = 'inspect' | 'table' | 'check';
 /** 邏輯圖一格的畫面大小（px，縮放 1 時）。 */
 export const LOGIC_CELL = 20;
@@ -29,6 +30,9 @@ export interface LogicState {
   startPlacing(kind: NodeKind | null): void;
   place(kind: NodeKind, x: number, y: number): boolean;
   deleteSelection(): void;
+  /** 子專案 15：複製選取的元件（只放在這個分頁的記憶體）、貼上。 */
+  copy(): void;
+  paste(): boolean;
   toggleInput(id: string): void;
   setInputs(values: Record<string, 0 | 1>): void;
   setViewport(v: Viewport): void;
@@ -83,8 +87,19 @@ export const useLogic = create<LogicState>((set, get) => ({
   deleteSelection() {
     const { selection, diagram } = get();
     if (!selection) return;
-    const next = selection.kind === 'node' ? removeNodes(diagram, [selection.id]) : removeWire(diagram, selection.id);
-    get().apply({ ok: true, diagram: next }, selection.kind === 'node' ? `刪除 ${selection.id}` : '刪除線', null);
+    const ids = selectedIds(selection);
+    const next = selection.kind === 'wire' ? removeWire(diagram, selection.id) : removeNodes(diagram, ids);
+    get().apply({ ok: true, diagram: next }, selection.kind === 'wire' ? '刪除線' : `刪除 ${ids.join('、')}`, null);
+  },
+  copy() {
+    const ids = selectedIds(get().selection);
+    if (ids.length > 0) clipboard = copyNodes(get().diagram, ids);
+  },
+  paste() {
+    if (!clipboard) return false;
+    const r = pasteNodes(get().diagram, clipboard);
+    if (!r.ok) return false;
+    return get().apply({ ok: true, diagram: r.diagram }, `貼上 ${r.ids.length} 個元件`, { kind: 'nodes', ids: r.ids });
   },
   toggleInput(id) {
     const node = get().diagram.nodes.find((n) => n.id === id);
@@ -116,6 +131,17 @@ export const useLogic = create<LogicState>((set, get) => ({
     set({ tab });
   },
 }));
+
+/** 子專案 15：複製的內容（只在這個分頁）。 */
+let clipboard: LogicClipboard | null = null;
+
+/** 選取裡的元件 ID（線不算）。 */
+export function selectedIds(sel: LogicSelection): string[] {
+  if (!sel) return [];
+  if (sel.kind === 'node') return [sel.id];
+  if (sel.kind === 'nodes') return sel.ids;
+  return [];
+}
 
 /** 邏輯圖有沒有還沒儲存的修改（開關切換也算：開關狀態會存檔）。 */
 export function logicDirty(s: LogicState = useLogic.getState()): boolean {

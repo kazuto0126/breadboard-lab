@@ -24,6 +24,15 @@ export function useShortcuts(): void {
           else l.select(null);
           return;
         }
+        if (mod && key === 'c') {
+          l.copy();
+          return;
+        }
+        if (mod && key === 'v') {
+          e.preventDefault();
+          if (!l.paste()) s.toast('warning', '沒有可以貼上的元件，或附近沒有空位');
+          return;
+        }
         if (mod && (key === 'z' || key === 'y')) {
           e.preventDefault();
           if (key === 'y' || e.shiftKey) l.redo();
