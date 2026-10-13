@@ -83,9 +83,9 @@ test('第三十四章驗收流程：放置、接線、檢查、AI 標準佈線�
     expect(w.path).toHaveLength(2);
   }
 
-  // 8–9. Check Circuit：沒有錯誤（未使用的閘輸入懸空只是警告）。
+  // 8–9. Check Circuit：沒有錯誤也沒有警告（子專案 19：整組沒用到的閘輸入懸空不警告）。
   await page.getByRole('button', { name: '✓ Check Circuit' }).click();
-  await expect(page.getByTestId('check-badge')).toContainText('0 個錯誤');
+  await expect(page.getByTestId('check-badge')).toContainText('Circuit Valid');
 
   // 10–18. AI 標準佈線。
   await page.getByRole('button', { name: '⚡ AI 標準佈線' }).click();

@@ -278,19 +278,39 @@ function resolve(sim: SimCircuit, node: (n: string) => string, outputs: SimState
   }
 
   const levels = new Map(strongLevels);
-  for (let layer = 0; layer < sim.resistors.length + 1; layer++) {
-    const next = new Map<string, Level>();
-    for (const r of sim.resistors) {
-      const a = node(r.a);
-      const b = node(r.b);
-      if (a === b) continue;
-      const va = levels.get(a);
-      const vb = levels.get(b);
-      if (va !== undefined && vb === undefined) next.set(b, combine(next.get(b), va));
-      if (vb !== undefined && va === undefined) next.set(a, combine(next.get(a), vb));
+  /** 電位經電阻傳到還沒有電位的節點（弱電位）。 */
+  const throughResistors = () => {
+    for (let layer = 0; layer < sim.resistors.length + 1; layer++) {
+      const next = new Map<string, Level>();
+      for (const r of sim.resistors) {
+        const a = node(r.a);
+        const b = node(r.b);
+        if (a === b) continue;
+        const va = levels.get(a);
+        const vb = levels.get(b);
+        if (va !== undefined && vb === undefined) next.set(b, combine(next.get(b), va));
+        if (vb !== undefined && va === undefined) next.set(a, combine(next.get(a), vb));
+      }
+      if (next.size === 0) break;
+      for (const [n, v] of next) levels.set(n, v);
     }
-    if (next.size === 0) break;
-    for (const [n, v] of next) levels.set(n, v);
+  };
+  throughResistors();
+  // 子專案 19：理想開關。斷開的指撥開關一端是 0 / 1、另一端浮接（沒有上 / 下拉電阻）時，浮接端當成相反的電位。
+  const ideal = new Map<string, Level>();
+  for (const s of sim.switches) {
+    if (s.closed) continue;
+    const a = node(s.a);
+    const b = node(s.b);
+    if (a === b) continue;
+    const va = levels.get(a);
+    const vb = levels.get(b);
+    if ((va === 0 || va === 1) && vb === undefined) ideal.set(b, combine(ideal.get(b), va === 1 ? 0 : 1));
+    if ((vb === 0 || vb === 1) && va === undefined) ideal.set(a, combine(ideal.get(a), vb === 1 ? 0 : 1));
+  }
+  if (ideal.size > 0) {
+    for (const [n, v] of ideal) levels.set(n, v);
+    throughResistors();
   }
   return { levels, strong: new Set(strongLevels.keys()) };
 }

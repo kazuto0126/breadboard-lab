@@ -46,7 +46,7 @@ function untilStopped(...parts: string[]) {
   };
 }
 
-const icCircuit = () => circuit([comp('U1', '74LS00', 'F10'), comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3')], [wire('g1', 'J16', 'B-16')]);
+const icCircuit = () => circuit([comp('U1', '74LS00', 'F10'), comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3')], [wire('g1', 'J16', 'B-16'), wire('y', 'I12', 'I13')]); // 1Y 接到 2A：第 1 組閘有用到，1A、1B 懸空會警告
 const ai = () => useAi.getState();
 const last = () => ai().chat!.messages.at(-1)!;
 

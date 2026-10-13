@@ -76,7 +76,7 @@ describe('validateCircuit', () => {
   });
 
   it('warns about floating IC inputs', () => {
-    const errors = validateCircuit(circuit([...powered(), comp('U1', '74LS04', 'F10')]));
+    const errors = validateCircuit(circuit([...powered(), comp('U1', '74LS04', 'F10')], [wire('y', 'H11', 'H12')]));
     expect(errors.find((e) => e.code === 'INPUT_FLOATING')).toMatchObject({
       severity: 'warning',
       message: expect.stringContaining('第 1 腳（1A）未連接'),
@@ -99,5 +99,32 @@ describe('validateCircuit', () => {
     expect(codes(circuit([comp('V1', 'vcc', 'T+5'), comp('R1', 'resistor', 'A20', { rotation: 90, span: 1 })]))).toContain(
       'COMPONENT_SHORTED',
     );
+  });
+});
+
+describe('sub-project 19: switches without pulls and unused gates', () => {
+  // 74LS00 在 F10，VCC / GND 接好；開關 SW1 在 F30，第 1 個開關上側（A30）接電源、下側（H30）接 1A。
+  const base = (rail: 'T+30' | 'T-30', extra: ReturnType<typeof comp>[] = []) =>
+    circuit(
+      [comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3'), comp('G2', 'gnd', 'T-5'), comp('U1', '74LS00', 'F10'), comp('SW1', 'dipsw-4', 'F30'), ...extra],
+      [wire('pv', 'T+10', 'A10'), wire('pg', 'B-16', 'J16'), wire('top', rail, 'A30'), wire('in', 'H30', 'H10')],
+    );
+  const codes = (c: Circuit) => validateCircuit(c).filter((e) => e.code === 'SWITCH_NO_PULL').map((e) => e.message);
+
+  it('warns about a switch with no pull resistor, by which rail it uses', () => {
+    expect(codes(base('T+30'))).toEqual([expect.stringMatching(/^⚠ .*SW1.* 第 1 個開關沒有下拉電阻：模擬時 OFF 當成 0；實際接線時 OFF 會懸空，TTL 會讀成 1$/)]);
+    expect(codes(base('T-30'))).toEqual([expect.stringMatching(/^⚠ .*SW1.* 第 1 個開關沒有上拉電阻：模擬時 OFF 當成 1；實際接線時懸空容易受雜訊影響$/)]);
+    // 下側那一排再接一顆電阻到 GND：有下拉電阻，不警告。
+    const pulled = circuit(
+      [...base('T+30').components, comp('R1', 'resistor', 'I32')],
+      [...base('T+30').wires, wire('r', 'J30', 'J32'), wire('rg', 'J36', 'B-36')],
+    );
+    expect(codes(pulled)).toEqual([]);
+  });
+
+  it('does not call a completely unused gate floating', () => {
+    const floating = (c: Circuit) => validateCircuit(c).filter((e) => e.code === 'INPUT_FLOATING' && e.componentIds.includes('U1')).map((e) => e.message);
+    // 第 1 組（1A 接開關、1B 沒接）只接了一半：1B 照樣警告；第 2–4 組完全沒用到：不警告。
+    expect(floating(base('T+30'))).toEqual(['⚠ 74LS00 (U1) 第 2 腳（1B）未連接，TTL 輸入懸空會被當成 HIGH']);
   });
 });

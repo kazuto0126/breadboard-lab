@@ -11,7 +11,7 @@ test('圖 2-5 轉成麵包板：產生 IC、開關、LED，佈線後真值表全
 
   await page.getByRole('button', { name: '轉成麵包板…' }).click();
   const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
-  await expect(dialog.getByTestId('convert-preview')).toContainText('74LS08 × 1、74LS32 × 1、4 位元指撥開關 × 1、電阻 × 4、LED × 1');
+  await expect(dialog.getByTestId('convert-preview')).toContainText('74LS08 × 1、74LS32 × 1、4 位元指撥開關 × 1、電阻 × 1、LED × 1');
   await dialog.getByRole('button', { name: '轉換' }).click();
 
   for (const id of ['U1', 'U2', 'SW1', 'D1']) await expect(page.locator(`g[data-component-id="${id}"]`)).toHaveCount(1);
@@ -58,4 +58,18 @@ test('只用 NAND 轉換：只有 74LS00、比對一致、板上標出 A、B、C
   await first.press('Enter');
   await expect(page.locator('[data-label="IN1"]')).toHaveCount(1);
   await expect(page.locator('[data-label="A"]')).toHaveCount(0);
+});
+
+test('預設不加上 / 下拉電阻，勾選後零件清單多出輸入電阻', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: '多數決電路（圖 2-5）' }).click();
+  await page.getByRole('button', { name: '轉成麵包板…' }).click();
+  const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
+  const preview = dialog.getByTestId('convert-preview');
+  await expect(preview).toContainText('電阻 × 1');
+  await dialog.getByLabel(/加上 \/ 下拉電阻/).check();
+  await expect(preview).toContainText('電阻 × 4');
 });
