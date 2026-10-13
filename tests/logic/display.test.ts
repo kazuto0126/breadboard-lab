@@ -88,3 +88,21 @@ describe('display values', () => {
     expect(valueOfSegments(['a'])).toBeNull();
   });
 });
+
+describe('checking displays', () => {
+  it('names open display pins by letter and never calls a display unused', async () => {
+    const { checkDiagram, nodeLabel } = await import('../../src/logic/check');
+    const { bcdDiagram } = await import('../../src/logic/examples');
+    const d = bcdDiagram();
+    expect(checkDiagram(d)).toEqual([]);
+    // 拿掉 X → C 那條線
+    const open = { ...d, wires: d.wires.filter((w) => !(w.to.node === 'd1' && w.to.pin === 2)) };
+    expect(checkDiagram(open).map((i) => i.message)).toEqual(['輸入 X的輸出沒有接到任何地方', '顯示器 S1 的 C 腳沒有接線，值不確定']);
+    expect(nodeLabel(d.nodes.find((n) => n.id === 'd1')!)).toBe('顯示器 S1');
+    let g = emptyDiagram();
+    g = ok(addNode(g, 'INPUT', 0, 0));
+    g = ok(addNode(g, 'NOT', 4, 0));
+    g = ok(addNode(g, 'DISPLAY', 10, 0));
+    expect(checkDiagram(g).some((i) => i.message === '邏輯圖還沒有輸出端')).toBe(false);
+  });
+});
