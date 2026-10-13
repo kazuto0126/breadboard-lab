@@ -28,6 +28,7 @@ import {
   setComponentSpan,
   setWireColor,
   toggleSwitch,
+  setLabel,
   updateComponentProps,
 } from '../editor/commands';
 import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
@@ -178,6 +179,8 @@ export interface AppActions {
   removeBoard(id: string): void;
   detachBoard(id: string): void;
   updateProps(id: string, patch: ComponentProps): void;
+  /** 子專案 14：開關第 index 個開關或 LED 的名稱（進 Undo）。 */
+  setLabel(id: string, index: number, text: string): void;
   setSpan(id: string, span: number): void;
   toggleSwitch(id: string, index: number): void;
   setWireColors(ids: string[], color: string): void;
@@ -658,6 +661,11 @@ export const useStore = create<Store>()((set, get) => {
       if (next) commit(`移出群組 ${id}`, next);
     },
 
+    setLabel(id, index, text) {
+      if (guardEdit()) return;
+      commit(`修改 ${componentName(get().circuit, id)} 的名稱`, setLabel(get().circuit, id, index, text));
+    },
+
     updateProps(id, patch) {
       const s = get();
       commit(`修改 ${componentName(s.circuit, id)}`, updateComponentProps(s.circuit, id, patch));
@@ -935,6 +943,19 @@ export const useStore = create<Store>()((set, get) => {
       });
       get().fitToScreen();
       get().runAutoRoute('apply', { moveIcs: true });
+      // 子專案 14：「自動」選了 MB-102 但 AI 佈線排不完時（例如只用 NAND，連線比較多），改用 EIC-1106 再轉一次。
+      if (options.board === 'auto' && result.bom.layout === 'MB102') {
+        const converted = result.circuit;
+        const off = useStore.subscribe((s, prev) => {
+          if (!prev.routing || s.routing) return;
+          off();
+          const done = s.comparison;
+          if (!done || done.beforeWires !== converted.wires || done.result.status === 'success') return;
+          if (s.circuit !== converted) return;
+          get().toast('info', 'MB-102 上的線排不完，改用 EIC-1106 大型麵包板再轉一次');
+          get().convertLogic({ ...options, board: 'EIC1106' });
+        });
+      }
     },
 
     loadExampleLogic(id) {

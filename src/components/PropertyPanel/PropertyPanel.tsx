@@ -38,6 +38,21 @@ import { WireExplanationCard } from './WireExplanationCard';
 
 const CLOCK_FREQUENCIES = [0.5, 1, 2, 5, 10];
 
+/** 名稱輸入框：Enter 或離開時存（子專案 14）。 */
+function LabelInput({ value, ariaLabel, placeholder, onCommit }: { value: string; ariaLabel: string; placeholder?: string; onCommit: (text: string) => void }) {
+  return (
+    <input
+      defaultValue={value}
+      aria-label={ariaLabel}
+      placeholder={placeholder}
+      maxLength={8}
+      onBlur={(e) => e.currentTarget.value.trim() !== value && onCommit(e.currentTarget.value)}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      className="w-full min-w-0 rounded border border-slate-600 bg-slate-950 px-1.5 py-0.5 text-xs text-slate-100 focus:border-sky-500 focus:outline-none"
+    />
+  );
+}
+
 function Section({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
   return (
     <section className="border-b border-slate-800 px-3 py-3">
@@ -262,6 +277,21 @@ function ComponentInspector({ id, circuit, analysis }: { id: string; circuit: Ci
               ))}
             </select>
           </Row>
+        )}
+        {def.category === 'led' && (
+          <Row label="名稱">
+            <LabelInput key={`${id}-0-${props.labels?.[0] ?? ''}`} value={props.labels?.[0] ?? ''} ariaLabel="LED 名稱" onCommit={(text) => store.setLabel(id, 0, text)} />
+          </Row>
+        )}
+        {def.category === 'dip-switch' && (
+          <div className="mt-2">
+            <div className="mb-1 text-xs text-slate-400">每個開關的名稱（例如 A、B、Cin；最多 8 個字）</div>
+            <div className="grid grid-cols-4 gap-1">
+              {(props.switchStates ?? []).map((_, k) => (
+                <LabelInput key={`${id}-${k}-${props.labels?.[k] ?? ''}`} value={props.labels?.[k] ?? ''} ariaLabel={`開關 ${k + 1} 名稱`} placeholder={String(k + 1)} onCommit={(text) => store.setLabel(id, k, text)} />
+              ))}
+            </div>
+          </div>
         )}
         {def.category === 'dip-switch' && (
           <div className="mt-2">
@@ -730,6 +760,7 @@ function ChecklistTab({ circuit }: { circuit: Circuit }) {
                   <span className="min-w-0 flex-1 truncate font-mono text-slate-100">
                     {row.from} → {row.to}
                   </span>
+                  {row.labels.length > 0 && <span className="shrink-0 rounded bg-slate-700 px-1 text-[10px] font-semibold text-slate-100">{row.labels.join('、')}</span>}
                   <span className="shrink-0 tabular-nums text-slate-400">{row.length} 格</span>
                 </button>
               </div>

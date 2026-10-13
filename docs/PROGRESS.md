@@ -13,7 +13,7 @@
 
 ## 進行中
 
-- 無。
+- `feat/convert-extras`：子專案 14「只用 NAND 轉換、板上標出名稱」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-13-convert-extras-design.md`。測試：單元 580、端對端 35。
 
 ## 接下來（依優先順序）
 

@@ -1,3 +1,4 @@
+import { getComponentDefinition } from '../core/circuit/library';
 import { buildLattice } from '../core/breadboard/lattice';
 import { nodeIdOf } from '../core/breadboard/naming';
 import { wireLength } from '../core/circuit/wireGeometry';
@@ -23,6 +24,8 @@ export interface ChecklistRow {
   /** 所屬 Net；兩端都沒有接到元件腳時為 null。 */
   netName: string | null;
   kind: Net['kind'] | null;
+  /** 子專案 14：這條線所屬 Net 上的開關、LED 名稱（例如 A、X）。 */
+  labels: string[];
   done: boolean;
 }
 
@@ -68,6 +71,26 @@ export function checklistProgress(state: ChecklistState, circuit: Pick<Circuit, 
 
 const KIND_RANK: Record<Net['kind'], number> = { power: 0, ground: 1, signal: 2 };
 
+/** Net 上的開關、LED 名稱：開關第 k 個開關的兩隻腳、LED 的兩隻腳。 */
+export function netLabels(circuit: Circuit, net: Net): string[] {
+  const out: string[] = [];
+  for (const ref of net.pins) {
+    const instance = circuit.components.find((c) => c.id === ref.componentId);
+    const labels = instance?.props.labels;
+    if (!instance || !labels) continue;
+    const def = getComponentDefinition(instance.defId);
+    let k = -1;
+    if (def?.category === 'led') k = 0;
+    if (def?.category === 'dip-switch') {
+      const half = def.pins.length / 2;
+      k = ref.pinNumber <= half ? ref.pinNumber - 1 : def.pins.length - ref.pinNumber;
+    }
+    const name = k >= 0 ? labels[k] : '';
+    if (name && !out.includes(name)) out.push(name);
+  }
+  return out;
+}
+
 /** 先接電源、再接地、最後訊號（沒有接到元件腳的線排最後）；同類依 Net 名稱、導線 ID 的自然順序。 */
 export function checklistRows(circuit: Circuit, state: ChecklistState): ChecklistRow[] {
   const analysis = analyzeCircuit(circuit);
@@ -82,6 +105,7 @@ export function checklistRows(circuit: Circuit, state: ChecklistState): Checklis
       length: Math.round(wireLength(w, buildLattice(circuit.boards)) * 10) / 10,
       netName: net?.name ?? null,
       kind: net?.kind ?? null,
+      labels: net && net.kind === 'signal' ? netLabels(circuit, net) : [],
       done: isChecked(state, w),
     };
   });

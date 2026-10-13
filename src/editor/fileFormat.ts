@@ -5,6 +5,7 @@ import type { ComponentInstance, ComponentProps, LedColor, Rotation } from '../t
 import type { GridPoint } from '../types/geometry';
 import { boardRects, MAX_BOARDS, normalizeBoardGroups, rectsOverlap } from './boards';
 import type { ChecklistState } from './checklist';
+import { LABEL_MAX } from './commands';
 import { parseLogicDiagram } from '../logic/file';
 import type { LogicDiagram } from '../logic/types';
 
@@ -110,6 +111,12 @@ function parseProps(raw: unknown, path: string): ComponentProps {
     const states = arr(p.switchStates, `${path}.switchStates`);
     if (!states.every((s) => typeof s === 'boolean')) fail(`${path}.switchStates`, '必須是 true / false 陣列');
     props.switchStates = states as boolean[];
+  }
+  if (p.labels !== undefined) {
+    const labels = arr(p.labels, `${path}.labels`);
+    if (!labels.every((s) => typeof s === 'string')) fail(`${path}.labels`, '必須是文字陣列');
+    // 子專案 14：名稱最多 8 個字，太長就截斷（不讓整個檔案打不開）。
+    props.labels = (labels as string[]).map((s) => s.slice(0, LABEL_MAX));
   }
   return props;
 }
