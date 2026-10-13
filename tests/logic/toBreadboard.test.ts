@@ -41,7 +41,7 @@ function andChain(n: number): LogicDiagram {
 
 describe('toBreadboard', () => {
   it.each(['vcc', 'gnd'] as const)('builds figure 2-5 with switches to %s', (switchTo) => {
-    const r = ok(toBreadboard(majorityDiagram(), { switchTo, board: 'auto' }));
+    const r = ok(toBreadboard(majorityDiagram(), { switchTo, board: 'auto', pulls: true }));
     const parts = r.circuit.components.map((c) => [c.id, c.defId, c.props.resistance ?? null]);
     const pull = switchTo === 'vcc' ? 330 : 1000;
     expect(parts).toEqual([
@@ -77,16 +77,32 @@ describe('toBreadboard', () => {
 
   it('moves to the EIC-1106 when the parts do not fit an MB-102', () => {
     const d = andChain(24);
-    const r = ok(toBreadboard(d, { switchTo: 'vcc', board: 'auto' }));
+    const r = ok(toBreadboard(d, { switchTo: 'vcc', board: 'auto', pulls: true }));
     expect(r.bom.layout).toBe('EIC1106');
     expect(r.bom.ics).toEqual({ '74LS08': 6 });
     expect(validateCircuit(r.circuit).filter((e) => e.severity === 'error' && !e.code.startsWith('WIRE'))).toEqual([]);
     expect(wiredAsPlanned(r)).toEqual({ merged: [], split: [] });
-    expect(toBreadboard(d, { switchTo: 'vcc', board: 'MB102' })).toEqual({ ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' });
-    expect(toBreadboard(andChain(60), { switchTo: 'vcc', board: 'auto' })).toMatchObject({ ok: false, reason: expect.stringContaining('EIC-1106 放不下') });
+    expect(toBreadboard(d, { switchTo: 'vcc', board: 'MB102', pulls: true })).toEqual({ ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' });
+    expect(toBreadboard(andChain(60), { switchTo: 'vcc', board: 'auto', pulls: true })).toMatchObject({ ok: false, reason: expect.stringContaining('EIC-1106 放不下') });
   });
 
   it('refuses diagrams that cannot be converted', () => {
     expect(toBreadboard(emptyDiagram(), { switchTo: 'vcc', board: 'auto' })).toEqual({ ok: false, reason: '邏輯圖要有輸入端和輸出端才能轉' });
+  });
+});
+
+describe('cleaner conversions (sub-project 19)', () => {
+  it.each(['vcc', 'gnd'] as const)('leaves out pull resistors and unused gate pins by default (switches to %s)', async (switchTo) => {
+    const { verifyBreadboard } = await import('../../src/logic/verifyBreadboard');
+    const r = ok(toBreadboard(majorityDiagram(), { switchTo, board: 'auto' }));
+    expect(r.circuit.components.filter((c) => c.defId === 'resistor').map((c) => c.props.resistance)).toEqual([220]); // 只剩 LED 的
+    expect(r.bom.resistors).toBe(1);
+    // 74LS32 的 4 組 OR 只用 2 組：第 3、4 組的腳都沒有預定訊號（不接線）。
+    const or = r.circuit.components.find((c) => c.defId === '74LS32')!;
+    expect([8, 9, 10, 11, 12, 13].map((p) => r.netOf[`${or.id}#${p}`])).toEqual([undefined, undefined, undefined, undefined, undefined, undefined]);
+    expect(validateCircuit(r.circuit).filter((e) => e.code === 'INPUT_FLOATING')).toEqual([]);
+    expect(validateCircuit(r.circuit).filter((e) => e.code === 'SWITCH_NO_PULL')).toHaveLength(3);
+    expect(wiredAsPlanned(r)).toEqual({ merged: [], split: [] });
+    expect(verifyBreadboard(majorityDiagram(), r.circuit, switchTo, r).mismatches).toEqual([]);
   });
 });
