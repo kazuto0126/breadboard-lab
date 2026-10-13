@@ -4,7 +4,8 @@ import { localPx, PITCH, type BoardFrame } from '../../editor/geometry';
 import { BOARD } from '../../render/theme';
 
 const P = PITCH;
-const HOLE = 0.42 * P;
+/** 孔的大小：比格距小很多，板面看起來比較清爽（實際麵包板的孔約 0.8 mm 見方，格距 2.54 mm）。 */
+const HOLE = 0.3 * P;
 const COLUMN_LABELS = [1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60];
 
 /**
