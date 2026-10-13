@@ -6,6 +6,7 @@ import { sortedIo, truthTable, type Bit } from '../../logic/evaluate';
 import { nodeSize } from '../../logic/shapes';
 import { GATE_KINDS, isGate, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
+import { convertProblem } from '../../logic/synth';
 import { useStore } from '../../state/store';
 
 const TABS: Array<[LogicTab, string]> = [
@@ -15,6 +16,13 @@ const TABS: Array<[LogicTab, string]> = [
 ];
 
 const btn = 'rounded px-2 py-1 text-xs disabled:opacity-50';
+
+/** 規格（2026-10-13 logic-to-breadboard）第 2 節：不能轉就說明原因，否則打開設定對話框。 */
+export function openConvert() {
+  const problem = convertProblem(useLogic.getState().diagram);
+  if (problem) useStore.getState().toast('warning', problem);
+  else useStore.getState().openDialog('to-breadboard');
+}
 const bitText = (b: Bit) => (b === 'X' ? '?' : String(b));
 const bitTone = (b: Bit) => (b === 1 ? 'text-red-400' : b === 0 ? 'text-sky-400' : 'text-slate-400');
 
@@ -160,6 +168,9 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
         閘 {count((n) => isGate(n.kind))}・輸入端 {count((n) => n.kind === 'INPUT')}・輸出端 {count((n) => n.kind === 'OUTPUT')}・線 {diagram.wires.length}
       </p>
       <p className="text-xs leading-5 text-slate-400">從左邊放邏輯閘、輸入端、輸出端，再從一個腳拖到另一個腳連線。點輸入端的開關切換 0 / 1，線和燈號會即時顯示結果。</p>
+      <button type="button" className={`${btn} bg-emerald-600 text-white hover:bg-emerald-500`} onClick={openConvert}>
+        轉成麵包板…
+      </button>
     </Section>
   );
 }

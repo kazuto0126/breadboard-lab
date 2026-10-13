@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GEMINI_MODEL } from '../../ai/gemini';
+import { toBreadboard, type ConvertOptions } from '../../logic/toBreadboard';
 import { useAi } from '../../state/ai';
+import { useLogic } from '../../state/logic';
 import { listProjects, storageAvailable, type ProjectSummary } from '../../state/persistence';
 import { useStore } from '../../state/store';
 
@@ -242,6 +244,80 @@ function HelpDialog() {
   );
 }
 
+/** 規格（2026-10-13 logic-to-breadboard）第 2 節：轉成麵包板的設定。 */
+function ToBreadboardDialog() {
+  const store = useStore.getState();
+  const diagram = useLogic((l) => l.diagram);
+  const hasParts = useStore((s) => s.circuit.components.length > 0 || s.circuit.wires.length > 0);
+  const [switchTo, setSwitchTo] = useState<ConvertOptions['switchTo']>('vcc');
+  const [board, setBoard] = useState<ConvertOptions['board']>('auto');
+  const preview = toBreadboard(diagram, { switchTo, board });
+  const radio = (checked: boolean) => `flex cursor-pointer items-start gap-2 rounded border px-3 py-2 ${checked ? 'border-sky-500 bg-sky-950/40' : 'border-slate-700 hover:bg-slate-800'}`;
+  return (
+    <Modal title="轉成麵包板" onClose={() => store.closeDialog()} width="w-[520px]">
+      <div className="space-y-3 overflow-y-auto text-sm">
+        <fieldset className="space-y-1.5">
+          <legend className="mb-1 font-semibold text-slate-100">指撥開關的接法</legend>
+          {(
+            [
+              ['vcc', '開關接 +5 V（撥 ON = 1）', '每個輸入加一顆 330 Ω 下拉電阻接到 GND。'],
+              ['gnd', '開關接 GND（撥 ON = 0）', '每個輸入加一顆 1 kΩ 上拉電阻接到 +5 V。'],
+            ] as const
+          ).map(([id, label, hint]) => (
+            <label key={id} className={radio(switchTo === id)}>
+              <input type="radio" name="switch-to" className="mt-1" checked={switchTo === id} onChange={() => setSwitchTo(id)} />
+              <span>
+                <span className="block text-slate-100">{label}</span>
+                <span className="block text-xs text-slate-400">{hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+        <fieldset>
+          <legend className="mb-1 font-semibold text-slate-100">麵包板</legend>
+          <div className="flex gap-2">
+            {(
+              [
+                ['auto', '自動'],
+                ['MB102', 'MB-102'],
+                ['EIC1106', 'EIC-1106'],
+              ] as const
+            ).map(([id, label]) => (
+              <label key={id} className={radio(board === id)}>
+                <input type="radio" name="board" checked={board === id} onChange={() => setBoard(id)} />
+                <span className="text-slate-100">{label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div data-testid="convert-preview" className="rounded border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs leading-5 text-slate-300">
+          {preview.ok ? (
+            <>
+              會用到：
+              {Object.entries(preview.bom.ics)
+                .map(([id, n]) => `${id} × ${n}`)
+                .join('、')}
+              、{preview.bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × 1、電阻 × {preview.bom.resistors}、LED × {preview.bom.leds}；放在 {preview.bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}。
+            </>
+          ) : (
+            <span className="text-red-300">{preview.reason}</span>
+          )}
+        </div>
+        {hasParts && <p className="text-xs text-amber-300">會取代目前的麵包板（可以按復原找回來）。</p>}
+        <p className="text-xs text-slate-400">轉換後會自動執行 AI 佈線（可移動 IC），並用模擬逐列比對真值表。</p>
+      </div>
+      <div className="mt-4 flex justify-end gap-2">
+        <button type="button" className={`${button} bg-slate-700 hover:bg-slate-600`} onClick={() => store.closeDialog()}>
+          取消
+        </button>
+        <button type="button" disabled={!preview.ok} className={`${button} bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50`} onClick={() => store.convertLogic({ switchTo, board })}>
+          轉換
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 export function Dialogs() {
   const dialog = useStore((s) => s.dialog);
   switch (dialog) {
@@ -255,6 +331,8 @@ export function Dialogs() {
       return <HelpDialog />;
     case 'ai-key':
       return <AiKeyDialog />;
+    case 'to-breadboard':
+      return <ToBreadboardDialog />;
     default:
       return null;
   }

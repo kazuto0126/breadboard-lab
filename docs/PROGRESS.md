@@ -1,7 +1,7 @@
 # 專案進度
 
 > 每個 Claude Code 對話開始時會自動顯示這份檔案（`.claude/hooks/session-start.sh`）。
-> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-12
+> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-13
 
 ## 目前狀態
 
@@ -14,12 +14,12 @@
 ## 進行中
 
 - `feat/logic-diagram`：子專案 12「邏輯圖編輯器」**已完成**，等使用者審查。規格 `docs/superpowers/specs/2026-10-11-logic-diagram-design.md`、計畫 `docs/superpowers/plans/2026-10-11-logic-diagram.md`。測試：單元 531、端對端 33。
+- `feat/logic-to-breadboard`：子專案 13「邏輯圖轉成麵包板」**已完成**（以 `feat/logic-diagram` 為基礎），等使用者審查。規格 `docs/superpowers/specs/2026-10-13-logic-to-breadboard-design.md`。測試：單元 562、端對端 34。
 - `fix/resistor-holes`（PR #17）：新放的電阻跨 3 孔、麵包板的孔畫小一點。
 
 ## 接下來（依優先順序）
 
-1. 子專案 13：邏輯圖轉成麵包板（選 74LS IC、分配閘、產生指撥開關與 LED、交給 AI 佈線、用真值表比對模擬結果）。先寫規格給使用者看。
-2. 之後的 AI 方向（子專案 11 規格第 8 節）：整次佈線的 AI 總說明、老師提供金鑰的後端代理。
+1. 之後的 AI 方向（子專案 11 規格第 8 節）：整次佈線的 AI 總說明、老師提供金鑰的後端代理。
 
 ## 注意事項
 
