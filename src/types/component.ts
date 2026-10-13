@@ -39,6 +39,8 @@ export interface ComponentProps {
   frequency?: number;
   /** 電容量（法拉）。 */
   capacitance?: number;
+  /** 名稱（子專案 14）：指撥開關第 k 個開關用 labels[k]；LED 用 labels[0]。空字串代表沒有名稱。 */
+  labels?: string[];
 }
 
 export interface ComponentDefinition {

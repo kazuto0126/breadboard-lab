@@ -55,6 +55,8 @@ describe('toBreadboard', () => {
       ['D1', 'led', null],
       ['V1', 'vcc', null],
       ['G1', 'gnd', null],
+      ['V2', 'vcc', null],
+      ['G2', 'gnd', null],
     ]);
     expect(r.bom).toEqual({ ics: { '74LS08': 1, '74LS32': 1 }, switch: 'dipsw-4', resistors: 4, leds: 1, layout: 'MB102' });
     expect(r.inputs).toEqual(['i1', 'i2', 'i3']);

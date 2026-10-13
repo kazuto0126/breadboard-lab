@@ -935,6 +935,19 @@ export const useStore = create<Store>()((set, get) => {
       });
       get().fitToScreen();
       get().runAutoRoute('apply', { moveIcs: true });
+      // 子專案 14：「自動」選了 MB-102 但 AI 佈線排不完時（例如只用 NAND，連線比較多），改用 EIC-1106 再轉一次。
+      if (options.board === 'auto' && result.bom.layout === 'MB102') {
+        const converted = result.circuit;
+        const off = useStore.subscribe((s, prev) => {
+          if (!prev.routing || s.routing) return;
+          off();
+          const done = s.comparison;
+          if (!done || done.beforeWires !== converted.wires || done.result.status === 'success') return;
+          if (s.circuit !== converted) return;
+          get().toast('info', 'MB-102 上的線排不完，改用 EIC-1106 大型麵包板再轉一次');
+          get().convertLogic({ ...options, board: 'EIC1106' });
+        });
+      }
     },
 
     loadExampleLogic(id) {

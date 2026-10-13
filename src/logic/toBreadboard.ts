@@ -10,6 +10,7 @@ import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance } from '../types/component';
 import type { GridPoint } from '../types/geometry';
 import { sortedIo } from './evaluate';
+import { toNandUnits } from './nandOnly';
 import { assignIcs, convertProblem, decompose, gateSlots } from './synth';
 import type { LogicDiagram } from './types';
 
@@ -17,6 +18,8 @@ export interface ConvertOptions {
   /** 開關的另一側接 +5 V（撥 ON = 1，330 Ω 下拉）或 GND（撥 ON = 0，1 kΩ 上拉）。 */
   switchTo: 'vcc' | 'gnd';
   board: 'auto' | LayoutId;
+  /** 照種類對應（預設）或只用 NAND（74LS00）。 */
+  gates?: 'direct' | 'nand';
 }
 
 export interface Bom {
@@ -66,6 +69,14 @@ interface TwoLead {
 
 class NoRoom extends Error {}
 
+/** 拆好的單元；只用 NAND 時再換成 2 輸入 NAND（輸出端接的訊號一定保留）。 */
+function unitsFor(d: LogicDiagram, options: ConvertOptions) {
+  const units = decompose(d);
+  if (options.gates !== 'nand') return units;
+  const keep = d.wires.filter((w) => d.nodes.find((n) => n.id === w.to.node)?.kind === 'OUTPUT').map((w) => w.from);
+  return toNandUnits(units, keep);
+}
+
 /** 規格（2026-10-13 logic-to-breadboard）第 4、5 節。 */
 export function toBreadboard(d: LogicDiagram, options: ConvertOptions): ConvertResult {
   const problem = convertProblem(d);
@@ -79,7 +90,7 @@ export function toBreadboard(d: LogicDiagram, options: ConvertOptions): ConvertR
     }
   }
   if (options.board === 'MB102') return { ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' };
-  const chips = assignIcs(decompose(d)).length;
+  const chips = assignIcs(unitsFor(d, options)).length;
   return { ok: false, reason: `零件太多，一塊 EIC-1106 放不下（需要 ${chips} 片 IC）` };
 }
 
@@ -88,7 +99,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const hole = (name: string, area?: number) => holeOn(BOARD_ID, eic ? `${area}-${name}` : name, layout);
   const { inputs, outputs } = sortedIo(d);
   const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, w.from]));
-  const plans = assignIcs(decompose(d));
+  const plans = assignIcs(unitsFor(d, options));
   const swDef = inputs.length <= 4 ? 'dipsw-4' : 'dipsw-8';
   const swPins = swDef === 'dipsw-4' ? 8 : 16;
 
@@ -105,11 +116,19 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
 
   blocks[1].push({
     width: swPins / 2,
-    place: (x) => components.push(comp('SW1', swDef, hole(`F${x}`, 1), { board: BOARD_ID, props: { switchStates: Array(swPins / 2).fill(false) } })),
+    place: (x) => components.push(comp('SW1', swDef, hole(`F${x}`, 1), { board: BOARD_ID, props: { switchStates: Array(swPins / 2).fill(false), labels: Array.from({ length: swPins / 2 }, (_, k) => inputs[k]?.name ?? '') } })),
   });
+  // 開關接電源的那一側要靠近那條電源軌：+5 V 在上方（E 列那一側的腳 9 − k），GND 在下方（F 列那一側的腳 k）。
   inputs.forEach((node, k) => {
-    tie(`SW1#${k + 1}`, node.id);
-    tie(`SW1#${swPins - k}`, options.switchTo === 'vcc' ? VCC : GND);
+    const top = `SW1#${swPins - k}`;
+    const bottom = `SW1#${k + 1}`;
+    if (options.switchTo === 'vcc') {
+      tie(bottom, node.id);
+      tie(top, VCC);
+    } else {
+      tie(top, node.id);
+      tie(bottom, GND);
+    }
   });
 
   for (const plan of plans) {
@@ -137,19 +156,20 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     const source = driver.get(`${node.id}#0`)!;
     const mid = `led:${node.id}`;
     twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [source, mid], area: 3 });
-    twoLeads.push({ id: `D${k + 1}`, defId: 'led', props: { color: 'red' }, span: 1, nets: [mid, GND], area: 3 });
+    twoLeads.push({ id: `D${k + 1}`, defId: 'led', props: { color: 'red', labels: [node.name ?? ''] }, span: 1, nets: [mid, GND], area: 3 });
     leds[node.id] = `D${k + 1}`;
   });
   for (const t of twoLeads) {
     tie(`${t.id}#1`, t.nets[0]);
     tie(`${t.id}#2`, t.nets[1]);
   }
-  // 兩個一組：第一個放 A 列、第二個放 J 列（同一段欄），各自用不同的導通群組。
   // 輸入的電阻、輸出的電阻與 LED 各自兩個一組（不混在一起）；MB-102 時都算第 1 區。
   for (const area of [1, 3] as const) {
     const list = twoLeads.filter((t) => t.area === area);
-    for (let i = 0; i < list.length; i += 2) {
-      const pair = list.slice(i, i + 2);
+    // 兩個一組：第一個放 A 列、第二個放 J 列（同一段欄），各自用不同的導通群組。
+    const size = 2;
+    for (let i = 0; i < list.length; i += size) {
+      const pair = list.slice(i, i + size);
       blocks[eic ? area : area === 1 ? 1 : 3].push({
         width: Math.max(...pair.map((t) => t.span)) + 1,
         place: (x) =>
@@ -181,16 +201,26 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
 
   // ---- 電源 ----
   if (eic) {
-    const posts = getLayout(layout).posts ?? [];
-    const red = posts.find((p) => p.source === 'vcc')!;
-    const black = posts.find((p) => p.source === 'gnd')!;
-    extra.set(VCC, [{ boardId: BOARD_ID, x: red.x, y: red.y }]);
-    extra.set(GND, [{ boardId: BOARD_ID, x: black.x, y: black.y }]);
+    // 接線柱只有一個孔，AI 佈線只能接一條線到它；改在每個插孔區上下的電源軌放 VCC / GND 符號（實際接線時從紅柱、黑柱拉到這些軌）。
+    const rails: Array<[string, 'vcc' | 'gnd', string]> = [
+      ['V1', 'vcc', 'P2+3'], ['G1', 'gnd', 'P3-3'],
+      ['V2', 'vcc', 'P3+4'], ['G2', 'gnd', 'P4-4'],
+      ['V3', 'vcc', 'P4+5'], ['G3', 'gnd', 'P5-5'],
+    ];
+    for (const [id, defId, at] of rails) {
+      components.push(comp(id, defId, holeOn(BOARD_ID, at, layout), { board: BOARD_ID }));
+      tie(`${id}#1`, defId === 'vcc' ? VCC : GND);
+    }
   } else {
+    // 上下兩組電源軌都接上 +5 V 與 GND（實際接線時用跳線把上下的軌接通），每個元件就近取電。
     components.push(comp('V1', 'vcc', 'T+3', { board: BOARD_ID }));
     components.push(comp('G1', 'gnd', 'B-3', { board: BOARD_ID }));
+    components.push(comp('V2', 'vcc', 'B+4', { board: BOARD_ID }));
+    components.push(comp('G2', 'gnd', 'T-4', { board: BOARD_ID }));
     tie('V1#1', VCC);
     tie('G1#1', GND);
+    tie('V2#1', VCC);
+    tie('G2#1', GND);
   }
 
   // ---- 連線導線：每個訊號的終端依序兩兩相接（只告訴 AI 佈線哪些腳要連在一起） ----

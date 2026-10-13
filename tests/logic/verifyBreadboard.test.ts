@@ -34,3 +34,22 @@ describe('verifyBreadboard', () => {
     expect(verifyText({ rows: 8, mismatches: [{ inputs: '011', expected: '1', actual: '0' }] }, ['X'])).toBe('有 1 列不一致：輸入 011 應該是 X = 1，麵包板是 X = 0');
   });
 });
+
+describe('NAND-only conversion and labels', () => {
+  it.each(['vcc', 'gnd'] as const)('uses only 74LS00 and still matches the truth table (switches to %s)', (switchTo) => {
+    // MB-102 上只用 NAND 的線排不完（store 會自動改用 EIC-1106），這裡直接用 EIC-1106。
+    const r = toBreadboard(majorityDiagram(), { switchTo, board: 'EIC1106', gates: 'nand' });
+    if (!r.ok) throw new Error(r.reason);
+    expect(Object.keys(r.bom.ics)).toEqual(['74LS00']);
+    expect(verifyBreadboard(majorityDiagram(), r.circuit, switchTo, r)).toEqual({ rows: 8, mismatches: [] });
+    const routed = autoPlaceAndRoute(r.circuit);
+    expect(routed.status).toBe('success');
+    expect(verifyBreadboard(majorityDiagram(), applyRouting(r.circuit, routed), switchTo, r)).toEqual({ rows: 8, mismatches: [] });
+  });
+
+  it('names the switches and the LED after the diagram', () => {
+    const r = convert('vcc');
+    expect(r.circuit.components.find((c) => c.id === 'SW1')!.props.labels).toEqual(['A', 'B', 'C', '']);
+    expect(r.circuit.components.find((c) => c.id === 'D1')!.props.labels).toEqual(['X']);
+  });
+});
