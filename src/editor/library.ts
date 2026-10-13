@@ -11,7 +11,12 @@ export interface LibraryItem {
   props: ComponentProps;
   /** 搜尋用的小寫文字。 */
   keywords: string;
+  /** 新放置時的跨距（只有電阻）；沒有就用元件定義的預設值。 */
+  span?: number;
 }
+
+/** 新放的電阻兩腳相距 3 孔（元件定義的預設 4 孔留給舊檔案，舊電路的位置不會變）。可以在屬性裡再調整。 */
+export const RESISTOR_PLACE_SPAN = 3;
 
 export interface LibrarySection {
   id: 'ic' | 'resistor' | 'led' | 'capacitor' | 'power' | 'input';
@@ -76,7 +81,7 @@ export function librarySections(): LibrarySection[] {
       id: 'resistor',
       title: '電阻 Resistor',
       items: resistor
-        ? RESISTOR_PRESETS.map((ohms) => item(resistor, `resistor-${ohms}`, `${formatResistance(ohms)} 電阻`, { resistance: ohms }))
+        ? RESISTOR_PRESETS.map((ohms) => ({ ...item(resistor, `resistor-${ohms}`, `${formatResistance(ohms)} 電阻`, { resistance: ohms }), span: RESISTOR_PLACE_SPAN }))
         : [],
     },
     {
