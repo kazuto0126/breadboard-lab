@@ -1,10 +1,10 @@
 import { inputCountOf, nodeSize, overlaps } from './shapes';
-import { isGate, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
+import { isGate, isSink, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
 
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
 
 const fail = (diagram: LogicDiagram, reason: string): EditResult => ({ ok: false, diagram, reason });
-const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o' };
+const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd' };
 const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
 const OUTPUT_NAMES = ['X', 'Y', 'Z', 'W', 'V', 'U', 'T', 'S', 'R', 'Q', 'P'];
 const INPUT_NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -20,8 +20,9 @@ function nextWireId(d: LogicDiagram): string {
   for (let i = 1; ; i++) if (!used.has(`w${i}`)) return `w${i}`;
 }
 
-export function defaultName(d: LogicDiagram, kind: 'INPUT' | 'OUTPUT'): string {
+export function defaultName(d: LogicDiagram, kind: 'INPUT' | 'OUTPUT' | 'DISPLAY'): string {
   const used = new Set(d.nodes.map((n) => n.name));
+  if (kind === 'DISPLAY') for (let i = 1; ; i++) if (!used.has(`S${i}`)) return `S${i}`;
   const pool = kind === 'INPUT' ? INPUT_NAMES : [...OUTPUT_NAMES, ...INPUT_NAMES];
   const free = pool.find((n) => !used.has(n));
   if (free) return free;
@@ -41,8 +42,8 @@ export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number): 
   const node: LogicNode =
     kind === 'INPUT'
       ? { id, kind, x, y, name: defaultName(d, 'INPUT'), value: 0 }
-      : kind === 'OUTPUT'
-        ? { id, kind, x, y, name: defaultName(d, 'OUTPUT') }
+      : kind === 'OUTPUT' || kind === 'DISPLAY'
+        ? { id, kind, x, y, name: defaultName(d, kind) }
         : { id, kind, x, y, inputs: defaultInputs(kind) };
   if (!canPlace(d, node)) return fail(d, '這裡已經有元件了');
   return { ok: true, diagram: { ...d, nodes: [...d.nodes, node] }, id };
@@ -75,6 +76,7 @@ export function connect(d: LogicDiagram, from: string, to: { node: string; pin: 
   const target = d.nodes.find((n) => n.id === to.node);
   if (!source || !target) return fail(d, '找不到元件');
   if (source.kind === 'OUTPUT') return fail(d, '輸出端沒有可以接出去的腳');
+  if (source.kind === 'DISPLAY') return fail(d, '顯示器沒有可以接出去的腳');
   if (target.kind === 'INPUT') return fail(d, '輸入端沒有可以接進來的腳');
   if (source.id === target.id) return fail(d, '不能把自己的輸出接回自己的輸入');
   if (!Number.isInteger(to.pin) || to.pin < 0 || to.pin >= inputCountOf(target)) return fail(d, '沒有這個輸入腳');
@@ -107,7 +109,7 @@ export function setInputCount(d: LogicDiagram, id: string, n: number): EditResul
 
 export function renameNode(d: LogicDiagram, id: string, raw: string): EditResult {
   const node = d.nodes.find((n) => n.id === id);
-  if (!node || isGate(node.kind)) return fail(d, '只有輸入端、輸出端有名稱');
+  if (!node || isGate(node.kind)) return fail(d, '只有輸入端、輸出端、顯示器有名稱');
   const name = raw.trim();
   if (!NAME_RULE.test(name)) return fail(d, '名稱要用英文字母開頭，只能有英文字母、數字、底線，最多 8 個字');
   if (d.nodes.some((n) => n.id !== id && n.name === name)) return fail(d, `名稱 ${name} 已經用過了`);
@@ -169,7 +171,7 @@ export function pasteNodes(d: LogicDiagram, clip: LogicClipboard): { ok: true; d
       const id = nextNodeId(next, n.kind);
       idMap.set(n.id, id);
       const node: LogicNode = { ...n, id };
-      if (n.kind === 'INPUT' || n.kind === 'OUTPUT') {
+      if (!isGate(n.kind)) {
         const taken = next.nodes.some((o) => o.name === n.name);
         node.name = taken || !n.name ? defaultName(next, n.kind) : n.name;
       }

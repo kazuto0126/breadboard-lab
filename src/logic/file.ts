@@ -1,7 +1,7 @@
 import { inputCountOf, overlaps } from './shapes';
-import { isGate, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
+import { isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
 
-const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT'];
+const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT', 'DISPLAY'];
 const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -39,7 +39,7 @@ function parseWire(raw: unknown, i: number, nodes: Map<string, LogicNode>): Logi
   const source = nodes.get(w.from as string);
   const target = nodes.get(to.node as string);
   if (!source || !target) fail(`線 ${String(w.id)} 接到不存在的元件`);
-  if (source!.kind === 'OUTPUT' || target!.kind === 'INPUT' || source === target) fail(`線 ${String(w.id)} 的方向不對`);
+  if (isSink(source!.kind) || target!.kind === 'INPUT' || source === target) fail(`線 ${String(w.id)} 的方向不對`);
   if ((to.pin as number) < 0 || (to.pin as number) >= inputCountOf(target!)) fail(`線 ${String(w.id)} 接到不存在的輸入腳`);
   return { id: w.id as string, from: w.from as string, to: { node: to.node as string, pin: to.pin as number } };
 }
