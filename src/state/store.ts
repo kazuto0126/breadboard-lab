@@ -959,7 +959,7 @@ export const useStore = create<Store>()((set, get) => {
       set({
         workspace: 'breadboard',
         dialog: null,
-        conversion: { switchTo: options.switchTo, switchId: result.switchId, inputs: result.inputs, leds: result.leds },
+        conversion: { switchTo: options.switchTo, switchId: result.switchId, inputs: result.inputs, leds: result.leds, displays: result.displays },
       });
       writeWorkspace('breadboard');
       get().fitToScreen();

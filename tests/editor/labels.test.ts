@@ -16,6 +16,9 @@ describe('switch and LED names', () => {
     c = setLabel(c, 'D1', 0, 'X');
     expect(c.components[1].props.labels).toEqual(['X']);
     expect(setLabel(c, 'SW1', 4, 'E')).toBe(c); // 4 位元開關沒有第 5 個
+    const seg = setLabel(circuit([comp('DS1', '7seg-ca', 'H40')]), 'DS1', 0, 'S1');
+    expect(seg.components[0].props.labels).toEqual(['S1']);
+    expect(setLabel(seg, 'DS1', 1, 'T')).toBe(seg);
   });
 
   it('keeps names in saved files and checks their type', () => {

@@ -36,7 +36,7 @@ export function StatusBar() {
   const diagram = useLogic((l) => l.diagram);
   const logicIssues = useMemo(() => checkDiagram(diagram), [diagram]);
   if (workspace === 'logic') {
-    const count = (kind: 'gate' | 'INPUT' | 'OUTPUT') => diagram.nodes.filter((n) => (kind === 'gate' ? isGate(n.kind) : n.kind === kind)).length;
+    const count = (kind: 'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY') => diagram.nodes.filter((n) => (kind === 'gate' ? isGate(n.kind) : n.kind === kind)).length;
     const errors = logicIssues.filter((i) => i.severity === 'error').length;
     return (
       <footer className="flex min-h-7 shrink-0 items-center overflow-x-auto whitespace-nowrap border-t border-slate-800 bg-slate-900 text-xs">
@@ -45,7 +45,7 @@ export function StatusBar() {
         </span>
         <Cell label="閘" value={count('gate')} />
         <Cell label="輸入" value={count('INPUT')} />
-        <Cell label="輸出" value={count('OUTPUT')} />
+        <Cell label="輸出" value={count('OUTPUT') + count('DISPLAY')} />
         <Cell label="線" value={diagram.wires.length} />
         <Cell
           label="檢查"

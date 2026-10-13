@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { majorityDiagram } from '../../src/logic/examples';
+import { bcdDiagram, majorityDiagram } from '../../src/logic/examples';
 import { initialLogicState, useLogic } from '../../src/state/logic';
 import { initialState, useStore } from '../../src/state/store';
 import { circuit, comp } from '../fixtures/build';
@@ -29,6 +29,14 @@ describe('convertLogic', () => {
     await vi.waitFor(() => expect(S().routing).toBeNull(), { timeout: 30_000 });
     S().undo();
     expect(S().circuit).toBe(before);
+  });
+
+  it('remembers which display shows which node', async () => {
+    useLogic.getState().load(bcdDiagram());
+    S().convertLogic({ switchTo: 'gnd', board: 'auto' });
+    expect(S().conversion).toMatchObject({ switchTo: 'gnd', leds: {}, displays: { d1: 'DS1' } });
+    S().cancelRouting();
+    await vi.waitFor(() => expect(S().routing).toBeNull(), { timeout: 30_000 });
   });
 
   it('explains why a diagram cannot be converted and keeps the breadboard', () => {

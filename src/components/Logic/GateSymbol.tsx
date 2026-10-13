@@ -61,6 +61,14 @@ export function GateBody({ node, value, inputs, selected }: { node: LogicNode; v
 
 /** 元件庫的小圖示。 */
 export function PartIcon({ kind }: { kind: NodeKind }) {
+  if (kind === 'DISPLAY') {
+    return (
+      <svg viewBox="0 0 40 24" className="h-6 w-10" aria-hidden>
+        <rect x={12} y={1} width={16} height={22} rx={2} fill="#1f2937" />
+        <path d="M16 5h8M24 5v6M24 12v6M16 19h8M16 12v6M16 5v6M16 12h8" stroke="#ef4444" strokeWidth={1.8} strokeLinecap="round" fill="none" />
+      </svg>
+    );
+  }
   if (!isGate(kind)) {
     return (
       <svg viewBox="0 0 40 24" className="h-6 w-10" aria-hidden>

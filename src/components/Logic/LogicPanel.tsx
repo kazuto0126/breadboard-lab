@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
 import { removeNodes, removeWire, renameNode, setGateKind, setInputCount } from '../../logic/edit';
-import { sortedIo, truthTable, type Bit } from '../../logic/evaluate';
+import { evaluate, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
 import { nodeSize } from '../../logic/shapes';
 import { GATE_KINDS, isGate, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
@@ -23,7 +23,9 @@ export function openConvert() {
   if (problem) useStore.getState().toast('warning', problem);
   else useStore.getState().openDialog('to-breadboard');
 }
-const bitText = (b: Bit) => (b === 'X' ? '?' : String(b));
+const bitText = (b: OutValue) => (b === 'X' ? '?' : String(b));
+/** 顯示器的欄（數字）用另一個顏色。 */
+const outTone = (b: OutValue, display: boolean) => (display ? (b === 'X' ? 'text-slate-400' : 'text-amber-300') : bitTone(b as Bit));
 const bitTone = (b: Bit) => (b === 1 ? 'text-red-400' : b === 0 ? 'text-sky-400' : 'text-slate-400');
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -87,7 +89,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     const node = diagram.nodes.find((n) => n.id === selection.id);
     if (!node) return null;
     return (
-      <Section title={isGate(node.kind) ? '邏輯閘' : node.kind === 'INPUT' ? '輸入端' : '輸出端'}>
+      <Section title={isGate(node.kind) ? '邏輯閘' : node.kind === 'INPUT' ? '輸入端' : node.kind === 'DISPLAY' ? '7 段顯示器' : '輸出端'}>
         <div className="flex items-center justify-between">
           <div className="text-base font-semibold text-slate-50">{isGate(node.kind) ? node.id : node.name}</div>
           <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.apply({ ok: true, diagram: removeNodes(diagram, [node.id]) }, `刪除 ${node.id}`, null)}>
@@ -132,6 +134,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
           </>
         )}
         {!isGate(node.kind) && <NameEditor node={node} />}
+        {node.kind === 'DISPLAY' && <DisplayValue diagram={diagram} node={node} />}
         {node.kind === 'INPUT' && (
           <div className="flex items-center gap-2">
             <span className="w-12 text-slate-400">目前值</span>
@@ -164,7 +167,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
       <Section title="線">
         <p className="text-slate-200">
           {nodeLabel(from)} → {nodeLabel(to)}
-          {to.kind !== 'OUTPUT' && `第 ${w.to.pin + 1} 個輸入`}
+          {to.kind === 'DISPLAY' ? `${'ABCD'[w.to.pin]} 腳` : to.kind !== 'OUTPUT' && `第 ${w.to.pin + 1} 個輸入`}
         </p>
         <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.apply({ ok: true, diagram: removeWire(diagram, w.id) }, '刪除線', null)}>
           刪除
@@ -176,13 +179,30 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
   return (
     <Section title="邏輯圖">
       <p className="text-slate-200">
-        閘 {count((n) => isGate(n.kind))}・輸入端 {count((n) => n.kind === 'INPUT')}・輸出端 {count((n) => n.kind === 'OUTPUT')}・線 {diagram.wires.length}
+        閘 {count((n) => isGate(n.kind))}・輸入端 {count((n) => n.kind === 'INPUT')}・輸出端 {count((n) => n.kind === 'OUTPUT')}{count((n) => n.kind === 'DISPLAY') > 0 && `・顯示器 ${count((n) => n.kind === 'DISPLAY')}`}・線 {diagram.wires.length}
       </p>
       <p className="text-xs leading-5 text-slate-400">從左邊放邏輯閘、輸入端、輸出端，再從一個腳拖到另一個腳連線。點輸入端的開關切換 0 / 1，線和燈號會即時顯示結果。</p>
       <button type="button" className={`${btn} bg-emerald-600 text-white hover:bg-emerald-500`} onClick={openConvert}>
         轉成麵包板…
       </button>
     </Section>
+  );
+}
+
+/** 規格（2026-10-13 seven-seg）第 5 節：顯示器目前的值與 D C B A 四條線。 */
+function DisplayValue({ diagram, node }: { diagram: LogicDiagram; node: LogicNode }) {
+  const values = useMemo(() => evaluate(diagram), [diagram]);
+  const v = values.displays.get(node.id) ?? 'X';
+  const driver = new Map(diagram.wires.map((w) => [`${w.to.node}#${w.to.pin}`, w.from]));
+  const bits = [3, 2, 1, 0].map((pin) => {
+    const from = driver.get(`${node.id}#${pin}`);
+    return bitText(from === undefined ? 'X' : (values.nodes.get(from) ?? 'X'));
+  });
+  return (
+    <p data-testid="display-value" className="text-slate-300">
+      {v === 'X' ? '有沒接好或不確定的輸入，顯示「–」' : `目前顯示 ${v}`}（輸入 D C B A = {bits.join(' ')}）
+      {typeof v === 'number' && v > 9 && <span className="block text-xs text-slate-400">10–15 不是 BCD 數字，74LS47 會亮出特殊的圖形。</span>}
+    </p>
   );
 }
 
@@ -197,7 +217,7 @@ function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
           : '先放輸入端和輸出端';
     return <p className="p-3 text-sm text-slate-300">{text}</p>;
   }
-  const { inputs } = sortedIo(diagram);
+  const { inputs, outputs } = sortedIo(diagram);
   const current = inputs.map((n) => (n.value ?? 0) as 0 | 1).join('');
   return (
     <div className="p-3">
@@ -235,7 +255,7 @@ function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
                   </td>
                 ))}
                 {r.out.map((b, i) => (
-                  <td key={`o${i}`} className={`px-1 py-0.5 font-bold ${bitTone(b)} ${i === 0 ? 'border-l border-slate-700' : ''}`}>
+                  <td key={`o${i}`} className={`px-1 py-0.5 font-bold ${outTone(b, outputs[i]?.kind === 'DISPLAY')} ${i === 0 ? 'border-l border-slate-700' : ''}`}>
                     {bitText(b)}
                   </td>
                 ))}

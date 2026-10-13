@@ -1,4 +1,4 @@
-import { isGate, type LogicNode } from './types';
+import { isGate, isSink, type LogicNode } from './types';
 
 export interface GridXY {
   x: number;
@@ -8,6 +8,7 @@ export interface GridXY {
 /** 這個節點有幾個輸入腳（輸入端 0、輸出端 1）。 */
 export function inputCountOf(node: LogicNode): number {
   if (node.kind === 'INPUT') return 0;
+  if (node.kind === 'DISPLAY') return 4;
   if (node.kind === 'OUTPUT' || node.kind === 'NOT') return 1;
   if (node.kind === 'XOR') return 2;
   return node.inputs ?? 2;
@@ -28,7 +29,7 @@ export function inputPins(node: LogicNode): GridXY[] {
 }
 
 export function outputPin(node: LogicNode): GridXY | null {
-  if (node.kind === 'OUTPUT') return null;
+  if (isSink(node.kind)) return null;
   const { w, h } = nodeSize(node);
   return { x: node.x + w, y: node.y + (isGate(node.kind) ? Math.floor(h / 2) : 0) };
 }

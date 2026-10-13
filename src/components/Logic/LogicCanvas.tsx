@@ -3,7 +3,8 @@ import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../.
 import { canPlace, connect, moveNodes, nodesInRect } from '../../logic/edit';
 import { evaluate, type Bit } from '../../logic/evaluate';
 import { inputPins, nodeSize, outputPin, type GridXY } from '../../logic/shapes';
-import { isGate, type LogicNode } from '../../logic/types';
+import { isGate, isSink, type LogicNode } from '../../logic/types';
+import { DisplayBody } from './DisplayBody';
 import { busColumns, junctions, wireRoute } from '../../logic/wiring';
 import { LOGIC_CELL, selectedIds, useLogic } from '../../state/logic';
 import { bitColor, GateBody } from './GateSymbol';
@@ -254,7 +255,7 @@ export function LogicCanvas() {
   };
 
   const ghost: LogicNode | null =
-    placing && hover ? { id: '__ghost', kind: placing, x: hover.x, y: hover.y, inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: placing === 'INPUT' ? '?' : placing === 'OUTPUT' ? '?' : undefined, value: 0 } : null;
+    placing && hover ? { id: '__ghost', kind: placing, x: hover.x, y: hover.y, inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: isGate(placing) ? undefined : '?', value: 0 } : null;
   const ghostOk = ghost ? canPlace(diagram, ghost) : true;
   const moveOk = drag?.kind === 'move' ? moveNodes(diagram, drag.ids, drag.dx, drag.dy).ok : true;
   const wireOk = drag?.kind === 'wire' ? drag.to === null || wirePair(drag.from, drag.to) !== null : true;
@@ -323,14 +324,16 @@ export function LogicCanvas() {
               <rect
                 x={0.3 * C - (node.kind === 'INPUT' ? 1.2 * C : 0)}
                 y={-0.5 * C}
-                width={(w - 0.6) * C + (node.kind === 'INPUT' ? 1.2 * C : 0) + (node.kind === 'OUTPUT' ? 0.7 * C : 0)}
+                width={(w - 0.6) * C + (node.kind === 'INPUT' ? 1.2 * C : 0) + (isSink(node.kind) ? 0.7 * C : 0)}
                 height={h * C}
                 fill="transparent"
                 style={{ cursor: 'move' }}
                 onPointerDown={(e) => onNodeDown(e, node)}
               />
               <g pointerEvents="none">
-                {node.kind === 'INPUT' ? null : node.kind === 'OUTPUT' ? (
+                {node.kind === 'INPUT' ? null : node.kind === 'DISPLAY' ? (
+                  <DisplayBody node={node} value={values.loop ? undefined : values.displays.get(node.id)} inputs={ins} selected={sel} />
+                ) : node.kind === 'OUTPUT' ? (
                   <OutputTerminal node={node} value={values.loop ? undefined : values.nodes.get(node.id)} selected={sel} />
                 ) : (
                   <GateBody node={node} value={valueOf(node.id)} inputs={ins} selected={sel} />
@@ -389,7 +392,7 @@ export function LogicCanvas() {
 
         {ghost && (
           <g transform={`translate(${ghost.x * C} ${ghost.y * C})`} opacity={0.55} pointerEvents="none">
-            {ghost.kind === 'INPUT' ? <InputTerminal node={ghost} selected={false} /> : ghost.kind === 'OUTPUT' ? <OutputTerminal node={ghost} value={undefined} selected={false} /> : <GateBody node={ghost} />}
+            {ghost.kind === 'INPUT' ? <InputTerminal node={ghost} selected={false} /> : ghost.kind === 'DISPLAY' ? <DisplayBody node={ghost} /> : ghost.kind === 'OUTPUT' ? <OutputTerminal node={ghost} value={undefined} selected={false} /> : <GateBody node={ghost} />}
             {!ghostOk && <rect x={0} y={-0.5 * C} width={nodeSize(ghost).w * C} height={nodeSize(ghost).h * C} fill="#ef4444" opacity={0.35} />}
           </g>
         )}
