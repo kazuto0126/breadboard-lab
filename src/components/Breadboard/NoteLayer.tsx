@@ -14,6 +14,8 @@ export const NOTE_FILL: Record<NoteColor, { bg: string; edge: string }> = {
 const WIDTH = NOTE_WIDTH_MM * MM_TO_PX;
 /** foreignObject 的高度上限（實際高度由內容決定）。 */
 const MAX_HEIGHT = 600;
+/** 最窄 3 格。 */
+const MIN_WIDTH = 3 * 2.54 * MM_TO_PX;
 
 interface Drag {
   id: string;
@@ -105,7 +107,7 @@ export function NoteLayer({ circuit, frames }: { circuit: Circuit; frames: Board
           <line
             key={`arrow-${note.id}`}
             data-note-arrow={note.id}
-            x1={x + WIDTH / 2}
+            x1={x + 16}
             y1={y + 12}
             x2={rect.x + rect.width / 2}
             y2={rect.y + rect.height / 2}
@@ -136,6 +138,10 @@ export function NoteLayer({ circuit, frames }: { circuit: Circuit; frames: Board
               }}
               style={{
                 pointerEvents: 'auto',
+                // 子專案 20：寬度跟著文字（最寬 12 格，超過換行）；編輯中固定最寬，方便打字。
+                width: editing === note.id ? WIDTH : 'max-content',
+                maxWidth: WIDTH,
+                minWidth: MIN_WIDTH,
                 background: fill.bg,
                 borderColor: selected ? '#0284c7' : fill.edge,
                 opacity: moving ? 0.7 : 0.9,
