@@ -9,6 +9,7 @@ import { LinkedText } from './LinkedText';
 const SUGGESTED: Record<AiTopic['kind'], string[]> = {
   issue: ['為什麼會這樣？', '有沒有別的改法？', '實體麵包板上要注意什麼？'],
   wire: ['為什麼這樣走？', '可以換一種接法嗎？', '實際插線時要注意什麼？'],
+  routing: ['整體說明這次佈線', '為什麼要這樣繞？', '實際插線時先接哪些？'],
 };
 const small = 'rounded px-2 py-1 text-xs disabled:opacity-50';
 

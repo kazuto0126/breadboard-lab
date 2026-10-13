@@ -16,7 +16,7 @@ AI 標準佈線完成後，學生看得到「這次佈線整體做了什麼」�
 | 項目 | 決定 |
 |---|---|
 | 放在哪 | 右側「屬性」分頁、沒有選取任何東西時，在電路摘要上方多一段「這次佈線」 |
-| 什麼時候有 | 有佈線結果、而且結果沒有過期（`isComparisonFresh`）；比較畫面（還沒套用）與套用後都有 |
+| 什麼時候有 | 佈線結果已經套用到電路上、而且沒有過期（`isComparisonFresh`，不在比較畫面）。實作時改的：比較畫面時目前的電路還是佈線前的，說明與 AI 對話都要綁在佈線後的電路上，先不做 |
 | 入口 | 佈線結果卡多一個「看說明」按鈕：取消選取、切到屬性分頁、捲到這一段 |
 | 問 AI | 新的對話主題 `{ kind: 'routing' }`；第一則訊息附電路摘要、這段說明、佈線規則 |
 | 建議問題 | 「整體說明這次佈線」「為什麼要這樣繞？」「實際插線時先接哪些？」 |
@@ -37,7 +37,7 @@ export function summarizeRouting(circuit: Circuit, comparison: { beforeScore: { 
 export function routingSummaryText(s: RoutingSummary): string[];
 ```
 
-- `circuit` 是佈線後的電路（套用後的目前電路；比較畫面時用 `comparisonSides(c).after`）。
+- `circuit` 是佈線後的電路（套用後的目前電路）。
 - `nets`：AI 導線依 `netId` 分組。`name` 用 `analyzeCircuit` 的 Net 名稱（找不到時用 netId）。
   `minimum` = 這個 Net 的腳分布在幾個不同的導通群組 − 1（直接相連最少要幾條線）；`wires − minimum` 就是多出來的轉接。
   依「多出來的轉接」由多到少排序，相同時依 netId。`points` 是這個 Net 所有 AI 導線的兩端（給板上標示）。
