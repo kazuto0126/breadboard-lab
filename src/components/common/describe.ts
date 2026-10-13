@@ -27,13 +27,7 @@ export const ROLE_NAMES: Record<PinRole, string> = {
   'gnd-source': '接地端子',
 };
 
-export const FAILURE_NAMES: Record<FailureReason, string> = {
-  NO_FREE_HOLE: '沒有空孔可以接線',
-  UNROUTABLE: '找不到可以走的路徑',
-  ITERATION_LIMIT: '協商多輪仍無法避開其他導線',
-  TIME_LIMIT: '超過計算時間',
-  LEGALITY_CHECK: '沒有通過合法性檢查',
-};
+export { FAILURE_NAMES } from '../../editor/explain/routing';
 
 export { holeLabel } from '../../editor/analysis';
 

@@ -34,7 +34,7 @@ export interface RoutingSummary {
   failed: Array<{ netId: string; reason: string; hint: string }>;
 }
 export function summarizeRouting(circuit: Circuit, comparison: { beforeScore: { metrics: RoutingMetrics }; result: RoutingResult }): RoutingSummary;
-export function routingSummaryText(circuit: Circuit, s: RoutingSummary): string[];
+export function routingSummaryText(s: RoutingSummary): string[];
 ```
 
 - `circuit` 是佈線後的電路（套用後的目前電路；比較畫面時用 `comparisonSides(c).after`）。
