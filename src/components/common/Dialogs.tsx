@@ -251,11 +251,29 @@ function ToBreadboardDialog() {
   const hasParts = useStore((s) => s.circuit.components.length > 0 || s.circuit.wires.length > 0);
   const [switchTo, setSwitchTo] = useState<ConvertOptions['switchTo']>('vcc');
   const [board, setBoard] = useState<ConvertOptions['board']>('auto');
-  const preview = toBreadboard(diagram, { switchTo, board });
+  const [gates, setGates] = useState<NonNullable<ConvertOptions['gates']>>('direct');
+  const preview = toBreadboard(diagram, { switchTo, board, gates });
   const radio = (checked: boolean) => `flex cursor-pointer items-start gap-2 rounded border px-3 py-2 ${checked ? 'border-sky-500 bg-sky-950/40' : 'border-slate-700 hover:bg-slate-800'}`;
   return (
     <Modal title="轉成麵包板" onClose={() => store.closeDialog()} width="w-[520px]">
       <div className="space-y-3 overflow-y-auto text-sm">
+        <fieldset className="space-y-1.5">
+          <legend className="mb-1 font-semibold text-slate-100">閘的種類</legend>
+          {(
+            [
+              ['direct', '照種類對應', 'AND → 74LS08、OR → 74LS32、NOT → 74LS04…'],
+              ['nand', '只用 NAND（74LS00）', '所有閘都用 NAND 組出來，實驗室只要準備一種 IC。'],
+            ] as const
+          ).map(([id, label, hint]) => (
+            <label key={id} className={radio(gates === id)}>
+              <input type="radio" name="gates" className="mt-1" checked={gates === id} onChange={() => setGates(id)} />
+              <span>
+                <span className="block text-slate-100">{label}</span>
+                <span className="block text-xs text-slate-400">{hint}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
         <fieldset className="space-y-1.5">
           <legend className="mb-1 font-semibold text-slate-100">指撥開關的接法</legend>
           {(
@@ -310,7 +328,7 @@ function ToBreadboardDialog() {
         <button type="button" className={`${button} bg-slate-700 hover:bg-slate-600`} onClick={() => store.closeDialog()}>
           取消
         </button>
-        <button type="button" disabled={!preview.ok} className={`${button} bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50`} onClick={() => store.convertLogic({ switchTo, board })}>
+        <button type="button" disabled={!preview.ok} className={`${button} bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50`} onClick={() => store.convertLogic({ switchTo, board, gates })}>
           轉換
         </button>
       </div>

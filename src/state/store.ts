@@ -28,6 +28,7 @@ import {
   setComponentSpan,
   setWireColor,
   toggleSwitch,
+  setLabel,
   updateComponentProps,
 } from '../editor/commands';
 import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
@@ -178,6 +179,8 @@ export interface AppActions {
   removeBoard(id: string): void;
   detachBoard(id: string): void;
   updateProps(id: string, patch: ComponentProps): void;
+  /** 子專案 14：開關第 index 個開關或 LED 的名稱（進 Undo）。 */
+  setLabel(id: string, index: number, text: string): void;
   setSpan(id: string, span: number): void;
   toggleSwitch(id: string, index: number): void;
   setWireColors(ids: string[], color: string): void;
@@ -656,6 +659,11 @@ export const useStore = create<Store>()((set, get) => {
       }
       const next = detachBoard(s.circuit, id);
       if (next) commit(`移出群組 ${id}`, next);
+    },
+
+    setLabel(id, index, text) {
+      if (guardEdit()) return;
+      commit(`修改 ${componentName(get().circuit, id)} 的名稱`, setLabel(get().circuit, id, index, text));
     },
 
     updateProps(id, patch) {

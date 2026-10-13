@@ -147,6 +147,7 @@ function Dip({ instance, def, sim }: { instance: ComponentInstance; def: Compone
               <Upright x={k * P} y={mid + 0.82 * P} rotation={r} fill="#ffffff" fontSize={0.28 * P}>
                 {k + 1}
               </Upright>
+              {instance.props.labels?.[k] && <Label x={k * P} y={top - 0.55 * P} rotation={r} text={instance.props.labels[k]} />}
             </g>
           ))}
         </>
@@ -264,7 +265,17 @@ function Led({ instance, def, sim }: { instance: ComponentInstance; def: Compone
       <Upright x={cx} y={-r - 0.3 * P} rotation={instance.rotation} fill="#6b6455" fontSize={0.36 * P} fontWeight={600}>
         {instance.id}
       </Upright>
+      {instance.props.labels?.[0] && <Label x={cx + r + 0.45 * P} y={-r * 0.6} rotation={instance.rotation} text={instance.props.labels[0]} />}
     </>
+  );
+}
+
+/** 子專案 14：開關、LED 的名稱（深色粗體、白色外框，在板面上也看得清楚）。 */
+function Label({ x, y, rotation, text }: { x: number; y: number; rotation: Rotation; text: string }) {
+  return (
+    <Upright x={x} y={y} rotation={rotation} data-label={text} fill="#0f172a" stroke="#ffffff" strokeWidth={2.5} paintOrder="stroke" fontSize={0.42 * P} fontWeight={800} pointerEvents="none">
+      {text}
+    </Upright>
   );
 }
 

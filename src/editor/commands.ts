@@ -85,6 +85,32 @@ export function updateComponentProps(circuit: Circuit, id: string, patch: Compon
   return updateComponent(circuit, id, (c) => ({ ...c, props: { ...c.props, ...patch } }));
 }
 
+/** 子專案 14：開關、LED 名稱的長度上限。 */
+export const LABEL_MAX = 8;
+
+/** 名稱可以設幾個：指撥開關每個開關一個、LED 一個，其他元件沒有。 */
+export function labelSlots(instance: ComponentInstance): number {
+  const def = definitionOf(instance.defId);
+  if (def.category === 'led') return 1;
+  if (def.category === 'dip-switch') return (instance.props.switchStates ?? def.defaultProps.switchStates ?? []).length;
+  return 0;
+}
+
+/** 設定第 index 個名稱（去掉前後空白、最多 LABEL_MAX 個字）；全部空白時拿掉 labels。 */
+export function setLabel(circuit: Circuit, id: string, index: number, text: string): Circuit {
+  const instance = circuit.components.find((c) => c.id === id);
+  if (!instance || index < 0 || index >= labelSlots(instance)) return circuit;
+  const labels = [...(instance.props.labels ?? [])];
+  while (labels.length <= index) labels.push('');
+  labels[index] = text.trim().slice(0, LABEL_MAX);
+  while (labels.length > 0 && labels[labels.length - 1] === '') labels.pop();
+  if ((instance.props.labels ?? []).join('\u0000') === labels.join('\u0000')) return circuit;
+  return updateComponent(circuit, id, (c) => {
+    const { labels: _old, ...rest } = c.props;
+    return { ...c, props: labels.length > 0 ? { ...rest, labels } : rest };
+  });
+}
+
 /** 改變兩腳元件的跨距；新的位置有硬性問題（例如超出板子、腳插到別人的孔）時回傳 null。 */
 export function setComponentSpan(circuit: Circuit, id: string, span: number): Circuit | null {
   const instance = circuit.components.find((c) => c.id === id);
