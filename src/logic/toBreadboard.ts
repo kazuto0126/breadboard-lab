@@ -12,7 +12,7 @@ import type { GridPoint } from '../types/geometry';
 import { sortedIo } from './evaluate';
 import { toNandUnits } from './nandOnly';
 import { assignIcs, convertProblem, decompose, gateSlots } from './synth';
-import type { LogicDiagram } from './types';
+import { isSink, type LogicDiagram } from './types';
 
 export interface ConvertOptions {
   /** 開關的另一側接 +5 V（撥 ON = 1，330 Ω 下拉）或 GND（撥 ON = 0，1 kΩ 上拉）。 */
@@ -27,6 +27,8 @@ export interface Bom {
   switch: 'dipsw-4' | 'dipsw-8';
   resistors: number;
   leds: number;
+  /** 7 段顯示器（共陽極）的個數。 */
+  displays: number;
   layout: LayoutId;
 }
 
@@ -40,6 +42,8 @@ export type ConvertResult =
       inputs: string[];
       /** 輸出端 id → LED 元件 id。 */
       leds: Record<string, string>;
+      /** 顯示器 id → 7 段顯示器元件 id（DS1、DS2）。 */
+      displays: Record<string, string>;
       /** 元件腳（`U1#3`）→ 預定的訊號名稱（測試用）。 */
       netOf: Record<string, string>;
     }
@@ -65,6 +69,8 @@ interface TwoLead {
   nets: [string, string];
   /** EIC-1106：放在第幾區。 */
   area: 1 | 3;
+  /** 兩個一組時只和同一組的配對（輸入、LED、第 k 個顯示器）。 */
+  group: string;
 }
 
 class NoRoom extends Error {}
@@ -73,7 +79,7 @@ class NoRoom extends Error {}
 function unitsFor(d: LogicDiagram, options: ConvertOptions) {
   const units = decompose(d);
   if (options.gates !== 'nand') return units;
-  const keep = d.wires.filter((w) => d.nodes.find((n) => n.id === w.to.node)?.kind === 'OUTPUT').map((w) => w.from);
+  const keep = d.wires.filter((w) => isSink(d.nodes.find((n) => n.id === w.to.node)?.kind ?? 'AND')).map((w) => w.from);
   return toNandUnits(units, keep);
 }
 
@@ -97,7 +103,9 @@ export function toBreadboard(d: LogicDiagram, options: ConvertOptions): ConvertR
 function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): ConvertResult {
   const eic = layout === 'EIC1106';
   const hole = (name: string, area?: number) => holeOn(BOARD_ID, eic ? `${area}-${name}` : name, layout);
-  const { inputs, outputs } = sortedIo(d);
+  const { inputs, outputs: sinks } = sortedIo(d);
+  const outputs = sinks.filter((n) => n.kind === 'OUTPUT');
+  const displays = sinks.filter((n) => n.kind === 'DISPLAY');
   const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, w.from]));
   const plans = assignIcs(unitsFor(d, options));
   const swDef = inputs.length <= 4 ? 'dipsw-4' : 'dipsw-8';
@@ -145,27 +153,51 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     });
   }
 
+  // ---- 7 段顯示器：74LS47 + 共陽極顯示器 + 7 顆 220 Ω（規格 2026-10-13 seven-seg 第 6 節） ----
+  const pinNo = (defId: string, name: string) => getComponentDefinition(defId)!.pins.filter((p) => p.name === name).map((p) => p.number);
+  const displayParts: Array<{ node: (typeof displays)[number]; ic: string; ds: string }> = displays.map((node, k) => ({ node, ic: `U${plans.length + k + 1}`, ds: `DS${k + 1}` }));
+  for (const { node, ic } of displayParts) {
+    icBlocks.push({ width: 8, place: (x) => components.push(comp(ic, '74LS47', hole(`F${x}`, icArea), { board: BOARD_ID })) });
+    ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo('74LS47', name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
+    for (const name of ['VCC', '/LT', '/BI/RBO', '/RBI']) pinNo('74LS47', name).forEach((p) => tie(`${ic}#${p}`, VCC));
+    pinNo('74LS47', 'GND').forEach((p) => tie(`${ic}#${p}`, GND));
+  }
+
   const twoLeads: TwoLead[] = [];
   let r = 0;
   inputs.forEach((node) => {
     const vcc = options.switchTo === 'vcc';
-    twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: vcc ? 330 : 1000 }, span: RESISTOR_SPAN, nets: [node.id, vcc ? GND : VCC], area: 1 });
+    twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: vcc ? 330 : 1000 }, span: RESISTOR_SPAN, nets: [node.id, vcc ? GND : VCC], area: 1, group: 'in' });
   });
   const leds: Record<string, string> = {};
   outputs.forEach((node, k) => {
     const source = driver.get(`${node.id}#0`)!;
     const mid = `led:${node.id}`;
-    twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [source, mid], area: 3 });
-    twoLeads.push({ id: `D${k + 1}`, defId: 'led', props: { color: 'red', labels: [node.name ?? ''] }, span: 1, nets: [mid, GND], area: 3 });
+    twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [source, mid], area: 3, group: 'led' });
+    twoLeads.push({ id: `D${k + 1}`, defId: 'led', props: { color: 'red', labels: [node.name ?? ''] }, span: 1, nets: [mid, GND], area: 3, group: 'led' });
     leds[node.id] = `D${k + 1}`;
   });
+  const displayIds: Record<string, string> = {};
+  for (const { node, ic, ds } of displayParts) {
+    for (const s of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
+      const out = `${ic}:/${s}`;
+      const into = `${ds}:${s}`;
+      pinNo('74LS47', `/${s}`).forEach((p) => tie(`${ic}#${p}`, out));
+      pinNo('7seg-ca', s).forEach((p) => tie(`${ds}#${p}`, into));
+      twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [out, into], area: 3, group: ds });
+    }
+    pinNo('7seg-ca', 'CA').forEach((p) => tie(`${ds}#${p}`, VCC));
+    displayIds[node.id] = ds;
+  }
   for (const t of twoLeads) {
     tie(`${t.id}#1`, t.nets[0]);
     tie(`${t.id}#2`, t.nets[1]);
   }
-  // 輸入的電阻、輸出的電阻與 LED 各自兩個一組（不混在一起）；MB-102 時都算第 1 區。
-  for (const area of [1, 3] as const) {
-    const list = twoLeads.filter((t) => t.area === area);
+  // 輸入的電阻、輸出的電阻與 LED、每個顯示器的電阻各自兩個一組（不混在一起）；MB-102 時都算第 1 區。
+  // 顯示器本體（跨過凹槽，第 1 腳在 H 列、上排在 B 列）放在它的電阻後面。
+  for (const group of [...new Set(twoLeads.map((t) => t.group))]) {
+    const list = twoLeads.filter((t) => t.group === group);
+    const area = list[0].area;
     // 兩個一組：第一個放 A 列、第二個放 J 列（同一段欄），各自用不同的導通群組。
     const size = 2;
     for (let i = 0; i < list.length; i += size) {
@@ -178,6 +210,12 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
           ),
       });
     }
+    const shown = displayParts.find((p) => p.ds === group);
+    if (shown)
+      blocks[3].push({
+        width: 5,
+        place: (x) => components.push(comp(shown.ds, '7seg-ca', hole(`H${x}`, eic ? 3 : undefined), { board: BOARD_ID, props: { labels: [shown.node.name ?? ''] } as never })),
+      });
   }
   // 順序：開關、輸入的電阻（靠近開關）、IC、輸出的電阻與 LED。MB-102 時全部排在同一列。
   if (eic) blocks[2].push(...icBlocks);
@@ -270,13 +308,15 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
 
   const ics: Record<string, number> = {};
   for (const p of plans) ics[p.defId] = (ics[p.defId] ?? 0) + 1;
+  if (displays.length > 0) ics['74LS47'] = displays.length;
   return {
     ok: true,
     circuit,
-    bom: { ics, switch: swDef, resistors: twoLeads.filter((t) => t.defId === 'resistor').length, leds: outputs.length, layout },
+    bom: { ics, switch: swDef, resistors: twoLeads.filter((t) => t.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
     switchId: 'SW1',
     inputs: inputs.map((n) => n.id),
     leds,
+    displays: displayIds,
     netOf,
   };
 }
