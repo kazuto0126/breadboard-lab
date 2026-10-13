@@ -651,3 +651,13 @@ describe('notes (sub-project 18)', () => {
     expect(s().circuit.notes).toHaveLength(1);
   });
 });
+
+describe('dropping a note from the library (sub-project 20)', () => {
+  it('adds a note at a world position, selected and in edit mode', () => {
+    s().addNoteAt(25.4, 12.7);
+    const note = s().circuit.notes![0];
+    expect(note).toMatchObject({ x: 25.4, y: 12.7, text: '' });
+    expect(s().editingNote).toBe(note.id);
+    expect(s().selection).toEqual({ kind: 'note', id: note.id });
+  });
+});
