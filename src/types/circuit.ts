@@ -15,11 +15,27 @@ export interface Wire {
   straight?: true;
 }
 
+/** 子專案 18：麵包板畫面上的便條（不影響電路）。 */
+export type NoteColor = 'yellow' | 'blue' | 'green' | 'pink';
+
+export interface Note {
+  id: string;
+  /** 左上角，世界座標 mm（2.54 的倍數）。 */
+  x: number;
+  y: number;
+  text: string;
+  color: NoteColor;
+  /** 指向的元件 ID。 */
+  target?: string;
+}
+
 export interface Circuit {
   version: 1;
   boards: BreadboardInstance[];
   components: ComponentInstance[];
   wires: Wire[];
+  /** 沒有便條時不寫這個欄位。 */
+  notes?: Note[];
 }
 
 export interface PinRef {

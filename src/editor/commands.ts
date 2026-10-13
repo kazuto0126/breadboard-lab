@@ -4,6 +4,7 @@ import type { ComponentInstance, ComponentProps, Rotation } from '../types/compo
 import type { GridPoint } from '../types/geometry';
 import { nextComponentId, nextWireId } from './ids';
 import { checkPlacement, rotatedPlacement } from './placement';
+import { dropNoteTargets } from './notes';
 
 /**
  * 所有編輯動作都是純函式：輸入舊的 Circuit，回傳新的 Circuit，不修改原本的物件。
@@ -74,8 +75,10 @@ export function rotateComponent(circuit: Circuit, id: string): Circuit | null {
 export function removeItems(circuit: Circuit, items: { componentIds?: string[]; wireIds?: string[] }): Circuit {
   const componentIds = new Set(items.componentIds ?? []);
   const wireIds = new Set(items.wireIds ?? []);
+  const notes = dropNoteTargets(circuit.notes, componentIds);
   return {
     ...circuit,
+    ...(notes !== circuit.notes ? { notes } : {}),
     components: componentIds.size > 0 ? circuit.components.filter((c) => !componentIds.has(c.id)) : circuit.components,
     wires: wireIds.size > 0 ? circuit.wires.filter((w) => !wireIds.has(w.id)) : circuit.wires,
   };
