@@ -7,6 +7,7 @@ import { zoomAt } from '../../editor/viewport';
 import { LOGIC_EXAMPLES } from '../../logic/examples';
 import { exportJson, exportPng, exportSvg, importJsonFile } from '../../state/fileActions';
 import { logicDirty, useLogic } from '../../state/logic';
+import { openConvert } from '../Logic/LogicPanel';
 import { deriveMode, isComparisonFresh, isDirty, useStore, type Mode } from '../../state/store';
 
 type Item = { label: string; shortcut?: string; onClick: () => void; disabled?: boolean; checked?: boolean } | 'separator' | { heading: string };
@@ -143,6 +144,7 @@ export function Toolbar() {
         { label: '儲存 Save', shortcut: `${MOD}S`, onClick: run(() => store.saveProject()) },
         { label: '另存新檔… Save As', shortcut: `${MOD}⇧S`, onClick: run(() => store.openDialog('save-as')) },
         'separator',
+        ...(isLogic ? [{ label: '轉成麵包板…', onClick: run(openConvert) }, 'separator' as const] : []),
         { label: '匯入 JSON… Import', onClick: run(importJsonFile) },
         { label: '匯出 JSON Export', onClick: run(exportJson) },
         { label: '匯出 PNG', onClick: run(() => void exportPng()) },

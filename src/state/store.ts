@@ -32,6 +32,8 @@ import {
 } from '../editor/commands';
 import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
 import { LOGIC_EXAMPLES } from '../logic/examples';
+import { toBreadboard, type ConvertOptions } from '../logic/toBreadboard';
+import type { VerifyMap } from '../logic/verifyBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../logic/types';
 import { logicDirty, useLogic } from './logic';
 import { boardFrames, gridBounds, worldBounds } from '../editor/geometry';
@@ -69,7 +71,7 @@ export interface PlacingTool {
 
 export type Mode = 'manual' | 'auto' | 'compare';
 export type RightTab = 'inspect' | 'nets' | 'check' | 'checklist';
-export type Dialog = 'open' | 'save-as' | 'confirm-new' | 'help' | 'ai-key' | null;
+export type Dialog = 'open' | 'save-as' | 'confirm-new' | 'help' | 'ai-key' | 'to-breadboard' | null;
 /** 窄螢幕（寬度 < 1024 px，例如直放的平板）時，左右面板改成可以開關的抽屜。 */
 export type Drawer = 'library' | 'info' | null;
 
@@ -125,6 +127,8 @@ export interface AppState {
   view: 'edit' | 'compare';
   /** 規格（2026-10-11 logic-diagram）第 5 節：「邏輯圖｜麵包板」切換；和 view（edit / compare）無關。 */
   workspace: 'breadboard' | 'logic';
+  /** 規格（2026-10-13 logic-to-breadboard）第 7 節：最近一次從邏輯圖轉換的設定；檢查分頁用它即時比對真值表。開別的電路時清掉。 */
+  conversion: (VerifyMap & { switchTo: ConvertOptions['switchTo'] }) | null;
   compareLayout: 'side' | 'stacked';
   showCheck: boolean;
   routing: { startedAt: number; purpose: 'apply' | 'compare'; moveIcs: boolean } | null;
@@ -206,6 +210,8 @@ export interface AppActions {
   setWorkspace(workspace: 'breadboard' | 'logic'): void;
   /** 載入邏輯圖範例：麵包板清空，切到邏輯圖。 */
   loadExampleLogic(id: string): void;
+  /** 規格第 2 節：邏輯圖轉成麵包板（取代目前的電路，一個 Undo 步驟），接著執行 AI 佈線（可移動 IC）。 */
+  convertLogic(options: ConvertOptions): void;
   saveProject(name?: string): void;
   openProject(name: string): void;
   deleteProject(name: string): void;
@@ -369,6 +375,7 @@ export function initialState(): AppState {
     placing: null,
     view: 'edit',
     workspace: 'breadboard',
+    conversion: null,
     compareLayout: 'stacked',
     showCheck: false,
     routing: null,
@@ -901,6 +908,7 @@ export const useStore = create<Store>()((set, get) => {
         dialog: null,
       });
       useLogic.getState().load(logic ?? emptyDiagram());
+      set({ conversion: null });
       syncSimTimer();
       get().fitToScreen();
       if (message) get().toast('success', message);
@@ -910,6 +918,23 @@ export const useStore = create<Store>()((set, get) => {
       if (workspace === get().workspace) return;
       useLogic.getState().startPlacing(null);
       set({ workspace, placing: null, drawer: null });
+    },
+
+    convertLogic(options) {
+      if (guardEdit()) return;
+      const result = toBreadboard(useLogic.getState().diagram, options);
+      if (!result.ok) {
+        get().toast('error', result.reason);
+        return;
+      }
+      commit('邏輯圖轉成麵包板', result.circuit, { selection: null });
+      set({
+        workspace: 'breadboard',
+        dialog: null,
+        conversion: { switchTo: options.switchTo, switchId: result.switchId, inputs: result.inputs, leds: result.leds },
+      });
+      get().fitToScreen();
+      get().runAutoRoute('apply', { moveIcs: true });
     },
 
     loadExampleLogic(id) {
