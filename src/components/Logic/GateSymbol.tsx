@@ -61,6 +61,31 @@ export function GateBody({ node, value, inputs, selected }: { node: LogicNode; v
 
 /** 元件庫的小圖示。 */
 export function PartIcon({ kind }: { kind: NodeKind }) {
+  if (kind === 'HIGH' || kind === 'LOW') {
+    const high = kind === 'HIGH';
+    return (
+      <svg viewBox="0 0 40 24" className="h-6 w-10" aria-hidden>
+        <rect x={4} y={5} width={24} height={14} rx={3} fill={high ? '#fee2e2' : '#dbeafe'} stroke={high ? '#dc2626' : '#2563eb'} strokeWidth={1.5} />
+        <text x={16} y={15.5} textAnchor="middle" fontSize={8} fontWeight={700} fill={high ? '#b91c1c' : '#1d4ed8'}>
+          {high ? '5V' : 'GND'}
+        </text>
+        <line x1={28} y1={12} x2={38} y2={12} stroke={high ? '#dc2626' : '#2563eb'} strokeWidth={1.5} />
+      </svg>
+    );
+  }
+  if (kind === 'BLOCK') {
+    return (
+      <svg viewBox="0 0 40 24" className="h-6 w-10" aria-hidden>
+        <rect x={10} y={2} width={20} height={20} rx={2} fill="#ffffff" stroke="#1e293b" strokeWidth={1.5} />
+        {[6, 10, 14, 18].map((y) => (
+          <g key={y}>
+            <line x1={4} y1={y} x2={10} y2={y} stroke="#1e293b" strokeWidth={1.2} />
+            <line x1={30} y1={y} x2={36} y2={y} stroke="#1e293b" strokeWidth={1.2} />
+          </g>
+        ))}
+      </svg>
+    );
+  }
   if (kind === 'DISPLAY') {
     return (
       <svg viewBox="0 0 40 24" className="h-6 w-10" aria-hidden>

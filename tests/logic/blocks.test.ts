@@ -196,3 +196,19 @@ describe('converting blocks and constants to the breadboard', () => {
     expect(convertProblem(open)).toMatch(/還有沒接好的腳/);
   });
 });
+
+describe('the 74LS83 block example', () => {
+  it('adds two 2-bit numbers in the truth table', async () => {
+    const { adderBlockDiagram } = await import('../../src/logic/examples');
+    const { truthTable } = await import('../../src/logic/evaluate');
+    const t = truthTable(adderBlockDiagram());
+    if (!t.ok) throw new Error('no table');
+    expect(t.inputs).toEqual(['A1', 'A2', 'B1', 'B2']);
+    expect(t.outputs).toEqual(['S1', 'S2', 'S3']);
+    for (const row of t.rows) {
+      const [a1, a2, b1, b2] = row.in;
+      const sum = a1 + 2 * a2 + b1 + 2 * b2;
+      expect(row.out).toEqual([sum & 1, (sum >> 1) & 1, (sum >> 2) & 1]);
+    }
+  });
+});

@@ -123,6 +123,13 @@ export function renameNode(d: LogicDiagram, id: string, raw: string): EditResult
   return { ok: true, diagram: replaceNode(d, { ...node, name }) };
 }
 
+/** 子專案 21：5V 與 GND 互換。 */
+export function setConstant(d: LogicDiagram, id: string, kind: 'HIGH' | 'LOW'): EditResult {
+  const node = d.nodes.find((n) => n.id === id);
+  if (!node || (node.kind !== 'HIGH' && node.kind !== 'LOW')) return fail(d, '只有 5V、GND 可以切換');
+  return { ok: true, diagram: node.kind === kind ? d : replaceNode(d, { ...node, kind }) };
+}
+
 export function setInputValue(d: LogicDiagram, id: string, value: 0 | 1): LogicDiagram {
   const node = d.nodes.find((n) => n.id === id);
   return node && node.kind === 'INPUT' && node.value !== value ? replaceNode(d, { ...node, value }) : d;

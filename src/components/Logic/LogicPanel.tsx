@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
-import { removeNodes, removeWire, renameNode, setGateKind, setInputCount } from '../../logic/edit';
+import { removeNodes, removeWire, renameNode, setConstant, setGateKind, setInputCount } from '../../logic/edit';
+import { BLOCK_PINS } from '../../logic/blocks';
 import { evaluate, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
 import { nodeSize } from '../../logic/shapes';
-import { GATE_KINDS, isGate, type LogicDiagram, type LogicNode } from '../../logic/types';
+import { GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
 import { convertProblem } from '../../logic/synth';
 import { useStore } from '../../state/store';
@@ -89,9 +90,9 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     const node = diagram.nodes.find((n) => n.id === selection.id);
     if (!node) return null;
     return (
-      <Section title={isGate(node.kind) ? '邏輯閘' : node.kind === 'INPUT' ? '輸入端' : node.kind === 'DISPLAY' ? '7 段顯示器' : '輸出端'}>
+      <Section title={isGate(node.kind) ? '邏輯閘' : node.kind === 'INPUT' ? '輸入端' : node.kind === 'DISPLAY' ? '7 段顯示器' : node.kind === 'BLOCK' ? 'IC 方塊' : node.kind === 'HIGH' || node.kind === 'LOW' ? '常數' : '輸出端'}>
         <div className="flex items-center justify-between">
-          <div className="text-base font-semibold text-slate-50">{isGate(node.kind) ? node.id : node.name}</div>
+          <div className="text-base font-semibold text-slate-50">{node.name ?? (node.kind === 'BLOCK' ? `${node.id}（${node.chip}）` : node.id)}</div>
           <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.apply({ ok: true, diagram: removeNodes(diagram, [node.id]) }, `刪除 ${node.id}`, null)}>
             刪除
           </button>
@@ -133,7 +134,18 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
             )}
           </>
         )}
-        {!isGate(node.kind) && <NameEditor node={node} />}
+        {(node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'DISPLAY') && <NameEditor node={node} />}
+        {(node.kind === 'HIGH' || node.kind === 'LOW') && (
+          <div className="flex items-center gap-2">
+            <span className="w-12 text-slate-400">值</span>
+            {(['HIGH', 'LOW'] as const).map((k) => (
+              <button key={k} type="button" aria-pressed={node.kind === k} onClick={() => run(setConstant(diagram, node.id, k), `${node.id} 改成 ${k === 'HIGH' ? '5V' : 'GND'}`)} className={`${btn} ${node.kind === k ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
+                {k === 'HIGH' ? '5V（1）' : 'GND（0）'}
+              </button>
+            ))}
+          </div>
+        )}
+        {node.kind === 'BLOCK' && <BlockValues diagram={diagram} node={node} />}
         {node.kind === 'DISPLAY' && <DisplayValue diagram={diagram} node={node} />}
         {node.kind === 'INPUT' && (
           <div className="flex items-center gap-2">
@@ -167,7 +179,8 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
       <Section title="線">
         <p className="text-slate-200">
           {nodeLabel(from)} → {nodeLabel(to)}
-          {to.kind === 'DISPLAY' ? `${'ABCD'[w.to.pin]} 腳` : to.kind !== 'OUTPUT' && `第 ${w.to.pin + 1} 個輸入`}
+          {from.kind === 'BLOCK' && from.chip && `（${BLOCK_PINS[from.chip].outputs[w.fromPin ?? 0]}）`}
+          {to.kind === 'DISPLAY' ? `${'ABCD'[w.to.pin]} 腳` : to.kind === 'BLOCK' && to.chip ? `的 ${BLOCK_PINS[to.chip].inputs[w.to.pin]} 腳` : to.kind !== 'OUTPUT' && `第 ${w.to.pin + 1} 個輸入`}
         </p>
         <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.apply({ ok: true, diagram: removeWire(diagram, w.id) }, '刪除線', null)}>
           刪除
@@ -179,7 +192,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
   return (
     <Section title="邏輯圖">
       <p className="text-slate-200">
-        閘 {count((n) => isGate(n.kind))}・輸入端 {count((n) => n.kind === 'INPUT')}・輸出端 {count((n) => n.kind === 'OUTPUT')}{count((n) => n.kind === 'DISPLAY') > 0 && `・顯示器 ${count((n) => n.kind === 'DISPLAY')}`}・線 {diagram.wires.length}
+        閘 {count((n) => isGate(n.kind))}・輸入端 {count((n) => n.kind === 'INPUT')}・輸出端 {count((n) => n.kind === 'OUTPUT')}{count((n) => n.kind === 'DISPLAY') > 0 && `・顯示器 ${count((n) => n.kind === 'DISPLAY')}`}{count((n) => n.kind === 'BLOCK') > 0 && `・IC 方塊 ${count((n) => n.kind === 'BLOCK')}`}・線 {diagram.wires.length}
       </p>
       <p className="text-xs leading-5 text-slate-400">從左邊放邏輯閘、輸入端、輸出端，再從一個腳拖到另一個腳連線。點輸入端的開關切換 0 / 1，線和燈號會即時顯示結果。</p>
       <button type="button" className={`${btn} bg-emerald-600 text-white hover:bg-emerald-500`} onClick={openConvert}>
@@ -203,6 +216,25 @@ function DisplayValue({ diagram, node }: { diagram: LogicDiagram; node: LogicNod
       {v === 'X' ? '有沒接好或不確定的輸入，顯示「–」' : `目前顯示 ${v}`}（輸入 D C B A = {bits.join(' ')}）
       {typeof v === 'number' && v > 9 && <span className="block text-xs text-slate-400">10–15 不是 BCD 數字，74LS47 會亮出特殊的圖形。</span>}
     </p>
+  );
+}
+
+/** 子專案 21：方塊每個輸出腳目前的值。 */
+function BlockValues({ diagram, node }: { diagram: LogicDiagram; node: LogicNode }) {
+  const values = useMemo(() => evaluate(diagram), [diagram]);
+  if (!node.chip) return null;
+  return (
+    <div className="text-xs text-slate-300" data-testid="block-values">
+      <div className="text-slate-400">輸出（目前的值）</div>
+      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono">
+        {BLOCK_PINS[node.chip].outputs.map((name, k) => (
+          <span key={name}>
+            {name} = {bitText(values.nodes.get(signalOf(node.id, k)) ?? 'X')}
+          </span>
+        ))}
+      </div>
+      <p className="mt-1 text-slate-400">要在真值表看結果，把輸出接到輸出端或 7 段顯示器。</p>
+    </div>
   );
 }
 
