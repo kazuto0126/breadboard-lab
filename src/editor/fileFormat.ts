@@ -5,6 +5,8 @@ import type { ComponentInstance, ComponentProps, LedColor, Rotation } from '../t
 import type { GridPoint } from '../types/geometry';
 import { boardRects, MAX_BOARDS, normalizeBoardGroups, rectsOverlap } from './boards';
 import type { ChecklistState } from './checklist';
+import { parseLogicDiagram } from '../logic/file';
+import type { LogicDiagram } from '../logic/types';
 
 export const FILE_FORMAT = 'breadboard-lab/circuit';
 export const FILE_VERSION = 1;
@@ -18,22 +20,25 @@ export interface CircuitFile {
   circuit: Circuit;
   /** 接線清單的勾選進度（選填；自動儲存與專案存檔才有，匯出 JSON 不含）。 */
   checklist?: ChecklistState;
+  /** 邏輯圖（選填；子專案 12）。沒有元件時不寫。 */
+  logic?: LogicDiagram;
 }
 
-export type ParseResult = { ok: true; circuit: Circuit; name: string | null; checklist?: ChecklistState } | { ok: false; error: string };
+export type ParseResult = { ok: true; circuit: Circuit; name: string | null; checklist?: ChecklistState; logic?: LogicDiagram } | { ok: false; error: string };
 
 export function emptyCircuit(): Circuit {
   return { version: 1, boards: [{ id: 'b1', layoutId: 'MB102', x: 0, y: 0, groupId: null }], components: [], wires: [] };
 }
 
-export function toCircuitFile(circuit: Circuit, name: string, now: Date = new Date(), checklist?: ChecklistState): CircuitFile {
+export function toCircuitFile(circuit: Circuit, name: string, now: Date = new Date(), checklist?: ChecklistState, logic?: LogicDiagram): CircuitFile {
   const file: CircuitFile = { format: FILE_FORMAT, version: FILE_VERSION, name, savedAt: now.toISOString(), circuit };
   if (checklist && Object.keys(checklist).length > 0) file.checklist = checklist;
+  if (logic && logic.nodes.length > 0) file.logic = logic;
   return file;
 }
 
-export function serializeCircuitFile(circuit: Circuit, name: string, now?: Date): string {
-  return JSON.stringify(toCircuitFile(circuit, name, now), null, 2);
+export function serializeCircuitFile(circuit: Circuit, name: string, now?: Date, logic?: LogicDiagram): string {
+  return JSON.stringify(toCircuitFile(circuit, name, now, undefined, logic), null, 2);
 }
 
 class FormatError extends Error {}
@@ -224,7 +229,14 @@ export function parseCircuitData(raw: unknown): ParseResult {
       if (top.version !== FILE_VERSION) fail('version', `不支援的檔案版本 ${String(top.version)}`);
       const name = typeof top.name === 'string' && top.name.trim() ? top.name.trim() : null;
       const checklist = parseChecklist(top.checklist);
-      return checklist ? { ok: true, circuit: parseCircuit(top.circuit), name, checklist } : { ok: true, circuit: parseCircuit(top.circuit), name };
+      let logic: LogicDiagram | undefined;
+      if (top.logic !== undefined) {
+        const parsed = parseLogicDiagram(top.logic);
+        if (!parsed.ok) fail('logic', `邏輯圖有問題：${parsed.error}`);
+        else logic = parsed.diagram;
+      }
+      const circuit = parseCircuit(top.circuit);
+      return { ok: true, circuit, name, ...(checklist ? { checklist } : {}), ...(logic ? { logic } : {}) };
     }
     return { ok: true, circuit: parseCircuit(top), name: null };
   } catch (err) {

@@ -1,5 +1,8 @@
 import { useMemo } from 'react';
 import { analyzeCircuit } from '../../editor/analysis';
+import { checkDiagram } from '../../logic/check';
+import { isGate } from '../../logic/types';
+import { useLogic } from '../../state/logic';
 import { deriveMode, useStore } from '../../state/store';
 
 function Cell({ label, value, tone, onClick, testId }: { label: string; value: string | number; tone?: string; onClick?: () => void; testId?: string }) {
@@ -29,6 +32,33 @@ export function StatusBar() {
   const simulating = useStore((s) => s.simulation !== null);
   const analysis = useMemo(() => analyzeCircuit(circuit), [circuit]);
   const store = useStore.getState();
+  const workspace = useStore((s) => s.workspace);
+  const diagram = useLogic((l) => l.diagram);
+  const logicIssues = useMemo(() => checkDiagram(diagram), [diagram]);
+  if (workspace === 'logic') {
+    const count = (kind: 'gate' | 'INPUT' | 'OUTPUT') => diagram.nodes.filter((n) => (kind === 'gate' ? isGate(n.kind) : n.kind === kind)).length;
+    const errors = logicIssues.filter((i) => i.severity === 'error').length;
+    return (
+      <footer className="flex min-h-7 shrink-0 items-center overflow-x-auto whitespace-nowrap border-t border-slate-800 bg-slate-900 text-xs">
+        <span className="min-w-[220px] px-3 text-slate-300" data-testid="status">
+          邏輯圖
+        </span>
+        <Cell label="閘" value={count('gate')} />
+        <Cell label="輸入" value={count('INPUT')} />
+        <Cell label="輸出" value={count('OUTPUT')} />
+        <Cell label="線" value={diagram.wires.length} />
+        <Cell
+          label="檢查"
+          value={`${errors} 錯誤 · ${logicIssues.length - errors} 警告`}
+          tone={errors > 0 ? 'text-red-300' : logicIssues.length > 0 ? 'text-amber-300' : 'text-emerald-300'}
+          onClick={() => {
+            useLogic.getState().setTab('check');
+            store.toggleDrawer('info');
+          }}
+        />
+      </footer>
+    );
+  }
 
   let status = 'Ready';
   let statusTone = 'text-slate-300';

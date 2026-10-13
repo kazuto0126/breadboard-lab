@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useLogic } from '../state/logic';
 import { useStore } from '../state/store';
 
 function isTyping(target: EventTarget | null): boolean {
@@ -14,6 +15,32 @@ export function useShortcuts(): void {
       const s = useStore.getState();
       const mod = e.ctrlKey || e.metaKey;
       const key = e.key.toLowerCase();
+
+      // 邏輯圖：Esc、復原、刪除、Fit 作用在邏輯圖（規格（2026-10-11 logic-diagram）第 1 節）。
+      if (s.workspace === 'logic' && !s.dialog) {
+        const l = useLogic.getState();
+        if (e.key === 'Escape') {
+          if (l.placing) l.startPlacing(null);
+          else l.select(null);
+          return;
+        }
+        if (mod && (key === 'z' || key === 'y')) {
+          e.preventDefault();
+          if (key === 'y' || e.shiftKey) l.redo();
+          else l.undo();
+          return;
+        }
+        if (!mod && !e.altKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+          e.preventDefault();
+          l.deleteSelection();
+          return;
+        }
+        if (!mod && !e.altKey && key === 'f') {
+          l.fit();
+          return;
+        }
+        if (!mod) return;
+      }
 
       if (e.key === 'Escape') {
         if (s.dialog) s.closeDialog();

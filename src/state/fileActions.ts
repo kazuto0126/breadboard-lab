@@ -1,6 +1,7 @@
 import { serializeCircuitFile } from '../editor/fileFormat';
 import { boardFrames, worldBounds } from '../editor/geometry';
 import { buildSvgExport, downloadBlob, downloadText, safeFilename, svgToPng } from '../render/exportImage';
+import { useLogic } from './logic';
 import { useStore } from './store';
 
 /** 需要 DOM 的檔案動作（下載、選檔）；store 本身保持不依賴 DOM 細節。 */
@@ -11,7 +12,7 @@ function baseName(): string {
 
 export function exportJson(): void {
   const s = useStore.getState();
-  downloadText(serializeCircuitFile(s.circuit, s.projectName ?? baseName()), `${baseName()}.json`);
+  downloadText(serializeCircuitFile(s.circuit, s.projectName ?? baseName(), undefined, useLogic.getState().diagram), `${baseName()}.json`);
   s.toast('success', '已匯出 JSON');
 }
 

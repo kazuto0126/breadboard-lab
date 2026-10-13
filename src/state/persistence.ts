@@ -1,3 +1,4 @@
+import type { LogicDiagram } from '../logic/types';
 import type { ChecklistState } from '../editor/checklist';
 import { parseCircuitData, toCircuitFile, type CircuitFile, type ParseResult } from '../editor/fileFormat';
 import type { Circuit } from '../types/circuit';
@@ -34,6 +35,8 @@ export interface Autosave {
   checklist: ChecklistState;
   /** 上次「儲存」之後有沒有修改；重新整理後仍要記得，開新電路或開啟專案前才會先確認。 */
   unsaved: boolean;
+  /** 邏輯圖（子專案 12）。 */
+  logic?: LogicDiagram;
 }
 
 /** 自動儲存的電路（重新整理後還原）。沒有或格式錯誤時回傳 null。 */
@@ -45,17 +48,17 @@ export function loadAutosave(): Autosave | null {
     const result = parseCircuitData(raw);
     if (!result.ok) return null;
     const unsaved = (raw as { unsaved?: unknown }).unsaved === true;
-    return { circuit: result.circuit, name: result.name, checklist: result.checklist ?? {}, unsaved };
+    return { circuit: result.circuit, name: result.name, checklist: result.checklist ?? {}, unsaved, ...(result.logic ? { logic: result.logic } : {}) };
   } catch {
     return null;
   }
 }
 
-export function writeAutosave(circuit: Circuit, name: string | null, checklist?: ChecklistState, unsaved = false): boolean {
+export function writeAutosave(circuit: Circuit, name: string | null, checklist?: ChecklistState, unsaved = false, logic?: LogicDiagram): boolean {
   const s = storage();
   if (!s) return false;
   try {
-    const file = toCircuitFile(circuit, name ?? '', undefined, checklist);
+    const file = toCircuitFile(circuit, name ?? '', undefined, checklist, logic);
     s.setItem(AUTOSAVE_KEY, JSON.stringify(unsaved ? { ...file, unsaved: true } : file));
     return true;
   } catch {
@@ -96,9 +99,9 @@ export function listProjects(): ProjectSummary[] {
     .sort((a, b) => (a.savedAt < b.savedAt ? 1 : a.savedAt > b.savedAt ? -1 : 0));
 }
 
-export function saveProject(name: string, circuit: Circuit, checklist?: ChecklistState): boolean {
+export function saveProject(name: string, circuit: Circuit, checklist?: ChecklistState, logic?: LogicDiagram): boolean {
   const projects = readProjects();
-  projects[name] = toCircuitFile(circuit, name, undefined, checklist);
+  projects[name] = toCircuitFile(circuit, name, undefined, checklist, logic);
   return writeProjects(projects);
 }
 
