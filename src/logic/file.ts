@@ -1,7 +1,8 @@
-import { inputCountOf, overlaps } from './shapes';
+import { isBlockChip } from './blocks';
+import { inputCountOf, outputCountOf, overlaps } from './shapes';
 import { isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
 
-const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT', 'DISPLAY'];
+const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT', 'DISPLAY', 'HIGH', 'LOW', 'BLOCK'];
 const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -23,7 +24,10 @@ function parseNode(raw: unknown, i: number): LogicNode {
     const expected = node.kind === 'NOT' ? [1] : node.kind === 'XOR' ? [2] : [2, 3, 4];
     if (!expected.includes(n.inputs as number)) fail(`元件 ${node.id}（${node.kind}）的輸入數 ${String(n.inputs)} 不合法`);
     node.inputs = n.inputs as number;
-  } else {
+  } else if (node.kind === 'BLOCK') {
+    if (!isBlockChip(n.chip)) fail(`元件 ${node.id} 的 IC ${String(n.chip)} 不認得`);
+    node.chip = n.chip as LogicNode['chip'];
+  } else if (node.kind !== 'HIGH' && node.kind !== 'LOW') {
     if (typeof n.name !== 'string' || !NAME_RULE.test(n.name)) fail(`元件 ${node.id} 的名稱 ${String(n.name)} 不合法`);
     node.name = n.name as string;
     if (node.kind === 'INPUT') node.value = n.value === 1 ? 1 : 0;
@@ -41,7 +45,9 @@ function parseWire(raw: unknown, i: number, nodes: Map<string, LogicNode>): Logi
   if (!source || !target) fail(`線 ${String(w.id)} 接到不存在的元件`);
   if (isSink(source!.kind) || target!.kind === 'INPUT' || source === target) fail(`線 ${String(w.id)} 的方向不對`);
   if ((to.pin as number) < 0 || (to.pin as number) >= inputCountOf(target!)) fail(`線 ${String(w.id)} 接到不存在的輸入腳`);
-  return { id: w.id as string, from: w.from as string, to: { node: to.node as string, pin: to.pin as number } };
+  const fromPin = w.fromPin === undefined ? 0 : (w.fromPin as number);
+  if (!isInt(fromPin) || fromPin < 0 || fromPin >= outputCountOf(source!)) fail(`線 ${String(w.id)} 從不存在的輸出腳接出`);
+  return { id: w.id as string, from: w.from as string, ...(fromPin > 0 ? { fromPin } : {}), to: { node: to.node as string, pin: to.pin as number } };
 }
 
 /** 規格第 6 節：讀檔時檢查邏輯圖；不合法就整個拒絕並說明原因。 */
