@@ -362,6 +362,25 @@ export function planAnimation(wires: Wire[], moves: IcMove[] = []): WireAnimatio
 }
 
 /** 初始狀態（有自動儲存就還原）。測試也用它重設 store。 */
+/** 子專案 15：記住上次看的是邏輯圖還是麵包板（只存在這台電腦的瀏覽器）。 */
+const WORKSPACE_KEY = 'breadboard-lab:workspace';
+
+function readWorkspace(): 'breadboard' | 'logic' {
+  try {
+    return globalThis.localStorage?.getItem(WORKSPACE_KEY) === 'logic' ? 'logic' : 'breadboard';
+  } catch {
+    return 'breadboard';
+  }
+}
+
+function writeWorkspace(workspace: 'breadboard' | 'logic'): void {
+  try {
+    globalThis.localStorage?.setItem(WORKSPACE_KEY, workspace);
+  } catch {
+    // 瀏覽器不允許時就不記。
+  }
+}
+
 /** 孔位閃爍的時間。 */
 export const FLASH_MS = 2000;
 
@@ -377,7 +396,7 @@ export function initialState(): AppState {
     selection: null,
     placing: null,
     view: 'edit',
-    workspace: 'breadboard',
+    workspace: readWorkspace(),
     conversion: null,
     compareLayout: 'stacked',
     showCheck: false,
@@ -926,6 +945,7 @@ export const useStore = create<Store>()((set, get) => {
       if (workspace === get().workspace) return;
       useLogic.getState().startPlacing(null);
       set({ workspace, placing: null, drawer: null });
+      writeWorkspace(workspace);
     },
 
     convertLogic(options) {
@@ -941,6 +961,7 @@ export const useStore = create<Store>()((set, get) => {
         dialog: null,
         conversion: { switchTo: options.switchTo, switchId: result.switchId, inputs: result.inputs, leds: result.leds },
       });
+      writeWorkspace('breadboard');
       get().fitToScreen();
       get().runAutoRoute('apply', { moveIcs: true });
       // 子專案 14：「自動」選了 MB-102 但 AI 佈線排不完時（例如只用 NAND，連線比較多），改用 EIC-1106 再轉一次。
@@ -963,6 +984,7 @@ export const useStore = create<Store>()((set, get) => {
       if (!ex) return;
       get().loadCircuit(emptyCircuit(), ex.name, `已載入範例「${ex.name}」：${ex.description}`, undefined, ex.build());
       set({ workspace: 'logic' });
+      writeWorkspace('logic');
     },
 
     saveProject(name) {

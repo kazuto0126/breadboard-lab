@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
-import { panBy, screenToWorld, zoomAt } from '../../editor/viewport';
-import { canPlace, connect, moveNode } from '../../logic/edit';
+import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
+import { canPlace, connect, moveNodes, nodesInRect } from '../../logic/edit';
 import { evaluate, type Bit } from '../../logic/evaluate';
 import { inputPins, nodeSize, outputPin, type GridXY } from '../../logic/shapes';
 import { isGate, type LogicNode } from '../../logic/types';
 import { busColumns, junctions, wireRoute } from '../../logic/wiring';
-import { LOGIC_CELL, useLogic } from '../../state/logic';
+import { LOGIC_CELL, selectedIds, useLogic } from '../../state/logic';
 import { bitColor, GateBody } from './GateSymbol';
 
 const C = LOGIC_CELL;
@@ -23,8 +23,16 @@ function parsePin(text: string | null | undefined): PinId | null {
 
 type Drag =
   | { kind: 'pan'; x: number; y: number; moved: boolean }
-  | { kind: 'move'; id: string; startX: number; startY: number; node: LogicNode; dx: number; dy: number }
+  | { kind: 'move'; id: string; ids: string[]; startX: number; startY: number; dx: number; dy: number }
+  // 子專案 15：Shift 拖曳框選、兩指縮放。
+  | { kind: 'box'; from: GridXY; to: GridXY }
+  | { kind: 'pinch'; origin: Viewport; a0: GridXY; b0: GridXY; ids: number[] }
   | { kind: 'wire'; from: PinId; at: GridXY; to: PinId | null };
+
+/** 框選的範圍（格子座標，左上角與寬高）。 */
+function boxRect(a: GridXY, b: GridXY) {
+  return { x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(a.x - b.x), h: Math.abs(a.y - b.y) };
+}
 
 /** 輸入端：名稱、開關（點了切換 0 / 1）。 */
 function InputTerminal({ node, selected }: { node: LogicNode; selected: boolean }) {
@@ -83,6 +91,7 @@ export function LogicCanvas() {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [hover, setHover] = useState<GridXY | null>(null);
   const fitted = useRef(false);
+  const touches = useRef(new Map<number, GridXY>());
 
   const values = useMemo(() => evaluate(diagram), [diagram]);
   const valueOf = (id: string): Bit | undefined => (values.loop ? undefined : values.nodes.get(id));
@@ -132,17 +141,36 @@ export function LogicCanvas() {
   const pinUnder = (clientX: number, clientY: number): PinId | null =>
     parsePin((document.elementFromPoint(clientX, clientY) as Element | null)?.closest('[data-logic-pin]')?.getAttribute('data-logic-pin'));
 
+  /** 螢幕座標 → 畫布內的像素座標（兩指縮放用）。 */
+  const canvasPoint = (clientX: number, clientY: number): GridXY => {
+    const r = svgRef.current!.getBoundingClientRect();
+    return { x: clientX - r.left, y: clientY - r.top };
+  };
   const onBackgroundDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.button !== 0) return;
     svgRef.current?.setPointerCapture(e.pointerId);
-    if (!placing) setDrag({ kind: 'pan', x: e.clientX, y: e.clientY, moved: false });
+    if (e.pointerType === 'touch') touches.current.set(e.pointerId, canvasPoint(e.clientX, e.clientY));
+    if (touches.current.size === 2) {
+      const ids = [...touches.current.keys()];
+      const [a0, b0] = ids.map((id) => touches.current.get(id)!);
+      setDrag({ kind: 'pinch', origin: useLogic.getState().viewport, a0, b0, ids });
+      return;
+    }
+    if (placing) return;
+    if (e.shiftKey) {
+      const g = toGrid(e.clientX, e.clientY);
+      setDrag({ kind: 'box', from: g, to: g });
+    } else setDrag({ kind: 'pan', x: e.clientX, y: e.clientY, moved: false });
   };
   const onNodeDown = (e: ReactPointerEvent, node: LogicNode) => {
     if (e.button !== 0 || placing) return;
     e.stopPropagation();
     svgRef.current?.setPointerCapture(e.pointerId);
     const g = toGrid(e.clientX, e.clientY);
-    setDrag({ kind: 'move', id: node.id, startX: g.x, startY: g.y, node, dx: 0, dy: 0 });
+    // 點到框選中的元件：整組一起拖。
+    const group = selectedIds(useLogic.getState().selection);
+    const ids = group.includes(node.id) && group.length > 1 ? group : [node.id];
+    setDrag({ kind: 'move', id: node.id, ids, startX: g.x, startY: g.y, dx: 0, dy: 0 });
   };
   const onPinDown = (e: ReactPointerEvent, pin: PinId) => {
     if (e.button !== 0 || placing) return;
@@ -153,8 +181,14 @@ export function LogicCanvas() {
 
   const onMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (placing) setHover(cellAt(e.clientX, e.clientY));
+    if (touches.current.has(e.pointerId)) touches.current.set(e.pointerId, canvasPoint(e.clientX, e.clientY));
     if (!drag) return;
-    if (drag.kind === 'pan') {
+    if (drag.kind === 'pinch') {
+      const [a, b] = drag.ids.map((id) => touches.current.get(id));
+      if (a && b) useLogic.getState().setViewport(pinchViewport(drag.origin, drag.a0, drag.b0, a, b));
+    } else if (drag.kind === 'box') {
+      setDrag({ ...drag, to: toGrid(e.clientX, e.clientY) });
+    } else if (drag.kind === 'pan') {
       const dx = e.clientX - drag.x;
       const dy = e.clientY - drag.y;
       if (!drag.moved && Math.hypot(dx, dy) < 3) return;
@@ -171,6 +205,17 @@ export function LogicCanvas() {
 
   const onUp = (e: ReactPointerEvent<SVGSVGElement>) => {
     const s = useLogic.getState();
+    touches.current.delete(e.pointerId);
+    if (drag?.kind === 'pinch') {
+      if (touches.current.size < 2) setDrag(null);
+      return;
+    }
+    if (drag?.kind === 'box') {
+      const ids = nodesInRect(s.diagram, boxRect(drag.from, drag.to));
+      s.select(ids.length === 0 ? null : ids.length === 1 ? { kind: 'node', id: ids[0] } : { kind: 'nodes', ids });
+      setDrag(null);
+      return;
+    }
     if (s.placing) {
       const c = cellAt(e.clientX, e.clientY);
       if (!s.place(s.placing, c.x, c.y)) s.startPlacing(s.placing); // 放不下：繼續拿著
@@ -180,8 +225,9 @@ export function LogicCanvas() {
     if (!drag) return;
     if (drag.kind === 'pan' && !drag.moved) s.select(null);
     if (drag.kind === 'move') {
-      if (drag.dx === 0 && drag.dy === 0) s.select({ kind: 'node', id: drag.id });
-      else s.apply(moveNode(s.diagram, drag.id, drag.node.x + drag.dx, drag.node.y + drag.dy), `移動 ${drag.id}`, { kind: 'node', id: drag.id });
+      const sel = drag.ids.length > 1 ? ({ kind: 'nodes', ids: drag.ids } as const) : ({ kind: 'node', id: drag.id } as const);
+      if (drag.dx === 0 && drag.dy === 0) s.select(drag.ids.length > 1 ? sel : { kind: 'node', id: drag.id });
+      else s.apply(moveNodes(s.diagram, drag.ids, drag.dx, drag.dy), `移動 ${drag.ids.join('、')}`, sel);
     }
     if (drag.kind === 'wire') {
       const to = pinUnder(e.clientX, e.clientY);
@@ -199,7 +245,7 @@ export function LogicCanvas() {
     return null;
   };
 
-  const placed = (node: LogicNode): LogicNode => (drag?.kind === 'move' && drag.id === node.id ? { ...node, x: node.x + drag.dx, y: node.y + drag.dy } : node);
+  const placed = (node: LogicNode): LogicNode => (drag?.kind === 'move' && drag.ids.includes(node.id) ? { ...node, x: node.x + drag.dx, y: node.y + drag.dy } : node);
   const view = { ...diagram, nodes: diagram.nodes.map(placed) };
   const pinXY = (p: PinId): GridXY | null => {
     const node = view.nodes.find((n) => n.id === p.node);
@@ -210,7 +256,7 @@ export function LogicCanvas() {
   const ghost: LogicNode | null =
     placing && hover ? { id: '__ghost', kind: placing, x: hover.x, y: hover.y, inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: placing === 'INPUT' ? '?' : placing === 'OUTPUT' ? '?' : undefined, value: 0 } : null;
   const ghostOk = ghost ? canPlace(diagram, ghost) : true;
-  const moveOk = drag?.kind === 'move' ? canPlace(diagram, placed(drag.node), drag.id) : true;
+  const moveOk = drag?.kind === 'move' ? moveNodes(diagram, drag.ids, drag.dx, drag.dy).ok : true;
   const wireOk = drag?.kind === 'wire' ? drag.to === null || wirePair(drag.from, drag.to) !== null : true;
   const columns = busColumns(view);
   const dots = junctions(view, columns);
@@ -264,8 +310,8 @@ export function LogicCanvas() {
         ))}
 
         {view.nodes.map((node) => {
-          const sel = selection?.kind === 'node' && selection.id === node.id;
-          const moving = drag?.kind === 'move' && drag.id === node.id;
+          const sel = selectedIds(selection).includes(node.id);
+          const moving = drag?.kind === 'move' && drag.ids.includes(node.id);
           const { w, h } = nodeSize(node);
           const ins = inputPins(node).map((_, i) => {
             const from = driver.get(`${node.id}#${i}`);
@@ -333,6 +379,12 @@ export function LogicCanvas() {
             return a ? (
               <line x1={a.x * C} y1={a.y * C} x2={drag.at.x * C} y2={drag.at.y * C} stroke={wireOk ? '#0284c7' : '#ef4444'} strokeWidth={2} strokeDasharray="6 4" pointerEvents="none" />
             ) : null;
+          })()}
+
+        {drag?.kind === 'box' &&
+          (() => {
+            const r = boxRect(drag.from, drag.to);
+            return <rect data-testid="logic-box" x={r.x * C} y={r.y * C} width={r.w * C} height={r.h * C} fill="#0ea5e9" fillOpacity={0.08} stroke="#0284c7" strokeDasharray="6 4" pointerEvents="none" />;
           })()}
 
         {ghost && (

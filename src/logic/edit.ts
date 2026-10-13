@@ -1,5 +1,5 @@
-import { inputCountOf, overlaps } from './shapes';
-import { isGate, type GateKind, type LogicDiagram, type LogicNode, type NodeKind } from './types';
+import { inputCountOf, nodeSize, overlaps } from './shapes';
+import { isGate, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
 
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
 
@@ -117,4 +117,69 @@ export function renameNode(d: LogicDiagram, id: string, raw: string): EditResult
 export function setInputValue(d: LogicDiagram, id: string, value: 0 | 1): LogicDiagram {
   const node = d.nodes.find((n) => n.id === id);
   return node && node.kind === 'INPUT' && node.value !== value ? replaceNode(d, { ...node, value }) : d;
+}
+
+// ---------- 子專案 15：多個元件一起移動、框選、複製貼上 ----------
+
+/** 一起移動 ids 這些元件；任何一個會和其他（沒有一起移動的）元件重疊時整組不動。 */
+export function moveNodes(d: LogicDiagram, ids: string[], dx: number, dy: number): EditResult {
+  if (dx === 0 && dy === 0) return { ok: true, diagram: d };
+  const moving = new Set(ids);
+  const moved = d.nodes.map((n) => (moving.has(n.id) ? { ...n, x: n.x + dx, y: n.y + dy } : n));
+  const still = moved.filter((n) => !moving.has(n.id));
+  for (const n of moved) {
+    if (moving.has(n.id) && still.some((o) => overlaps(n, o))) return fail(d, '這裡已經有元件了');
+  }
+  return { ok: true, diagram: { ...d, nodes: moved } };
+}
+
+/** 框（格子座標）裡的元件：元件的方框和框有重疊就算。依圖上的順序。 */
+export function nodesInRect(d: LogicDiagram, r: { x: number; y: number; w: number; h: number }): string[] {
+  return d.nodes
+    .filter((n) => {
+      const s = nodeSize(n);
+      return n.x < r.x + r.w && r.x < n.x + s.w && n.y < r.y + r.h && r.y < n.y + s.h;
+    })
+    .map((n) => n.id);
+}
+
+export interface LogicClipboard {
+  nodes: LogicNode[];
+  wires: LogicWire[];
+}
+
+/** 複製選取的元件，以及兩端都在選取範圍裡的線。 */
+export function copyNodes(d: LogicDiagram, ids: string[]): LogicClipboard {
+  const picked = new Set(ids);
+  return {
+    nodes: d.nodes.filter((n) => picked.has(n.id)).map((n) => ({ ...n })),
+    wires: d.wires.filter((w) => picked.has(w.from) && picked.has(w.to.node)).map((w) => ({ ...w, to: { ...w.to } })),
+  };
+}
+
+/** 貼上：新的 ID、名稱重複時換成還沒用過的；往右下偏移 2 格，放不下就再偏移（最多 20 次）。ids 是新貼上的元件。 */
+export function pasteNodes(d: LogicDiagram, clip: LogicClipboard): { ok: true; diagram: LogicDiagram; ids: string[] } | { ok: false; diagram: LogicDiagram; reason: string } {
+  if (clip.nodes.length === 0) return { ok: false, diagram: d, reason: '沒有複製任何元件' };
+  for (let k = 1; k <= 20; k++) {
+    const shifted = clip.nodes.map((n) => ({ ...n, x: n.x + 2 * k, y: n.y + 2 * k }));
+    if (!shifted.every((n) => d.nodes.every((o) => !overlaps(n, o)))) continue;
+    let next = d;
+    const idMap = new Map<string, string>();
+    for (const n of shifted) {
+      const id = nextNodeId(next, n.kind);
+      idMap.set(n.id, id);
+      const node: LogicNode = { ...n, id };
+      if (n.kind === 'INPUT' || n.kind === 'OUTPUT') {
+        const taken = next.nodes.some((o) => o.name === n.name);
+        node.name = taken || !n.name ? defaultName(next, n.kind) : n.name;
+      }
+      next = { ...next, nodes: [...next.nodes, node] };
+    }
+    for (const w of clip.wires) {
+      const r = connect(next, idMap.get(w.from)!, { node: idMap.get(w.to.node)!, pin: w.to.pin });
+      if (r.ok) next = r.diagram;
+    }
+    return { ok: true, diagram: next, ids: [...idMap.values()] };
+  }
+  return { ok: false, diagram: d, reason: '附近沒有空位可以貼上' };
 }

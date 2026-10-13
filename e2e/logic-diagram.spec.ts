@@ -78,3 +78,43 @@ test('範例「多數決電路（圖 2-5）」載入到邏輯圖', async ({ page
   await page.getByRole('tab', { name: /檢查/ }).click();
   await expect(page.getByText('沒有發現問題')).toBeVisible();
 });
+
+test('框選多個元件一起移動、複製貼上，重新整理後仍在邏輯圖', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: '多數決電路（圖 2-5）' }).click();
+  await expect(page.locator('[data-logic-node]')).toHaveCount(8);
+
+  // Shift 拖曳框住 A、B、C 三個輸入端（x −1～3、y 1～11）。
+  const a = await cell(page, -1.5, 1);
+  const b = await cell(page, 3, 11);
+  await page.keyboard.down('Shift');
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  await expect(page.getByText('已選取 3 個元件')).toBeVisible();
+
+  // 拖曳其中一個：整組往左移 2 格。
+  const before = await page.locator('[data-logic-node="i3"]').getAttribute('transform');
+  const from = await cell(page, -0.5, 4);
+  const to = await cell(page, -2.5, 4);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.locator('[data-logic-node="i3"]')).not.toHaveAttribute('transform', before!);
+
+  await page.keyboard.press('Control+c');
+  await page.keyboard.press('Control+v');
+  await expect(page.locator('[data-logic-node]')).toHaveCount(11);
+  await expect(page.getByText('已選取 3 個元件')).toBeVisible();
+
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('breadboard-lab:autosave') ?? 'null')?.logic?.nodes?.length ?? 0)).toBe(11);
+  await page.reload();
+  await expect(page.locator('[data-logic-node]')).toHaveCount(11);
+  await expect(page.getByTestId('view-switch').getByRole('button', { name: '邏輯圖' })).toHaveAttribute('aria-pressed', 'true');
+});
