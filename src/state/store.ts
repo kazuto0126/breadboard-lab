@@ -195,6 +195,8 @@ export interface AppActions {
   /** 規格（2026-10-11 ai-links）第 4 節：點 AI 回答或說明裡的孔位：畫面移過去並閃一下；不改選取、不進 Undo。 */
   flashPoints(points: GridPoint[]): void;
   setRightTab(tab: RightTab): void;
+  /** 子專案 17：取消選取、切到屬性分頁，看「這次佈線」。 */
+  showRoutingSummary(): void;
   /** 切到右側面板的分頁並打開資訊抽屜（窄螢幕時面板平常收起來）；給面板以外的「顯示…」按鈕用。 */
   showRightTab(tab: RightTab): void;
   setShowCheck(show: boolean): void;
@@ -250,6 +252,12 @@ export function deriveMode(s: Pick<AppState, 'view' | 'circuit'>): Mode {
 export function isComparisonFresh(s: Pick<AppState, 'comparison' | 'circuit'>): boolean {
   const c = s.comparison;
   return c !== null && c.boards === s.circuit.boards && (c.components === s.circuit.components || c.appliedComponents === s.circuit.components);
+}
+
+/** 子專案 17：已經套用到電路上、還沒過期的佈線結果（「這次佈線」說明用）；比較畫面時是 null。 */
+export function appliedRouting(s: Pick<AppState, 'comparison' | 'circuit' | 'view'>): Comparison | null {
+  if (!s.comparison || s.view === 'compare' || !isComparisonFresh(s)) return null;
+  return s.circuit.wires.some((w) => w.source === 'auto') ? s.comparison : null;
 }
 
 /** 比較畫面左右兩邊的電路：左邊是佈線前的元件與手動導線，右邊是（搬移後的）元件與 AI 導線。 */
@@ -767,6 +775,11 @@ export const useStore = create<Store>()((set, get) => {
       const s = get();
       const rect = gridBounds(boardFrames(s.circuit), points, 3);
       if (rect) set({ viewport: centerOn(s.viewport, rect, s.canvasSize.width, s.canvasSize.height), viewportAuto: false });
+    },
+
+    showRoutingSummary() {
+      set({ selection: null });
+      get().setRightTab('inspect');
     },
 
     setRightTab(rightTab) {

@@ -379,6 +379,11 @@ function ResultCard() {
             復原 Undo
           </button>
         )}
+        {applied && (
+          <button type="button" data-testid="routing-explain" className="rounded bg-emerald-700 px-3 py-1 text-sm text-white hover:bg-emerald-600" onClick={() => store.showRoutingSummary()}>
+            看說明
+          </button>
+        )}
         <button type="button" className="rounded bg-slate-700 px-3 py-1 text-sm text-slate-100 hover:bg-slate-600" onClick={() => store.dismissResult()}>
           關閉
         </button>
