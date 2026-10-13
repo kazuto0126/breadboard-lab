@@ -44,3 +44,41 @@ describe('notes on the board', () => {
     expect(removeItems(c, { componentIds: ['R1'] }).notes).toBe(c.notes);
   });
 });
+
+describe('notes in saved files', () => {
+  it('round-trips notes, leaves the field out when there are none, and checks the format', async () => {
+    const { parseCircuitData, toCircuitFile } = await import('../../src/editor/fileFormat');
+    let { circuit: c } = addNote(base(), 5.08, 7.62);
+    c = setNoteTarget(setNoteText(c, 'n1', '先接電源'), 'n1', 'U1');
+    const back = parseCircuitData(JSON.parse(JSON.stringify(toCircuitFile(c, 'x', new Date(0)))));
+    expect(back.ok && back.circuit.notes).toEqual([{ id: 'n1', x: 5.08, y: 7.62, text: '先接電源', color: 'yellow', target: 'U1' }]);
+    const plain = parseCircuitData(JSON.parse(JSON.stringify(toCircuitFile(base(), 'x', new Date(0)))));
+    expect(plain.ok && plain.circuit).not.toHaveProperty('notes');
+
+    const file = JSON.parse(JSON.stringify(toCircuitFile(c, 'x', new Date(0))));
+    file.circuit.notes[0].target = 'U9';
+    file.circuit.notes[0].text = 'y'.repeat(250);
+    const loose = parseCircuitData(file);
+    expect(loose.ok && loose.circuit.notes![0]).not.toHaveProperty('target');
+    expect(loose.ok && loose.circuit.notes![0].text).toHaveLength(NOTE_MAX);
+    file.circuit.notes[0].color = 'purple';
+    expect(parseCircuitData(file)).toMatchObject({ ok: false, error: 'circuit.notes[0].color：顏色不認得（purple）' });
+    file.circuit.notes = [{ id: 'n1', x: 0, y: 0, text: '', color: 'yellow' }, { id: 'n1', x: 0, y: 0, text: '', color: 'yellow' }];
+    expect(parseCircuitData(file)).toMatchObject({ ok: false, error: expect.stringContaining('便條') });
+  });
+});
+
+describe('notes do not touch the circuit', () => {
+  it('leaves nets and routing alone and survives applying a routing', async () => {
+    const { autoRoute } = await import('../../src/core/routing/autoRoute');
+    const { applyRouting } = await import('../../src/core/routing/apply');
+    const { analyzeCircuit } = await import('../../src/editor/analysis');
+    const { straightWire } = await import('../fixtures/build');
+    const plain = circuit([comp('R1', 'resistor', 'A10'), comp('R2', 'resistor', 'H20')], [straightWire('w1', 'B14', 'I20')]);
+    const noted = setNoteText(addNote(plain, 40, 10).circuit, 'n1', '看這裡');
+    expect(analyzeCircuit(noted).nets).toEqual(analyzeCircuit(plain).nets);
+    const r = autoRoute(noted);
+    expect(r.wires).toEqual(autoRoute(plain).wires);
+    expect(applyRouting(noted, r).notes).toBe(noted.notes);
+  });
+});
