@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## [未發布] — 子專案 13：邏輯圖轉成麵包板
+## 2026-10-13 — 子專案 13：邏輯圖轉成麵包板（PR #19，已發布到線上版）
 
 ### 新增
 
@@ -27,7 +27,7 @@
 
 - 設計規格 `docs/superpowers/specs/2026-10-13-logic-to-breadboard-design.md`、實作計畫 `docs/superpowers/plans/2026-10-13-logic-to-breadboard.md`。
 
-## [未發布] — 子專案 12：邏輯圖編輯器
+## 2026-10-13 — 子專案 12：邏輯圖編輯器（PR #18，已發布到線上版）
 
 ### 新增
 
@@ -51,7 +51,7 @@
 
 - 設計規格 `docs/superpowers/specs/2026-10-11-logic-diagram-design.md`、實作計畫 `docs/superpowers/plans/2026-10-11-logic-diagram.md`。
 
-## [未發布] — 電阻跨距與麵包板孔的大小
+## 2026-10-13 — 電阻跨距與麵包板孔的大小（PR #17，已發布到線上版）
 
 ### 修改
 
@@ -62,7 +62,7 @@
 
 - 單元測試 505 個：從元件庫放的電阻跨距是 3。端對端 31 個：驗收流程的電阻改成落在第 31–34 欄。
 
-## [未發布] — 子專案 11：回答裡的孔位可以點、導線解說
+## 2026-10-11 — 子專案 11：回答裡的孔位可以點、導線解說（PR #15，已發布到線上版）
 
 ### 新增
 
