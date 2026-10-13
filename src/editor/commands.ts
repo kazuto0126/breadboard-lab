@@ -91,7 +91,7 @@ export const LABEL_MAX = 8;
 /** 名稱可以設幾個：指撥開關每個開關一個、LED 一個，其他元件沒有。 */
 export function labelSlots(instance: ComponentInstance): number {
   const def = definitionOf(instance.defId);
-  if (def.category === 'led') return 1;
+  if (def.category === 'led' || def.category === 'seven-seg') return 1;
   if (def.category === 'dip-switch') return (instance.props.switchStates ?? def.defaultProps.switchStates ?? []).length;
   return 0;
 }

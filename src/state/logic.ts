@@ -80,7 +80,7 @@ export const useLogic = create<LogicState>((set, get) => ({
   },
   place(kind, x, y) {
     const r = addNode(get().diagram, kind, x, y);
-    const done = get().apply(r, `新增 ${kind === 'INPUT' ? '輸入端' : kind === 'OUTPUT' ? '輸出端' : kind}`, r.ok && r.id ? { kind: 'node', id: r.id } : undefined);
+    const done = get().apply(r, `新增 ${kind === 'INPUT' ? '輸入端' : kind === 'OUTPUT' ? '輸出端' : kind === 'DISPLAY' ? '7 段顯示器' : kind}`, r.ok && r.id ? { kind: 'node', id: r.id } : undefined);
     if (done) set({ placing: null });
     return done;
   },

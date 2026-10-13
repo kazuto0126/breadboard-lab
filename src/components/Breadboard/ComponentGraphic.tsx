@@ -157,6 +157,7 @@ function Dip({ instance, def, sim }: { instance: ComponentInstance; def: Compone
           <Upright x={w / 2} y={top - 0.35 * P} rotation={r} fill="#cfd8dc" fontSize={0.36 * P} fontWeight={700}>
             {instance.id}
           </Upright>
+          {instance.props.labels?.[0] && <Label x={w / 2} y={top - 1.05 * P} rotation={r} text={instance.props.labels[0]} />}
         </>
       ) : (
         <>

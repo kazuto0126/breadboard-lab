@@ -315,7 +315,8 @@ function ToBreadboardDialog() {
               {Object.entries(preview.bom.ics)
                 .map(([id, n]) => `${id} × ${n}`)
                 .join('、')}
-              、{preview.bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × 1、電阻 × {preview.bom.resistors}、LED × {preview.bom.leds}；放在 {preview.bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}。
+              、{preview.bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × 1、電阻 × {preview.bom.resistors}、LED × {preview.bom.leds}
+              {preview.bom.displays > 0 && `、7 段顯示器 × ${preview.bom.displays}（共陽極）`}；放在 {preview.bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}。
             </>
           ) : (
             <span className="text-red-300">{preview.reason}</span>
