@@ -65,6 +65,7 @@ export type CircuitErrorCode =
   | 'OUTPUT_CONFLICT'
   | 'NO_POWER_SOURCE'
   | 'INPUT_FLOATING'
+  | 'SWITCH_NO_PULL'
   | 'PIN_UNCONNECTED'
   | 'LED_REVERSED'
   | 'LED_NO_RESISTOR'

@@ -132,7 +132,7 @@ describe('explanations: power', () => {
   });
 
   it('offers to tie an unused input to the + rail, and following it fixes the warning', () => {
-    const c = circuit(icBase(), [gndWire(), wire('v1', 'A10', 'T+10')]);
+    const c = circuit(icBase(), [gndWire(), wire('v1', 'A10', 'T+10'), wire('y', 'I12', 'I13')]); // 1Y 接到 2A：第 1 組閘有用到
     const issue = issueOf(c, 'INPUT_FLOATING', 'F10');
     const e = explainIssue(c, issue);
     expect(texts(c, issue)).toEqual([
