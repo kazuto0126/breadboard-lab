@@ -26,7 +26,8 @@ import { BoardSelection, GroupOutlines, MovingBoards, SnapPreview } from './boar
 import { CanvasHud, ContextMenu, HoverTooltip, type Hover, type MenuState } from './CanvasHud';
 import { ComponentGraphic, type ComponentSim } from './ComponentGraphic';
 import { componentRect, FlashRings, GroupStrip, groupRect, Outline, PathPreview, PinTargets, Ring, SuggestionMarks, WireGlow, WireHandles } from './overlays';
-import { WireGraphic } from './WireGraphic';
+import { WireGraphic } from './WireGraphic';import { NoteLayer } from './NoteLayer';
+
 
 const DRAG_THRESHOLD = 4;
 
@@ -977,6 +978,8 @@ export function BreadboardCanvas() {
           </g>
 
           <WiresLayer wires={circuit.wires} frames={frames} animation={animation} faded={routing !== null} dimmed={dimmedWires} levels={wireLevels} />
+
+          <NoteLayer circuit={circuit} frames={frames} />
 
           <g data-ui="over">
             <PinTargets components={circuit.components} frames={frames} hiddenId={movingId} />

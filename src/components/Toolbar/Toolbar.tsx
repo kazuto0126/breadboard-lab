@@ -132,7 +132,7 @@ export function Toolbar() {
     fn();
   };
   const canEditSelection =
-    selection?.kind === 'component' || selection?.kind === 'pin' || selection?.kind === 'wire' || (selection?.kind === 'board' && boardCount > 1);
+    selection?.kind === 'component' || selection?.kind === 'pin' || selection?.kind === 'wire' || selection?.kind === 'note' || (selection?.kind === 'board' && boardCount > 1);
 
   const menus: Array<[string, string, Item[]]> = [
     [
@@ -187,6 +187,8 @@ export function Toolbar() {
         { label: 'Check Circuit 檢查電路', onClick: run(() => store.runCheck()) },
         { label: '在麵包板上顯示檢查標記', onClick: run(() => store.setShowCheck(!showCheck)), checked: showCheck },
         { label: '顯示所有 Nets', onClick: run(() => store.showRightTab('nets')) },
+        'separator',
+        { label: '新增便條', shortcut: 'N', onClick: run(() => store.addNoteAtCenter()) },
         'separator',
         { label: `＋ 新增 MB-102 麵包板（${boardCount} / ${MAX_BOARDS}）`, onClick: run(() => store.addBoard('MB102')), disabled: boardCount >= MAX_BOARDS || simulating || routing },
         { label: '＋ 新增 EIC-1106 大型麵包板', onClick: run(() => store.addBoard('EIC1106')), disabled: boardCount >= MAX_BOARDS || simulating || routing },

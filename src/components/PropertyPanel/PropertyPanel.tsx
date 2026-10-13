@@ -33,6 +33,7 @@ import { sortedIo } from '../../logic/evaluate';
 import { verifyBreadboard, verifyText } from '../../logic/verifyBreadboard';
 import { useLogic } from '../../state/logic';
 import { ExplanationCard } from './ExplanationCard';
+import { NoteInspector } from './NoteInspector';
 import { PinoutDiagram } from './PinoutDiagram';
 import { RoutingSummaryCard } from './RoutingSummaryCard';
 import { WireExplanationCard } from './WireExplanationCard';
@@ -560,6 +561,10 @@ function Inspector({ selection, circuit, analysis }: { selection: Selection; cir
           <ExplanationCard circuit={circuit} issue={issue} />
         </Section>
       ) : null;
+    }
+    case 'note': {
+      const note = (circuit.notes ?? []).find((n) => n.id === selection.id);
+      return note ? <NoteInspector circuit={circuit} note={note} /> : null;
     }
   }
 }

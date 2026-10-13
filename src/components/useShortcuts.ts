@@ -97,6 +97,11 @@ export function useShortcuts(): void {
         case 'R':
           s.rotateSelection();
           break;
+        case 'n':
+        case 'N':
+          e.preventDefault();
+          s.addNoteAtCenter();
+          break;
         case 'f':
         case 'F':
           s.fitToScreen();
