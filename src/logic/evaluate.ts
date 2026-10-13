@@ -1,7 +1,9 @@
 import { inputCountOf } from './shapes';
-import { isGate, type GateKind, type LogicDiagram, type LogicNode } from './types';
+import { isGate, isSink, type GateKind, type LogicDiagram, type LogicNode } from './types';
 
 export type Bit = 0 | 1 | 'X';
+/** 真值表的一格：輸出端是 0 / 1 / X，顯示器是 0–15 或 X。 */
+export type OutValue = Bit | number;
 
 /** 規格第 3 節：三值邏輯。 */
 export function gateValue(kind: GateKind, inputs: Bit[]): Bit {
@@ -62,11 +64,15 @@ export function topoOrder(d: LogicDiagram): { order: LogicNode[]; loop: string[]
   return { order, loop: onCycle.sort() };
 }
 
-/** values：輸入端 id → 0 / 1；沒給的用節點自己的 value。 */
-export function evaluate(d: LogicDiagram, values: Record<string, 0 | 1> = {}): { loop: string[] | null; nodes: Map<string, Bit> } {
+/** values：輸入端 id → 0 / 1；沒給的用節點自己的 value。displays：顯示器 id → 0–15（A + 2B + 4C + 8D）或 X。 */
+export function evaluate(
+  d: LogicDiagram,
+  values: Record<string, 0 | 1> = {},
+): { loop: string[] | null; nodes: Map<string, Bit>; displays: Map<string, number | 'X'> } {
   const { order, loop } = topoOrder(d);
   const nodes = new Map<string, Bit>();
-  if (loop) return { loop, nodes };
+  const displays = new Map<string, number | 'X'>();
+  if (loop) return { loop, nodes, displays };
   const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, w.from]));
   const inputOf = (node: LogicNode, pin: number): Bit => {
     const from = driver.get(`${node.id}#${pin}`);
@@ -75,12 +81,16 @@ export function evaluate(d: LogicDiagram, values: Record<string, 0 | 1> = {}): {
   for (const node of order) {
     if (node.kind === 'INPUT') nodes.set(node.id, values[node.id] ?? node.value ?? 0);
     else if (node.kind === 'OUTPUT') nodes.set(node.id, inputOf(node, 0));
+    else if (node.kind === 'DISPLAY') {
+      const bits = [0, 1, 2, 3].map((i) => inputOf(node, i));
+      displays.set(node.id, bits.includes('X') ? 'X' : bits.reduce<number>((sum, b, i) => sum + (b as number) * (1 << i), 0));
+    }
     else if (isGate(node.kind)) {
       const ins = Array.from({ length: inputCountOf(node) }, (_, i) => inputOf(node, i));
       nodes.set(node.id, gateValue(node.kind, ins));
     }
   }
-  return { loop: null, nodes };
+  return { loop: null, nodes, displays };
 }
 
 const byName = (a: LogicNode, b: LogicNode) => ((a.name ?? '') < (b.name ?? '') ? -1 : (a.name ?? '') > (b.name ?? '') ? 1 : 0);
@@ -88,14 +98,14 @@ const byName = (a: LogicNode, b: LogicNode) => ((a.name ?? '') < (b.name ?? '') 
 export function sortedIo(d: LogicDiagram): { inputs: LogicNode[]; outputs: LogicNode[] } {
   return {
     inputs: d.nodes.filter((n) => n.kind === 'INPUT').sort(byName),
-    outputs: d.nodes.filter((n) => n.kind === 'OUTPUT').sort(byName),
+    outputs: d.nodes.filter((n) => isSink(n.kind)).sort(byName),
   };
 }
 
 export const MAX_TABLE_INPUTS = 8;
 
 export type TruthTable =
-  | { ok: true; inputs: string[]; outputs: string[]; rows: Array<{ in: Array<0 | 1>; out: Bit[] }> }
+  | { ok: true; inputs: string[]; outputs: string[]; rows: Array<{ in: Array<0 | 1>; out: OutValue[] }> }
   | { ok: false; reason: 'loop' | 'too-many' | 'empty'; loop?: string[] };
 
 /** 規格第 3 節：輸入端依名稱排序，第一個是最高位元，從全 0 數到全 1。 */
@@ -109,7 +119,7 @@ export function truthTable(d: LogicDiagram): TruthTable {
   for (let r = 0; r < 1 << inputs.length; r++) {
     const bits = inputs.map((_, i) => ((r >> (inputs.length - 1 - i)) & 1) as 0 | 1);
     const v = evaluate(d, Object.fromEntries(inputs.map((n, i) => [n.id, bits[i]])));
-    rows.push({ in: bits, out: outputs.map((o) => v.nodes.get(o.id) ?? 'X') });
+    rows.push({ in: bits, out: outputs.map((o) => (o.kind === 'DISPLAY' ? v.displays.get(o.id) : v.nodes.get(o.id)) ?? 'X') });
   }
   return { ok: true, inputs: inputs.map((n) => n.name ?? n.id), outputs: outputs.map((n) => n.name ?? n.id), rows };
 }

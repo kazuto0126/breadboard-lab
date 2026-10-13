@@ -51,3 +51,40 @@ describe('7-segment display node', () => {
     expect(parseLogicDiagram({ ...raw, nodes: [{ id: 'd1', kind: 'DISPLAY', x: 6, y: 0, name: '1x' }], wires: [] }).ok).toBe(false);
   });
 });
+
+describe('display values', () => {
+  it('reads A + 2B + 4C + 8D, or X when a pin is unknown', async () => {
+    const { evaluate, sortedIo, truthTable } = await import('../../src/logic/evaluate');
+    const { bcdDiagram } = await import('../../src/logic/examples');
+    const d = bcdDiagram();
+    const ids = Object.fromEntries(d.nodes.filter((n) => n.kind === 'INPUT').map((n) => [n.name, n.id]));
+    expect(evaluate(d, { [ids.W]: 0, [ids.X]: 1, [ids.Y]: 1, [ids.Z]: 1 }).displays.get('d1')).toBe(7);
+    expect(evaluate(d, { [ids.W]: 1, [ids.X]: 1, [ids.Y]: 0, [ids.Z]: 0 }).displays.get('d1')).toBe(12);
+    const open = { ...d, wires: d.wires.slice(1) };
+    expect(evaluate(open).displays.get('d1')).toBe('X');
+    expect(sortedIo(d).outputs.map((n) => n.name)).toEqual(['S1']);
+    const t = truthTable(d);
+    expect(t.ok && t.inputs).toEqual(['W', 'X', 'Y', 'Z']);
+    expect(t.ok && t.outputs).toEqual(['S1']);
+    expect(t.ok && t.rows.map((r) => r.out[0])).toEqual([...Array(16).keys()]);
+  });
+
+  it('sorts displays together with outputs by name', async () => {
+    const { sortedIo } = await import('../../src/logic/evaluate');
+    let d = emptyDiagram();
+    d = ok(addNode(d, 'DISPLAY', 0, 0)); // S1
+    d = ok(addNode(d, 'OUTPUT', 10, 0)); // X
+    d = ok(addNode(d, 'OUTPUT', 10, 4)); // Y
+    d = ok(renameNode(d, 'o1', 'A'));
+    expect(sortedIo(d).outputs.map((n) => n.name)).toEqual(['A', 'S1', 'Y']);
+  });
+
+  it('maps values to 74LS47 glyphs and back', async () => {
+    const { glyphOf, valueOfSegments } = await import('../../src/logic/sevenSeg');
+    expect(glyphOf(8)).toBe('abcdefg');
+    expect(glyphOf(1)).toBe('bc');
+    expect(glyphOf('X')).toBe('g');
+    for (let v = 0; v < 16; v++) expect(valueOfSegments([...glyphOf(v)].reverse())).toBe(v);
+    expect(valueOfSegments(['a'])).toBeNull();
+  });
+});

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
 import { removeNodes, removeWire, renameNode, setGateKind, setInputCount } from '../../logic/edit';
-import { sortedIo, truthTable, type Bit } from '../../logic/evaluate';
+import { sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
 import { nodeSize } from '../../logic/shapes';
 import { GATE_KINDS, isGate, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
@@ -23,7 +23,9 @@ export function openConvert() {
   if (problem) useStore.getState().toast('warning', problem);
   else useStore.getState().openDialog('to-breadboard');
 }
-const bitText = (b: Bit) => (b === 'X' ? '?' : String(b));
+const bitText = (b: OutValue) => (b === 'X' ? '?' : String(b));
+/** 顯示器的欄（數字）用另一個顏色。 */
+const outTone = (b: OutValue, display: boolean) => (display ? (b === 'X' ? 'text-slate-400' : 'text-amber-300') : bitTone(b as Bit));
 const bitTone = (b: Bit) => (b === 1 ? 'text-red-400' : b === 0 ? 'text-sky-400' : 'text-slate-400');
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -197,7 +199,7 @@ function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
           : '先放輸入端和輸出端';
     return <p className="p-3 text-sm text-slate-300">{text}</p>;
   }
-  const { inputs } = sortedIo(diagram);
+  const { inputs, outputs } = sortedIo(diagram);
   const current = inputs.map((n) => (n.value ?? 0) as 0 | 1).join('');
   return (
     <div className="p-3">
@@ -235,7 +237,7 @@ function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
                   </td>
                 ))}
                 {r.out.map((b, i) => (
-                  <td key={`o${i}`} className={`px-1 py-0.5 font-bold ${bitTone(b)} ${i === 0 ? 'border-l border-slate-700' : ''}`}>
+                  <td key={`o${i}`} className={`px-1 py-0.5 font-bold ${outTone(b, outputs[i]?.kind === 'DISPLAY')} ${i === 0 ? 'border-l border-slate-700' : ''}`}>
                     {bitText(b)}
                   </td>
                 ))}

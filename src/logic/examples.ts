@@ -1,4 +1,4 @@
-import { addNode, connect, setInputCount } from './edit';
+import { addNode, connect, nextNodeId, renameNode, setInputCount } from './edit';
 import { emptyDiagram, type LogicDiagram, type NodeKind } from './types';
 
 function must(r: { ok: boolean; diagram: LogicDiagram }): LogicDiagram {
@@ -32,6 +32,21 @@ export function majorityDiagram(): LogicDiagram {
   return d;
 }
 
+/** 子專案 16：4 個開關直接接 7 段顯示器（W 是最高位元，接 D；Z 接 A）。 */
+export function bcdDiagram(): LogicDiagram {
+  let d = emptyDiagram();
+  const inputs: Array<[string, number]> = [['W', 4], ['X', 3], ['Y', 1], ['Z', 0]];
+  for (const [name, y] of inputs) {
+    const id = nextNodeId(d, 'INPUT');
+    d = must(renameNode(must(addNode(d, 'INPUT', 0, y)), id, name));
+  }
+  d = must(addNode(d, 'DISPLAY', 10, 0)); // d1 S1
+  // W（i1）→ D（第 3 腳）…Z（i4）→ A（第 0 腳）
+  for (let k = 0; k < 4; k++) d = must(connect(d, `i${k + 1}`, { node: 'd1', pin: 3 - k }));
+  return d;
+}
+
 export const LOGIC_EXAMPLES = [
   { id: 'majority', name: '多數決電路（圖 2-5）', description: 'X = AB + AC + BC：三個輸入有兩個以上是 1 時 X = 1', build: majorityDiagram },
+  { id: 'bcd', name: 'BCD 顯示（7 段顯示器）', description: 'W X Y Z 四個開關當成 BCD 數字（W 是最高位元），7 段顯示器顯示 0–9', build: bcdDiagram },
 ];
