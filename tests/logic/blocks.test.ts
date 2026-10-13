@@ -79,3 +79,71 @@ describe('editing blocks and constants', () => {
     expect(parseLogicDiagram({ ...raw, wires: [raw.wires[0], { ...raw.wires[1], fromPin: 2 }] })).toMatchObject({ ok: false, error: expect.stringContaining('輸出腳') });
   });
 });
+
+/** 一個方塊，每個輸入腳接 5V（1）或 GND（0）；bits 依 BLOCK_PINS 的輸入順序，null 表示不接。 */
+function wired(chip: Parameters<typeof addNode>[4], bits: Array<0 | 1 | null>) {
+  let d = emptyDiagram();
+  d = ok(addNode(d, 'HIGH', 0, 0)); // k1
+  d = ok(addNode(d, 'LOW', 0, 2)); // k2
+  d = ok(addNode(d, 'BLOCK', 6, 0, chip)); // b1
+  bits.forEach((b, pin) => {
+    if (b !== null) d = ok(connect(d, b === 1 ? 'k1' : 'k2', { node: 'b1', pin }));
+  });
+  return d;
+}
+
+describe('evaluating blocks', () => {
+  const outs = async (d: LogicDiagram, n: number) => {
+    const { evaluate } = await import('../../src/logic/evaluate');
+    const v = evaluate(d).nodes;
+    return Array.from({ length: n }, (_, k) => v.get(signalOf('b1', k)));
+  };
+
+  it('adds with the 74LS83', async () => {
+    // A = 3（A1 A2 = 1）、B = 1（B1 = 1）、C0 = 0 → S = 4（S3 = 1）、C4 = 0
+    expect(await outs(wired('74LS83', [1, 1, 0, 0, 1, 0, 0, 0, 0]), 5)).toEqual([0, 0, 1, 0, 0]);
+    // 15 + 1 + 1 = 17 → S = 0001、C4 = 1
+    expect(await outs(wired('74LS83', [1, 1, 1, 1, 1, 0, 0, 0, 1]), 5)).toEqual([1, 0, 0, 0, 1]);
+  });
+
+  it('selects with the 74LS151 and decodes with the 74LS138', async () => {
+    // C B A = 1 0 1 → D5；D5 = 1，其他 0，/G = 0 → Y = 1、W = 0
+    expect(await outs(wired('74LS151', [0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0]), 2)).toEqual([1, 0]);
+    // /G = 1：Y = 0
+    expect(await outs(wired('74LS151', [0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 1]), 2)).toEqual([0, 1]);
+    // A = 1、B = 1、C = 0，G1 = 1、/G2A = /G2B = 0 → 只有 /Y3 = 0
+    expect(await outs(wired('74LS138', [1, 1, 0, 1, 0, 0]), 8)).toEqual([1, 1, 1, 0, 1, 1, 1, 1]);
+  });
+
+  it('compares with the 74LS85 and gives X when an input is open', async () => {
+    // A = 5（A0 A2）、B = 3（B0 B1），IA=B = 1 → OA>B
+    expect(await outs(wired('74LS85', [1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0]), 3)).toEqual([0, 0, 1]);
+    expect(await outs(wired('74LS83', [1, 1, 0, 0, 1, 0, 0, 0, null]), 5)).toEqual(['X', 'X', 'X', 'X', 'X']);
+  });
+
+  it('checks open block pins and unused constants and blocks', async () => {
+    const { checkDiagram } = await import('../../src/logic/check');
+    const msgs = checkDiagram(wired('74LS83', [1, 1, 0, 0, 1, 0, 0, 0, null])).map((i) => i.message);
+    expect(msgs).toContain('方塊 b1（74LS83）的 C0 腳沒有接線，值不確定');
+    expect(msgs).toContain('方塊 b1（74LS83）的輸出沒有接到任何地方');
+    let d = emptyDiagram();
+    d = ok(addNode(d, 'HIGH', 0, 0));
+    expect(checkDiagram(d).map((i) => i.message)).toEqual(['5V k1 沒有接到任何地方']);
+  });
+});
+
+describe('drawing wires from block outputs', () => {
+  it('starts each wire at its own output pin with its own bus column', async () => {
+    const { busColumns, wireRoute } = await import('../../src/logic/wiring');
+    let d = wired('74LS83', [1, 1, 0, 0, 1, 0, 0, 0, 0]);
+    d = ok(addNode(d, 'OUTPUT', 20, 0)); // o1
+    d = ok(addNode(d, 'OUTPUT', 20, 6)); // o2
+    d = ok(connect(d, 'b1', { node: 'o1', pin: 0 }, 0));
+    d = ok(connect(d, 'b1', { node: 'o2', pin: 0 }, 4));
+    const cols = busColumns(d);
+    expect(cols.get('b1')).toBe(13);
+    expect(cols.get('b1.4')).toBe(14);
+    const w2 = d.wires.find((w) => w.to.node === 'o2')!;
+    expect(wireRoute(d, w2, cols)[0]).toEqual({ x: 12, y: 4 });
+  });
+});
