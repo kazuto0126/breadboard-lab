@@ -131,6 +131,16 @@ describe('settle', () => {
     expect(s.setCircuit(toggleSwitch(base, 'SW1', 0)).pinLevels['U1#3']).toBe(1);
   });
 
+  it('treats a DIP switch without a pull resistor as an ideal switch (sub-project 19)', () => {
+    // 開關上側接 +5 V、沒有下拉電阻：OFF 時 1A 當成 0（NAND 輸出 1），ON 時 1A = 1（1B 浮接 = 1，輸出 0）。
+    const base = poweredNand([comp('SW1', 'dipsw-4', 'F30')], [wire('top', 'T+30', 'A30'), wire('in', 'H30', 'H10')]);
+    const s = simulator(base);
+    const off = s.run();
+    expect(off.pinLevels['SW1#1']).toBe(0);
+    expect(off.pinLevels['U1#3']).toBe(1);
+    expect(s.setCircuit(toggleSwitch(base, 'SW1', 0)).pinLevels['U1#3']).toBe(0);
+  });
+
   it('holds the state of a NAND SR latch, unknown until first set', () => {
     // 1A = /S、1B = Q̄、1Y = Q；2A = /R、2B = Q、2Y = Q̄。/S、/R 用兩個按鈕接到 GND。
     const c = poweredNand(

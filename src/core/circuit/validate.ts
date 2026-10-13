@@ -221,7 +221,42 @@ function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void
       if (g) pushTo(pinsByGroup, g, fp.pinNumber);
     }
 
+    // 子專案 19：指撥開關一端接電源、另一端接 IC 輸入卻沒有上 / 下拉電阻（模擬時當成理想開關）。
+    if (pc.def.category === 'dip-switch') {
+      const n = pc.def.pins.length;
+      const isUnconnected = (net: Net | undefined) => !net || net.pins.length === 1;
+      const hasResistor = (net: Net) => net.pins.some((r) => index.placedById.get(r.componentId)?.def.category === 'resistor');
+      for (let k = 1; k <= n / 2; k++) {
+        const sides = [byPin.get(pinKey(refOf(pc, k))), byPin.get(pinKey(refOf(pc, n + 1 - k)))];
+        for (const [power, other] of [sides, [sides[1], sides[0]]]) {
+          if (isUnconnected(other) || !other!.pins.some((r) => role(r) === 'input') || hasResistor(other!)) continue;
+          const vcc = netHas(power, 'vcc-source');
+          if (!vcc && !netHas(power, 'gnd-source')) continue;
+          report({
+            code: 'SWITCH_NO_PULL',
+            severity: 'warning',
+            message: vcc
+              ? `⚠ ${label} 第 ${k} 個開關沒有下拉電阻：模擬時 OFF 當成 0；實際接線時 OFF 會懸空，TTL 會讀成 1`
+              : `⚠ ${label} 第 ${k} 個開關沒有上拉電阻：模擬時 OFF 當成 1；實際接線時懸空容易受雜訊影響`,
+            componentIds: [pc.instance.id],
+            points: pointsOf([refOf(pc, k), refOf(pc, n + 1 - k)]),
+            netIds: [other!.id],
+          });
+        }
+      }
+    }
+
     if (pc.def.category === 'ic') {
+      // 子專案 19：一整組閘的輸入、輸出都沒有接任何東西 = 沒用到的閘，輸入懸空不警告。
+      const unusedPins = new Set<number>();
+      if (pc.def.logic?.model === 'gates') {
+        const numberOf = (name: string) => pc.def.pins.find((p) => p.name === name)?.number;
+        for (const g of pc.def.logic.gates) {
+          const pins = [...g.in, g.out].map(numberOf).filter((x): x is number => x !== undefined);
+          const net = (p: number) => byPin.get(pinKey(refOf(pc, p)));
+          if (pins.every((p) => !net(p) || net(p)!.pins.length === 1)) pins.forEach((p) => unusedPins.add(p));
+        }
+      }
       for (const numbers of pinsByGroup.values()) {
         if (numbers.length < 2) continue;
         report({
@@ -242,7 +277,7 @@ function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void
         if (pin.role === 'ground' && !netHas(net, 'gnd-source')) {
           report({ code: 'IC_POWER_MISSING', severity: 'error', message: `${label} 第 ${pin.number} 腳 GND 未連接`, componentIds: [pc.instance.id], points: where });
         }
-        if (pin.role === 'input' && (!net || net.pins.every((r) => role(r) === 'input' || role(r) === 'nc'))) {
+        if (pin.role === 'input' && !unusedPins.has(pin.number) && (!net || net.pins.every((r) => role(r) === 'input' || role(r) === 'nc'))) {
           report({
             code: 'INPUT_FLOATING',
             severity: 'warning',

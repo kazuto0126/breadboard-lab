@@ -253,7 +253,8 @@ function ToBreadboardDialog() {
   const [switchTo, setSwitchTo] = useState<ConvertOptions['switchTo']>('vcc');
   const [board, setBoard] = useState<ConvertOptions['board']>('auto');
   const [gates, setGates] = useState<NonNullable<ConvertOptions['gates']>>('direct');
-  const preview = toBreadboard(diagram, { switchTo, board, gates });
+  const [pulls, setPulls] = useState(false);
+  const preview = toBreadboard(diagram, { switchTo, board, gates, pulls });
   const radio = (checked: boolean) => `flex cursor-pointer items-start gap-2 rounded border px-3 py-2 ${checked ? 'border-sky-500 bg-sky-950/40' : 'border-slate-700 hover:bg-slate-800'}`;
   return (
     <Modal title="轉成麵包板" onClose={() => store.closeDialog()} width="w-[520px]">
@@ -279,8 +280,8 @@ function ToBreadboardDialog() {
           <legend className="mb-1 font-semibold text-slate-100">指撥開關的接法</legend>
           {(
             [
-              ['vcc', '開關接 +5 V（撥 ON = 1）', '每個輸入加一顆 330 Ω 下拉電阻接到 GND。'],
-              ['gnd', '開關接 GND（撥 ON = 0）', '每個輸入加一顆 1 kΩ 上拉電阻接到 +5 V。'],
+              ['vcc', '開關接 +5 V（撥 ON = 1）', pulls ? '每個輸入加一顆 330 Ω 下拉電阻接到 GND。' : '撥 OFF = 0（模擬時當成理想開關）。'],
+              ['gnd', '開關接 GND（撥 ON = 0）', pulls ? '每個輸入加一顆 1 kΩ 上拉電阻接到 +5 V。' : '撥 OFF = 1（模擬時當成理想開關）。'],
             ] as const
           ).map(([id, label, hint]) => (
             <label key={id} className={radio(switchTo === id)}>
@@ -291,6 +292,13 @@ function ToBreadboardDialog() {
               </span>
             </label>
           ))}
+          <label className="flex cursor-pointer items-start gap-2 px-1 pt-1">
+            <input type="checkbox" className="mt-1" checked={pulls} onChange={(e) => setPulls(e.target.checked)} />
+            <span>
+              <span className="block text-slate-100">加上 / 下拉電阻（實際接線建議勾）</span>
+              <span className="block text-xs text-slate-400">不勾時板面比較乾淨，但實際的 TTL 輸入在開關 OFF 時會懸空；檢查會提出警告。</span>
+            </span>
+          </label>
         </fieldset>
         <fieldset>
           <legend className="mb-1 font-semibold text-slate-100">麵包板</legend>
@@ -330,7 +338,7 @@ function ToBreadboardDialog() {
         <button type="button" className={`${button} bg-slate-700 hover:bg-slate-600`} onClick={() => store.closeDialog()}>
           取消
         </button>
-        <button type="button" disabled={!preview.ok} className={`${button} bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50`} onClick={() => store.convertLogic({ switchTo, board, gates })}>
+        <button type="button" disabled={!preview.ok} className={`${button} bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50`} onClick={() => store.convertLogic({ switchTo, board, gates, pulls })}>
           轉換
         </button>
       </div>
