@@ -5,7 +5,8 @@ import { formatResistance, LED_COLOR_NAMES, librarySections, searchLibrary, type
 import { WIRE_COLORS } from '../../editor/manualWire';
 import { LED_FILL, PART, resistorBands } from '../../render/theme';
 import { useStore } from '../../state/store';
-import type { LedColor } from '../../types/component';
+import type { LedColor } from '../../types/component';import { NoteCard } from './NoteCard';
+
 
 /** 元件庫項目的小圖示。 */
 export function PartIcon({ item }: { item: LibraryItem }) {
@@ -329,6 +330,7 @@ export function ComponentLibrary() {
       </div>
       <div className="bbl-scroll min-h-0 flex-1 overflow-y-auto py-2">
         {!searching && <BoardCard />}
+        {!searching && <NoteCard />}
         {sections.length === 0 && <p className="px-3 text-sm text-slate-400">找不到符合的元件。</p>}
         {sections.map((section) => {
           const open = searching || !collapsed[section.id];

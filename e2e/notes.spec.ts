@@ -61,3 +61,36 @@ test('新增後沒打字就結束：不留下空便條', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-note]')).toHaveCount(0);
 });
+
+test('從元件庫把便條拖到麵包板上；寬度跟著文字變', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  const card = page.locator('[data-library-item="note"]');
+  const from = (await card.boundingBox())!;
+  const board = (await page.locator('#bbl-board-svg').boundingBox())!;
+  const drop = { x: board.x + board.width / 2, y: board.y + board.height / 2 };
+  await page.mouse.move(from.x + 20, from.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(drop.x, drop.y, { steps: 12 });
+  await expect(page.getByTestId('note-ghost')).toBeVisible();
+  await page.mouse.up();
+
+  const editor = page.getByLabel('便條內容');
+  await expect(editor).toBeFocused();
+  await editor.fill('短');
+  await page.keyboard.press('Control+Enter');
+  const note = page.locator('[data-note="n1"]');
+  const box = (await note.boundingBox())!;
+  // 放在游標附近（左上角離放開的點不到 2 格）。
+  expect(Math.abs(box.x - drop.x)).toBeLessThan(40);
+  expect(Math.abs(box.y - drop.y)).toBeLessThan(40);
+  const narrow = box.width;
+
+  await note.dblclick();
+  await page.getByLabel('便條內容').fill('這是一段比較長的說明文字，會讓便條變寬，超過最寬的寬度就換行繼續寫下去');
+  await page.keyboard.press('Control+Enter');
+  const wide = (await note.boundingBox())!;
+  expect(wide.width).toBeGreaterThan(narrow * 2);
+  expect(wide.height).toBeGreaterThan(box.height); // 超過最寬就換行
+});

@@ -21,6 +21,8 @@ export interface ConvertOptions {
   board: 'auto' | LayoutId;
   /** 照種類對應（預設）或只用 NAND（74LS00）。 */
   gates?: 'direct' | 'nand';
+  /** 子專案 19：輸入要不要接上 / 下拉電阻（預設不接，開關直接接 IC 輸入；模擬時當成理想開關）。 */
+  pulls?: boolean;
 }
 
 export interface Bom {
@@ -159,8 +161,10 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     }
     gateSlots(plan.defId).forEach((slot, i) => {
       const unit = plan.slots[i];
-      slot.inputs.forEach((pin, j) => tie(`${plan.id}#${pin}`, unit ? unit.inputs[j] : GND));
-      if (unit) tie(`${plan.id}#${slot.output}`, unit.output);
+      // 子專案 19：沒用到的閘不接線（輸入懸空，整組沒用到時檢查不會警告）。
+      if (!unit) return;
+      slot.inputs.forEach((pin, j) => tie(`${plan.id}#${pin}`, unit.inputs[j]));
+      tie(`${plan.id}#${slot.output}`, unit.output);
     });
   }
 
@@ -191,7 +195,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
 
   const twoLeads: TwoLead[] = [];
   let r = 0;
-  inputs.forEach((node) => {
+  if (options.pulls) inputs.forEach((node) => {
     const vcc = options.switchTo === 'vcc';
     twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: vcc ? 330 : 1000 }, span: RESISTOR_SPAN, nets: [node.id, vcc ? GND : VCC], area: 1, group: 'in' });
   });

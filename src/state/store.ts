@@ -188,6 +188,8 @@ export interface AppActions {
   setLabel(id: string, index: number, text: string): void;
   /** 在目前畫面中間新增便條，選取並開始編輯。 */
   addNoteAtCenter(): void;
+  /** 子專案 20：在世界座標（mm，左上角）新增便條，選取並開始編輯（從元件庫拖曳放下）。 */
+  addNoteAt(x: number, y: number): void;
   startNoteEdit(id: string): void;
   /** 結束編輯並寫回文字；空白時刪掉這張便條。 */
   finishNoteEdit(text: string): void;
@@ -712,7 +714,11 @@ export const useStore = create<Store>()((set, get) => {
     addNoteAtCenter() {
       const s = get();
       const center = screenToWorld(s.viewport, s.canvasSize.width / 2, s.canvasSize.height / 2);
-      const { circuit, id } = addNote(s.circuit, center.x / MM_TO_PX - NOTE_WIDTH_MM / 2, center.y / MM_TO_PX - 2.54);
+      get().addNoteAt(center.x / MM_TO_PX - NOTE_WIDTH_MM / 2, center.y / MM_TO_PX - 2.54);
+    },
+
+    addNoteAt(x, y) {
+      const { circuit, id } = addNote(get().circuit, x, y);
       commit(`新增便條 ${id}`, circuit, { selection: { kind: 'note', id }, editingNote: id });
     },
 
