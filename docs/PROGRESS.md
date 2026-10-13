@@ -5,7 +5,7 @@
 
 ## 目前狀態
 
-- `main`：子專案 1–13 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式、新元件與 IC 腳位圖、EIC-1106 大型麵包板、AI 回答的孔位連結與導線解說、邏輯圖編輯器、邏輯圖轉成麵包板、只用 NAND 轉換與板上名稱）；
+- `main`：子專案 1–14 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式、新元件與 IC 腳位圖、EIC-1106 大型麵包板、AI 回答的孔位連結與導線解說、邏輯圖編輯器、邏輯圖轉成麵包板、只用 NAND 轉換與板上名稱）；
   接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#21 已合併（最後一批 2026-10-13）。GitHub Actions CI 已設定。
 - 測試：main 上 580 個單元測試、35 個端對端測試。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
