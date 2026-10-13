@@ -82,4 +82,4 @@ export function routingSummaryText(s: RoutingSummary): string[];
 
 ## 6. 之後
 
-- 老師提供金鑰（清單上剩下的一項）。
+- 老師提供金鑰：使用者 2026-10-13 決定不做。
