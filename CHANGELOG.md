@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## [未發布] — 子專案 14：只用 NAND 轉換、板上標出名稱
+## 2026-10-13 — 子專案 14：只用 NAND 轉換、板上標出名稱（PR #21，已發布到線上版）
 
 ### 新增
 
