@@ -46,11 +46,11 @@ describe('toBreadboard', () => {
     const pull = switchTo === 'vcc' ? 330 : 1000;
     expect(parts).toEqual([
       ['SW1', 'dipsw-4', null],
-      ['U1', '74LS08', null],
-      ['U2', '74LS32', null],
       ['R1', 'resistor', pull],
       ['R2', 'resistor', pull],
       ['R3', 'resistor', pull],
+      ['U1', '74LS08', null],
+      ['U2', '74LS32', null],
       ['R4', 'resistor', 220],
       ['D1', 'led', null],
       ['V1', 'vcc', null],

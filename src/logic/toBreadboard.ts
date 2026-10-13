@@ -47,6 +47,8 @@ const GND = 'GND';
 const BOARD_ID = 'b1';
 const RESISTOR_SPAN = 3;
 const LAST_COLUMN = 63;
+/** 元件之間最多空幾欄。 */
+const MAX_GAP = 6;
 
 /** 一個預定的連接點：元件的某隻腳，或接線柱的孔。 */
 type Terminal = { pin: string } | { point: GridPoint };
@@ -96,25 +98,22 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const extra = new Map<string, GridPoint[]>(); // 接線柱等非元件腳的終端
 
   // ---- 放置：開關、IC 跨凹槽排一列；兩腳元件兩個一組放在 A 列與 J 列 ----
-  const cursor: Record<number, number> = { 1: 2, 2: 2, 3: 2 };
-  const take = (area: number, width: number) => {
-    const x = cursor[area];
-    if (x + width - 1 > LAST_COLUMN) throw new NoRoom();
-    cursor[area] = x + width;
-    return x;
-  };
+  // 先列出每一區要放的東西（寬度與放置方式），再把剩下的欄平均分成間隔（最多 6 欄），留空間給 AI 佈線拉線。
+  const blocks: Record<number, Array<{ width: number; place: (x: number) => void }>> = { 1: [], 2: [], 3: [] };
   const icArea = eic ? 2 : 1;
+  const icBlocks: Array<{ width: number; place: (x: number) => void }> = [];
 
-  const swX = take(1, swPins / 2 + 2);
-  components.push(comp('SW1', swDef, hole(`F${swX}`, 1), { board: BOARD_ID, props: { switchStates: Array(swPins / 2).fill(false) } }));
+  blocks[1].push({
+    width: swPins / 2,
+    place: (x) => components.push(comp('SW1', swDef, hole(`F${x}`, 1), { board: BOARD_ID, props: { switchStates: Array(swPins / 2).fill(false) } })),
+  });
   inputs.forEach((node, k) => {
     tie(`SW1#${k + 1}`, node.id);
     tie(`SW1#${swPins - k}`, options.switchTo === 'vcc' ? VCC : GND);
   });
 
   for (const plan of plans) {
-    const x = take(icArea, 9);
-    components.push(comp(plan.id, plan.defId, hole(`F${x}`, icArea), { board: BOARD_ID }));
+    icBlocks.push({ width: 7, place: (x) => components.push(comp(plan.id, plan.defId, hole(`F${x}`, icArea), { board: BOARD_ID })) });
     const def = getComponentDefinition(plan.defId)!;
     for (const p of def.pins) {
       if (p.role === 'power') tie(`${plan.id}#${p.number}`, VCC);
@@ -141,19 +140,42 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     twoLeads.push({ id: `D${k + 1}`, defId: 'led', props: { color: 'red' }, span: 1, nets: [mid, GND], area: 3 });
     leds[node.id] = `D${k + 1}`;
   });
+  for (const t of twoLeads) {
+    tie(`${t.id}#1`, t.nets[0]);
+    tie(`${t.id}#2`, t.nets[1]);
+  }
   // 兩個一組：第一個放 A 列、第二個放 J 列（同一段欄），各自用不同的導通群組。
-  const byArea = (area: 1 | 3) => twoLeads.filter((t) => (eic ? t.area === area : true));
-  for (const area of eic ? ([1, 3] as const) : ([1] as const)) {
-    const list = byArea(area);
+  // 輸入的電阻、輸出的電阻與 LED 各自兩個一組（不混在一起）；MB-102 時都算第 1 區。
+  for (const area of [1, 3] as const) {
+    const list = twoLeads.filter((t) => t.area === area);
     for (let i = 0; i < list.length; i += 2) {
       const pair = list.slice(i, i + 2);
-      const width = Math.max(...pair.map((t) => t.span)) + 2;
-      const x = take(eic ? area : 1, width);
-      pair.forEach((t, j) => {
-        components.push(comp(t.id, t.defId, hole(`${j === 0 ? 'A' : 'J'}${x}`, eic ? area : undefined), { board: BOARD_ID, props: t.props as never, ...(t.defId === 'resistor' ? { span: t.span } : {}) }));
-        tie(`${t.id}#1`, t.nets[0]);
-        tie(`${t.id}#2`, t.nets[1]);
+      blocks[eic ? area : area === 1 ? 1 : 3].push({
+        width: Math.max(...pair.map((t) => t.span)) + 1,
+        place: (x) =>
+          pair.forEach((t, j) =>
+            components.push(comp(t.id, t.defId, hole(`${j === 0 ? 'A' : 'J'}${x}`, eic ? area : undefined), { board: BOARD_ID, props: t.props as never, ...(t.defId === 'resistor' ? { span: t.span } : {}) })),
+          ),
       });
+    }
+  }
+  // 順序：開關、輸入的電阻（靠近開關）、IC、輸出的電阻與 LED。MB-102 時全部排在同一列。
+  if (eic) blocks[2].push(...icBlocks);
+  else {
+    blocks[1] = [...blocks[1], ...icBlocks, ...blocks[3]];
+    blocks[3] = [];
+  }
+  for (const area of [1, 2, 3]) {
+    const list = blocks[area];
+    if (list.length === 0) continue;
+    const used = list.reduce((sum, b) => sum + b.width, 0);
+    const free = LAST_COLUMN - 1 - used; // 第 2–63 欄
+    if (free < list.length + 1) throw new NoRoom();
+    const gap = Math.min(MAX_GAP, Math.floor(free / (list.length + 1)));
+    let x = 2 + gap;
+    for (const b of list) {
+      b.place(x);
+      x += b.width + gap;
     }
   }
 
