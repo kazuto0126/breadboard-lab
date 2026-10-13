@@ -9,7 +9,7 @@
   接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#26 已合併（最後一批 2026-10-13）。GitHub Actions CI 已設定。
 - 測試：main 上 604 個單元測試、39 個端對端測試。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
-  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-13（PR #24 合併後，含子專案 6–16；子專案 17 還沒發布）。
+  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-13（PR #26 合併後，含子專案 6–17）。
 
 ## 進行中
 
