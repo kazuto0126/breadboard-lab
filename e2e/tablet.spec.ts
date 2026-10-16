@@ -153,6 +153,11 @@ test('平板：在元件上下滑動可以捲動元件庫，往旁邊拖到麵�
 
   // 往旁邊拖：抽屜收起，放到麵包板上。
   await page.getByRole('button', { name: '元件庫', exact: true }).tap();
+  // 紅色 LED 在清單下方：先捲到看得到（和使用者一樣），否則手指會落在抽屜外面。
+  // 上面那次滑動的慣性捲多遠不一定，沒有這一步時這個測試時好時壞。
+  const ledTile = library.locator('[data-library-item="led-red"]');
+  await ledTile.scrollIntoViewIfNeeded();
+  await expect.poll(() => ledTile.evaluate((el) => document.elementFromPoint(el.getBoundingClientRect().x + 8, el.getBoundingClientRect().y + 8)?.closest('[data-library-item]') === el)).toBe(true);
   const from = await center(page, '[data-library-item="led-red"]');
   const a = await center(page, '[data-hole="G55"]');
   const b = await center(page, '[data-hole="G56"]');
