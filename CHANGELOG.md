@@ -3,6 +3,14 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 文件：未開發的構想
+
+### 文件
+
+- 新增 `docs/ideas/2026-10-16-mcp-interface.md`：給 AI 工具用的接口（MCP 伺服器與指令列工具）的評估、做法比較與第一版工具草案，狀態為未開發。
+- 新增 `docs/ideas/backlog.md`：從各規格的「之後 / 不做」與實作時記下的小問題整理出的未開發項目清單。
+- README 路線圖多一段「未開發的構想」；`docs/PROGRESS.md`「接下來」與 `CLAUDE.md` 加上 `docs/ideas/` 的說明。
+
 ## 2026-10-14 — 子專案 21：邏輯圖的 5V / 接地與 IC 方塊（PR #31，已發布到線上版）
 
 ### 新增
