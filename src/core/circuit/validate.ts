@@ -304,13 +304,23 @@ function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void
         });
       }
     }
+    const lonely = (pinNumber: number) => {
+      const net = byPin.get(pinKey(refOf(pc, pinNumber)));
+      return !net || net.pins.length === 1;
+    };
+    // 指撥開關沒用到的那幾個開關（兩隻腳都沒接）是正常的；只接了一隻腳的照樣警告。
+    const unusedSwitchPins = new Set<number>();
+    if (pc.def.category === 'dip-switch') {
+      const n = pc.def.pins.length;
+      for (let k = 1; k <= n / 2; k++) if (lonely(k) && lonely(n + 1 - k)) unusedSwitchPins.add(k).add(n + 1 - k);
+    }
     for (const pin of pc.def.pins) {
       if (pin.role !== 'passive' && pin.role !== 'anode' && pin.role !== 'cathode') continue;
       // 7 段顯示器沒用到的段（例如 dp）是正常的。
       if (pc.def.category === 'seven-seg' && pin.role === 'cathode') continue;
+      if (unusedSwitchPins.has(pin.number)) continue;
       const ref = refOf(pc, pin.number);
-      const net = byPin.get(pinKey(ref));
-      if (!net || net.pins.length === 1) {
+      if (lonely(pin.number)) {
         report({ code: 'PIN_UNCONNECTED', severity: 'warning', message: `⚠ ${label} 第 ${pin.number} 腳未連接`, componentIds: [pc.instance.id], points: pointsOf([ref]) });
       }
     }
