@@ -34,7 +34,7 @@ import {
 import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
 import { LOGIC_EXAMPLES } from '../logic/examples';
 import { toBreadboard, type ConvertOptions } from '../logic/toBreadboard';
-import type { VerifyMap } from '../logic/verifyBreadboard';
+import { withSwitches, type SwitchBinding } from '../logic/verifyBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../logic/types';
 import { logicDirty, useLogic } from './logic';
 import { boardFrames, gridBounds, MM_TO_PX, worldBounds } from '../editor/geometry';
@@ -131,8 +131,6 @@ export interface AppState {
   view: 'edit' | 'compare';
   /** 規格（2026-10-11 logic-diagram）第 5 節：「邏輯圖｜麵包板」切換；和 view（edit / compare）無關。 */
   workspace: 'breadboard' | 'logic';
-  /** 規格（2026-10-13 logic-to-breadboard）第 7 節：最近一次從邏輯圖轉換的設定；檢查分頁用它即時比對真值表。開別的電路時清掉。 */
-  conversion: (VerifyMap & { switchTo: ConvertOptions['switchTo'] }) | null;
   compareLayout: 'side' | 'stacked';
   showCheck: boolean;
   routing: { startedAt: number; purpose: 'apply' | 'compare'; moveIcs: boolean } | null;
@@ -235,6 +233,8 @@ export interface AppActions {
   loadExampleLogic(id: string): void;
   /** 規格第 2 節：邏輯圖轉成麵包板（取代目前的電路，一個 Undo 步驟），接著執行 AI 佈線（可移動 IC）。 */
   convertLogic(options: ConvertOptions): void;
+  /** 子專案 22：把對應到的開關撥成真值表的某一列（一個復原步驟），並開始模擬。 */
+  applyDiagramRow(inputs: SwitchBinding[], bits: Array<0 | 1>): void;
   saveProject(name?: string): void;
   openProject(name: string): void;
   deleteProject(name: string): void;
@@ -425,7 +425,6 @@ export function initialState(): AppState {
     placing: null,
     view: 'edit',
     workspace: readWorkspace(),
-    conversion: null,
     compareLayout: 'stacked',
     showCheck: false,
     routing: null,
@@ -1015,7 +1014,6 @@ export const useStore = create<Store>()((set, get) => {
         dialog: null,
       });
       useLogic.getState().load(logic ?? emptyDiagram());
-      set({ conversion: null });
       syncSimTimer();
       get().fitToScreen();
       if (message) get().toast('success', message);
@@ -1036,11 +1034,8 @@ export const useStore = create<Store>()((set, get) => {
         return;
       }
       commit('邏輯圖轉成麵包板', result.circuit, { selection: null });
-      set({
-        workspace: 'breadboard',
-        dialog: null,
-        conversion: { switchTo: options.switchTo, switchId: result.switchId, inputs: result.inputs, leds: result.leds, displays: result.displays },
-      });
+      // 轉換時開關、LED、顯示器已經依邏輯圖填好名稱；「檢查」分頁依名稱比對（子專案 22）。
+      set({ workspace: 'breadboard', dialog: null });
       writeWorkspace('breadboard');
       get().fitToScreen();
       get().runAutoRoute('apply', { moveIcs: true });
@@ -1057,6 +1052,15 @@ export const useStore = create<Store>()((set, get) => {
           get().convertLogic({ ...options, board: 'EIC1106' });
         });
       }
+    },
+
+    applyDiagramRow(inputs, bits) {
+      const s = get();
+      const nodes = useLogic.getState().diagram.nodes;
+      const text = inputs.map((b, k) => `${nodes.find((n) => n.id === b.node)?.name ?? b.node} = ${bits[k]}`).join('、');
+      // 撥開關不是結構編輯：模擬中也可以撥（和在板上點開關一樣）。
+      commit(`把開關撥成 ${text}`, withSwitches(s.circuit, inputs, bits));
+      if (!get().simulation && !get().routing) get().startSimulation();
     },
 
     loadExampleLogic(id) {

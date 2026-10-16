@@ -3,6 +3,7 @@ import { bcdDiagram, majorityDiagram } from '../../src/logic/examples';
 import { initialLogicState, useLogic } from '../../src/state/logic';
 import { initialState, useStore } from '../../src/state/store';
 import { circuit, comp } from '../fixtures/build';
+import { handWired } from '../fixtures/handWired';
 
 const S = () => useStore.getState();
 
@@ -22,7 +23,11 @@ describe('convertLogic', () => {
     expect(S().circuit.components.map((c) => c.id)).toEqual(expect.arrayContaining(['SW1', 'U1', 'U2', 'D1']));
     expect(S().workspace).toBe('breadboard');
     expect(S().dialog).toBeNull();
-    expect(S().conversion).toMatchObject({ switchTo: 'vcc', switchId: 'SW1', inputs: ['i1', 'i2', 'i3'], leds: { o1: 'D1' } });
+    // 子專案 22：比對改成依名稱，轉換只要把名稱填好（不再記住對應）。
+    const part = (id: string) => S().circuit.components.find((c) => c.id === id)!;
+    expect(part('SW1').props.labels).toEqual(['A', 'B', 'C', '']);
+    expect(part('D1').props.labels).toEqual(['X']);
+    expect('conversion' in S()).toBe(false);
     expect(S().routing).toMatchObject({ purpose: 'apply', moveIcs: true });
 
     S().cancelRouting();
@@ -31,10 +36,10 @@ describe('convertLogic', () => {
     expect(S().circuit).toBe(before);
   });
 
-  it('remembers which display shows which node', async () => {
+  it('names the display after the diagram', async () => {
     useLogic.getState().load(bcdDiagram());
     S().convertLogic({ switchTo: 'gnd', board: 'auto' });
-    expect(S().conversion).toMatchObject({ switchTo: 'gnd', leds: {}, displays: { d1: 'DS1' } });
+    expect(S().circuit.components.find((c) => c.id === 'DS1')!.props.labels).toEqual(['S1']);
     S().cancelRouting();
     await vi.waitFor(() => expect(S().routing).toBeNull(), { timeout: 30_000 });
   });
@@ -44,16 +49,25 @@ describe('convertLogic', () => {
     S().convertLogic({ switchTo: 'vcc', board: 'auto' });
     expect(S().circuit).toBe(before);
     expect(S().toasts.at(-1)?.message).toBe('邏輯圖要有輸入端和輸出端才能轉');
-    expect(S().conversion).toBeNull();
   });
 
-  it('forgets the conversion when another circuit is loaded', async () => {
-    useLogic.getState().load(majorityDiagram());
-    S().convertLogic({ switchTo: 'gnd', board: 'auto' });
-    S().cancelRouting();
-    await vi.waitFor(() => expect(S().routing).toBeNull(), { timeout: 30_000 });
-    expect(S().conversion).not.toBeNull();
-    S().newCircuit();
-    expect(S().conversion).toBeNull();
+});
+
+describe('checking against the diagram (sub-project 22)', () => {
+  it('sets the switches to a row in one undo step and starts the simulation', () => {
+    S().loadCircuit(handWired({ chip: '74LS86', labels: { sw1: ['A'], sw2: ['', '', 'B'], led: ['X'] } }), 'x');
+    const before = S().circuit;
+    const inputs = [
+      { node: 'i1', switchId: 'SW1', index: 0, onIs: 1 as const },
+      { node: 'i2', switchId: 'SW2', index: 2, onIs: 0 as const },
+    ];
+    S().applyDiagramRow(inputs, [1, 1]);
+    const states = (id: string) => S().circuit.components.find((c) => c.id === id)!.props.switchStates;
+    expect(states('SW1')).toEqual([true, true, false, false]); // A = 1、ON = 1 → ON；第 2 個（致能）不動
+    expect(states('SW2')).toEqual([false, false, false, false]); // B = 1、ON = 0 → OFF
+    expect(S().simulation).not.toBeNull();
+    S().stopSimulation();
+    S().undo();
+    expect(S().circuit).toBe(before);
   });
 });
