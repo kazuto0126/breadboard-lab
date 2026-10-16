@@ -18,7 +18,7 @@ test('圖 2-5 轉成麵包板：產生 IC、開關、LED，佈線後真值表全
   // 等 AI 佈線（可移動 IC）結束。
   await expect(page.getByTestId('status')).not.toContainText('Routing', { timeout: 60_000 });
   await page.getByRole('tab', { name: /檢查/ }).click();
-  await expect(page.getByTestId('conversion-check')).toContainText('8 種輸入組合，麵包板的模擬結果和真值表全部一致', { timeout: 60_000 });
+  await expect(page.getByTestId('diagram-check')).toContainText('8 種輸入組合，麵包板的模擬結果和真值表全部一致', { timeout: 60_000 });
 
   await page.getByRole('button', { name: '▶ 模擬', exact: true }).click();
   await expect(page.getByTestId('simulation-bar')).toContainText('模擬中');
@@ -44,7 +44,7 @@ test('只用 NAND 轉換：只有 74LS00、比對一致、板上標出 A、B、C
 
   // MB-102 排不完時會自動改用 EIC-1106 再轉一次；等到比對卡出現且佈線結束。
   await page.getByRole('tab', { name: /檢查/ }).click();
-  await expect(page.getByTestId('conversion-check')).toContainText('全部一致', { timeout: 120_000 });
+  await expect(page.getByTestId('diagram-check')).toContainText('全部一致', { timeout: 120_000 });
   await expect(page.getByTestId('status')).not.toContainText('Routing', { timeout: 120_000 });
   const ics = await page.locator('g[data-component-id^="U"]').evaluateAll((els) => els.map((e) => e.getAttribute('data-component-id')));
   expect(ics.length).toBeGreaterThan(0);

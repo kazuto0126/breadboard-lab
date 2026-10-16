@@ -64,10 +64,10 @@ test('範例「BCD 顯示」轉成麵包板：74LS47 與 7 段顯示器，比對
   await dialog.getByRole('button', { name: '轉換' }).click();
 
   await page.getByRole('tab', { name: /檢查/ }).click();
-  await expect(page.getByTestId('conversion-check')).toContainText('16 種輸入組合', { timeout: 120_000 });
-  await expect(page.getByTestId('conversion-check')).toContainText('全部一致');
+  await expect(page.getByTestId('diagram-check')).toContainText('16 種輸入組合', { timeout: 120_000 });
+  await expect(page.getByTestId('diagram-check')).toContainText('全部一致');
   await expect(page.getByTestId('status')).not.toContainText('Routing', { timeout: 120_000 });
-  await expect(page.getByTestId('conversion-check')).toContainText('全部一致');
+  await expect(page.getByTestId('diagram-check')).toContainText('全部一致');
   await expect(page.locator('g[data-component-id="DS1"]')).toBeVisible();
   await expect(page.locator('[data-label="S1"]')).toHaveCount(1);
 });
