@@ -228,6 +228,24 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   for (const group of [...new Set(twoLeads.map((t) => t.group))]) {
     const list = twoLeads.filter((t) => t.group === group);
     const area = list[0].area;
+    if (group === 'led') {
+      // 輸出的電阻緊鄰 LED：電阻在 A 列 x～x+3，LED 在 B 列、陽極在 x+3（和電阻的另一腳同一排，不用接線）、陰極在 x+4。
+      // 兩組一塊：第二組放在下半部（電阻 J 列、LED I 列）。
+      for (let i = 0; i < list.length; i += 4) {
+        const units = [list.slice(i, i + 2), list.slice(i + 2, i + 4)].filter((u) => u.length === 2);
+        blocks[eic ? area : 3].push({
+          width: RESISTOR_SPAN + 2,
+          place: (x) =>
+            units.forEach(([res, led], j) => {
+              const [rRow, dRow] = j === 0 ? ['A', 'B'] : ['J', 'I'];
+              const at = (row: string, col: number) => hole(`${row}${col}`, eic ? area : undefined);
+              components.push(comp(res.id, res.defId, at(rRow, x), { board: BOARD_ID, props: res.props as never, span: res.span }));
+              components.push(comp(led.id, led.defId, at(dRow, x + res.span), { board: BOARD_ID, props: led.props as never }));
+            }),
+        });
+      }
+      continue;
+    }
     // 兩個一組：第一個放 A 列、第二個放 J 列（同一段欄），各自用不同的導通群組。
     const size = 2;
     for (let i = 0; i < list.length; i += size) {

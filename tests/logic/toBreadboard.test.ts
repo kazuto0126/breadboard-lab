@@ -106,3 +106,28 @@ describe('cleaner conversions (sub-project 19)', () => {
     expect(verifyBreadboard(majorityDiagram(), r.circuit, switchTo, r).mismatches).toEqual([]);
   });
 });
+
+describe('LEDs next to their resistors', () => {
+  it('puts each LED anode in the same column group as its resistor, so they need no wire', async () => {
+    const { resolveFootprint } = await import('../../src/core/circuit/footprint');
+    const { getComponentDefinition } = await import('../../src/core/circuit/library');
+    const { groupIdAt } = await import('../../src/editor/analysis');
+    // 兩個輸出：一個在上半（A、B 列），一個在下半（J、I 列）。
+    let d = majorityDiagram();
+    d = must(addNode(d, 'OUTPUT', 30, 14));
+    d = must(connect(d, 'g1', { node: 'o2', pin: 0 }));
+    const r = ok(toBreadboard(d, { switchTo: 'vcc', board: 'auto' }));
+    const pinAt = (id: string, n: number) => {
+      const c = r.circuit.components.find((x) => x.id === id)!;
+      return resolveFootprint(c, getComponentDefinition(c.defId)!).pins.find((p) => p.pinNumber === n)!.point;
+    };
+    for (const [res, led] of [['R1', 'D1'], ['R2', 'D2']]) {
+      expect(groupIdAt(r.circuit, pinAt(res, 2))).toBe(groupIdAt(r.circuit, pinAt(led, 1)));
+      const touching = r.circuit.wires.filter((w) => [w.start, w.end].some((p) => groupIdAt(r.circuit, p) === groupIdAt(r.circuit, pinAt(led, 1))));
+      expect(touching).toEqual([]);
+    }
+    expect(wiredAsPlanned(r)).toEqual({ merged: [], split: [] });
+    const { verifyBreadboard } = await import('../../src/logic/verifyBreadboard');
+    expect(verifyBreadboard(d, r.circuit, 'vcc', r).mismatches).toEqual([]);
+  });
+});
