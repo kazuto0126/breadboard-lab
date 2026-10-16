@@ -5,6 +5,7 @@ Breadboard Lab：在網頁上的 MB-102 麵包板放 74LS IC、電阻、LED 並�
 
 - 需求：`digitaldesigned.md`（用章節號引用，例如「38.19」）
 - 設計規格：`docs/superpowers/specs/`（每個子專案一份；新功能先寫規格再實作）
+- 未開發的構想：`docs/ideas/`（評估過、還沒決定要做的方向）
 - 變更紀錄：`CHANGELOG.md`；功能表與路線圖：`README.md`
 
 ## 指令
