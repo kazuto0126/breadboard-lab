@@ -89,7 +89,8 @@ test('設定金鑰後按建議問題、接著打字追問；追問時帶著前�
   expect(await page.evaluate((k) => [sessionStorage.getItem(k), localStorage.getItem(k)], KEY)).toEqual(['test-key-123', null]);
 
   await ask.getByRole('button', { name: '為什麼會這樣？' }).click();
-  await expect(ask.locator('[data-ai-message="model"]')).toHaveText('Gemini：因為 VCC 腳沒有接到 +5 V。');
+  // 第一次發問時才載入 Gemini 套件（開發伺服器、整套測試同時跑時可能超過 5 秒），第一個回答多等一點。
+  await expect(ask.locator('[data-ai-message="model"]')).toHaveText('Gemini：因為 VCC 腳沒有接到 +5 V。', { timeout: 15_000 });
   expect(sent[0].url).toContain('models/gemini-3.5-flash:streamGenerateContent');
   expect(sent[0].key).toBe('test-key-123');
   expect(turns(sent[0])).toHaveLength(1);
@@ -124,7 +125,8 @@ test('記住金鑰、金鑰錯誤時顯示原因，可以從選單重新設定�
 
   const ask = await openVccIssue(page);
   await ask.getByRole('button', { name: '有沒有別的改法？' }).click();
-  await expect(ask.getByTestId('ai-error')).toContainText('金鑰不正確或沒有權限，請重新設定。');
+  // 第一次發問時才載入 Gemini 套件（開發伺服器、整套測試同時跑時可能超過 5 秒），第一個回答多等一點。
+  await expect(ask.getByTestId('ai-error')).toContainText('金鑰不正確或沒有權限，請重新設定。', { timeout: 15_000 });
   await ask.getByRole('button', { name: '重新設定金鑰' }).click();
   await expect(dialog.getByTestId('ai-key-status')).toHaveText('已設定，記在這台電腦。');
   await dialog.getByRole('button', { name: '清除金鑰' }).click();
@@ -140,7 +142,8 @@ test('回答裡的孔位與腳位可以點，點了在板上閃一下，對話�
   const ask = await openVccIssue(page);
   await ask.getByRole('button', { name: '為什麼會這樣？' }).click();
   const answer = ask.locator('[data-ai-message="model"]');
-  await expect(answer.locator('[data-ai-link]')).toHaveText(['A10', 'T+10', 'U1 第 14 腳']);
+  // 第一次發問時才載入 Gemini 套件（開發伺服器、整套測試同時跑時可能超過 5 秒），第一個回答多等一點。
+  await expect(answer.locator('[data-ai-link]')).toHaveText(['A10', 'T+10', 'U1 第 14 腳'], { timeout: 15_000 });
   await answer.locator('[data-ai-link]').first().click();
   await expect(page.getByTestId('flash-ring')).toHaveCount(1);
   await expect(ask.locator('[data-ai-message="model"]')).toHaveCount(1);
