@@ -115,3 +115,111 @@ describe('editing', () => {
     expect(failed(remove(f, { id: 'R1' }))).toBe('沒有元件或導線 R1');
   });
 });
+
+describe('routing and simulation', () => {
+  const lab = (c: LabFile['circuit'], logic = emptyDiagram()): LabFile => ({ name: 'x', circuit: c, logic });
+
+  it('routes and describes the result; apply false leaves the file alone', async () => {
+    const { acceptanceCircuit } = await import('../fixtures/circuits');
+    const { autoRoute } = await import('../../src/mcp/tools');
+    const r = autoRoute(lab(acceptanceCircuit()), {});
+    expect(r.text).toMatch(/^佈線成功：\d+ 條線/);
+    expect(okFile(r).circuit.wires.every((w) => w.source === 'auto')).toBe(true);
+    const preview = autoRoute(lab(acceptanceCircuit()), { apply: false });
+    expect(preview.file).toBeUndefined();
+    expect(preview.error).toBeUndefined();
+    expect(preview.text).toContain('沒有寫回檔案');
+    expect(autoRoute(lab(acceptanceCircuit()), { move_ics: true }).text).toMatch(/^佈線成功/);
+  });
+
+  it('simulates with switch settings that are not saved', async () => {
+    const { simulate } = await import('../../src/mcp/tools');
+    const { handWired } = await import('../fixtures/handWired');
+    const f = lab(handWired({ chip: '74LS86' }));
+    // A = 1、B = 0 → XOR = 1；SW1 第 2 個開關是 LED 的致能（ON）。
+    const on = simulate(f, { switches: { SW1: [true, true, false, false], SW2: [false, false, false, false] } });
+    expect(on.file).toBeUndefined();
+    expect(on.text).toContain('亮的 LED：D1');
+    const off = simulate(f, { switches: { SW1: [true, true, false, false], SW2: [false, false, true, false] } });
+    expect(off.text).toContain('沒有 LED 亮（D1 不亮）');
+    expect(failed(simulate(f, { switches: { SW9: [true] } }))).toBe('沒有指撥開關 SW9');
+    expect(failed(simulate(f, { switches: { SW1: [true] } }))).toBe('SW1 有 4 個開關，要給 4 個');
+  });
+
+  it('reports ICs without power and reads 7-segment displays', async () => {
+    const { simulate } = await import('../../src/mcp/tools');
+    let f = okFile(placePart(newLabFile('x', 'MB102'), { part: '74LS00', hole: 'F10' }));
+    f = okFile(placePart(f, { part: 'vcc', hole: 'T+3' }));
+    expect(simulate(f, {}).text).toContain('沒有供電：U1');
+    const { toBreadboard } = await import('../../src/logic/toBreadboard');
+    const { bcdDiagram } = await import('../../src/logic/examples');
+    const r = toBreadboard(bcdDiagram(), { switchTo: 'vcc', board: 'auto' });
+    if (!r.ok) throw new Error(r.reason);
+    expect(simulate(lab(r.circuit), {}).text).toContain('DS1 顯示 0');
+  });
+});
+
+describe('logic diagram tools', () => {
+  const xorRaw = {
+    version: 1,
+    nodes: [
+      { id: 'i1', kind: 'INPUT', name: 'A' },
+      { id: 'i2', kind: 'INPUT', name: 'B' },
+      { id: 'g1', kind: 'XOR', inputs: 2 },
+      { id: 'o1', kind: 'OUTPUT', name: 'X' },
+    ],
+    wires: [
+      { id: 'w1', from: 'i1', to: { node: 'g1', pin: 0 } },
+      { id: 'w2', from: 'i2', to: { node: 'g1', pin: 1 } },
+      { id: 'w3', from: 'g1', to: { node: 'o1', pin: 0 } },
+    ],
+  };
+
+  it('lays out nodes without positions by depth and keeps the ones that have them', async () => {
+    const { logicSet } = await import('../../src/mcp/tools');
+    const f = okFile(logicSet(newLabFile('x', 'MB102'), { diagram: xorRaw }));
+    const at = (id: string) => f.logic.nodes.find((n) => n.id === id)!;
+    expect([at('i1').x, at('g1').x, at('o1').x]).toEqual([2, 12, 22]);
+    expect(at('i1').y).not.toBe(at('i2').y);
+    const placed = { ...xorRaw, nodes: xorRaw.nodes.map((n) => (n.id === 'g1' ? { ...n, x: 30, y: 5 } : n)) };
+    expect(okFile(logicSet(newLabFile('x', 'MB102'), { diagram: placed })).logic.nodes.find((n) => n.id === 'g1')).toMatchObject({ x: 30, y: 5 });
+    expect(logicSet(newLabFile('x', 'MB102'), { diagram: xorRaw }).text).toContain('輸入 2 個、閘 1 個、輸出 1 個');
+    const broken = { ...xorRaw, wires: [...xorRaw.wires, { id: 'w4', from: 'zz', to: { node: 'o1', pin: 0 } }] };
+    expect(failed(logicSet(newLabFile('x', 'MB102'), { diagram: broken }))).toMatch(/^邏輯圖有問題：/);
+  });
+
+  it('prints the truth table', async () => {
+    const { logicSet, logicTruthTable } = await import('../../src/mcp/tools');
+    const f = okFile(logicSet(newLabFile('x', 'MB102'), { diagram: xorRaw }));
+    const text = logicTruthTable(f).text;
+    expect(text).toContain('A B | X');
+    expect(text).toContain('0 1 | 1');
+    expect(text).toContain('1 1 | 0');
+    expect(failed(logicTruthTable(newLabFile('x', 'MB102')))).toBe('檔案裡還沒有邏輯圖；用 logic_set 寫入');
+  });
+
+  it('converts to a breadboard, routes it and checks it by name', async () => {
+    const { logicToBreadboard } = await import('../../src/mcp/tools');
+    const { majorityDiagram } = await import('../../src/logic/examples');
+    const r = logicToBreadboard({ ...newLabFile('x', 'MB102'), logic: majorityDiagram() }, {});
+    const f = okFile(r);
+    expect(f.circuit.components.map((c) => c.id)).toEqual(expect.arrayContaining(['SW1', 'U1', 'U2', 'D1']));
+    expect(r.text).toContain('74LS08 × 1');
+    expect(r.text).toContain('8 種輸入組合，麵包板的模擬結果和真值表全部一致');
+    expect(failed(logicToBreadboard(newLabFile('x', 'MB102'), {}))).toBe('檔案裡還沒有邏輯圖；用 logic_set 寫入');
+  }, 120_000);
+
+  it('checks a hand-wired board against the diagram by name', async () => {
+    const { checkAgainstDiagram } = await import('../../src/mcp/tools');
+    const { handWired, gateDiagram } = await import('../fixtures/handWired');
+    const named = { sw1: ['A'], sw2: ['', '', 'B'], led: ['X'] };
+    const ok = checkAgainstDiagram({ name: 'x', circuit: handWired({ chip: '74LS86', labels: named }), logic: gateDiagram('XOR') });
+    expect(ok.text).toContain('全部一致');
+    expect(ok.text).toContain('A → SW1 第 1 個開關（ON = 1）');
+    const bad = checkAgainstDiagram({ name: 'x', circuit: handWired({ chip: '74LS86', labels: named }), logic: gateDiagram('AND') });
+    expect(bad.text).toContain('有 3 列不一致');
+    expect(bad.text).toContain('A B = 1 1：應該 X = 1，麵包板 X = 0');
+    const none = checkAgainstDiagram({ name: 'x', circuit: handWired({ chip: '74LS86' }), logic: gateDiagram('XOR') });
+    expect(none.text).toContain('把開關、LED 的名稱設成邏輯圖上的名稱');
+  });
+});

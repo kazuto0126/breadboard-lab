@@ -3,7 +3,7 @@ import { parseHoleName } from '../core/breadboard/naming';
 import { resolveFootprint } from '../core/circuit/footprint';
 import { getComponentDefinition } from '../core/circuit/library';
 import { validateCircuit } from '../core/circuit/validate';
-import { holeLabel } from '../editor/analysis';
+import { analyzeCircuit, holeLabel } from '../editor/analysis';
 import { addWire as addWireCommand, labelSlots, makeInstance, removeItems, setLabel, updateComponentProps } from '../editor/commands';
 import { circuitBrief } from '../editor/explain/brief';
 import { plainText } from '../editor/explain/helpers';
@@ -12,7 +12,20 @@ import { nextComponentId } from '../editor/ids';
 import { librarySections, LED_COLORS, searchLibrary } from '../editor/library';
 import { defaultWireColor, straightProblemText, straightWireProblem } from '../editor/manualWire';
 import { buildOccupancy, checkPlacementWith, type HardIssue, type SoftIssue } from '../editor/placement';
-import { emptyDiagram, type LogicDiagram } from '../logic/types';
+import { autoPlaceAndRoute } from '../core/icPlacement/autoPlace';
+import { applyRouting } from '../core/routing/apply';
+import { autoRoute as routeCircuit } from '../core/routing/autoRoute';
+import { compileSimulation, initialSimState, settle } from '../core/simulation/simulate';
+import { routingSummaryText, summarizeRouting } from '../editor/explain/routing';
+import { checkDiagram } from '../logic/check';
+import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
+import { truthTable } from '../logic/evaluate';
+import { parseLogicDiagram } from '../logic/file';
+import { valueOfSegments } from '../logic/sevenSeg';
+import { overlaps } from '../logic/shapes';
+import { toBreadboard } from '../logic/toBreadboard';
+import { emptyDiagram, isGate, type LogicDiagram, type LogicNode } from '../logic/types';
+import { verifyText } from '../logic/verifyBreadboard';
 import type { LayoutId } from '../types/board';
 import type { Circuit } from '../types/circuit';
 import type { ComponentInstance, LedColor, Rotation } from '../types/component';
@@ -250,3 +263,191 @@ export function remove(f: LabFile, args: { id: string }): ToolResult {
   return fail(`沒有元件或導線 ${args.id}`);
 }
 
+// ---------- 計算：佈線、模擬 ----------
+
+export function autoRoute(f: LabFile, args: { move_ics?: boolean; apply?: boolean }): ToolResult {
+  const result = args.move_ics ? autoPlaceAndRoute(f.circuit) : routeCircuit(f.circuit);
+  const ok = result.status === 'success';
+  const after = ok ? applyRouting(f.circuit, result) : f.circuit;
+  const lines = routingSummaryText(summarizeRouting(after, { beforeScore: analyzeCircuit(f.circuit).routing, result }));
+  if (!ok) return { text: [...lines, '電路沒有被修改。'].join('\n') };
+  if (args.apply === false) return { text: [...lines, '（apply = false：沒有寫回檔案）'].join('\n') };
+  return { text: lines.join('\n'), file: { ...f, circuit: after } };
+}
+
+export function simulate(f: LabFile, args: { switches?: Record<string, boolean[]>; pressed?: string[] }): ToolResult {
+  let circuit = f.circuit;
+  for (const [id, states] of Object.entries(args.switches ?? {})) {
+    const instance = circuit.components.find((c) => c.id === id);
+    const def = instance && getComponentDefinition(instance.defId);
+    if (!instance || def?.category !== 'dip-switch') return fail(`沒有指撥開關 ${id}`);
+    const n = def.pins.length / 2;
+    if (states.length !== n) return fail(`${id} 有 ${n} 個開關，要給 ${n} 個`);
+    circuit = updateComponentProps(circuit, id, { switchStates: [...states] });
+  }
+  for (const id of args.pressed ?? []) {
+    if (!circuit.components.some((c) => c.id === id && getComponentDefinition(c.defId)?.category === 'pushbutton')) return fail(`沒有按鈕 ${id}`);
+  }
+  const sim = compileSimulation(circuit);
+  const pressed = Object.fromEntries((args.pressed ?? []).map((id) => [id, true]));
+  const r = settle(sim, initialSimState(sim), { pressed, clocks: {} }).result;
+  const lines: string[] = [];
+  const leds = sim.leds.map((l) => l.componentId);
+  if (leds.length === 0) lines.push('電路裡沒有 LED。');
+  else if (r.litLeds.length === 0) lines.push(`沒有 LED 亮（${leds.join('、')} 不亮）。`);
+  else {
+    const dark = leds.filter((id) => !r.litLeds.includes(id));
+    lines.push(`亮的 LED：${r.litLeds.join('、')}${dark.length > 0 ? `；不亮：${dark.join('、')}` : ''}。`);
+  }
+  for (const d of sim.displays) {
+    const lit = r.litSegments[d.componentId] ?? [];
+    const v = valueOfSegments(lit);
+    lines.push(lit.length === 0 ? `${d.componentId} 不亮。` : v !== null ? `${d.componentId} 顯示 ${v}。` : `${d.componentId} 亮的段：${[...lit].sort().join('')}。`);
+  }
+  if (r.unpowered.length > 0) lines.push(`沒有供電：${r.unpowered.join('、')}（VCC / GND 沒接好，不會運作）。`);
+  if (r.conflicts.length > 0) lines.push(`有輸出互相衝突的地方（${r.conflicts.length} 處），用 check_circuit 看是哪裡。`);
+  if (!r.stable) lines.push('電路沒有穩定下來（可能在震盪）。');
+  if (sim.clocks.length > 0) lines.push('時脈固定在 0（這個工具只看某一個瞬間）。');
+  return { text: lines.join('\n') };
+}
+
+// ---------- 邏輯圖 ----------
+
+type Obj = Record<string, unknown>;
+const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
+const COLUMN = 10;
+
+/** 規格第 4 節：沒有 x、y 的節點依拓撲深度分欄，同一欄由上往下排；和別的節點重疊時往下找空位。 */
+function layoutMissing(raw: Obj): Obj {
+  if (!Array.isArray(raw.nodes) || !Array.isArray(raw.wires)) return raw;
+  const nodes = raw.nodes.filter(isObj);
+  const wires = raw.wires.filter(isObj);
+  const kind = new Map(nodes.map((n) => [String(n.id), String(n.kind)]));
+  const drivers = (id: string) => wires.filter((w) => isObj(w.to) && w.to.node === id).map((w) => String(w.from));
+  const memo = new Map<string, number>();
+  const depthOf = (id: string, seen: Set<string>): number => {
+    const known = memo.get(id);
+    if (known !== undefined) return known;
+    const k = kind.get(id);
+    if (k === 'INPUT' || k === 'HIGH' || k === 'LOW') return 0;
+    if (seen.has(id)) return 1;
+    seen.add(id);
+    const d = 1 + Math.max(0, ...drivers(id).map((from) => depthOf(from, seen)));
+    memo.set(id, d);
+    return d;
+  };
+  const isSinkKind = (k: string) => k === 'OUTPUT' || k === 'DISPLAY';
+  const inner = nodes.filter((n) => !isSinkKind(String(n.kind))).map((n) => depthOf(String(n.id), new Set()));
+  const sinkDepth = Math.max(0, ...inner) + 1;
+  const asNode = (n: Obj, x: number, y: number): LogicNode => ({
+    id: String(n.id),
+    kind: n.kind as LogicNode['kind'],
+    x,
+    y,
+    inputs: typeof n.inputs === 'number' ? n.inputs : n.kind === 'NOT' ? 1 : 2,
+    ...(typeof n.chip === 'string' ? { chip: n.chip as LogicNode['chip'] } : {}),
+  });
+  const hasPos = (n: Obj) => Number.isInteger(n.x) && Number.isInteger(n.y);
+  const placed: LogicNode[] = nodes.filter(hasPos).map((n) => asNode(n, n.x as number, n.y as number));
+  const out = nodes.map((n) => {
+    if (hasPos(n)) return n;
+    const depth = isSinkKind(String(n.kind)) ? sinkDepth : depthOf(String(n.id), new Set());
+    const x = 2 + depth * COLUMN;
+    let y = 0;
+    while (placed.some((p) => overlaps(p, asNode(n, x, y)))) y++;
+    placed.push(asNode(n, x, y));
+    return { ...n, x, y };
+  });
+  return { ...raw, nodes: out };
+}
+
+export function logicSet(f: LabFile, args: { diagram: unknown }): ToolResult {
+  if (!isObj(args.diagram)) return fail('邏輯圖有問題：diagram 要是物件（version、nodes、wires）');
+  const parsed = parseLogicDiagram(layoutMissing({ version: 1, ...args.diagram }));
+  if (!parsed.ok) return fail(`邏輯圖有問題：${parsed.error}`);
+  const d = parsed.diagram;
+  const count = (pred: (n: LogicNode) => boolean) => d.nodes.filter(pred).length;
+  const blocks = count((n) => n.kind === 'BLOCK');
+  const sinks = count((n) => n.kind === 'OUTPUT' || n.kind === 'DISPLAY');
+  const lines = [
+    `寫入邏輯圖：輸入 ${count((n) => n.kind === 'INPUT')} 個、閘 ${count((n) => isGate(n.kind))} 個${blocks > 0 ? `、IC 方塊 ${blocks} 個` : ''}、輸出 ${sinks} 個、線 ${d.wires.length} 條。`,
+  ];
+  const issues = checkDiagram(d);
+  lines.push(issues.length === 0 ? '檢查：沒有發現問題。' : `檢查：\n${issues.map((i) => `- ${i.message}`).join('\n')}`);
+  return { text: lines.join('\n'), file: { ...f, logic: d } };
+}
+
+const NO_LOGIC = '檔案裡還沒有邏輯圖；用 logic_set 寫入';
+
+export function logicTruthTable(f: LabFile): ToolResult {
+  if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
+  const t = truthTable(f.logic);
+  if (!t.ok) {
+    if (t.reason === 'loop') return { text: `邏輯圖有迴圈（${(t.loop ?? []).join('、')}），算不出真值表。` };
+    if (t.reason === 'too-many') return { text: '輸入超過 8 個，真值表太長，不列出。' };
+    return { text: '邏輯圖沒有輸入端和輸出端。' };
+  }
+  const cell = (v: string | number) => (v === 'X' ? '?' : String(v));
+  const lines = [`${t.inputs.join(' ')} | ${t.outputs.join(' ')}`, ...t.rows.map((r) => `${r.in.join(' ')} | ${r.out.map(cell).join(' ')}`)];
+  const issues = checkDiagram(f.logic);
+  if (issues.length > 0) lines.push('', '檢查：', ...issues.map((i) => `- ${i.message}`));
+  return { text: lines.join('\n') };
+}
+
+/** 依名稱比對的白話結果（check_against_diagram、logic_to_breadboard 共用）。 */
+function diagramCheckText(d: LogicDiagram, circuit: Circuit): string {
+  const c = checkByNames(d, circuit);
+  if (c.kind === 'none') return '不能比對：邏輯圖算不出真值表（要有輸入端和輸出端），或麵包板上沒有元件。';
+  if (c.kind === 'hint') return '還不能比對：把開關、LED 的名稱設成邏輯圖上的名稱（例如 A、B、X），可以用 set_part 設定。';
+  if (c.kind === 'incomplete') return `還不能和邏輯圖比對：\n${c.issues.map((i) => `- ${i}`).join('\n')}`;
+  const pair = (bits: string[]) => c.outputs.map((name, i) => `${name} = ${bits[i] ?? '?'}`).join('、');
+  const row = (inputs: string) => `${c.inputs.join(' ')} = ${[...inputs].join(' ')}`;
+  const lines =
+    c.result.mismatches.length === 0
+      ? [verifyText(c.result, c.outputs)]
+      : [`有 ${c.result.mismatches.length} 列不一致：`, ...c.result.mismatches.map((m) => `- ${row(m.inputs)}：應該 ${pair(m.expected)}，麵包板 ${pair(m.actual)}`)];
+  return [...lines, `對應：${c.mapping}`].join('\n');
+}
+
+export function checkAgainstDiagram(f: LabFile): ToolResult {
+  if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
+  return { text: diagramCheckText(f.logic, f.circuit) };
+}
+
+export function logicToBreadboard(
+  f: LabFile,
+  args: { switch_to?: 'vcc' | 'gnd'; board?: 'auto' | LayoutId; gates?: 'direct' | 'nand'; pulls?: boolean },
+): ToolResult {
+  if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
+  const options = { switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false } as const;
+  let r = toBreadboard(f.logic, options);
+  if (!r.ok) return fail(r.reason);
+  let routed = autoPlaceAndRoute(r.circuit);
+  const notes: string[] = [];
+  // 和網頁一樣：自動選板時 MB-102 排不完就改用 EIC-1106 再轉一次。
+  if (routed.status !== 'success' && options.board === 'auto' && r.bom.layout === 'MB102') {
+    const again = toBreadboard(f.logic, { ...options, board: 'EIC1106' });
+    if (again.ok) {
+      r = again;
+      routed = autoPlaceAndRoute(again.circuit);
+      notes.push('MB-102 上的線排不完，改用 EIC-1106 大型麵包板。');
+    }
+  }
+  const circuit = routed.status === 'success' ? applyRouting(r.circuit, routed) : r.circuit;
+  const bom = r.bom;
+  const parts = [
+    ...Object.entries(bom.ics).map(([id, n]) => `${id} × ${n}`),
+    `${bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × 1`,
+    `電阻 × ${bom.resistors}`,
+    `LED × ${bom.leds}`,
+    ...(bom.displays > 0 ? [`7 段顯示器 × ${bom.displays}`] : []),
+  ];
+  const lines = [
+    `轉成麵包板（${bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}）：${parts.join('、')}。`,
+    ...notes,
+    ...routingSummaryText(summarizeRouting(circuit, { beforeScore: analyzeCircuit(r.circuit).routing, result: routed })),
+    ...(routed.status === 'success' ? [] : ['佈線沒有完成：存下來的是還沒佈線的麵包板（手動接線版），可以用 auto_route 再試。']),
+    `比對：${diagramCheckText(f.logic, circuit)}`,
+  ];
+  return { text: lines.join('\n'), file: { ...f, circuit } };
+}
