@@ -66,7 +66,7 @@
 - 單元（`tests/mcp/tools.test.ts`）：每個工具的成功與失敗情況（放不下的位置與原因、自動找空位、不合法的導線、改名稱與開關、刪除、
   佈線與說明、模擬結果、邏輯圖自動排版與檢查、轉換 + 佈線 + 比對一致、比對的各種結果）；從零做出一個 XOR 電路（放 IC、開關、LED，接線，佈線，模擬）。
 - 路徑檢查（`tests/mcp/paths.test.ts`）：專案資料夾裡的相對 / 絕對路徑可以，`..` 跳出去與其他磁碟拒絕。
-- 整合（`tests/mcp/server.test.ts`）：用 SDK 的用戶端啟動 `scripts/mcp-server.ts`，列出 13 個工具，對暫存檔呼叫 `new_circuit`、`place_part`、`circuit_summary`。
+- 整合（`tests/mcp/server.test.ts`）：用 SDK 的用戶端啟動 `scripts/mcp-server.ts`，列出 14 個工具，對暫存檔呼叫 `new_circuit`、`place_part`、`circuit_summary`。
 
 ## 6. 文件
 

@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tests/web/tsconfig.json && tsc --noEmit -p e2e/tsconfig.json",
     "e2e": "playwright test",
     "demo": "tsx scripts/demo.ts",
+    "mcp": "node --import tsx scripts/mcp-server.ts",
     "publish:site": "tsx scripts/publish-site.ts"
   },
   "devDependencies": {

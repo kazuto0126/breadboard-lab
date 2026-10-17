@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["--import", "tsx", "scripts/mcp-server.ts"]
+    }
+  }
+}

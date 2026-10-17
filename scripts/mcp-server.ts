@@ -1,0 +1,251 @@
+/**
+ * 規格（2026-10-17 mcp-server）：給 Claude Code 用的 MCP 伺服器（stdio）。
+ * 啟動：node --import tsx scripts/mcp-server.ts（專案根目錄的 .mcp.json 已經設定好）。
+ * 工具的邏輯在 src/mcp/tools.ts（純函式）；這裡只負責路徑檢查、讀檔、寫檔。
+ */
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { basename, dirname, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+import { parseCircuitData, toCircuitFile } from '../src/editor/fileFormat';
+import { emptyDiagram } from '../src/logic/types';
+import * as tools from '../src/mcp/tools';
+import { insideProject } from './mcp-paths';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const shown = (abs: string) => relative(ROOT, abs).split(sep).join('/');
+
+type Reply = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
+const reply = (text: string, isError = false): Reply => ({ content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) });
+
+function load(abs: string): tools.LabFile | string {
+  if (!existsSync(abs)) return `找不到 ${shown(abs)}；用 new_circuit 建立`;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(abs, 'utf8'));
+  } catch {
+    return `${shown(abs)} 不是 JSON 檔`;
+  }
+  const parsed = parseCircuitData(raw);
+  if (!parsed.ok) return `${shown(abs)} 不是電路檔：${parsed.error}`;
+  return { name: parsed.name ?? basename(abs, '.json'), circuit: parsed.circuit, logic: parsed.logic ?? emptyDiagram() };
+}
+
+function save(abs: string, lab: tools.LabFile): void {
+  const logic = lab.logic.nodes.length > 0 ? lab.logic : undefined;
+  writeFileSync(abs, `${JSON.stringify(toCircuitFile(lab.circuit, lab.name, new Date(), undefined, logic), null, 2)}\n`, 'utf8');
+}
+
+/** 讀檔 → 執行工具 → 有新檔案時寫回。失敗時不寫檔。 */
+function withFile(file: string, run: (lab: tools.LabFile) => tools.ToolResult): Reply {
+  const where = insideProject(ROOT, file);
+  if (!where.ok) return reply(where.error, true);
+  const lab = load(where.path);
+  if (typeof lab === 'string') return reply(lab, true);
+  try {
+    const r = run(lab);
+    if (r.error || !r.file) return reply(r.text, r.error === true);
+    save(where.path, r.file);
+    return reply(`${r.text}\n已存到 ${shown(where.path)}；在網頁用「檔案 → 匯入 JSON」打開。`);
+  } catch (err) {
+    return reply(`工具執行失敗（程式的問題）：${err instanceof Error ? err.message : String(err)}`, true);
+  }
+}
+
+const file = z.string().describe('電路檔的路徑（專案資料夾裡的 .json 檔，例如 circuits/xor.json）');
+const hole = (what: string) =>
+  z.string().describe(`${what}：孔位名稱，寫法和網頁一樣，例如 F10、A3、T+10（上方 + 軌）、B-3（下方 − 軌）；EIC-1106 寫 1-F10、P2+12；有好幾塊板時加板子 ID，例如 b2:F10`);
+
+const server = new McpServer(
+  { name: 'breadboard-lab', version: '1.0.0' },
+  {
+    instructions: [
+      'Breadboard Lab：在 MB-102 / EIC-1106 麵包板上放 74LS IC、電阻、LED、指撥開關並接線，可以檢查、AI 佈線、模擬，也可以把邏輯圖轉成麵包板。',
+      '電路檔就是網頁「匯出 JSON」的格式；做完在網頁用「檔案 → 匯入 JSON」打開。',
+      '建議流程：new_circuit → list_parts（查元件名稱與腳位）→ place_part（IC 第 1 腳放在 F 列，跨過凹槽）→ add_wire → check_circuit → auto_route → simulate。',
+      '從邏輯圖開始：logic_set → logic_truth_table → logic_to_breadboard（轉換、佈線、比對一次完成）。手接的麵包板用 set_part 標上和邏輯圖一樣的名稱，再用 check_against_diagram 比對。',
+    ].join('\n'),
+  },
+);
+
+server.registerTool(
+  'new_circuit',
+  {
+    title: '建立電路檔',
+    description: '建立新的空白電路檔（一塊麵包板）。檔案已經存在時拒絕，除非 overwrite 為 true（而且原本的檔案也是電路檔）。',
+    inputSchema: {
+      file,
+      board: z.enum(['MB102', 'EIC1106']).optional().describe('麵包板：MB102（預設，830 孔）或 EIC1106（大型）'),
+      overwrite: z.boolean().optional().describe('檔案已存在時是否蓋掉（只能蓋掉電路檔）'),
+    },
+  },
+  async (args) => {
+    const where = insideProject(ROOT, args.file);
+    if (!where.ok) return reply(where.error, true);
+    if (existsSync(where.path)) {
+      if (!args.overwrite) return reply(`${shown(where.path)} 已經存在；要蓋掉請加 overwrite: true`, true);
+      if (typeof load(where.path) === 'string') return reply(`${shown(where.path)} 不是電路檔，不能蓋掉`, true);
+    }
+    const board = args.board ?? 'MB102';
+    save(where.path, tools.newLabFile(basename(where.path, '.json'), board));
+    return reply(`建立了 ${shown(where.path)}（${board === 'MB102' ? 'MB-102' : 'EIC-1106'}，空白）。`);
+  },
+);
+
+server.registerTool(
+  'circuit_summary',
+  { title: '電路摘要', description: '列出元件與每一隻腳所在的孔、導線、連在一起的腳（Net）、沒接的腳。', inputSchema: { file } },
+  async (args) => withFile(args.file, (lab) => tools.circuitSummary(lab)),
+);
+
+server.registerTool(
+  'check_circuit',
+  { title: '檢查電路', description: '錯誤與警告（短路、IC 沒接電源、輸入懸空…），每一項附原因與建議的接法。', inputSchema: { file } },
+  async (args) => withFile(args.file, (lab) => tools.checkCircuit(lab)),
+);
+
+server.registerTool(
+  'list_parts',
+  {
+    title: '元件庫',
+    description: '列出可以放的元件名稱（例如 74LS00、resistor-220、led-red、dipsw-4、vcc、gnd）與說明；結果 6 個以內時列出腳位。',
+    inputSchema: { query: z.string().optional().describe('關鍵字，例如 NAND、74LS08、LED、電阻') },
+  },
+  async (args) => {
+    const r = tools.listParts(args);
+    return reply(r.text, r.error === true);
+  },
+);
+
+server.registerTool(
+  'place_part',
+  {
+    title: '放元件',
+    description: '把元件放到麵包板上。hole 是第 1 腳的孔；不能放時說明原因。沒給 hole 時自動找空位。IC 要跨過中間的凹槽（第 1 腳放在 F 列）。',
+    inputSchema: {
+      file,
+      part: z.string().describe('元件名稱（list_parts 列出的名稱）'),
+      hole: hole('第 1 腳的位置').optional(),
+      rotation: z.number().int().optional().describe('旋轉角度：0、90、180、270'),
+      id: z.string().optional().describe('指定元件 ID（預設自動編號：U1、R1、D1、SW1…）'),
+    },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => tools.placePart(lab, args)),
+);
+
+server.registerTool(
+  'add_wire',
+  {
+    title: '接線',
+    description: '在兩個孔之間接一條直線導線。導線不能經過元件、不能和別條線重疊；不合法時說明原因。',
+    inputSchema: { file, from: hole('起點'), to: hole('終點'), color: z.string().optional().describe('顏色（#rrggbb）；預設接 + 軌紅色、− 軌黑色') },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => tools.addWire(lab, args)),
+);
+
+server.registerTool(
+  'set_part',
+  {
+    title: '改元件設定',
+    description: '改名稱（指撥開關每個開關一個、LED 與 7 段顯示器一個）、電阻值、LED 顏色、指撥開關 ON / OFF。',
+    inputSchema: {
+      file,
+      id: z.string().describe('元件 ID'),
+      labels: z.array(z.string()).optional().describe('名稱；指撥開關第 k 個開關用第 k 個名稱'),
+      resistance: z.number().optional().describe('電阻值（Ω）'),
+      color: z.enum(['red', 'green', 'yellow', 'blue']).optional().describe('LED 顏色'),
+      switches: z.array(z.boolean()).optional().describe('指撥開關每個開關的狀態，true = ON'),
+    },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => tools.setPart(lab, args)),
+);
+
+server.registerTool(
+  'remove',
+  { title: '刪除', description: '依 ID 刪除元件或導線。', inputSchema: { file, id: z.string().describe('元件或導線的 ID') } },
+  async ({ file: f, ...args }) => withFile(f, (lab) => tools.remove(lab, args)),
+);
+
+server.registerTool(
+  'auto_route',
+  {
+    title: 'AI 標準佈線',
+    description: '重新算出只走水平 / 垂直、不重疊、不穿過元件的標準接線（保留目前接線定義的連接），回覆這次佈線的說明。',
+    inputSchema: {
+      file,
+      move_ics: z.boolean().optional().describe('允許搬動 IC（找更好的位置）'),
+      apply: z.boolean().optional().describe('是否寫回檔案（預設 true；false 只看結果）'),
+    },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => tools.autoRoute(lab, args)),
+);
+
+server.registerTool(
+  'simulate',
+  {
+    title: '模擬',
+    description: '74LS 邏輯模擬到穩定：哪些 LED 亮、7 段顯示器顯示什麼、哪顆 IC 沒有供電。switches 只用在這次模擬，不寫回檔案。',
+    inputSchema: {
+      file,
+      switches: z.record(z.string(), z.array(z.boolean())).optional().describe('指撥開關狀態，例如 { "SW1": [true, false, false, false] }'),
+      pressed: z.array(z.string()).optional().describe('按著的按鈕 ID'),
+    },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => tools.simulate(lab, args)),
+);
+
+server.registerTool(
+  'logic_set',
+  {
+    title: '寫入邏輯圖',
+    description: [
+      '寫入（取代）電路檔裡的邏輯圖。節點種類：AND、OR、NAND、NOR（inputs 2–4）、NOT、XOR、INPUT、OUTPUT（要有 name）、DISPLAY（7 段顯示器，name）、',
+      'HIGH（5V）、LOW（GND）、BLOCK（chip：74LS83、74LS151、74LS153、74LS138、74LS85）。',
+      '線：{ id, from, fromPin?（方塊的第幾個輸出）, to: { node, pin } }。節點沒有 x、y 時自動排版。',
+    ].join(''),
+    inputSchema: {
+      file,
+      diagram: z
+        .object({ nodes: z.array(z.record(z.string(), z.unknown())), wires: z.array(z.record(z.string(), z.unknown())) })
+        .passthrough()
+        .describe('{ nodes: [...], wires: [...] }'),
+    },
+  },
+  async ({ file: f, diagram }) => withFile(f, (lab) => tools.logicSet(lab, { diagram })),
+);
+
+server.registerTool(
+  'logic_truth_table',
+  { title: '真值表', description: '電路檔裡邏輯圖的真值表（輸入依名稱排序，第一個是最高位元）與檢查結果。', inputSchema: { file } },
+  async (args) => withFile(args.file, (lab) => tools.logicTruthTable(lab)),
+);
+
+server.registerTool(
+  'logic_to_breadboard',
+  {
+    title: '邏輯圖轉成麵包板',
+    description: '把邏輯圖轉成 74LS IC、指撥開關、LED 的麵包板（取代目前的電路），接著 AI 佈線、逐列模擬比對真值表。',
+    inputSchema: {
+      file,
+      switch_to: z.enum(['vcc', 'gnd']).optional().describe('開關另一端接 +5 V（ON = 1，預設）或 GND（ON = 0）'),
+      board: z.enum(['auto', 'MB102', 'EIC1106']).optional().describe('麵包板（預設自動）'),
+      gates: z.enum(['direct', 'nand']).optional().describe('照種類對應（預設）或只用 NAND（74LS00）'),
+      pulls: z.boolean().optional().describe('加上 / 下拉電阻（預設不加）'),
+    },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => tools.logicToBreadboard(lab, args)),
+);
+
+server.registerTool(
+  'check_against_diagram',
+  {
+    title: '和邏輯圖比對',
+    description: '依名稱把麵包板的開關、LED、7 段顯示器對應到邏輯圖，逐列模擬比對真值表；列出不一致的列或還不能比對的原因。',
+    inputSchema: { file },
+  },
+  async (args) => withFile(args.file, (lab) => tools.checkAgainstDiagram(lab)),
+);
+
+await server.connect(new StdioServerTransport());

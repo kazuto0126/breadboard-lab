@@ -2,7 +2,7 @@
 
 > 執行方式：在這個對話內依序實作（executing-plans），每個任務先寫測試、看它失敗、再實作。
 
-**Goal:** `scripts/mcp-server.ts`（stdio MCP 伺服器）＋ `src/mcp/tools.ts`（13 個工具的純函式）＋ `.mcp.json`。
+**Goal:** `scripts/mcp-server.ts`（stdio MCP 伺服器）＋ `src/mcp/tools.ts`（14 個工具的純函式）＋ `.mcp.json`。
 
 **Spec:** `docs/superpowers/specs/2026-10-17-mcp-server-design.md`
 
