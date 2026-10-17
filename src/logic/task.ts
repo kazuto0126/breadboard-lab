@@ -1,3 +1,6 @@
+import { evaluate, sortedIo, topoOrder, truthTable } from './evaluate';
+import { isSink, type LogicDiagram } from './types';
+
 /** 規格（2026-10-17 truth-table-task）第 2 節：真值表題目。 */
 export type TaskValue = 0 | 1 | 'X';
 
@@ -108,4 +111,57 @@ export function parseTask(raw: unknown): TaskResult {
     if (!Array.isArray(row) || row.length !== width || !row.every((v) => v === 0 || v === 1 || v === 'X')) return { ok: false, reason: `題目第 ${i} 列的值只能是 0、1 或 X` };
   }
   return { ok: true, task: { inputs: [...r.inputs], outputs: [...r.outputs], rows: rows.map((row) => [...(row as TaskValue[])]) } };
+}
+
+/** 規格第 3 節：邏輯圖和題目比對的結果。 */
+export type TaskComparison =
+  | { kind: 'none' }
+  | { kind: 'issues'; issues: string[] }
+  | { kind: 'done'; rows: number; dontCares: boolean; mismatches: Array<{ row: number; inputs: string; expected: string[]; actual: string[] }> };
+
+/**
+ * 依名稱把邏輯圖對到題目，逐列計算邏輯圖的輸出、和題目比對（X 的格子不比）。
+ * 題目的輸入要有同名的輸入端、輸出要有同名的輸出端；邏輯圖多出來的輸入端也算對不上（它的值會影響結果）。
+ */
+export function compareDiagramToTask(d: LogicDiagram, task: TruthTask): TaskComparison {
+  if (d.nodes.length === 0) return { kind: 'none' };
+  const loop = topoOrder(d).loop;
+  if (loop) return { kind: 'issues', issues: [`邏輯圖有迴圈（${loop.join('、')}），不能和題目比對`] };
+  const inputs = new Map(d.nodes.filter((n) => n.kind === 'INPUT').map((n) => [n.name ?? n.id, n]));
+  const sinks = new Map(d.nodes.filter((n) => isSink(n.kind)).map((n) => [n.name ?? n.id, n]));
+  const issues: string[] = [];
+  for (const name of task.inputs) if (!inputs.has(name)) issues.push(`題目的輸入 ${name} 在邏輯圖找不到輸入端`);
+  for (const name of inputs.keys()) if (!task.inputs.includes(name)) issues.push(`邏輯圖的輸入端 ${name} 不在題目裡`);
+  for (const name of task.outputs) {
+    const sink = sinks.get(name);
+    if (!sink) issues.push(`題目的輸出 ${name} 在邏輯圖找不到輸出端`);
+    else if (sink.kind === 'DISPLAY') issues.push(`${name} 在邏輯圖是 7 段顯示器，題目的輸出要接輸出端`);
+  }
+  if (issues.length > 0) return { kind: 'issues', issues };
+
+  const n = task.inputs.length;
+  const mismatches: Extract<TaskComparison, { kind: 'done' }>['mismatches'] = [];
+  task.rows.forEach((want, row) => {
+    const bits = task.inputs.map((_, i) => ((row >> (n - 1 - i)) & 1) as 0 | 1);
+    const v = evaluate(d, Object.fromEntries(task.inputs.map((name, i) => [inputs.get(name)!.id, bits[i]])));
+    const actual = task.outputs.map((name) => {
+      const b = v.nodes.get(sinks.get(name)!.id) ?? 'X';
+      return b === 'X' ? '?' : String(b);
+    });
+    const expected = want.map(String);
+    if (expected.some((e, k) => e !== 'X' && e !== actual[k])) mismatches.push({ row, inputs: bits.join(''), expected, actual });
+  });
+  return { kind: 'done', rows: task.rows.length, dontCares: task.rows.some((r) => r.includes('X')), mismatches };
+}
+
+/** 規格第 1 節：用目前邏輯圖的真值表建立題目（老師畫好答案就能產生題目）。 */
+export function taskFromDiagram(d: LogicDiagram): TaskResult {
+  const table = truthTable(d);
+  if (!table.ok) return { ok: false, reason: table.reason === 'loop' ? `邏輯圖有迴圈（${(table.loop ?? []).join('、')}），不能算真值表` : table.reason === 'too-many' ? `輸入最多 ${MAX_TASK_INPUTS} 個（${1 << MAX_TASK_INPUTS} 列）` : '先在邏輯圖放輸入端和輸出端' };
+  const display = sortedIo(d).outputs.find((o) => o.kind === 'DISPLAY');
+  if (display) return { ok: false, reason: `題目的輸出只能是輸出端（邏輯圖有 7 段顯示器 ${display.name ?? display.id}）` };
+  const made = createTask(table.inputs, table.outputs);
+  if (!made.ok) return made;
+  if (table.rows.some((r) => r.out.includes('X'))) return { ok: false, reason: '邏輯圖還有沒接好的地方（有些輸出不確定），先把邏輯圖接好' };
+  return { ok: true, task: { ...made.task, rows: table.rows.map((r) => r.out.map((b): TaskValue => (b === 1 ? 1 : 0))) } };
 }

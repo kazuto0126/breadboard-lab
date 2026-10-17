@@ -86,3 +86,90 @@ describe('saving a task with the logic diagram', () => {
     expect(bad('A B')).toEqual({ ok: false, error: '題目格式不對' });
   });
 });
+
+describe('comparing the logic diagram with the task', () => {
+  const majorityTask = () => must(setColumn(must(createTask(['A', 'B', 'C'], ['X'])), 0, [3, 5, 6, 7], []));
+
+  it('matches figure 2-5 row by row, skipping cells marked X', async () => {
+    const { compareDiagramToTask } = await import('../../src/logic/task');
+    const { majorityDiagram } = await import('../../src/logic/examples');
+    expect(compareDiagramToTask(majorityDiagram(), majorityTask())).toEqual({ kind: 'done', rows: 8, mismatches: [], dontCares: false });
+    const wrong = cycleCell(majorityTask(), 0, 0); // 第 0 列改成 1
+    expect(compareDiagramToTask(majorityDiagram(), wrong)).toEqual({
+      kind: 'done',
+      rows: 8,
+      dontCares: false,
+      mismatches: [{ row: 0, inputs: '000', expected: ['1'], actual: ['0'] }],
+    });
+    // 第 0 列改成 X（不在乎）：不比。
+    expect(compareDiagramToTask(majorityDiagram(), cycleCell(wrong, 0, 0))).toMatchObject({ kind: 'done', mismatches: [], dontCares: true });
+  });
+
+  it('follows the order of the task inputs (the first one is the highest bit)', async () => {
+    const { compareDiagramToTask } = await import('../../src/logic/task');
+    const { addNode, connect } = await import('../../src/logic/edit');
+    let d = emptyDiagram();
+    for (const [kind, x, y] of [['INPUT', 0, 0], ['INPUT', 0, 4], ['OUTPUT', 10, 0]] as const) {
+      const r = addNode(d, kind, x, y);
+      if (!r.ok) throw new Error(r.reason);
+      d = r.diagram;
+    }
+    const c = connect(d, 'i1', { node: 'o1', pin: 0 }); // X = A（B 沒用到）
+    if (!c.ok) throw new Error(c.reason);
+    // 題目的輸入順序是 B A：A 是最低位元，X = 1 的列是 1、3。
+    const task = must(setColumn(must(createTask(['B', 'A'], ['X'])), 0, [1, 3], []));
+    expect(compareDiagramToTask(c.diagram, task)).toMatchObject({ kind: 'done', mismatches: [] });
+  });
+
+  it('explains names that do not line up', async () => {
+    const { compareDiagramToTask } = await import('../../src/logic/task');
+    const { majorityDiagram, bcdDiagram } = await import('../../src/logic/examples');
+    expect(compareDiagramToTask(majorityDiagram(), must(createTask(['A', 'B', 'D'], ['X', 'Y'])))).toEqual({
+      kind: 'issues',
+      issues: ['題目的輸入 D 在邏輯圖找不到輸入端', '邏輯圖的輸入端 C 不在題目裡', '題目的輸出 Y 在邏輯圖找不到輸出端'],
+    });
+    expect(compareDiagramToTask(bcdDiagram(), must(createTask(['W', 'X', 'Y', 'Z'], ['S1'])))).toEqual({
+      kind: 'issues',
+      issues: ['S1 在邏輯圖是 7 段顯示器，題目的輸出要接輸出端'],
+    });
+    expect(compareDiagramToTask(emptyDiagram(), majorityTask())).toEqual({ kind: 'none' });
+  });
+
+  it('refuses a diagram with a loop', async () => {
+    const { compareDiagramToTask } = await import('../../src/logic/task');
+    const { addNode, connect } = await import('../../src/logic/edit');
+    let d = emptyDiagram();
+    for (const [kind, x, y] of [['INPUT', 0, 0], ['AND', 6, 0], ['AND', 14, 0], ['OUTPUT', 22, 1]] as const) {
+      const r = addNode(d, kind, x, y);
+      if (!r.ok) throw new Error(r.reason);
+      d = r.diagram;
+    }
+    for (const [from, node, pin] of [['i1', 'g1', 0], ['g1', 'g2', 0], ['g2', 'g1', 1], ['g2', 'o1', 0]] as const) {
+      const r = connect(d, from, { node, pin });
+      if (!r.ok) throw new Error(r.reason);
+      d = r.diagram;
+    }
+    const task = must(createTask(['A'], ['X']));
+    expect(compareDiagramToTask(d, task)).toEqual({ kind: 'issues', issues: ['邏輯圖有迴圈（g1、g2），不能和題目比對'] });
+  });
+});
+
+describe('making a task from the logic diagram', () => {
+  it('copies the truth table of a finished diagram', async () => {
+    const { taskFromDiagram } = await import('../../src/logic/task');
+    const { majorityDiagram } = await import('../../src/logic/examples');
+    const t = must(taskFromDiagram(majorityDiagram()));
+    expect(t.inputs).toEqual(['A', 'B', 'C']);
+    expect(t.outputs).toEqual(['X']);
+    expect(rowsWith(t, 0, 1)).toEqual([3, 5, 6, 7]);
+  });
+
+  it('says why it cannot', async () => {
+    const { taskFromDiagram } = await import('../../src/logic/task');
+    const { majorityDiagram, bcdDiagram } = await import('../../src/logic/examples');
+    expect(taskFromDiagram(bcdDiagram())).toEqual({ ok: false, reason: '題目的輸出只能是輸出端（邏輯圖有 7 段顯示器 S1）' });
+    const open = { ...majorityDiagram(), wires: majorityDiagram().wires.filter((w) => w.to.node !== 'o1') };
+    expect(taskFromDiagram(open)).toEqual({ ok: false, reason: '邏輯圖還有沒接好的地方（有些輸出不確定），先把邏輯圖接好' });
+    expect(taskFromDiagram(emptyDiagram())).toEqual({ ok: false, reason: '先在邏輯圖放輸入端和輸出端' });
+  });
+});
