@@ -369,7 +369,9 @@ export function logicSet(f: LabFile, args: { diagram: unknown }): ToolResult {
   if (!isObj(args.diagram)) return fail('邏輯圖有問題：diagram 要是物件（version、nodes、wires）');
   const parsed = parseLogicDiagram(layoutMissing({ version: 1, ...args.diagram }));
   if (!parsed.ok) return fail(`邏輯圖有問題：${parsed.error}`);
-  const d = parsed.diagram;
+  // 子專案 24：新的邏輯圖沒有題目時，保留檔案裡原本的真值表題目。
+  const kept = !parsed.diagram.task && f.logic.task ? f.logic.task : undefined;
+  const d = kept ? { ...parsed.diagram, task: kept } : parsed.diagram;
   const count = (pred: (n: LogicNode) => boolean) => d.nodes.filter(pred).length;
   const blocks = count((n) => n.kind === 'BLOCK');
   const sinks = count((n) => n.kind === 'OUTPUT' || n.kind === 'DISPLAY');
@@ -378,6 +380,7 @@ export function logicSet(f: LabFile, args: { diagram: unknown }): ToolResult {
   ];
   const issues = checkDiagram(d);
   lines.push(issues.length === 0 ? '檢查：沒有發現問題。' : `檢查：\n${issues.map((i) => `- ${i.message}`).join('\n')}`);
+  if (kept) lines.push('保留檔案裡的真值表題目。');
   return { text: lines.join('\n'), file: { ...f, logic: d } };
 }
 

@@ -18,11 +18,12 @@
 ### 改變
 
 - 比對的程式整理成邏輯圖與題目共用：`bindByNames`（依名稱對應）、`verifyExpected`（逐列模擬，X 的格子不比）；邏輯圖的比對結果不變。
+- MCP 的 `logic_set` 換邏輯圖時，保留檔案裡原本的真值表題目（回覆會說明）。
 
 ### 測試
 
 - 單元測試：題目的建立、換值、列號輸入、改名稱、讀檔與存檔、和邏輯圖比對、從邏輯圖建立（`tests/logic/task.test.ts`）；
-  手接的麵包板和題目比對（`tests/logic/diagramCheck.test.ts`）；只有題目也算未儲存（`tests/web/logic.test.ts`）；復原步驟用題目的名稱（`tests/web/convert.test.ts`）。
+  手接的麵包板和題目比對（`tests/logic/diagramCheck.test.ts`）；只有題目也算未儲存（`tests/web/logic.test.ts`）；復原步驟用題目的名稱（`tests/web/convert.test.ts`）；MCP `logic_set` 保留題目（`tests/mcp/tools.test.ts`）。
 - 端對端（`e2e/truth-table-task.spec.ts`）：載入多數決 → 建立題目、用「1 的列」輸入 → 和邏輯圖全部一致、改一格變成 1 列不一致、改成 X 不比 →
   轉成麵包板後「和題目比對」全部一致 → 重新整理後題目還在；用邏輯圖的真值表建立、改名稱、名稱不合法、Undo、刪除。
 
