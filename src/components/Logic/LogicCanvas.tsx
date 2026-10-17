@@ -262,8 +262,10 @@ export function LogicCanvas() {
   const ghostOk = ghost ? canPlace(diagram, ghost) : true;
   const moveOk = drag?.kind === 'move' ? moveNodes(diagram, drag.ids, drag.dx, drag.dy).ok : true;
   const wireOk = drag?.kind === 'wire' ? drag.to === null || wirePair(drag.from, drag.to) !== null : true;
-  const routes = wireRoutes(view);
-  const dots = junctions(view, routes);
+  // 線的走法只和元件位置與線有關（view 由 diagram 與 moveKey 決定）：滑鼠移動（hover）時不用重算繞路。
+  const moveKey = drag?.kind === 'move' ? `${drag.ids.join(',')}:${drag.dx},${drag.dy}` : '';
+  const routes = useMemo(() => wireRoutes(view), [diagram, moveKey]);
+  const dots = useMemo(() => junctions(view, routes), [routes]);
   const pattern = C * viewport.scale;
 
   return (
