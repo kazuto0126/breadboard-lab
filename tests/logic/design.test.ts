@@ -76,6 +76,53 @@ describe('drawing a logic diagram from a task', () => {
     expectSound(diagram, t);
   });
 
+  it('draws lines that never overlap or run through parts for tasks with up to 5 inputs', async () => {
+    const { wireRoutes } = await import('../../src/logic/wiring');
+    const { nodeSize } = await import('../../src/logic/shapes');
+    const { signalOf } = await import('../../src/logic/types');
+    let seed = 7;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    for (let trial = 0; trial < 80; trial++) {
+      const n = 1 + Math.floor(rand() * 5);
+      const m = 1 + Math.floor(rand() * 3);
+      const columns = Array.from({ length: m }, () => {
+        const ones: number[] = [];
+        const x: number[] = [];
+        for (let r = 0; r < 1 << n; r++) {
+          const p = rand();
+          if (p < 0.4) ones.push(r);
+          else if (p < 0.5) x.push(r);
+        }
+        return { ones, x };
+      });
+      const d = designFromTask(task(['A', 'B', 'C', 'D', 'E'].slice(0, n), columns)).diagram;
+      const routes = wireRoutes(d);
+      const segs = d.wires.flatMap((w) => {
+        const pts = routes.get(w.id)!;
+        return pts.slice(1).map((q, i) => ({ signal: signalOf(w.from, w.fromPin), p: pts[i], q }));
+      });
+      const span = (a: number, b: number, c: number, e: number) => Math.min(Math.max(a, b), Math.max(c, e)) - Math.max(Math.min(a, b), Math.min(c, e));
+      for (const s of segs) {
+        for (const t of segs) {
+          if (s.signal === t.signal) continue;
+          if (s.p.y === s.q.y && t.p.y === t.q.y && s.p.y === t.p.y) expect(span(s.p.x, s.q.x, t.p.x, t.q.x), `第 ${trial} 題`).toBeLessThanOrEqual(0);
+          if (s.p.x === s.q.x && t.p.x === t.q.x && s.p.x === t.p.x) expect(span(s.p.y, s.q.y, t.p.y, t.q.y), `第 ${trial} 題`).toBeLessThanOrEqual(0);
+        }
+        for (const nd of d.nodes) {
+          const { w, h } = nodeSize(nd);
+          const through =
+            s.p.y === s.q.y
+              ? s.p.y >= nd.y && s.p.y <= nd.y + h - 1 && Math.min(s.p.x, s.q.x) < nd.x + w && Math.max(s.p.x, s.q.x) > nd.x
+              : s.p.x > nd.x && s.p.x < nd.x + w && Math.min(s.p.y, s.q.y) <= nd.y + h - 1 && Math.max(s.p.y, s.q.y) >= nd.y;
+          expect(through, `第 ${trial} 題的線穿過 ${nd.id}`).toBe(false);
+        }
+      }
+    }
+  });
+
   it('always draws a sound diagram for random tasks', () => {
     let seed = 25;
     const rand = () => {

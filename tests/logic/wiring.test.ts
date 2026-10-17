@@ -82,8 +82,21 @@ describe('going around other parts', () => {
     expect(dots).not.toContainEqual({ x: 3, y: 4 });
   });
 
+  /** 兩個 NOT 在同一欄：N1 的線要接到 G 那一列，剛好是 N2 輸出的那一列（會沿著 N2 的輸出短線走）。 */
+  const stubRow = () =>
+    ({
+      nodes: [node('N1', 'NOT', 9, 0, { inputs: 1 }), node('N2', 'NOT', 9, 4, { inputs: 1 }), node('G', 'AND', 18, 4, { inputs: 2 })],
+      wires: [wire('w1', 'N1', 'G', 0), wire('w2', 'N2', 'G', 1)],
+    }) as unknown as LogicDiagram;
+
+  it('does not run along the short line from another output to its bus', () => {
+    const d = stubRow();
+    // N1 的匯流線 x = 13、N2 的是 14；N2 的輸出短線是 (12, 4)–(14, 4)。N1 的線改從 y 3 走到 G 左邊再轉進去。
+    expect(wireRoute(d, d.wires[0])).toEqual([{ x: 12, y: 0 }, { x: 13, y: 0 }, { x: 13, y: 3 }, { x: 17, y: 3 }, { x: 17, y: 4 }, { x: 18, y: 4 }]);
+  });
+
   it('never lets two different signals share a stretch of line in the examples', () => {
-    for (const d of [majorityDiagram(), cascade()]) {
+    for (const d of [majorityDiagram(), cascade(), stubRow()]) {
       const segs = d.wires.flatMap((w) => {
         const pts = wireRoute(d, w);
         return pts.slice(1).map((q, i) => ({ from: w.from, p: pts[i], q }));
