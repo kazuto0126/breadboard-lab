@@ -6,7 +6,7 @@ import { inputPins, nodeSize, outputPin, outputPins, type GridXY } from '../../l
 import { isGate, isSink, signalOf, type LogicNode } from '../../logic/types';
 import { BlockBody, ConstantBody } from './BlockBody';
 import { DisplayBody } from './DisplayBody';
-import { busColumns, junctions, wireRoute } from '../../logic/wiring';
+import { junctions, wireRoutes } from '../../logic/wiring';
 import { LOGIC_CELL, selectedIds, useLogic } from '../../state/logic';
 import { bitColor, GateBody } from './GateSymbol';
 
@@ -262,8 +262,8 @@ export function LogicCanvas() {
   const ghostOk = ghost ? canPlace(diagram, ghost) : true;
   const moveOk = drag?.kind === 'move' ? moveNodes(diagram, drag.ids, drag.dx, drag.dy).ok : true;
   const wireOk = drag?.kind === 'wire' ? drag.to === null || wirePair(drag.from, drag.to) !== null : true;
-  const columns = busColumns(view);
-  const dots = junctions(view, columns);
+  const routes = wireRoutes(view);
+  const dots = junctions(view, routes);
   const pattern = C * viewport.scale;
 
   return (
@@ -286,7 +286,7 @@ export function LogicCanvas() {
       <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
         {/* 線（在元件下面） */}
         {view.wires.map((w) => {
-          const pts = wireRoute(view, w, columns);
+          const pts = routes.get(w.id) ?? [];
           if (pts.length < 2) return null;
           const sel = selection?.kind === 'wire' && selection.id === w.id;
           const color = bitColor(valueOf(signalOf(w.from, w.fromPin)));
