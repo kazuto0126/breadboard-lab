@@ -16,7 +16,9 @@ test('依名稱對照邏輯圖：改名稱會找不到、改邏輯圖會列出�
   await expect(card).toContainText('8 種輸入組合，麵包板的模擬結果和真值表全部一致');
   await expect(card).toContainText('X → D1');
 
-  // LED 改名 → 找不到 X；改回來 → 一致。
+  // LED 改名 → 找不到 X；改回來 → 一致。LED 在電阻旁邊、靠右上角，先關掉蓋在上面的佈線結果卡。
+  await page.getByTestId('routing-result').getByLabel('關閉').click();
+  await expect(page.getByTestId('routing-result')).toHaveCount(0);
   const rename = async (name: string) => {
     // LED 正中間是兩隻腳的點擊區：點上半部的燈罩才會選到 LED。
     await page.locator('g[data-component-id="D1"]').click({ position: { x: 10, y: 3 } });
