@@ -4,7 +4,7 @@ import { checkDiagram, nodeLabel } from '../../logic/check';
 import { removeNodes, removeWire, renameNode, setConstant, setGateKind, setInputCount } from '../../logic/edit';
 import { BLOCK_PINS } from '../../logic/blocks';
 import { evaluate, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
-import { nodeSize } from '../../logic/shapes';
+import { boxOf } from '../../logic/shapes';
 import { GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
 import { convertProblem } from '../../logic/synth';
@@ -311,7 +311,7 @@ function CheckTab({ diagram }: { diagram: LogicDiagram }) {
     if (!node) return;
     const s = useLogic.getState();
     s.select({ kind: 'node', id: node.id });
-    const { w, h } = nodeSize(node);
+    const { w, h } = boxOf(node);
     const rect = { x: (node.x - 1) * LOGIC_CELL, y: (node.y - 1) * LOGIC_CELL, width: (w + 2) * LOGIC_CELL, height: (h + 2) * LOGIC_CELL };
     s.setViewport(centerOn(s.viewport, rect, s.canvasSize.width, s.canvasSize.height));
   };

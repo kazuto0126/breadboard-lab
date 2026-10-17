@@ -35,3 +35,31 @@ describe('logic diagram files', () => {
     expect(r).toMatchObject({ ok: false, error: expect.stringContaining('邏輯圖') });
   });
 });
+
+describe('turned parts in files (sub-project 26)', () => {
+  const base = (node: Record<string, unknown>) => parseLogicDiagram({ version: 1, nodes: [node], wires: [] });
+
+  it('keeps the rotation of gates and IC blocks, and leaves 0 out', () => {
+    expect(base({ id: 'g1', kind: 'AND', x: 0, y: 0, inputs: 2, rotation: 90 })).toMatchObject({ ok: true, diagram: { nodes: [{ rotation: 90 }] } });
+    expect(base({ id: 'b1', kind: 'BLOCK', chip: '74LS83', x: 0, y: 0, rotation: 270 })).toMatchObject({ ok: true, diagram: { nodes: [{ rotation: 270 }] } });
+    const zero = base({ id: 'g1', kind: 'AND', x: 0, y: 0, inputs: 2, rotation: 0 });
+    expect(zero.ok && 'rotation' in zero.diagram.nodes[0]).toBe(false);
+  });
+
+  it('rejects other angles and parts that cannot turn', () => {
+    expect(base({ id: 'g1', kind: 'AND', x: 0, y: 0, inputs: 2, rotation: 45 })).toEqual({ ok: false, error: '元件 g1 的方向 45 不合法（只能是 0、90、180、270）' });
+    expect(base({ id: 'i1', kind: 'INPUT', x: 0, y: 0, name: 'A', rotation: 90 })).toEqual({ ok: false, error: '元件 i1（INPUT）不能轉向' });
+  });
+
+  it('checks overlaps with the turned box', () => {
+    const d = parseLogicDiagram({
+      version: 1,
+      nodes: [
+        { id: 'g1', kind: 'AND', x: 10, y: 20, inputs: 2, rotation: 90 },
+        { id: 'g2', kind: 'AND', x: 12, y: 23, inputs: 2 },
+      ],
+      wires: [],
+    });
+    expect(d).toEqual({ ok: false, error: '元件 g1 和 g2 重疊' });
+  });
+});

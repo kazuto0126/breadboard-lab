@@ -1,7 +1,7 @@
 import { isBlockChip } from './blocks';
 import { inputCountOf, outputCountOf, overlaps } from './shapes';
 import { parseTask } from './task';
-import { isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
+import { canRotate, isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
 const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT', 'DISPLAY', 'HIGH', 'LOW', 'BLOCK'];
 const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
@@ -32,6 +32,12 @@ function parseNode(raw: unknown, i: number): LogicNode {
     if (typeof n.name !== 'string' || !NAME_RULE.test(n.name)) fail(`元件 ${node.id} 的名稱 ${String(n.name)} 不合法`);
     node.name = n.name as string;
     if (node.kind === 'INPUT') node.value = n.value === 1 ? 1 : 0;
+  }
+  // 子專案 26：轉向（0 不寫）。
+  if (n.rotation !== undefined && n.rotation !== 0) {
+    if (![90, 180, 270].includes(n.rotation as number)) fail(`元件 ${node.id} 的方向 ${String(n.rotation)} 不合法（只能是 0、90、180、270）`);
+    if (!canRotate(node.kind)) fail(`元件 ${node.id}（${node.kind}）不能轉向`);
+    node.rotation = n.rotation as Rotation;
   }
   return node;
 }

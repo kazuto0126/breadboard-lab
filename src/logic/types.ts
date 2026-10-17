@@ -22,7 +22,14 @@ export interface LogicNode {
   value?: 0 | 1;
   /** 只有 IC 方塊：哪一顆 IC。 */
   chip?: BlockChip;
+  /** 子專案 26：只有閘與 IC 方塊，順時針轉幾度（0 不寫）。 */
+  rotation?: Rotation;
 }
+
+export type Rotation = 90 | 180 | 270;
+
+/** 可以轉向的元件：邏輯閘與 IC 方塊。 */
+export const canRotate = (kind: NodeKind): boolean => isGate(kind) || kind === 'BLOCK';
 
 export interface LogicWire {
   id: string;

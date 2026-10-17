@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
 import { DEFAULT_VIEWPORT, fitRect, type Viewport } from '../editor/viewport';
 import { addNode, copyNodes, pasteNodes, removeNodes, removeWire, setInputValue, type EditResult, type LogicClipboard } from '../logic/edit';
-import { nodeSize } from '../logic/shapes';
+import { boxOf } from '../logic/shapes';
 import { emptyDiagram, type LogicDiagram, type NodeKind, type BlockChip } from '../logic/types';
 import * as persistence from './persistence';
 
@@ -126,8 +126,8 @@ export const useLogic = create<LogicState>((set, get) => ({
       set({ viewport: DEFAULT_VIEWPORT });
       return;
     }
-    const xs = diagram.nodes.flatMap((n) => [n.x, n.x + nodeSize(n).w + 1]);
-    const ys = diagram.nodes.flatMap((n) => [n.y, n.y + nodeSize(n).h]);
+    const xs = diagram.nodes.flatMap((n) => [n.x, n.x + boxOf(n).w + 1]);
+    const ys = diagram.nodes.flatMap((n) => [n.y, n.y + boxOf(n).h]);
     const rect = { x: (Math.min(...xs) - 2) * LOGIC_CELL, y: (Math.min(...ys) - 2) * LOGIC_CELL, width: (Math.max(...xs) - Math.min(...xs) + 4) * LOGIC_CELL, height: (Math.max(...ys) - Math.min(...ys) + 4) * LOGIC_CELL };
     set({ viewport: fitRect(rect, canvasSize.width, canvasSize.height, 32) });
   },

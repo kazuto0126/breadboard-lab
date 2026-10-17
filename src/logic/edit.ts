@@ -1,5 +1,5 @@
 import { isBlockChip } from './blocks';
-import { inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
+import { boxOf, inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
 import { isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
 
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
@@ -153,7 +153,7 @@ export function moveNodes(d: LogicDiagram, ids: string[], dx: number, dy: number
 export function nodesInRect(d: LogicDiagram, r: { x: number; y: number; w: number; h: number }): string[] {
   return d.nodes
     .filter((n) => {
-      const s = nodeSize(n);
+      const s = boxOf(n);
       return n.x < r.x + r.w && r.x < n.x + s.w && n.y < r.y + r.h && r.y < n.y + s.h;
     })
     .map((n) => n.id);
