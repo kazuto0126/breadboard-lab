@@ -1,5 +1,6 @@
 import { isBlockChip } from './blocks';
 import { inputCountOf, outputCountOf, overlaps } from './shapes';
+import { parseTask } from './task';
 import { isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
 
 const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT', 'DISPLAY', 'HIGH', 'LOW', 'BLOCK'];
@@ -77,7 +78,10 @@ export function parseLogicDiagram(raw: unknown): { ok: true; diagram: LogicDiagr
       if (pins.has(key)) fail(`${w.to.node} 的第 ${w.to.pin + 1} 個輸入接了兩條線`);
       pins.add(key);
     }
-    return { ok: true, diagram: { version: 1, nodes, wires } };
+    if (r.task === undefined) return { ok: true, diagram: { version: 1, nodes, wires } };
+    const task = parseTask(r.task);
+    if (!task.ok) return { ok: false, error: task.reason };
+    return { ok: true, diagram: { version: 1, nodes, wires, task: task.task } };
   } catch (err) {
     if (err instanceof LogicFormatError) return { ok: false, error: err.message };
     throw err;
