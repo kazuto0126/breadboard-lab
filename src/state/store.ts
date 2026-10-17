@@ -272,10 +272,29 @@ export function isComparisonFresh(s: Pick<AppState, 'comparison' | 'circuit'>): 
   return c !== null && c.boards === s.circuit.boards && (c.components === s.circuit.components || c.appliedComponents === s.circuit.components);
 }
 
-/** 子專案 17：已經套用到電路上、還沒過期的佈線結果（「這次佈線」說明用）；比較畫面時是 null。 */
+/** 導線的位置一樣（同樣的 ID 與路徑；顏色不算）。 */
+function sameWirePlaces(a: readonly Wire[], b: readonly Wire[]): boolean {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  const same = (p: GridPoint, q: GridPoint) => p.boardId === q.boardId && p.x === q.x && p.y === q.y;
+  return a.every((w, i) => {
+    const v = b[i];
+    return w.id === v.id && w.path.length === v.path.length && w.path.every((p, k) => same(p, v.path[k]));
+  });
+}
+
+let placesCache: { wires: Wire[]; result: Wire[]; same: boolean } | null = null;
+
+/**
+ * 子專案 17：已經套用到電路上、還沒過期的佈線結果（「這次佈線」說明用）；比較畫面時是 null。
+ * 套用後導線被改過（新增、刪除、拉動；只改顏色不算）也算過期。
+ */
 export function appliedRouting(s: Pick<AppState, 'comparison' | 'circuit' | 'view'>): Comparison | null {
   if (!s.comparison || s.view === 'compare' || !isComparisonFresh(s)) return null;
-  return s.circuit.wires.some((w) => w.source === 'auto') ? s.comparison : null;
+  const wires = s.circuit.wires;
+  const result = s.comparison.result.wires;
+  if (placesCache?.wires !== wires || placesCache.result !== result) placesCache = { wires, result, same: sameWirePlaces(wires, result) };
+  return placesCache.same ? s.comparison : null;
 }
 
 /** 比較畫面左右兩邊的電路：左邊是佈線前的元件與手動導線，右邊是（搬移後的）元件與 AI 導線。 */

@@ -613,6 +613,26 @@ describe('routing summary (sub-project 17)', () => {
     s().moveComponent(s().circuit.components[0].id, { x: 50, y: 11 });
     expect(appliedRouting(s())).toBeNull();
   });
+
+  it('goes away when only the wires change after applying, and comes back on undo', async () => {
+    const { appliedRouting } = await import('../../src/state/store');
+    s().loadCircuit(acceptanceCircuit(), '驗收電路');
+    s().runAutoRoute('apply');
+    await routed();
+    s().finishAnimation();
+    expect(appliedRouting(s())).not.toBeNull();
+    // 只改顏色：線的位置沒變，說明還在。
+    s().setWireColors([s().circuit.wires[0].id], '#22c55e');
+    expect(appliedRouting(s())).not.toBeNull();
+    s().deleteWire(s().circuit.wires[0].id);
+    expect(appliedRouting(s())).toBeNull();
+    s().undo();
+    expect(appliedRouting(s())).not.toBeNull();
+    // 「切回手動接線」不受影響。
+    s().deleteWire(s().circuit.wires[0].id);
+    s().restoreManualWires();
+    expect(s().circuit.wires.every((w) => w.source === 'manual')).toBe(true);
+  });
 });
 
 describe('notes (sub-project 18)', () => {
