@@ -17,6 +17,8 @@ import {
   type TaskValue,
   type TruthTask,
 } from '../../logic/task';
+import { designFromTask } from '../../logic/design';
+import { literalsOf, minimize, sopText, type Term } from '../../logic/minimize';
 import type { LogicDiagram } from '../../logic/types';
 import { useLogic } from '../../state/logic';
 
@@ -95,6 +97,51 @@ function RowsField({ label, rows, apply }: { label: string; rows: number[]; appl
         className="w-full rounded border border-slate-600 bg-slate-950 px-1.5 py-0.5 font-mono text-xs text-slate-100 focus:border-sky-500 focus:outline-none"
       />
       {error && <p className="mt-0.5 text-[11px] text-red-300">{error}</p>}
+    </div>
+  );
+}
+
+/** 積項和；反相用上橫線（課本寫法）。 */
+function SumOfProducts({ terms, names }: { terms: Term[]; names: string[] }) {
+  const parts = terms.map((t) => literalsOf(t, names));
+  if (parts.length === 0) return <>0</>;
+  if (parts.some((p) => p.length === 0)) return <>1</>;
+  return (
+    <>
+      {parts.map((p, i) => (
+        <span key={i}>
+          {i > 0 && ' + '}
+          {p.map((l) => (
+            <span key={l.name} style={l.negated ? { textDecoration: 'overline' } : undefined}>
+              {l.name}
+            </span>
+          ))}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/** 子專案 25（規格 2026-10-17 task-to-diagram 第 4 節）：每個輸出化簡後的布林式與「產生邏輯圖」。 */
+function Simplified({ diagram, task }: { diagram: LogicDiagram; task: TruthTask }) {
+  const terms = useMemo(() => task.outputs.map((_, k) => minimize(task.inputs.length, rowsWith(task, k, 1), rowsWith(task, k, 'X'))), [task]);
+  const generate = () => {
+    const s = useLogic.getState();
+    s.apply({ ok: true, diagram: designFromTask(task).diagram }, '從題目產生邏輯圖', null);
+    s.fit();
+  };
+  return (
+    <div data-testid="task-sop" className="mt-3 rounded border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs leading-5">
+      <div className="font-semibold text-slate-200">化簡（積項和）</div>
+      {task.outputs.map((name, k) => (
+        <div key={name} data-sop={name} data-text={sopText(terms[k], task.inputs)} className="font-mono text-sm text-slate-100">
+          <span className="text-amber-300">{name}</span> = <SumOfProducts terms={terms[k]} names={task.inputs} />
+        </div>
+      ))}
+      <button type="button" className={`${btn} mt-2 bg-sky-700 text-white hover:bg-sky-600`} onClick={generate}>
+        {diagram.nodes.length > 0 ? '產生邏輯圖（取代目前的）' : '產生邏輯圖'}
+      </button>
+      <p className="mt-1 text-[11px] text-slate-400">照化簡結果畫出 AND–OR 邏輯圖（X 的格子拿來幫忙化簡）；可以用 Undo 回到原本的圖。</p>
     </div>
   );
 }
@@ -303,6 +350,7 @@ export function TaskTab({ diagram }: { diagram: LogicDiagram }) {
         ))}
       </div>
 
+      <Simplified diagram={diagram} task={task} />
       <DiagramCompare diagram={diagram} task={task} />
     </div>
   );

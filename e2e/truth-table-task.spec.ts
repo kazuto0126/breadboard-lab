@@ -85,3 +85,33 @@ test('真值表題目：用邏輯圖的真值表建立、改名稱、刪除', as
   await tab.getByRole('button', { name: '刪除題目' }).click();
   await expect(tab.getByRole('button', { name: '建立題目' })).toBeVisible();
 });
+
+test('真值表題目：看化簡結果、產生邏輯圖，和題目全部一致，可以 Undo', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByTestId('view-switch').getByRole('button', { name: '邏輯圖' }).click();
+  await page.getByRole('tab', { name: '題目' }).click();
+  const tab = page.getByTestId('task-tab');
+  await tab.getByLabel('輸入名稱').fill('A B C');
+  await tab.getByLabel('輸出名稱').fill('X Y');
+  await tab.getByRole('button', { name: '建立題目' }).click();
+  // X 是多數決；Y = A XOR B（C 不影響）。
+  for (const [name, rows] of [['X', '3, 5, 6, 7'], ['Y', '2, 3, 4, 5']]) {
+    await tab.getByLabel(`${name} 的 1 的列`).fill(rows);
+    await tab.getByLabel(`${name} 的 1 的列`).press('Enter');
+  }
+  await expect(tab.locator('[data-sop="X"]')).toHaveAttribute('data-text', 'AB + AC + BC');
+  await expect(tab.locator('[data-sop="Y"]')).toHaveAttribute('data-text', "A'B + AB'");
+
+  await tab.getByRole('button', { name: '產生邏輯圖' }).click();
+  // 輸入 3、NOT 2、AND 5、OR 2、輸出 2。
+  await expect(page.locator('[data-logic-node]')).toHaveCount(14);
+  await expect(tab.getByTestId('task-compare')).toContainText('8 種輸入組合，邏輯圖和題目全部一致');
+  await expect(tab.getByRole('button', { name: '產生邏輯圖（取代目前的）' })).toBeVisible();
+
+  // 一個 Undo 回到沒有邏輯圖，題目還在。
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('[data-logic-node]')).toHaveCount(0);
+  await expect(tab.locator('[data-sop="X"]')).toBeVisible();
+});
