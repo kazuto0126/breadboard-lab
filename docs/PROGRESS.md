@@ -1,19 +1,19 @@
 # 專案進度
 
 > 每個 Claude Code 對話開始時會自動顯示這份檔案（`.claude/hooks/session-start.sh`）。
-> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-16
+> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-17
 
 ## 目前狀態
 
-- `main`：子專案 1–21 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式、新元件與 IC 腳位圖、EIC-1106 大型麵包板、AI 回答的孔位連結與導線解說、邏輯圖編輯器、邏輯圖轉成麵包板、只用 NAND 轉換與板上名稱、邏輯圖的小改善、輸出用 7 段顯示器、整次佈線的說明與問 AI、麵包板上的便條、轉換更簡潔與理想開關、便條拖曳、邏輯圖的常數與 IC 方塊）；
-  接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#31 已合併（最後一批 2026-10-13）。GitHub Actions CI 已設定。
-- 測試：main 上 630 個單元測試、45 個端對端測試。本機整套平行跑時 `gives up quickly on places that cannot be routed`（限時 15 秒）可能超時，單獨跑與 CI 會過。
+- `main`：子專案 1–22 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式、新元件與 IC 腳位圖、EIC-1106 大型麵包板、AI 回答的孔位連結與導線解說、邏輯圖編輯器、邏輯圖轉成麵包板、只用 NAND 轉換與板上名稱、邏輯圖的小改善、輸出用 7 段顯示器、整次佈線的說明與問 AI、麵包板上的便條、轉換更簡潔與理想開關、便條拖曳、邏輯圖的常數與 IC 方塊、依名稱對照邏輯圖檢查麵包板）；
+  接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#34 已合併（最後一批 2026-10-17）。GitHub Actions CI 已設定。
+- 測試：main 上 646 個單元測試、46 個端對端測試。本機整套平行跑時 `gives up quickly on places that cannot be routed`（限時 15 秒）可能超時，單獨跑與 CI 會過。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
-  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-14（PR #31 合併後，含子專案 6–21）。
+  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-14（PR #31 合併後，含子專案 6–21）；PR #32、#34（子專案 22）還沒發布。
 
 ## 進行中
 
-- 轉成麵包板的小改善：LED 緊鄰它的電阻、沒用到的開關不警告、修好時好時壞的平板端對端測試（分支 `feat/led-near-resistor`，PR #32，等使用者合併）。
+- 無。
 
 ## 接下來（依優先順序）
 

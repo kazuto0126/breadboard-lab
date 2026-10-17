@@ -46,7 +46,8 @@ test('點一條 AI 佈好的線：看到這條線在做什麼，孔位可以點�
   await expect(card).toBeVisible();
 
   await card.getByRole('button', { name: '為什麼這樣走？' }).click();
-  await expect(card.locator('[data-ai-message="model"]')).toHaveText('Gemini：因為兩端不在同一列。');
+  // 第一次發問時才載入 Gemini 套件（開發伺服器、整套測試同時跑時可能超過 5 秒），第一個回答多等一點。
+  await expect(card.locator('[data-ai-message="model"]')).toHaveText('Gemini：因為兩端不在同一列。', { timeout: 15_000 });
   expect(sent[0]).toContain('【學生正在看的導線】');
   expect(sent[0]).toContain('【AI 標準佈線的規則】');
 });

@@ -1,0 +1,108 @@
+import { getComponentDefinition } from '../core/circuit/library';
+import { analyzeCircuit } from '../editor/analysis';
+import type { Circuit } from '../types/circuit';
+import { sortedIo, truthTable } from './evaluate';
+import type { LogicDiagram } from './types';
+import { verifyRows, type Bindings, type VerifyResult } from './verifyBreadboard';
+
+/** 規格（2026-10-17 diagram-check）第 3 節：「檢查」分頁那張卡要顯示什麼。 */
+export type DiagramCheck =
+  | { kind: 'none' }
+  | { kind: 'hint' }
+  | { kind: 'incomplete'; issues: string[] }
+  | { kind: 'done'; bindings: Bindings; result: VerifyResult; inputs: string[]; outputs: string[]; mapping: string };
+
+/** 某一類零件上的名稱 → 有這個名稱的位置（指撥開關是第幾個開關，其他零件是 0）。 */
+function labelsOf(circuit: Circuit, category: string): Map<string, Array<{ id: string; index: number }>> {
+  const byName = new Map<string, Array<{ id: string; index: number }>>();
+  for (const c of circuit.components) {
+    if (getComponentDefinition(c.defId)?.category !== category) continue;
+    const labels = category === 'dip-switch' ? (c.props.labels ?? []) : (c.props.labels ?? []).slice(0, 1);
+    labels.forEach((raw, index) => {
+      const name = raw.trim();
+      if (name) byName.set(name, [...(byName.get(name) ?? []), { id: c.id, index }]);
+    });
+  }
+  return byName;
+}
+
+/**
+ * 規格第 2 節：依名稱把邏輯圖的輸入端、輸出端、顯示器對應到指撥開關的某一個開關、LED、7 段顯示器；
+ * 開關一邊接到 +5 V 時撥 ON = 1，接到 GND 時撥 ON = 0。
+ */
+export function bindByLabels(d: LogicDiagram, circuit: Circuit): { bindings: Bindings; issues: string[]; matched: number } {
+  const { inputs, outputs } = sortedIo(d);
+  const analysis = analyzeCircuit(circuit);
+  const switches = labelsOf(circuit, 'dip-switch');
+  const leds = labelsOf(circuit, 'led');
+  const displays = labelsOf(circuit, 'seven-seg');
+  const bindings: Bindings = { inputs: [], leds: {}, displays: {} };
+  const missing: string[] = [];
+  const twice: string[] = [];
+  const rails: string[] = [];
+  let matched = 0;
+
+  for (const node of inputs) {
+    const name = node.name ?? node.id;
+    const found = switches.get(name) ?? [];
+    if (found.length === 0) {
+      missing.push(`輸入 ${name}：找不到名稱是 ${name} 的開關`);
+      continue;
+    }
+    matched++;
+    if (found.length > 1) {
+      twice.push(`名稱 ${name} 用在好幾個開關：${found.map((f) => `${f.id} 第 ${f.index + 1} 個`).join('、')}`);
+      continue;
+    }
+    const { id, index } = found[0];
+    const instance = circuit.components.find((c) => c.id === id)!;
+    const n = getComponentDefinition(instance.defId)!.pins.length;
+    // 第 index 個開關接通第 index + 1 腳和第 n − index 腳。
+    const kinds = [index + 1, n - index].map((p) => analysis.netByPin.get(`${id}#${p}`)?.kind).filter((k) => k === 'power' || k === 'ground');
+    const where = `${id} 第 ${index + 1} 個開關（${name}）`;
+    if (kinds.length === 0) rails.push(`${where}沒有接到 +5 V 或 GND`);
+    else if (kinds.length === 2) rails.push(`${where}兩邊都接到電源`);
+    else bindings.inputs.push({ node: node.id, switchId: id, index, onIs: kinds[0] === 'power' ? 1 : 0 });
+  }
+
+  for (const node of outputs) {
+    const name = node.name ?? node.id;
+    const display = node.kind === 'DISPLAY';
+    const found = (display ? displays : leds).get(name) ?? [];
+    if (found.length === 0) {
+      missing.push(display ? `顯示器 ${name}：找不到名稱是 ${name} 的 7 段顯示器` : `輸出 ${name}：找不到名稱是 ${name} 的 LED`);
+      continue;
+    }
+    matched++;
+    if (found.length > 1) {
+      twice.push(`名稱 ${name} 用在好幾${display ? '個 7 段顯示器' : '顆 LED'}：${found.map((f) => f.id).join('、')}`);
+      continue;
+    }
+    (display ? bindings.displays : bindings.leds)[node.id] = found[0].id;
+  }
+
+  return { bindings, issues: [...missing, ...twice, ...rails], matched };
+}
+
+/** 「A → SW1 第 1 個開關（ON = 1）、X → D1」。 */
+function mappingText(d: LogicDiagram, b: Bindings): string {
+  const name = (id: string) => d.nodes.find((n) => n.id === id)?.name ?? id;
+  const { outputs } = sortedIo(d);
+  return [
+    ...b.inputs.map((s) => `${name(s.node)} → ${s.switchId} 第 ${s.index + 1} 個開關（ON = ${s.onIs}）`),
+    ...outputs.map((o) => `${name(o.id)} → ${(o.kind === 'DISPLAY' ? b.displays : b.leds)[o.id]}`),
+  ].join('、');
+}
+
+/** 規格第 3 節。 */
+export function checkAgainstDiagram(d: LogicDiagram, circuit: Circuit): DiagramCheck {
+  if (circuit.components.length === 0) return { kind: 'none' };
+  const table = truthTable(d);
+  if (!table.ok || table.inputs.length === 0 || table.outputs.length === 0) return { kind: 'none' };
+  const { bindings, issues, matched } = bindByLabels(d, circuit);
+  if (matched === 0) return { kind: 'hint' };
+  const all = [...issues];
+  if (table.rows.some((r) => r.out.includes('X'))) all.push('邏輯圖有些輸出不確定（還有沒接好的腳），先把邏輯圖接好');
+  if (all.length > 0) return { kind: 'incomplete', issues: all };
+  return { kind: 'done', bindings, result: verifyRows(d, circuit, bindings), inputs: table.inputs, outputs: table.outputs, mapping: mappingText(d, bindings) };
+}

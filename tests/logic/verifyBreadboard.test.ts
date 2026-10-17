@@ -77,3 +77,29 @@ describe('7-segment displays', () => {
     expect(verifyText(result, ['S1'])).toContain('輸入 0111 應該是 S1 = 7，麵包板是 S1 = 1');
   });
 });
+
+describe('verifyRows with switches on several DIP switches', () => {
+  it('sets each bound switch by its own polarity and leaves the other switches as they are', async () => {
+    const { verifyRows } = await import('../../src/logic/verifyBreadboard');
+    const { handWired, gateDiagram } = await import('../fixtures/handWired');
+    const d = gateDiagram('AND');
+    const bindings = {
+      inputs: [
+        { node: 'i1', switchId: 'SW1', index: 0, onIs: 1 as const },
+        { node: 'i2', switchId: 'SW2', index: 2, onIs: 1 as const },
+      ],
+      leds: { o1: 'D1' },
+      displays: {},
+    };
+    // 致能開關（SW1 第 2 個）撥 ON：和 AND 的真值表全部一致。
+    expect(verifyRows(d, handWired({}), bindings)).toEqual({ rows: 4, mismatches: [] });
+    // 致能開關撥 OFF（沒有對應到，維持原狀）：LED 永遠不亮，A = B = 1 那一列不一致。
+    expect(verifyRows(d, handWired({ sw1: [false, false, false, false] }), bindings)).toEqual({
+      rows: 4,
+      mismatches: [{ inputs: '11', expected: ['1'], actual: ['0'] }],
+    });
+    // 開關改接 GND（撥 ON = 0）：onIs = 0 時也一致。
+    const low = { ...bindings, inputs: bindings.inputs.map((b) => ({ ...b, onIs: 0 as const })) };
+    expect(verifyRows(d, handWired({ toGnd: true }), low)).toEqual({ rows: 4, mismatches: [] });
+  });
+});

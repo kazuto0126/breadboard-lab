@@ -29,11 +29,9 @@ import {
   ROLE_NAMES,
   wireSummary,
 } from '../common/describe';
-import { sortedIo } from '../../logic/evaluate';
-import { verifyBreadboard, verifyText } from '../../logic/verifyBreadboard';
-import { useLogic } from '../../state/logic';
 import { ExplanationCard } from './ExplanationCard';
 import { NoteInspector } from './NoteInspector';
+import { DiagramCheckCard } from './DiagramCheckCard';
 import { PinoutDiagram } from './PinoutDiagram';
 import { RoutingSummaryCard } from './RoutingSummaryCard';
 import { WireExplanationCard } from './WireExplanationCard';
@@ -607,25 +605,6 @@ function NetsTab({ circuit, analysis }: { circuit: Circuit; analysis: CircuitAna
   );
 }
 
-/** 規格（2026-10-13 logic-to-breadboard）第 7 節：從邏輯圖轉來的麵包板，逐列模擬比對真值表（用目前的電路即時計算）。 */
-function ConversionCard({ circuit }: { circuit: Circuit }) {
-  const conversion = useStore((s) => s.conversion);
-  const diagram = useLogic((l) => l.diagram);
-  const result = useMemo(() => (conversion ? verifyBreadboard(diagram, circuit, conversion.switchTo, conversion) : null), [conversion, diagram, circuit]);
-  if (!conversion || !result) return null;
-  const ok = result.mismatches.length === 0;
-  const names = sortedIo(diagram).outputs.map((n) => n.name ?? n.id);
-  return (
-    <div
-      data-testid="conversion-check"
-      className={`m-3 mb-0 rounded border px-3 py-2 text-xs leading-5 ${ok ? 'border-emerald-700 bg-emerald-950/50 text-emerald-200' : 'border-red-700 bg-red-950/50 text-red-200'}`}
-    >
-      <div className="font-semibold">和邏輯圖的真值表比對</div>
-      {verifyText(result, names)}
-    </div>
-  );
-}
-
 function CheckTab({ analysis }: { analysis: CircuitAnalysis }) {
   const showCheck = useStore((s) => s.showCheck);
   const circuit = useStore((s) => s.circuit);
@@ -835,7 +814,7 @@ export function PropertyPanel() {
         {tab === 'nets' && <NetsTab circuit={circuit} analysis={analysis} />}
         {tab === 'check' && (
           <>
-            <ConversionCard circuit={circuit} />
+            <DiagramCheckCard circuit={circuit} />
             <CheckTab analysis={analysis} />
           </>
         )}
