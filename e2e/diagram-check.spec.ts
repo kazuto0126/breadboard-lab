@@ -9,7 +9,7 @@ test('依名稱對照邏輯圖：改名稱會找不到、改邏輯圖會列出�
   await page.getByRole('menuitem', { name: '多數決電路（圖 2-5）' }).click();
   await page.getByRole('button', { name: '轉成麵包板…' }).click();
   await page.getByRole('dialog', { name: '轉成麵包板' }).getByRole('button', { name: '轉換' }).click();
-  await expect(page.getByTestId('status')).not.toContainText('Routing', { timeout: 120_000 });
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 120_000 });
 
   const card = page.getByTestId('diagram-check');
   await page.getByRole('tab', { name: /檢查/ }).click();

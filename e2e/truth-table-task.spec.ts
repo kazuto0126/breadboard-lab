@@ -42,7 +42,7 @@ test('真值表題目：輸入多數決的題目，和邏輯圖、麵包板比�
   await page.getByRole('tab', { name: '屬性' }).click();
   await page.getByRole('button', { name: '轉成麵包板…' }).click();
   await page.getByRole('dialog', { name: '轉成麵包板' }).getByRole('button', { name: '轉換' }).click();
-  await expect(page.getByTestId('status')).not.toContainText('Routing', { timeout: 60_000 });
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 60_000 });
   await page.getByRole('tab', { name: /檢查/ }).click();
   await expect(page.getByTestId('task-check')).toContainText('8 種輸入組合，麵包板的模擬結果和題目全部一致', { timeout: 60_000 });
 
