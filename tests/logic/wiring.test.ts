@@ -113,3 +113,55 @@ describe('going around other parts', () => {
     }
   });
 });
+
+describe('turned parts (sub-project 26)', () => {
+  const node = (id: string, kind: string, x: number, y: number, extra: Record<string, unknown> = {}) => ({ id, kind, name: id, x, y, ...extra });
+  const wire = (id: string, from: string, to: string, pin: number) => ({ id, from, to: { node: to, pin } });
+
+  it('comes down into a gate turned 90° (inputs on top)', () => {
+    // 轉 90° 的 AND 在 (10, 5)：第 0 個輸入在 (12, 5)，朝上。
+    const d = { nodes: [node('A', 'INPUT', 0, 0), node('G', 'AND', 10, 5, { inputs: 2, rotation: 90 })], wires: [wire('w1', 'A', 'G', 0)] } as unknown as LogicDiagram;
+    expect(wireRoute(d, d.wires[0])).toEqual([{ x: 2, y: 0 }, { x: 3, y: 0 }, { x: 3, y: 4 }, { x: 12, y: 4 }, { x: 12, y: 5 }]);
+  });
+
+  it('leaves a gate turned 180° to the left and goes round the target to reach its input from the left', () => {
+    // 轉 180° 的 AND 在 (10, 0)：輸出 (10, 1) 朝左；X 的輸入 (2, 1) 朝左，本體在 x 2–4，所以要從左邊繞進去。
+    const d = { nodes: [node('G', 'AND', 10, 0, { inputs: 2, rotation: 180 }), node('X', 'OUTPUT', 2, 1)], wires: [wire('w1', 'G', 'X', 0)] } as unknown as LogicDiagram;
+    expect(wireRoute(d, d.wires[0])).toEqual([{ x: 10, y: 1 }, { x: 9, y: 1 }, { x: 9, y: 2 }, { x: 1, y: 2 }, { x: 1, y: 1 }, { x: 2, y: 1 }]);
+  });
+
+  it('runs a horizontal bus under a gate turned 90° (output facing down)', () => {
+    // 轉 90° 的 AND 在 (0, 0)：輸出 (1, 4) 朝下，匯流線是 y = 5 的橫線。
+    const d = { nodes: [node('G', 'AND', 0, 0, { inputs: 2, rotation: 90 }), node('X', 'OUTPUT', 8, 8)], wires: [wire('w1', 'G', 'X', 0)] } as unknown as LogicDiagram;
+    expect(wireRoute(d, d.wires[0])).toEqual([{ x: 1, y: 4 }, { x: 1, y: 5 }, { x: 7, y: 5 }, { x: 7, y: 8 }, { x: 8, y: 8 }]);
+  });
+
+  it('always starts at the output pin, ends at the input pin from the side it faces, and only uses straight segments', async () => {
+    const { inputDir, inputPins, outputPin } = await import('../../src/logic/shapes');
+    let seed = 26;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    const step: Record<string, [number, number]> = { E: [1, 0], S: [0, 1], W: [-1, 0], N: [0, -1] };
+    for (let trial = 0; trial < 60; trial++) {
+      const nodes = Array.from({ length: 4 }, (_, k) => node(`G${k}`, ['AND', 'OR', 'NAND'][k % 3], 2 + (k % 2) * 14, 2 + Math.floor(k / 2) * 12, { inputs: 2, rotation: [0, 90, 180, 270][Math.floor(rand() * 4)] || undefined }));
+      const wires = Array.from({ length: 4 }, (_, k) => wire(`w${k}`, `G${k}`, `G${(k + 1 + Math.floor(rand() * 3)) % 4}`, Math.floor(rand() * 2)));
+      const used = new Set<string>();
+      const d = { nodes, wires: wires.filter((w) => !used.has(`${w.to.node}#${w.to.pin}`) && used.add(`${w.to.node}#${w.to.pin}`)) } as unknown as LogicDiagram;
+      for (const w of d.wires) {
+        const pts = wireRoute(d, w);
+        const source = d.nodes.find((n) => n.id === w.from)!;
+        const target = d.nodes.find((n) => n.id === w.to.node)!;
+        expect(pts[0]).toEqual(outputPin(source));
+        expect(pts.at(-1)).toEqual(inputPins(target)[w.to.pin]);
+        for (let i = 1; i < pts.length; i++) expect(pts[i].x === pts[i - 1].x || pts[i].y === pts[i - 1].y).toBe(true);
+        // 最後一段從輸入腳朝外的那一側接進來。
+        const [dx, dy] = step[inputDir(target)];
+        const last = pts.at(-1)!;
+        const prev = pts.at(-2)!;
+        expect(Math.sign(prev.x - last.x) === dx && Math.sign(prev.y - last.y) === dy, `第 ${trial} 次 ${w.id}`).toBe(true);
+      }
+    }
+  });
+});
