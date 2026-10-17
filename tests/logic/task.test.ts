@@ -173,3 +173,15 @@ describe('making a task from the logic diagram', () => {
     expect(taskFromDiagram(emptyDiagram())).toEqual({ ok: false, reason: '先在邏輯圖放輸入端和輸出端' });
   });
 });
+
+describe('putting the task on the diagram', () => {
+  it('adds, replaces and removes the task without leaving an empty field behind', async () => {
+    const { withTask } = await import('../../src/logic/task');
+    const t = must(createTask(['A'], ['X']));
+    const d = withTask(emptyDiagram(), t);
+    expect(d.task).toBe(t);
+    const gone = withTask(d, undefined);
+    expect(gone).toEqual(emptyDiagram());
+    expect('task' in gone).toBe(false);
+  });
+});

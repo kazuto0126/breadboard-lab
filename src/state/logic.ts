@@ -8,7 +8,7 @@ import * as persistence from './persistence';
 
 /** 選取：一個元件、一條線，或框選的多個元件（子專案 15）。 */
 export type LogicSelection = { kind: 'node'; id: string } | { kind: 'wire'; id: string } | { kind: 'nodes'; ids: string[] } | null;
-export type LogicTab = 'inspect' | 'table' | 'check';
+export type LogicTab = 'inspect' | 'table' | 'task' | 'check';
 /** 邏輯圖一格的畫面大小（px，縮放 1 時）。 */
 export const LOGIC_CELL = 20;
 

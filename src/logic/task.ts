@@ -170,3 +170,9 @@ export function taskFromDiagram(d: LogicDiagram): TaskResult {
   if (table.rows.some((r) => r.out.includes('X'))) return { ok: false, reason: '邏輯圖還有沒接好的地方（有些輸出不確定），先把邏輯圖接好' };
   return { ok: true, task: { ...made.task, rows: table.rows.map((r) => r.out.map((b): TaskValue => (b === 1 ? 1 : 0))) } };
 }
+
+/** 邏輯圖換上題目；undefined 是拿掉題目（不留下空的欄位）。 */
+export function withTask(d: LogicDiagram, task: TruthTask | undefined): LogicDiagram {
+  const { task: _old, ...rest } = d;
+  return task ? { ...rest, task } : rest;
+}
