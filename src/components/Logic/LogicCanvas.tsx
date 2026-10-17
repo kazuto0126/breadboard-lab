@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
 import { canPlace, connect, moveNodes, nodesInRect } from '../../logic/edit';
 import { evaluate, type Bit } from '../../logic/evaluate';
-import { inputPins, nodeSize, outputPin, outputPins, type GridXY } from '../../logic/shapes';
+import { bodyRect, inputPins, nodeSize, outputPin, outputPins, type GridXY } from '../../logic/shapes';
 import { isGate, isSink, signalOf, type LogicNode } from '../../logic/types';
 import { BlockBody, ConstantBody } from './BlockBody';
 import { DisplayBody } from './DisplayBody';
 import { junctions, wireRoutes } from '../../logic/wiring';
 import { LOGIC_CELL, selectedIds, useLogic } from '../../state/logic';
-import { bitColor, GateBody } from './GateSymbol';
+import { bitColor, GateBody, turnTransform } from './GateSymbol';
 
 const C = LOGIC_CELL;
 
@@ -324,17 +324,25 @@ export function LogicCanvas() {
             return from === undefined ? undefined : valueOf(from);
           });
           return (
-            <g key={node.id} data-logic-node={node.id} transform={`translate(${node.x * C} ${node.y * C})`} opacity={moving && !moveOk ? 0.5 : 1}>
-              {/* 拖曳與選取的範圍 */}
-              <rect
-                x={0.3 * C - (node.kind === 'INPUT' ? 1.2 * C : 0)}
-                y={-0.5 * C}
-                width={(w - 0.6) * C + (node.kind === 'INPUT' ? 1.2 * C : 0) + (isSink(node.kind) ? 0.7 * C : 0)}
-                height={h * C}
-                fill="transparent"
-                style={{ cursor: 'move' }}
-                onPointerDown={(e) => onNodeDown(e, node)}
-              />
+            <g key={node.id} data-logic-node={node.id} data-rotation={node.rotation ?? 0} transform={`translate(${node.x * C} ${node.y * C})`} opacity={moving && !moveOk ? 0.5 : 1}>
+              {/* 拖曳與選取的範圍（子專案 26：轉向的閘整個轉；轉向的 IC 方塊用本體範圍） */}
+              {node.kind === 'BLOCK' && node.rotation ? (
+                (() => {
+                  const r = bodyRect({ ...node, x: 0, y: 0 });
+                  return <rect x={r.x0 * C} y={r.y0 * C} width={(r.x1 - r.x0) * C} height={(r.y1 - r.y0) * C} fill="transparent" style={{ cursor: 'move' }} onPointerDown={(e) => onNodeDown(e, node)} />;
+                })()
+              ) : (
+                <rect
+                  x={0.3 * C - (node.kind === 'INPUT' ? 1.2 * C : 0)}
+                  y={-0.5 * C}
+                  width={(w - 0.6) * C + (node.kind === 'INPUT' ? 1.2 * C : 0) + (isSink(node.kind) ? 0.7 * C : 0)}
+                  height={h * C}
+                  transform={isGate(node.kind) ? turnTransform(node) : undefined}
+                  fill="transparent"
+                  style={{ cursor: 'move' }}
+                  onPointerDown={(e) => onNodeDown(e, node)}
+                />
+              )}
               <g pointerEvents="none">
                 {node.kind === 'INPUT' ? null : node.kind === 'BLOCK' ? (
                   <BlockBody node={node} inputs={ins} outputs={outputPins(node).map((_, k) => valueOf(signalOf(node.id, k)))} selected={sel} />
@@ -345,7 +353,9 @@ export function LogicCanvas() {
                 ) : node.kind === 'OUTPUT' ? (
                   <OutputTerminal node={node} value={values.loop ? undefined : values.nodes.get(node.id)} selected={sel} />
                 ) : (
-                  <GateBody node={node} value={valueOf(node.id)} inputs={ins} selected={sel} />
+                  <g transform={turnTransform(node)}>
+                    <GateBody node={node} value={valueOf(node.id)} inputs={ins} selected={sel} />
+                  </g>
                 )}
               </g>
               {node.kind === 'INPUT' && (

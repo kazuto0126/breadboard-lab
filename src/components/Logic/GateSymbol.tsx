@@ -113,3 +113,21 @@ export function PartIcon({ kind }: { kind: NodeKind }) {
     </svg>
   );
 }
+
+/**
+ * 子專案 26：閘轉向時，把沒轉的符號（本地座標）轉到畫面上的 SVG transform（相對於節點的 (x, y)）。
+ * 和 `shapes.ts` 的換法一致：90° (h − 1 − v, u)、180° (w − u, h − 1 − v)、270° (v, w − u)。
+ */
+export function turnTransform(node: LogicNode): string | undefined {
+  const { w, h } = nodeSize(node);
+  switch (node.rotation) {
+    case 90:
+      return `translate(${(h - 1) * C} 0) rotate(90)`;
+    case 180:
+      return `translate(${w * C} ${(h - 1) * C}) rotate(180)`;
+    case 270:
+      return `translate(0 ${w * C}) rotate(-90)`;
+    default:
+      return undefined;
+  }
+}

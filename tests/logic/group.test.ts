@@ -19,6 +19,14 @@ describe('moving several parts', () => {
     expect(nodesInRect(d, { x: -1, y: 0, w: 4, h: 6 })).toEqual(['i1', 'i2']);
     expect(nodesInRect(d, { x: 11, y: 0, w: 6, h: 20 })).toEqual(['g1', 'g2', 'g3']);
   });
+
+  it('uses the turned box of a rotated part (sub-project 26)', () => {
+    // g1 在 (12, 1)；轉 90° 後佔 x 12–14、y 1–4（沒轉時只到 y 3）。
+    const d = majorityDiagram();
+    const turned = { ...d, nodes: d.nodes.map((n) => (n.id === 'g1' ? { ...n, rotation: 90 as const } : n)) };
+    expect(nodesInRect(turned, { x: 12, y: 4, w: 1, h: 1 })).toEqual(['g1']);
+    expect(nodesInRect(d, { x: 12, y: 4, w: 1, h: 1 })).toEqual([]);
+  });
 });
 
 describe('copy and paste', () => {

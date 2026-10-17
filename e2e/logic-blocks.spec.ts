@@ -65,6 +65,6 @@ test('範例「2 位元加法器（74LS83 方塊）」轉成麵包板，比對�
   await dialog.getByRole('button', { name: '轉換' }).click();
   await page.getByRole('tab', { name: /檢查/ }).click();
   await expect(page.getByTestId('diagram-check')).toContainText('16 種輸入組合', { timeout: 120_000 });
-  await expect(page.getByTestId('status')).not.toContainText('Routing', { timeout: 120_000 });
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 120_000 });
   await expect(page.getByTestId('diagram-check')).toContainText('全部一致');
 });

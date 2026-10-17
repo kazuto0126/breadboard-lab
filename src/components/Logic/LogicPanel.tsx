@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
-import { removeNodes, removeWire, renameNode, setConstant, setGateKind, setInputCount } from '../../logic/edit';
+import { removeNodes, removeWire, renameNode, setConstant, setGateKind, setInputCount, setRotation } from '../../logic/edit';
 import { BLOCK_PINS } from '../../logic/blocks';
 import { evaluate, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
-import { nodeSize } from '../../logic/shapes';
-import { GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
+import { boxOf } from '../../logic/shapes';
+import { canRotate, GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
 import { convertProblem } from '../../logic/synth';
 import { useStore } from '../../state/store';
@@ -19,6 +19,13 @@ const TABS: Array<[LogicTab, string]> = [
 ];
 
 const btn = 'rounded px-2 py-1 text-xs disabled:opacity-50';
+/** 子專案 26：方向按鈕（輸出朝哪裡）。 */
+const DIRECTIONS = [
+  [0, '右', '→'],
+  [90, '下', '↓'],
+  [180, '左', '←'],
+  [270, '上', '↑'],
+] as const;
 
 /** 規格（2026-10-13 logic-to-breadboard）第 2 節：不能轉就說明原因，否則打開設定對話框。 */
 export function openConvert() {
@@ -136,6 +143,29 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
             )}
           </>
         )}
+        {canRotate(node.kind) && (
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-12 text-slate-400">方向</span>
+              <div className="flex gap-1">
+                {DIRECTIONS.map(([angle, word, arrow]) => (
+                  <button
+                    key={angle}
+                    type="button"
+                    aria-label={`輸出朝${word}`}
+                    title={`輸出朝${word}`}
+                    aria-pressed={(node.rotation ?? 0) === angle}
+                    onClick={() => run(setRotation(diagram, node.id, angle), `${node.id} 輸出朝${word}`)}
+                    className={`${btn} w-8 ${(node.rotation ?? 0) === angle ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                  >
+                    {arrow}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">選取後按 R 順時針轉 90°。</p>
+          </div>
+        )}
         {(node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'DISPLAY') && <NameEditor node={node} />}
         {(node.kind === 'HIGH' || node.kind === 'LOW') && (
           <div className="flex items-center gap-2">
@@ -165,7 +195,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     return (
       <Section title="多個元件">
         <p className="text-slate-200">已選取 {selection.ids.length} 個元件：{selection.ids.join('、')}</p>
-        <p className="text-xs leading-5 text-slate-400">拖曳其中一個可以整組移動；Ctrl+C 複製、Ctrl+V 貼上；Del 刪除。</p>
+        <p className="text-xs leading-5 text-slate-400">拖曳其中一個可以整組移動；R 轉向（閘與 IC 方塊）；Ctrl+C 複製、Ctrl+V 貼上；Del 刪除。</p>
         <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.deleteSelection()}>
           刪除這 {selection.ids.length} 個
         </button>
@@ -311,7 +341,7 @@ function CheckTab({ diagram }: { diagram: LogicDiagram }) {
     if (!node) return;
     const s = useLogic.getState();
     s.select({ kind: 'node', id: node.id });
-    const { w, h } = nodeSize(node);
+    const { w, h } = boxOf(node);
     const rect = { x: (node.x - 1) * LOGIC_CELL, y: (node.y - 1) * LOGIC_CELL, width: (w + 2) * LOGIC_CELL, height: (h + 2) * LOGIC_CELL };
     s.setViewport(centerOn(s.viewport, rect, s.canvasSize.width, s.canvasSize.height));
   };

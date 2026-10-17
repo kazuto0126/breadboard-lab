@@ -48,6 +48,12 @@ export function useShortcuts(): void {
           l.fit();
           return;
         }
+        // 子專案 26：R 轉向（和麵包板一樣）。
+        if (!mod && !e.altKey && key === 'r') {
+          const reason = l.rotateSelection();
+          if (reason) s.toast('warning', reason);
+          return;
+        }
         if (!mod) return;
       }
 
