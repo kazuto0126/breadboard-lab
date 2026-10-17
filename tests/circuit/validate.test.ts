@@ -128,3 +128,20 @@ describe('sub-project 19: switches without pulls and unused gates', () => {
     expect(floating(base('T+30'))).toEqual(['⚠ 74LS00 (U1) 第 2 腳（1B）未連接，TTL 輸入懸空會被當成 HIGH']);
   });
 });
+
+describe('unused DIP switch positions', () => {
+  // SW1（4 位元）在 F30：第 1 個開關上側（A30）接 +5 V、下側（H30）接 74LS00 的 1A；第 2–4 個開關沒有用到。
+  const parts = [comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3'), comp('U1', '74LS00', 'F10'), comp('SW1', 'dipsw-4', 'F30')];
+  const wires = [wire('pv', 'T+10', 'A10'), wire('pg', 'B-16', 'J16'), wire('top', 'T+30', 'A30'), wire('in', 'H30', 'H10')];
+  const unconnected = (c: Circuit) => validateCircuit(c).filter((e) => e.code === 'PIN_UNCONNECTED' && e.componentIds.includes('SW1')).map((e) => e.message);
+
+  it('does not warn about a switch whose two pins are both unconnected', () => {
+    expect(unconnected(circuit(parts, wires))).toEqual([]);
+  });
+
+  it('still warns when only one pin of a switch is connected', () => {
+    // 第 2 個開關的下側（F31，腳 2）接到 1B，上側（腳 7）沒接。
+    const half = circuit(parts, [...wires, wire('half', 'H31', 'H11')]);
+    expect(unconnected(half)).toEqual([expect.stringMatching(/SW1.* 第 7 腳未連接$/)]);
+  });
+});
