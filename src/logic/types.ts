@@ -1,3 +1,5 @@
+import type { TruthTask } from './task';
+
 /** 規格（2026-10-11 logic-diagram）第 2 節：邏輯圖的資料。座標是格子（整數），x 往右、y 往下。 */
 export type GateKind = 'AND' | 'OR' | 'NOT' | 'NAND' | 'NOR' | 'XOR';
 /** DISPLAY：7 段顯示器（子專案 16），4 個輸入腳 A、B、C、D，沒有輸出腳。 */
@@ -36,6 +38,8 @@ export interface LogicDiagram {
   version: 1;
   nodes: LogicNode[];
   wires: LogicWire[];
+  /** 子專案 24：真值表題目（邏輯圖的編輯都用 `{ ...d }` 產生新的圖，會保留它）。 */
+  task?: TruthTask;
 }
 
 export function emptyDiagram(): LogicDiagram {

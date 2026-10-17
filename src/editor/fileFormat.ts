@@ -35,7 +35,8 @@ export function emptyCircuit(): Circuit {
 export function toCircuitFile(circuit: Circuit, name: string, now: Date = new Date(), checklist?: ChecklistState, logic?: LogicDiagram): CircuitFile {
   const file: CircuitFile = { format: FILE_FORMAT, version: FILE_VERSION, name, savedAt: now.toISOString(), circuit };
   if (checklist && Object.keys(checklist).length > 0) file.checklist = checklist;
-  if (logic && logic.nodes.length > 0) file.logic = logic;
+  // 子專案 24：沒有元件、只有題目也要存。
+  if (logic && (logic.nodes.length > 0 || logic.task)) file.logic = logic;
   return file;
 }
 

@@ -70,4 +70,14 @@ describe('checking against the diagram (sub-project 22)', () => {
     S().undo();
     expect(S().circuit).toBe(before);
   });
+
+  it('names the undo step with the task input names, even when they look like diagram node ids', () => {
+    // 子專案 24：題目的輸入叫 i1（和邏輯圖的節點 id 一樣），復原步驟要寫 i1，不能寫成邏輯圖上那個節點的名稱。
+    S().loadCircuit(handWired({ labels: { sw1: ['i1'], sw2: ['', '', 'B'], led: ['X'] } }), 'x');
+    // 讀電路會換掉邏輯圖，所以之後才放多數決（它的節點 i1 名稱是 A）。
+    useLogic.getState().load(majorityDiagram());
+    S().applyDiagramRow([{ node: 'i1', switchId: 'SW1', index: 0, onIs: 1 }], [1], ['i1']);
+    expect(S().history.past.at(-1)?.label).toBe('把開關撥成 i1 = 1');
+    S().stopSimulation();
+  });
 });

@@ -52,6 +52,17 @@ describe('logic store', () => {
     expect(logicDirty()).toBe(false);
   });
 
+  it('counts a truth table task as unsaved work even without any parts', async () => {
+    const { createTask } = await import('../../src/logic/task');
+    const made = createTask(['A'], ['X']);
+    if (!made.ok) throw new Error(made.reason);
+    L().apply({ ok: true, diagram: { ...L().diagram, task: made.task } }, '建立題目');
+    expect(logicDirty()).toBe(true);
+    L().undo();
+    expect(L().diagram.task).toBeUndefined();
+    expect(logicDirty()).toBe(false);
+  });
+
   it('loads the figure 2-5 example into the logic workspace', () => {
     S().loadExampleLogic('majority');
     expect(S().workspace).toBe('logic');

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
+import { checkAgainstDiagram, checkAgainstTask } from '../../src/logic/diagramCheck';
+import { createTask, setColumn } from '../../src/logic/task';
 import { bcdDiagram, majorityDiagram } from '../../src/logic/examples';
 import { toBreadboard } from '../../src/logic/toBreadboard';
 import { emptyDiagram } from '../../src/logic/types';
@@ -97,5 +98,39 @@ describe('checking converted breadboards by name', () => {
     const check = checkAgainstDiagram(bcdDiagram(), r.circuit);
     expect(check).toMatchObject({ kind: 'done', result: { rows: 16, mismatches: [] } });
     expect(check.kind === 'done' && check.mapping).toContain('S1 → DS1');
+  });
+});
+
+describe('checking a breadboard against a truth table task (sub-project 24)', () => {
+  const task = (ones: number[], dontCares: number[] = [], inputs = ['A', 'B']) => {
+    const made = createTask(inputs, ['X']);
+    if (!made.ok) throw new Error(made.reason);
+    const t = setColumn(made.task, 0, ones, dontCares);
+    if (!t.ok) throw new Error(t.reason);
+    return t.task;
+  };
+
+  it('matches a hand-wired AND gate by name', () => {
+    const r = checkAgainstTask(task([3]), handWired({ labels: named }));
+    expect(r).toMatchObject({ kind: 'done', result: { rows: 4, mismatches: [] }, inputs: ['A', 'B'], outputs: ['X'] });
+    expect(r.kind === 'done' && r.mapping).toBe('A → SW1 第 1 個開關（ON = 1）、B → SW2 第 3 個開關（ON = 1）、X → D1');
+  });
+
+  it('lists the rows that differ, but not the cells marked X', () => {
+    // 題目是 OR，麵包板是 AND：第 1、2 列不一致；第 2 列改成不在乎就只剩第 1 列。
+    expect(checkAgainstTask(task([1, 2, 3]), handWired({ labels: named }))).toMatchObject({
+      kind: 'done',
+      result: { mismatches: [{ inputs: '01', expected: ['1'], actual: ['0'] }, { inputs: '10', expected: ['1'], actual: ['0'] }] },
+    });
+    expect(checkAgainstTask(task([1, 3], [2]), handWired({ labels: named }))).toMatchObject({
+      kind: 'done',
+      result: { mismatches: [{ inputs: '01', expected: ['1'], actual: ['0'] }] },
+    });
+  });
+
+  it('says which names are missing, and only hints when nothing matches', () => {
+    expect(checkAgainstTask(task([3], [], ['A', 'C']), handWired({ labels: named }))).toEqual({ kind: 'incomplete', issues: ['輸入 C：找不到名稱是 C 的開關'] });
+    expect(checkAgainstTask(task([3], [], ['P', 'Q']), handWired({ labels: { led: ['Y'] } }))).toEqual({ kind: 'hint' });
+    expect(checkAgainstTask(task([3]), { ...handWired({}), components: [], wires: [] })).toEqual({ kind: 'none' });
   });
 });

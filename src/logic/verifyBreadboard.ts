@@ -69,24 +69,34 @@ export function withSwitches(circuit: Circuit, inputs: SwitchBinding[], bits: Re
 export function verifyRows(d: LogicDiagram, circuit: Circuit, bindings: Bindings): VerifyResult {
   const table = truthTable(d);
   if (!table.ok) return { rows: 0, mismatches: [] };
-  const { outputs } = sortedIo(d);
+  const outputs = sortedIo(d).outputs.map((o) => ({ id: o.id, display: o.kind === 'DISPLAY' }));
+  return verifyExpected(circuit, bindings, outputs, table.rows.map((row) => ({ in: row.in, out: row.out.map((b) => (b === 'X' ? '?' : String(b))) })));
+}
+
+/** 一列的輸入與期望值：輸出端 0 / 1 / ?，顯示器是數字或 ?；X 是不在乎（子專案 24 的題目），不比。 */
+export interface ExpectedRow {
+  in: Array<0 | 1>;
+  out: string[];
+}
+
+/** 逐列撥好開關、模擬、讀 LED 與顯示器，和期望值比較（`verifyRows` 與題目的比對共用）。 */
+export function verifyExpected(circuit: Circuit, bindings: Bindings, outputs: Array<{ id: string; display: boolean }>, rows: ExpectedRow[]): VerifyResult {
   const mismatches: VerifyResult['mismatches'] = [];
-  for (const row of table.rows) {
+  for (const row of rows) {
     const sim = compileSimulation(withSwitches(circuit, bindings.inputs, row.in));
     const result = settle(sim, initialSimState(sim), { pressed: {}, clocks: {} }).result;
     const lit = new Set(result.litLeds);
-    const expected = row.out.map((b) => (b === 'X' ? '?' : String(b)));
     const actual = outputs.map((o) => {
-      if (o.kind !== 'DISPLAY') return lit.has(bindings.leds[o.id] ?? '') ? '1' : '0';
+      if (!o.display) return lit.has(bindings.leds[o.id] ?? '') ? '1' : '0';
       const id = bindings.displays[o.id] ?? '';
       const segments = result.litSegments[id] ?? [];
       if (segments.length === 0) return whyDark(sim, result, id)?.kind === 'fifteen' ? '15' : '暗';
       const v = valueOfSegments(segments);
       return v === null ? '?' : String(v);
     });
-    if (expected.join(',') !== actual.join(',')) mismatches.push({ inputs: row.in.join(''), expected, actual });
+    if (row.out.some((e, k) => e !== 'X' && e !== actual[k])) mismatches.push({ inputs: row.in.join(''), expected: row.out, actual });
   }
-  return { rows: table.rows.length, mismatches };
+  return { rows: rows.length, mismatches };
 }
 
 /**

@@ -194,6 +194,17 @@ describe('logic diagram tools', () => {
     expect(failed(logicSet(newLabFile('x', 'MB102'), { diagram: broken }))).toMatch(/^邏輯圖有問題：/);
   });
 
+  it('keeps the truth table task that is already in the file', async () => {
+    const { logicSet } = await import('../../src/mcp/tools');
+    const { createTask } = await import('../../src/logic/task');
+    const made = createTask(['A', 'B'], ['X']);
+    if (!made.ok) throw new Error(made.reason);
+    const withTask = { ...newLabFile('x', 'MB102'), logic: { version: 1 as const, nodes: [], wires: [], task: made.task } };
+    const r = logicSet(withTask, { diagram: xorRaw });
+    expect(okFile(r).logic.task).toEqual(made.task);
+    expect(r.text).toContain('保留檔案裡的真值表題目');
+  });
+
   it('prints the truth table', async () => {
     const { logicSet, logicTruthTable } = await import('../../src/mcp/tools');
     const f = okFile(logicSet(newLabFile('x', 'MB102'), { diagram: xorRaw }));

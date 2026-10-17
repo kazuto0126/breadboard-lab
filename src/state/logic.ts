@@ -8,7 +8,7 @@ import * as persistence from './persistence';
 
 /** 選取：一個元件、一條線，或框選的多個元件（子專案 15）。 */
 export type LogicSelection = { kind: 'node'; id: string } | { kind: 'wire'; id: string } | { kind: 'nodes'; ids: string[] } | null;
-export type LogicTab = 'inspect' | 'table' | 'check';
+export type LogicTab = 'inspect' | 'table' | 'task' | 'check';
 /** 邏輯圖一格的畫面大小（px，縮放 1 時）。 */
 export const LOGIC_CELL = 20;
 
@@ -147,7 +147,8 @@ export function selectedIds(sel: LogicSelection): string[] {
   return [];
 }
 
-/** 邏輯圖有沒有還沒儲存的修改（開關切換也算：開關狀態會存檔）。 */
+/** 邏輯圖有沒有還沒儲存的修改（開關切換也算：開關狀態會存檔；子專案 24 的題目也算）。 */
 export function logicDirty(s: LogicState = useLogic.getState()): boolean {
-  return s.diagram !== s.saved && (s.diagram.nodes.length > 0 || s.saved.nodes.length > 0);
+  const hasContent = (d: LogicDiagram) => d.nodes.length > 0 || d.task !== undefined;
+  return s.diagram !== s.saved && (hasContent(s.diagram) || hasContent(s.saved));
 }

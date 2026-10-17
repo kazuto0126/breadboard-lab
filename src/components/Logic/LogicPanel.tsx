@@ -9,10 +9,12 @@ import { GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicNode } from 
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
 import { convertProblem } from '../../logic/synth';
 import { useStore } from '../../state/store';
+import { TaskTab } from './TaskTab';
 
 const TABS: Array<[LogicTab, string]> = [
   ['inspect', '屬性'],
   ['table', '真值表'],
+  ['task', '題目'],
   ['check', '檢查'],
 ];
 
@@ -331,7 +333,7 @@ function CheckTab({ diagram }: { diagram: LogicDiagram }) {
   );
 }
 
-/** 規格第 5 節：邏輯圖時的右側面板（屬性、真值表、檢查）。 */
+/** 規格第 5 節：邏輯圖時的右側面板（屬性、真值表、題目（子專案 24）、檢查）。 */
 export function LogicPanel() {
   const diagram = useLogic((s) => s.diagram);
   const tab = useLogic((s) => s.tab);
@@ -362,6 +364,7 @@ export function LogicPanel() {
       <div className="bbl-scroll min-h-0 flex-1 overflow-y-auto">
         {tab === 'inspect' && <Inspector diagram={diagram} />}
         {tab === 'table' && <TruthTableTab diagram={diagram} />}
+        {tab === 'task' && <TaskTab diagram={diagram} />}
         {tab === 'check' && <CheckTab diagram={diagram} />}
       </div>
     </aside>

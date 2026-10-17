@@ -234,7 +234,8 @@ export interface AppActions {
   /** 規格第 2 節：邏輯圖轉成麵包板（取代目前的電路，一個 Undo 步驟），接著執行 AI 佈線（可移動 IC）。 */
   convertLogic(options: ConvertOptions): void;
   /** 子專案 22：把對應到的開關撥成真值表的某一列（一個復原步驟），並開始模擬。 */
-  applyDiagramRow(inputs: SwitchBinding[], bits: Array<0 | 1>): void;
+  /** names：每個開關對應的輸入名稱（復原步驟的名稱用；沒給時用邏輯圖節點的名稱）。 */
+  applyDiagramRow(inputs: SwitchBinding[], bits: Array<0 | 1>, names?: string[]): void;
   saveProject(name?: string): void;
   openProject(name: string): void;
   deleteProject(name: string): void;
@@ -1073,10 +1074,12 @@ export const useStore = create<Store>()((set, get) => {
       }
     },
 
-    applyDiagramRow(inputs, bits) {
+    applyDiagramRow(inputs, bits, names) {
       const s = get();
       const nodes = useLogic.getState().diagram.nodes;
-      const text = inputs.map((b, k) => `${nodes.find((n) => n.id === b.node)?.name ?? b.node} = ${bits[k]}`).join('、');
+      // 子專案 24：題目的開關對應用名稱當 id，名稱由呼叫的人給，不能拿去找邏輯圖的節點（可能撞名）。
+      const nameOf = (b: SwitchBinding, k: number) => names?.[k] ?? nodes.find((n) => n.id === b.node)?.name ?? b.node;
+      const text = inputs.map((b, k) => `${nameOf(b, k)} = ${bits[k]}`).join('、');
       // 撥開關不是結構編輯：模擬中也可以撥（和在板上點開關一樣）。
       commit(`把開關撥成 ${text}`, withSwitches(s.circuit, inputs, bits));
       if (!get().simulation && !get().routing) get().startSimulation();
