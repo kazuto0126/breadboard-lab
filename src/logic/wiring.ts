@@ -94,7 +94,16 @@ function detour(d: LogicDiagram, a: GridXY, busX: number, b: GridXY, signal: str
  */
 export function wireRoutes(d: LogicDiagram, columns: Map<string, number> = busColumns(d)): Map<string, GridXY[]> {
   const routes = new Map<string, GridXY[]>();
-  const drawn: Drawn[] = [];
+  // 每個來源從輸出腳到匯流線的短線先畫上：別的線不能沿著它走（子專案 25：產生的邏輯圖常常碰到）。
+  const stubs: Drawn[] = [];
+  for (const node of d.nodes) {
+    outputPins(node).forEach((pin, k) => {
+      const signal = signalOf(node.id, k);
+      const bus = columns.get(signal);
+      if (bus !== undefined) stubs.push({ signal, pts: [pin, { x: bus, y: pin.y }] });
+    });
+  }
+  const drawn: Drawn[] = [...stubs];
   const blocked: Array<{ id: string; a: GridXY; busX: number; b: GridXY; signal: string; straight: GridXY[] }> = [];
   for (const wire of d.wires) {
     const source = d.nodes.find((n) => n.id === wire.from);
@@ -109,7 +118,8 @@ export function wireRoutes(d: LogicDiagram, columns: Map<string, number> = busCo
     const busX = columns.get(signal) ?? a.x + 1;
     const straight = straightRoute(a, busX, b);
     const run = { x: busX, y: b.y };
-    if (d.nodes.some((n) => hitsNode(run, b, n))) blocked.push({ id: wire.id, a, busX, b, signal, straight });
+    const onStub = stubs.some((s) => s.signal !== signal && sharesStretch(run, b, s.pts[0], s.pts[1]));
+    if (onStub || d.nodes.some((n) => hitsNode(run, b, n))) blocked.push({ id: wire.id, a, busX, b, signal, straight });
     else {
       routes.set(wire.id, straight);
       drawn.push({ signal, pts: straight });
