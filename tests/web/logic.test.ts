@@ -102,3 +102,18 @@ describe('several parts at once', () => {
     }
   });
 });
+
+describe('turning the selection (sub-project 26)', () => {
+  it('turns the selected gates in one undo step, and explains when nothing can turn', () => {
+    L().load(majorityDiagram());
+    L().select({ kind: 'nodes', ids: ['g1', 'g2', 'i1'] });
+    expect(L().rotateSelection()).toBeNull();
+    expect(L().diagram.nodes.filter((n) => n.rotation === 90).map((n) => n.id)).toEqual(['g1', 'g2']);
+    L().undo();
+    expect(L().diagram.nodes.some((n) => n.rotation)).toBe(false);
+    L().select({ kind: 'node', id: 'i1' });
+    expect(L().rotateSelection()).toBe('只有邏輯閘和 IC 方塊可以轉向');
+    L().select(null);
+    expect(L().rotateSelection()).toBeNull();
+  });
+});

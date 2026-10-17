@@ -1,6 +1,6 @@
 import { isBlockChip } from './blocks';
 import { boxOf, inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
-import { isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind } from './types';
+import { canRotate, isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
 
@@ -198,4 +198,39 @@ export function pasteNodes(d: LogicDiagram, clip: LogicClipboard): { ok: true; d
     return { ok: true, diagram: next, ids: [...idMap.values()] };
   }
   return { ok: false, diagram: d, reason: '附近沒有空位可以貼上' };
+}
+
+/**
+ * 子專案 26：把元件轉到 to(node) 的角度；每個元件盡量繞自己的中心轉（位移往 0 取整，轉四次一定回到原位）。
+ * 只轉邏輯閘與 IC 方塊；轉了會和別的元件重疊就整批不轉。
+ */
+function turnNodes(d: LogicDiagram, ids: string[], to: (n: LogicNode) => number): EditResult {
+  const chosen = new Set(ids);
+  const turning = d.nodes.filter((n) => chosen.has(n.id) && canRotate(n.kind));
+  if (turning.length === 0) return fail(d, '只有邏輯閘和 IC 方塊可以轉向');
+  const moved = new Set(turning.map((n) => n.id));
+  const nodes = d.nodes.map((n) => {
+    if (!moved.has(n.id)) return n;
+    const angle = ((to(n) % 360) + 360) % 360;
+    const { rotation: _old, ...rest } = n;
+    const next: LogicNode = angle === 0 ? rest : { ...rest, rotation: angle as Rotation };
+    const a = boxOf(n);
+    const b = boxOf(next);
+    return { ...next, x: n.x + Math.trunc((a.w - b.w) / 2), y: n.y + Math.trunc((a.h - b.h) / 2) };
+  });
+  for (const n of nodes) {
+    if (!moved.has(n.id)) continue;
+    if (nodes.some((o) => o.id !== n.id && overlaps(n, o))) return fail(d, '轉向後會和別的元件重疊');
+  }
+  return { ok: true, diagram: { ...d, nodes } };
+}
+
+/** 順時針轉 90°（快捷鍵 R）。 */
+export function rotateNodes(d: LogicDiagram, ids: string[]): EditResult {
+  return turnNodes(d, ids, (n) => (n.rotation ?? 0) + 90);
+}
+
+/** 直接設定方向（屬性面板的方向按鈕）。 */
+export function setRotation(d: LogicDiagram, id: string, angle: 0 | Rotation): EditResult {
+  return turnNodes(d, [id], () => angle);
 }

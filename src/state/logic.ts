@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
 import { DEFAULT_VIEWPORT, fitRect, type Viewport } from '../editor/viewport';
-import { addNode, copyNodes, pasteNodes, removeNodes, removeWire, setInputValue, type EditResult, type LogicClipboard } from '../logic/edit';
+import { addNode, copyNodes, pasteNodes, removeNodes, removeWire, rotateNodes, setInputValue, type EditResult, type LogicClipboard } from '../logic/edit';
 import { boxOf } from '../logic/shapes';
 import { emptyDiagram, type LogicDiagram, type NodeKind, type BlockChip } from '../logic/types';
 import * as persistence from './persistence';
@@ -34,6 +34,8 @@ export interface LogicState {
   deleteSelection(): void;
   /** 子專案 15：複製選取的元件（只放在這個分頁的記憶體）、貼上。 */
   copy(): void;
+  /** 子專案 26：選取的閘與 IC 方塊順時針轉 90°（一個 Undo 步驟）；不能轉時回傳原因，沒有選取時什麼都不做。 */
+  rotateSelection(): string | null;
   paste(): boolean;
   toggleInput(id: string): void;
   setInputs(values: Record<string, 0 | 1>): void;
@@ -98,6 +100,14 @@ export const useLogic = create<LogicState>((set, get) => ({
   copy() {
     const ids = selectedIds(get().selection);
     if (ids.length > 0) clipboard = copyNodes(get().diagram, ids);
+  },
+  rotateSelection() {
+    const ids = selectedIds(get().selection);
+    if (ids.length === 0) return null;
+    const r = rotateNodes(get().diagram, ids);
+    if (!r.ok) return r.reason;
+    get().apply(r, '轉向');
+    return null;
   },
   paste() {
     if (!clipboard) return false;

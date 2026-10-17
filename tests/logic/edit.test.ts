@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addNode, connect, moveNode, removeNodes, renameNode, setGateKind, setInputCount, setInputValue } from '../../src/logic/edit';
+import { addNode, connect, moveNode, removeNodes, renameNode, rotateNodes, setGateKind, setInputCount, setInputValue, setRotation } from '../../src/logic/edit';
+import { majorityDiagram } from '../../src/logic/examples';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 
 const ok = (r: { ok: boolean; diagram: LogicDiagram }) => {
@@ -86,5 +87,58 @@ describe('editing a logic diagram', () => {
     expect(d.nodes.map((n) => n.id)).toEqual(['i1', 'i2', 'o1']);
     expect(d.wires).toEqual([]);
     expect(ok(addNode(d, 'AND', 6, 0)).nodes.at(-1)!.id).toBe('g1');
+  });
+});
+
+describe('turning parts (sub-project 26)', () => {
+  const at = (d: LogicDiagram, id: string) => d.nodes.find((n) => n.id === id)!;
+
+  it('turns gates 90° at a time and comes back to the same place after four turns', () => {
+    let d = majorityDiagram();
+    const before = at(d, 'g1');
+    const once = rotateNodes(d, ['g1']);
+    expect(once.ok).toBe(true);
+    expect(at(once.diagram, 'g1')).toMatchObject({ rotation: 90, x: before.x, y: before.y });
+    for (let k = 0; k < 4; k++) {
+      const r = rotateNodes(d, ['g1']);
+      if (!r.ok) throw new Error(r.reason);
+      d = r.diagram;
+    }
+    expect(at(d, 'g1')).toEqual(before);
+    // 線不變（依腳的編號接）。
+    expect(d.wires).toEqual(majorityDiagram().wires);
+  });
+
+  it('keeps a tall IC block centred when it turns', () => {
+    let d = emptyDiagram();
+    const r = addNode(d, 'BLOCK', 10, 10, '74LS83');
+    if (!r.ok) throw new Error(r.reason);
+    d = r.diagram;
+    // 6 × 10 → 10 × 6：往左 2 格、往下 2 格，中心不動。
+    expect(at(rotateNodes(d, ['b1']).diagram, 'b1')).toMatchObject({ rotation: 90, x: 8, y: 12 });
+  });
+
+  it('refuses to turn into another part, and only turns gates and IC blocks', () => {
+    let d = emptyDiagram();
+    for (const [x, y] of [[0, 0], [0, 3]]) {
+      const r = addNode(d, 'AND', x, y);
+      if (!r.ok) throw new Error(r.reason);
+      d = r.diagram;
+    }
+    // g1 轉 90° 後佔 y 0–3，壓到 g2。
+    expect(rotateNodes(d, ['g1'])).toEqual({ ok: false, diagram: d, reason: '轉向後會和別的元件重疊' });
+    const m = majorityDiagram();
+    expect(rotateNodes(m, ['i1', 'o1'])).toEqual({ ok: false, diagram: m, reason: '只有邏輯閘和 IC 方塊可以轉向' });
+    const mixed = rotateNodes(m, ['i1', 'g1']);
+    expect([at(mixed.diagram, 'i1').rotation, at(mixed.diagram, 'g1').rotation]).toEqual([undefined, 90]);
+  });
+
+  it('sets a direction directly, leaving 0 out of the data', () => {
+    const d = majorityDiagram();
+    const half = setRotation(d, 'g1', 180);
+    expect(at(half.diagram, 'g1')).toMatchObject({ rotation: 180, x: at(d, 'g1').x, y: at(d, 'g1').y });
+    const back = setRotation(half.diagram, 'g1', 0);
+    expect(at(back.diagram, 'g1')).toEqual(at(d, 'g1'));
+    expect(setRotation(d, 'i1', 90)).toMatchObject({ ok: false, reason: '只有邏輯閘和 IC 方塊可以轉向' });
   });
 });
