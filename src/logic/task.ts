@@ -59,6 +59,12 @@ export function cycleCell(task: TruthTask, row: number, k: number): TruthTask {
   return { ...task, rows: task.rows.map((r, i) => (i === row ? r.map((v, j) => (j === k ? NEXT[String(v)] : v)) : r)) };
 }
 
+/** 第 row 列的輸入值（第一個輸入是最高位元）。 */
+export function rowBits(task: TruthTask, row: number): Array<0 | 1> {
+  const n = task.inputs.length;
+  return task.inputs.map((_, i) => ((row >> (n - 1 - i)) & 1) as 0 | 1);
+}
+
 /** 第 k 個輸出是 value 的列號。 */
 export function rowsWith(task: TruthTask, k: number, value: TaskValue): number[] {
   return task.rows.flatMap((r, i) => (r[k] === value ? [i] : []));
@@ -139,10 +145,9 @@ export function compareDiagramToTask(d: LogicDiagram, task: TruthTask): TaskComp
   }
   if (issues.length > 0) return { kind: 'issues', issues };
 
-  const n = task.inputs.length;
   const mismatches: Extract<TaskComparison, { kind: 'done' }>['mismatches'] = [];
   task.rows.forEach((want, row) => {
-    const bits = task.inputs.map((_, i) => ((row >> (n - 1 - i)) & 1) as 0 | 1);
+    const bits = rowBits(task, row);
     const v = evaluate(d, Object.fromEntries(task.inputs.map((name, i) => [inputs.get(name)!.id, bits[i]])));
     const actual = task.outputs.map((name) => {
       const b = v.nodes.get(sinks.get(name)!.id) ?? 'X';
