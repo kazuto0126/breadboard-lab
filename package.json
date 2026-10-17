@@ -12,9 +12,11 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tests/web/tsconfig.json && tsc --noEmit -p e2e/tsconfig.json",
     "e2e": "playwright test",
     "demo": "tsx scripts/demo.ts",
+    "mcp": "node --import tsx scripts/mcp-server.ts",
     "publish:site": "tsx scripts/publish-site.ts"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^26.6.4",
@@ -26,7 +28,8 @@
     "typescript": "^7.0.2",
     "vite": "^8.3.3",
     "vite-plugin-singlefile": "^2.3.3",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "zod": "4.6.5"
   },
   "dependencies": {
     "@google/genai": "^2.28.0",

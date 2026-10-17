@@ -4,3 +4,5 @@ dist/
 test-results/
 playwright-report/
 dist-single/
+# MCP 整合測試的暫存檔
+tests/.tmp-mcp/

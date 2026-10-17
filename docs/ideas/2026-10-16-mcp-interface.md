@@ -1,7 +1,8 @@
 # 構想：給 AI 工具用的接口（MCP 伺服器與指令列工具）
 
 - 日期：2026-10-16
-- 狀態：**未開發**（使用者 2026-10-16 要求先記下來，之後再決定要不要做）
+- 狀態：**第一版（給 Claude Code 用）已在子專案 23 完成**（`docs/superpowers/specs/2026-10-17-mcp-server-design.md`）；
+  Claude Desktop 等其他 AI 工具、用連結開啟電路仍是未開發項目（`backlog.md`）
 - 要做的話：照一般子專案的流程，先和使用者確認用途與第一版的工具，寫規格（`docs/superpowers/specs/`），再實作。
 
 ---
