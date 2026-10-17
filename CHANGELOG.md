@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## [未發布] — 三個小問題修正（網頁有改，合併後要發布）
+## 2026-10-17 — 三個小問題修正（PR #38，已發布到線上版）
 
 ### 修正
 
