@@ -24,7 +24,10 @@ function segmentLines(cx: number, cy: number, w: number, h: number): Record<stri
   };
 }
 
-/** 規格（2026-10-13 seven-seg）第 5 節：邏輯圖上的 7 段顯示器（4 × 5 格；左側 A–D 腳，中間依 74LS47 的字形點亮）。 */
+/**
+ * 規格（2026-10-13 seven-seg）第 5 節：邏輯圖上的 7 段顯示器（4 × 5 格；左側 A–D 腳，中間依 74LS47 的字形點亮）。
+ * 下方寫出目前的數字：10–15 是 74LS47 的怪字形，15 更是全暗，只看字形分不出來。
+ */
 export function DisplayBody({ node, value, inputs = [], selected = false }: { node: LogicNode; value?: number | 'X'; inputs?: Array<Bit | undefined>; selected?: boolean }) {
   const lit = new Set(value === undefined ? [] : [...glyphOf(value)]);
   const lines = segmentLines(2.35 * C, 2 * C, 1.25 * C, 2.9 * C);
@@ -45,6 +48,11 @@ export function DisplayBody({ node, value, inputs = [], selected = false }: { no
       <text x={2.2 * C} y={-0.95 * C} fontSize={0.5 * C} fontWeight={700} fill="#1e293b" textAnchor="middle" dominantBaseline="central">
         {node.name}
       </text>
+      {typeof value === 'number' && (
+        <text data-display-number x={2.2 * C} y={4.95 * C} fontSize={0.42 * C} fill="#475569" textAnchor="middle" dominantBaseline="central">
+          = {value}
+        </text>
+      )}
     </g>
   );
 }

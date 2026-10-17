@@ -76,6 +76,17 @@ describe('7-segment displays', () => {
     expect(result.mismatches.find((m) => m.inputs === '0111')).toEqual({ inputs: '0111', expected: ['7'], actual: ['1'] });
     expect(verifyText(result, ['S1'])).toContain('輸入 0111 應該是 S1 = 7，麵包板是 S1 = 1');
   });
+
+  it('does not take a display that is dark for another reason as 15', async () => {
+    const { bcdDiagram } = await import('../../src/logic/examples');
+    const r = toBreadboard(bcdDiagram(), { switchTo: 'vcc', board: 'auto' });
+    if (!r.ok) throw new Error(r.reason);
+    // 拿掉 74LS47：顯示器每一列都全暗，但輸入 1111 那一列也不能算對。
+    const noDecoder = { ...r.circuit, components: r.circuit.components.filter((c) => c.defId !== '74LS47') };
+    const result = verifyBreadboard(bcdDiagram(), noDecoder, 'vcc', r);
+    expect(result.mismatches).toHaveLength(16);
+    expect(result.mismatches.find((m) => m.inputs === '1111')).toEqual({ inputs: '1111', expected: ['15'], actual: ['暗'] });
+  });
 });
 
 describe('verifyRows with switches on several DIP switches', () => {

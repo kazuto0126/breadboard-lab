@@ -15,6 +15,7 @@ import { buildOccupancy, checkPlacementWith, type HardIssue, type SoftIssue } fr
 import { autoPlaceAndRoute } from '../core/icPlacement/autoPlace';
 import { applyRouting } from '../core/routing/apply';
 import { autoRoute as routeCircuit } from '../core/routing/autoRoute';
+import { darkReasonText, whyDark } from '../core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle } from '../core/simulation/simulate';
 import { routingSummaryText, summarizeRouting } from '../editor/explain/routing';
 import { checkDiagram } from '../logic/check';
@@ -302,7 +303,10 @@ export function simulate(f: LabFile, args: { switches?: Record<string, boolean[]
   for (const d of sim.displays) {
     const lit = r.litSegments[d.componentId] ?? [];
     const v = valueOfSegments(lit);
-    lines.push(lit.length === 0 ? `${d.componentId} 不亮。` : v !== null ? `${d.componentId} 顯示 ${v}。` : `${d.componentId} 亮的段：${[...lit].sort().join('')}。`);
+    if (lit.length === 0) {
+      const why = whyDark(sim, r, d.componentId);
+      lines.push(why ? `${d.componentId} 全暗：${darkReasonText(why)}` : `${d.componentId} 不亮。`);
+    } else lines.push(v !== null ? `${d.componentId} 顯示 ${v}。` : `${d.componentId} 亮的段：${[...lit].sort().join('')}。`);
   }
   if (r.unpowered.length > 0) lines.push(`沒有供電：${r.unpowered.join('、')}（VCC / GND 沒接好，不會運作）。`);
   if (r.conflicts.length > 0) lines.push(`有輸出互相衝突的地方（${r.conflicts.length} 處），用 check_circuit 看是哪裡。`);

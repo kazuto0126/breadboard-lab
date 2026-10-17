@@ -3,7 +3,8 @@ import { getComponentDefinition } from '../../core/circuit/library';
 import { analyzeCircuit, netOfPin, type CircuitAnalysis } from '../../editor/analysis';
 import { EXAMPLES } from '../../editor/examples';
 import { WIRE_COLORS } from '../../editor/manualWire';
-import type { SimResult } from '../../core/simulation/simulate';
+import { darkReasonText, whyDark } from '../../core/simulation/darkDisplay';
+import { compileSimulation, type SimResult } from '../../core/simulation/simulate';
 import { LEVEL_COLORS, LEVEL_NAMES } from '../../render/theme';
 import type { Level } from '../../types/logic';
 import { deriveMode, useStore } from '../../state/store';
@@ -133,6 +134,9 @@ export function HoverTooltip({
     else if (def?.category === 'dip-switch') lines.push(<Line key="h" muted>點小開關切換 ON / OFF（ON = 兩側接通）</Line>);
     else if (def?.category === 'pushbutton') lines.push(<Line key="h" muted>按住按鈕 = 接通、放開 = 斷開</Line>);
     if (sim?.unpowered.includes(hover.id)) lines.push(<Line key="u">⚠ 沒有接好 VCC / GND，不會運作</Line>);
+    // 7 段顯示器全暗時說明原因（74LS47 輸入 15 也是全暗，和沒通電看起來一樣）。
+    const dark = sim && def?.category === 'seven-seg' ? whyDark(compileSimulation(circuit), sim, hover.id) : null;
+    if (dark) lines.push(<Line key="dark">全暗：{darkReasonText(dark)}</Line>);
     issues = issuesOfComponent(analysis, hover.id).map((e) => e.message);
   }
 
@@ -142,6 +146,7 @@ export function HoverTooltip({
     <div
       className="pointer-events-none absolute z-20 max-w-[290px] rounded-md border border-slate-700 bg-slate-900/95 px-3 py-2 text-xs leading-5 text-slate-200 shadow-xl"
       style={{ left, top }}
+      data-testid="hover-info"
     >
       <div className="font-semibold text-slate-50">{title}</div>
       {level !== undefined && (
