@@ -195,7 +195,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     return (
       <Section title="多個元件">
         <p className="text-slate-200">已選取 {selection.ids.length} 個元件：{selection.ids.join('、')}</p>
-        <p className="text-xs leading-5 text-slate-400">拖曳其中一個可以整組移動；Ctrl+C 複製、Ctrl+V 貼上；Del 刪除。</p>
+        <p className="text-xs leading-5 text-slate-400">拖曳其中一個可以整組移動；R 轉向（閘與 IC 方塊）；Ctrl+C 複製、Ctrl+V 貼上；Del 刪除。</p>
         <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.deleteSelection()}>
           刪除這 {selection.ids.length} 個
         </button>
