@@ -3,6 +3,28 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 子專案 23：給 Claude Code 用的 MCP 伺服器
+
+### 新增
+
+- `scripts/mcp-server.ts`：MCP 伺服器（stdio），專案根目錄的 `.mcp.json` 讓 Claude Code 在這個資料夾自動啟動；也可以 `npm run mcp` 手動啟動。
+- 14 個工具：`new_circuit`、`circuit_summary`、`check_circuit`、`list_parts`、`place_part`（會檢查位置，沒給孔位就自動找空位）、
+  `add_wire`、`set_part`、`remove`、`auto_route`、`simulate`、`logic_set`（沒給位置會自動排版）、`logic_truth_table`、
+  `logic_to_breadboard`（轉換 + 佈線 + 比對）、`check_against_diagram`。回覆用繁體中文，孔位寫法和網頁一樣。
+- 電路檔就是網頁「匯出 JSON」的格式，做完在網頁「檔案 → 匯入 JSON」打開。
+- 安全：只能讀寫專案資料夾裡的 `.json` 檔；`new_circuit` 不會蓋掉已存在的檔案（加 `overwrite` 也只能蓋掉電路檔）；工具失敗時不寫檔；不連網路。
+- 新增開發用套件 `@modelcontextprotocol/sdk` 1.31.0、`zod` 4.6.5（選上架超過兩週的版本，不會打包進網頁）。
+
+### 測試
+
+- 單元測試：14 個工具的成功與失敗（`tests/mcp/tools.test.ts`）、路徑檢查（`tests/mcp/paths.test.ts`）。
+- 整合測試（`tests/mcp/server.test.ts`）：真的啟動伺服器，列出 14 個工具、建檔、放元件、讀摘要、失敗不寫檔、拒絕專案外的路徑、不會蓋掉 `package.json`。
+
+### 文件
+
+- README「在 Claude Code 裡使用（MCP）」；設計規格 `docs/superpowers/specs/2026-10-17-mcp-server-design.md`、實作計畫 `docs/superpowers/plans/2026-10-17-mcp-server.md`。
+- 未開發清單加上「給其他 AI 工具用的接口」與「用連結開啟電路」。
+
 ## 2026-10-17 — 子專案 22：依名稱對照邏輯圖檢查麵包板（PR #34，已發布到線上版）
 
 ### 新增

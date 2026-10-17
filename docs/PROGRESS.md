@@ -13,12 +13,12 @@
 
 ## 進行中
 
-- 子專案 23：給 Claude Code 用的 MCP 伺服器（分支 `feat/mcp-server`；規格待使用者確認）。
+- 子專案 23：給 Claude Code 用的 MCP 伺服器（分支 `feat/mcp-server`，實作完成，PR 等使用者合併）。
 
 ## 接下來（依優先順序）
 
 1. 使用者 2026-10-13 列的需求都做完了（「老師提供金鑰」決定不做）；下一步先和使用者討論。
-2. 未開發的構想：給 AI 工具用的接口（MCP 伺服器與指令列工具），見 `docs/ideas/2026-10-16-mcp-interface.md`。使用者 2026-10-16 要求先記下來，要做時先確認用途再寫規格。
+2. MCP：給 Claude Code 用的版本是子專案 23；其他 AI 工具（Claude Desktop 等）與用連結開啟電路列在 `docs/ideas/backlog.md`。
 3. 其他未開發項目與已知小問題：`docs/ideas/backlog.md`。
 
 ## 注意事項

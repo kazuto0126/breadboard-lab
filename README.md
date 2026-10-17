@@ -75,6 +75,7 @@ AI 標準佈線**不會移動元件**，只保留你的接線所定義的電氣�
 | `npm run typecheck` | TypeScript 型別檢查（核心、畫面、測試四份設定） |
 | `npm run e2e` | 端對端測試（Playwright），用真實滑鼠操作走完需求文件第三十四章的驗收流程，以及第三十八章的多麵包板吸附與跨板接線 |
 | `npm run demo` | 在終端機用 ASCII 印出範例電路的佈線前後對照 |
+| `npm run mcp` | 手動啟動給 Claude Code 用的 MCP 伺服器（平常由 `.mcp.json` 自動啟動，見下一節） |
 
 第一次執行 e2e 前需要安裝瀏覽器：`npx playwright install chromium`。
 已經有 Chromium 的環境可以改設 `PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chrome`。
@@ -84,6 +85,25 @@ GitHub Actions（`.github/workflows/ci.yml`）在每個 Pull Request 與 push �
 給 Claude Code 的專案說明（架構、指令、慣例、工作流程）在 [`CLAUDE.md`](CLAUDE.md)，目前進度與下一步在
 [`docs/PROGRESS.md`](docs/PROGRESS.md)。`.claude/settings.json` 設定了兩個 hook：對話開始時自動安裝相依套件、
 從 GitHub 同步並顯示進度；每次回覆結束或中斷時，把工作分支上還沒推送的修改存成 WIP commit 推上 GitHub。
+
+## 在 Claude Code 裡使用（MCP）
+
+在這個專案資料夾裡開 Claude Code，專案根目錄的 `.mcp.json` 會啟動 MCP 伺服器 `breadboard-lab`
+（第一次會問要不要允許；也可以用 `/mcp` 查看狀態）。Claude 就能直接檢查、編輯、佈線、模擬電路檔，
+或把邏輯圖轉成麵包板並比對真值表。電路檔就是網頁「匯出 JSON」的格式，做完在網頁用「檔案 → 匯入 JSON」打開。
+
+| 工具 | 做什麼 |
+|---|---|
+| `new_circuit` | 建立空白電路檔（MB-102 或 EIC-1106） |
+| `circuit_summary` / `check_circuit` | 電路摘要（每隻腳的孔位、Net）／錯誤與警告，附原因與建議的接法 |
+| `list_parts` | 元件庫的名稱與腳位（`74LS00`、`resistor-220`、`led-red`、`dipsw-4`…） |
+| `place_part` / `add_wire` / `set_part` / `remove` | 放元件（會檢查位置，沒給孔位就自動找空位）、接線、改名稱與設定、刪除 |
+| `auto_route` / `simulate` | AI 標準佈線（可以搬動 IC）／模擬：哪些 LED 亮、7 段顯示器顯示什麼 |
+| `logic_set` / `logic_truth_table` | 寫入邏輯圖（沒給位置會自動排版）／真值表 |
+| `logic_to_breadboard` / `check_against_diagram` | 轉成麵包板 + 佈線 + 比對一次完成／依名稱和邏輯圖比對 |
+
+例如：「用 74LS00 做一個 XOR，開關標 A、B，LED 標 X，接好後檢查並和邏輯圖比對」。
+工具只能讀寫專案資料夾裡的 `.json` 檔，不連網路。設計見 `docs/superpowers/specs/2026-10-17-mcp-server-design.md`。
 
 ## 架構
 
@@ -147,11 +167,12 @@ docs/            設計規格與實作計畫
 | 20 | 便條從元件庫拖曳、寬度跟著文字 | ✅ 完成 |
 | 21 | 邏輯圖的 5V / 接地與 IC 方塊（74LS83、151、153、138、85） | ✅ 完成 |
 | 22 | 依名稱對照邏輯圖檢查麵包板（手接的麵包板也能比對） | ✅ 完成 |
+| 23 | 給 Claude Code 用的 MCP 伺服器（14 個工具） | ✅ 完成 |
 
 ### 未開發的構想
 
 | 構想 | 說明 | 狀態 |
 |---|---|---|
-| 給 AI 工具用的接口 | 本機 MCP 伺服器與指令列工具，讓 Claude 等 AI 用文字檢查、佈線、模擬、轉換電路（[評估與草案](docs/ideas/2026-10-16-mcp-interface.md)） | ⬜ 未開發 |
+| 給其他 AI 工具用的接口 | Claude Desktop 等其他 AI 工具的 MCP（要打包或發布）；Claude Code 版已在子專案 23 完成（[評估與草案](docs/ideas/2026-10-16-mcp-interface.md)） | ⬜ 未開發 |
 
 其他還沒做的項目（對照題目檢查、時序元件、布林式、旋轉、7 段顯示器加強、小問題…）整理在 [docs/ideas/backlog.md](docs/ideas/backlog.md)。
