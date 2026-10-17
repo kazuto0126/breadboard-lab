@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { getComponentDefinition } from '../../src/core/circuit/library';
 import { validateCircuit } from '../../src/core/circuit/validate';
 import { BCD_GLYPHS } from '../../src/core/simulation/models';
+import { darkReasonText, whyDark } from '../../src/core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle } from '../../src/core/simulation/simulate';
 import { parseCircuitText, serializeCircuitFile } from '../../src/editor/fileFormat';
 import { formatCapacitance, librarySections } from '../../src/editor/library';
@@ -107,5 +108,40 @@ describe('capacitors', () => {
     expect(reload(c).components[0].props.capacitance).toBe(1e-8);
     const old = circuit([comp('C1', 'capacitor-ceramic', 'G10')]);
     expect(reload(old).components[0].props.capacitance).toBeUndefined();
+  });
+});
+
+describe('why a 7-segment display is dark', () => {
+  const why = (c: Circuit) => {
+    const sim = compileSimulation(c);
+    return whyDark(sim, settle(sim, initialSimState(sim), { pressed: {}, clocks: {} }).result, 'DS1');
+  };
+  const without = (c: Circuit, ids: string[]): Circuit => ({ ...c, wires: c.wires.filter((w) => !ids.includes(w.id)) });
+
+  it('says nothing while some segment is lit', () => {
+    expect(why(display(8))).toBeNull();
+  });
+
+  it('tells 15 apart from no power', () => {
+    expect(why(display(15))).toEqual({ kind: 'fifteen', driver: 'U1' });
+    // 輸入腳都沒接：TTL 浮接算 1，也是 15。
+    expect(why(without(display(3), ['in0', 'in1', 'in2', 'in3']))).toEqual({ kind: 'fifteen', driver: 'U1' });
+    expect(why(display(15, { anodeToGround: true }))).toEqual({ kind: 'no-power' });
+    expect(why(without(display(3), ['vcc']))).toEqual({ kind: 'driver-unpowered', driver: 'U1' });
+  });
+
+  it('notices blanking and segments that are not wired to the decoder', () => {
+    const c = display(3);
+    // /BI/RBO（第 4 腳，F18）接 GND。
+    expect(why({ ...c, wires: [...c.wires, wire('bi', 'J18', 'B-18')] })).toEqual({ kind: 'blanked', driver: 'U1' });
+    expect(why(without(c, ['a1', 'b1', 'c1', 'd1', 'e1', 'f1', 'g1']))).toEqual({ kind: 'unwired' });
+  });
+
+  it('explains each case in words', () => {
+    expect(darkReasonText({ kind: 'fifteen', driver: 'U1' })).toContain('15');
+    expect(darkReasonText({ kind: 'no-power' })).toContain('+5 V');
+    expect(darkReasonText({ kind: 'driver-unpowered', driver: 'U1' })).toContain('U1');
+    expect(darkReasonText({ kind: 'blanked', driver: 'U1' })).toContain('BI');
+    expect(darkReasonText({ kind: 'unwired' })).toContain('a–g');
   });
 });

@@ -156,6 +156,12 @@ describe('routing and simulation', () => {
     const r = toBreadboard(bcdDiagram(), { switchTo: 'vcc', board: 'auto' });
     if (!r.ok) throw new Error(r.reason);
     expect(simulate(lab(r.circuit), {}).text).toContain('DS1 顯示 0');
+    // 全暗時說明原因：輸入 15，或根本沒有接到 74LS47。
+    const sw = r.circuit.components.find((c) => c.defId.startsWith('dipsw'))!;
+    const width = (sw.props.switchStates as boolean[]).length;
+    expect(simulate(lab(r.circuit), { switches: { [sw.id]: Array(width).fill(true) } }).text).toContain('DS1 全暗：U1（74LS47）的輸入 DCBA 是 1111');
+    const noDecoder = { ...r.circuit, components: r.circuit.components.filter((c) => c.defId !== '74LS47') };
+    expect(simulate(lab(noDecoder), {}).text).toContain('DS1 全暗：a–g 都沒有被拉到 0');
   });
 });
 

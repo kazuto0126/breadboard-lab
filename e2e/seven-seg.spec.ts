@@ -41,12 +41,20 @@ test('放一個 7 段顯示器、接 4 個輸入端，撥開關看到數字改�
   await page.locator('[data-logic-switch="i3"]').click(); // C = 1
   await expect(display).toHaveAttribute('data-value', '5');
   await expect(display.locator('[data-lit]')).toHaveCount(5); // 5 = a c d f g
+  await expect(display.locator('[data-display-number]')).toHaveText('= 5');
+  // 15：74LS47 的字形全暗，下面的數字說明這是 15、不是沒有值。
+  await page.locator('[data-logic-switch="i2"]').click();
+  await page.locator('[data-logic-switch="i4"]').click();
+  await expect(display).toHaveAttribute('data-value', '15');
+  await expect(display.locator('[data-lit]')).toHaveCount(0);
+  await expect(display.locator('[data-display-number]')).toHaveText('= 15');
 
   await page.getByRole('tab', { name: /真值表/ }).click();
   const table = page.getByTestId('truth-table');
   await expect(table.locator('tr[data-row]')).toHaveCount(16);
   // 輸入端依名稱排序（A 是最高位元），所以 A=1、C=1 這一列是 1010。
   await expect(table.locator('tr[data-row="1010"] td').last()).toHaveText('5');
+  await expect(table.locator('tr[data-row="1111"] td').last()).toHaveText('15');
 });
 
 test('範例「BCD 顯示」轉成麵包板：74LS47 與 7 段顯示器，比對全部一致', async ({ page }) => {
@@ -70,4 +78,11 @@ test('範例「BCD 顯示」轉成麵包板：74LS47 與 7 段顯示器，比對
   await expect(page.getByTestId('diagram-check')).toContainText('全部一致');
   await expect(page.locator('g[data-component-id="DS1"]')).toBeVisible();
   await expect(page.locator('[data-label="S1"]')).toHaveCount(1);
+
+  // 模擬時 4 個開關都撥 ON（輸入 1111 = 15）：顯示器全暗，滑鼠移上去說明是 15、不是沒通電。
+  await page.getByRole('button', { name: '▶ 模擬', exact: true }).click();
+  await expect(page.getByTestId('simulation-bar')).toContainText('模擬中');
+  for (const k of [0, 1, 2, 3]) await page.locator(`g[data-component-id="SW1"] [data-switch="${k}"]`).click();
+  await page.locator('g[data-component-id="DS1"]').hover();
+  await expect(page.getByTestId('hover-info')).toContainText('輸入 DCBA 是 1111，也就是 15');
 });

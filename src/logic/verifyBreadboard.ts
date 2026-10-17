@@ -1,4 +1,5 @@
 import { getComponentDefinition } from '../core/circuit/library';
+import { whyDark } from '../core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle } from '../core/simulation/simulate';
 import type { Circuit } from '../types/circuit';
 import { sortedIo, truthTable } from './evaluate';
@@ -7,7 +8,7 @@ import type { LogicDiagram } from './types';
 
 export interface VerifyResult {
   rows: number;
-  /** expected / actual：每個輸出欄一格（輸出端 0 / 1 / ?，顯示器是十進位數字或 ?）。 */
+  /** expected / actual：每個輸出欄一格（輸出端 0 / 1 / ?，顯示器是十進位數字或 ?；麵包板上的顯示器不是因為輸入 15 而全暗時是「暗」）。 */
   mismatches: Array<{ inputs: string; expected: string[]; actual: string[] }>;
 }
 
@@ -63,6 +64,7 @@ export function withSwitches(circuit: Circuit, inputs: SwitchBinding[], bits: Re
  * 規格（2026-10-13 logic-to-breadboard）第 7 節：真值表的每一列都在麵包板上模擬一次，讀 LED 亮不亮，和邏輯圖比較。
  * 顯示器（規格 2026-10-13 seven-seg 第 7 節）讀亮的段、對回數字。
  * 子專案 22：開關可以分在好幾個指撥開關上，每個開關自己決定撥 ON 是 1 還是 0。
+ * 全暗的顯示器只有在 74LS47 的輸入真的是 15 時才算 15（沒通電、沒接好也是全暗，不能算對）。
  */
 export function verifyRows(d: LogicDiagram, circuit: Circuit, bindings: Bindings): VerifyResult {
   const table = truthTable(d);
@@ -76,7 +78,10 @@ export function verifyRows(d: LogicDiagram, circuit: Circuit, bindings: Bindings
     const expected = row.out.map((b) => (b === 'X' ? '?' : String(b)));
     const actual = outputs.map((o) => {
       if (o.kind !== 'DISPLAY') return lit.has(bindings.leds[o.id] ?? '') ? '1' : '0';
-      const v = valueOfSegments(result.litSegments[bindings.displays[o.id] ?? ''] ?? []);
+      const id = bindings.displays[o.id] ?? '';
+      const segments = result.litSegments[id] ?? [];
+      if (segments.length === 0) return whyDark(sim, result, id)?.kind === 'fifteen' ? '15' : '暗';
+      const v = valueOfSegments(segments);
       return v === null ? '?' : String(v);
     });
     if (expected.join(',') !== actual.join(',')) mismatches.push({ inputs: row.in.join(''), expected, actual });

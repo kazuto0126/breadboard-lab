@@ -6,7 +6,7 @@ import { inputPins, nodeSize, outputPin, outputPins, type GridXY } from '../../l
 import { isGate, isSink, signalOf, type LogicNode } from '../../logic/types';
 import { BlockBody, ConstantBody } from './BlockBody';
 import { DisplayBody } from './DisplayBody';
-import { busColumns, junctions, wireRoute } from '../../logic/wiring';
+import { junctions, wireRoutes } from '../../logic/wiring';
 import { LOGIC_CELL, selectedIds, useLogic } from '../../state/logic';
 import { bitColor, GateBody } from './GateSymbol';
 
@@ -262,8 +262,10 @@ export function LogicCanvas() {
   const ghostOk = ghost ? canPlace(diagram, ghost) : true;
   const moveOk = drag?.kind === 'move' ? moveNodes(diagram, drag.ids, drag.dx, drag.dy).ok : true;
   const wireOk = drag?.kind === 'wire' ? drag.to === null || wirePair(drag.from, drag.to) !== null : true;
-  const columns = busColumns(view);
-  const dots = junctions(view, columns);
+  // 線的走法只和元件位置與線有關（view 由 diagram 與 moveKey 決定）：滑鼠移動（hover）時不用重算繞路。
+  const moveKey = drag?.kind === 'move' ? `${drag.ids.join(',')}:${drag.dx},${drag.dy}` : '';
+  const routes = useMemo(() => wireRoutes(view), [diagram, moveKey]);
+  const dots = useMemo(() => junctions(view, routes), [routes]);
   const pattern = C * viewport.scale;
 
   return (
@@ -286,7 +288,7 @@ export function LogicCanvas() {
       <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
         {/* 線（在元件下面） */}
         {view.wires.map((w) => {
-          const pts = wireRoute(view, w, columns);
+          const pts = routes.get(w.id) ?? [];
           if (pts.length < 2) return null;
           const sel = selection?.kind === 'wire' && selection.id === w.id;
           const color = bitColor(valueOf(signalOf(w.from, w.fromPin)));
