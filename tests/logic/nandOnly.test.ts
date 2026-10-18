@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { majorityDiagram } from '../../src/logic/examples';
-import { toNandUnits } from '../../src/logic/nandOnly';
+import { toNandUnits, toNorUnits } from '../../src/logic/nandOnly';
 import { decompose, evaluateUnits, type Unit, type UnitKind } from '../../src/logic/synth';
 
 /** 對所有輸入組合比較兩組單元算出的 out。 */
@@ -58,5 +58,39 @@ describe('toNandUnits', () => {
     expect(nand.every((u) => u.kind === 'NAND2')).toBe(true);
     expect(same(units, nand, ['i1', 'i2', 'i3'], 'g4')).toBe(true);
     expect(nand.length).toBeLessThanOrEqual(3 * 2 + 2 * 3);
+  });
+});
+
+describe('toNorUnits (sub-project 27)', () => {
+  it.each([
+    ['NOT', ['a'], 1],
+    ['NOR2', ['a', 'b'], 1],
+    ['OR2', ['a', 'b'], 2],
+    ['AND2', ['a', 'b'], 3],
+    ['NAND2', ['a', 'b'], 4],
+    ['XOR2', ['a', 'b'], 5],
+    ['AND3', ['a', 'b', 'c'], 6],
+    ['AND4', ['a', 'b', 'c', 'd'], 9],
+  ] as Array<[UnitKind, string[], number]>)('rewrites %s with NOR gates only', (kind, inputs, count) => {
+    const original: Unit[] = [{ kind, inputs, output: 'y' }];
+    const nor = toNorUnits(original, ['y']);
+    expect(nor.every((u) => u.kind === 'NOR2')).toBe(true);
+    expect(nor).toHaveLength(count);
+    expect(same(original, nor, inputs, 'y')).toBe(true);
+  });
+
+  it('cancels double inversions: OR followed by NOT is one NOR', () => {
+    const original: Unit[] = [
+      { kind: 'OR2', inputs: ['a', 'b'], output: 't' },
+      { kind: 'NOT', inputs: ['t'], output: 'y' },
+    ];
+    expect(toNorUnits(original, ['y'])).toEqual([{ kind: 'NOR2', inputs: ['a', 'b'], output: 'y' }]);
+  });
+
+  it('turns figure 2-5 into NOR gates with the same result', () => {
+    const units = decompose(majorityDiagram());
+    const nor = toNorUnits(units, ['g4']);
+    expect(nor.every((u) => u.kind === 'NOR2')).toBe(true);
+    expect(same(units, nor, ['i1', 'i2', 'i3'], 'g4')).toBe(true);
   });
 });

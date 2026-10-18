@@ -13,7 +13,8 @@
 
 ## 進行中
 
-- 無。
+- 子專案 27–32：小功能（分支 `feat/small-features`，規格 `docs/superpowers/specs/2026-10-18-small-features-design.md`）：
+  只用 NOR ✅、轉向加強、便條、輸入用按鈕、題目產生邏輯圖的其他形式、7 段顯示器加強。全部做完再開 PR。
 
 ## 接下來（依優先順序）
 

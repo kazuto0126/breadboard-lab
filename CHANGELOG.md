@@ -3,6 +3,15 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — 子專案 27–32：小功能（網頁有改，合併後要發布）
+
+設計規格：`docs/superpowers/specs/2026-10-18-small-features-design.md`。
+
+### 子專案 27：只用 NOR
+
+- 「轉成麵包板」的閘的種類多一個「只用 NOR（74LS02）」：和只用 NAND 一樣，全部換成 2 輸入 NOR 再化簡；MCP 的 `logic_to_breadboard` 也可以選 `nor`。
+- 測試：每種單元換成 NOR 的閘數與結果、OR 接 NOT 合併成一個 NOR、圖 2-5 只用 74LS02 轉換並佈線後真值表全部一致。
+
 ## 2026-10-17 — 子專案 26：邏輯圖元件轉向（PR #44，已發布到線上版）
 
 ### 新增

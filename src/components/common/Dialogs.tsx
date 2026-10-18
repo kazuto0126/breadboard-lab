@@ -265,6 +265,7 @@ function ToBreadboardDialog() {
             [
               ['direct', '照種類對應', 'AND → 74LS08、OR → 74LS32、NOT → 74LS04…'],
               ['nand', '只用 NAND（74LS00）', '所有閘都用 NAND 組出來，實驗室只要準備一種 IC。'],
+              ['nor', '只用 NOR（74LS02）', '所有閘都用 NOR 組出來，實驗室只要準備一種 IC。'],
             ] as const
           ).map(([id, label, hint]) => (
             <label key={id} className={radio(gates === id)}>

@@ -10,7 +10,7 @@ import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance } from '../types/component';
 import type { GridPoint } from '../types/geometry';
 import { sortedIo } from './evaluate';
-import { toNandUnits } from './nandOnly';
+import { toNandUnits, toNorUnits } from './nandOnly';
 import { BLOCK_PINS } from './blocks';
 import { assignIcs, convertProblem, decompose, drivers, gateSlots } from './synth';
 import { isSink, signalOf, type LogicDiagram } from './types';
@@ -19,8 +19,8 @@ export interface ConvertOptions {
   /** 開關的另一側接 +5 V（撥 ON = 1，330 Ω 下拉）或 GND（撥 ON = 0，1 kΩ 上拉）。 */
   switchTo: 'vcc' | 'gnd';
   board: 'auto' | LayoutId;
-  /** 照種類對應（預設）或只用 NAND（74LS00）。 */
-  gates?: 'direct' | 'nand';
+  /** 照種類對應（預設）、只用 NAND（74LS00）或只用 NOR（74LS02，子專案 27）。 */
+  gates?: 'direct' | 'nand' | 'nor';
   /** 子專案 19：輸入要不要接上 / 下拉電阻（預設不接，開關直接接 IC 輸入；模擬時當成理想開關）。 */
   pulls?: boolean;
 }
@@ -78,11 +78,11 @@ interface TwoLead {
 
 class NoRoom extends Error {}
 
-/** 拆好的單元；只用 NAND 時再換成 2 輸入 NAND（輸出端接的訊號一定保留）。 */
+/** 拆好的單元；只用 NAND / NOR 時再換成那一種 2 輸入閘（輸出端接的訊號一定保留）。 */
 function unitsFor(d: LogicDiagram, options: ConvertOptions) {
   const units = decompose(d);
-  if (options.gates !== 'nand') return units;
-  // 接到輸出端、顯示器、IC 方塊的訊號一定保留（方塊照原本的 IC 放，不換成 NAND）。
+  if (options.gates !== 'nand' && options.gates !== 'nor') return units;
+  // 接到輸出端、顯示器、IC 方塊的訊號一定保留（方塊照原本的 IC 放，不換成 NAND / NOR）。
   const driver = drivers(d);
   const keep = d.wires
     .filter((w) => {
@@ -90,7 +90,7 @@ function unitsFor(d: LogicDiagram, options: ConvertOptions) {
       return isSink(kind) || kind === 'BLOCK';
     })
     .map((w) => driver.get(`${w.to.node}#${w.to.pin}`)!);
-  return toNandUnits(units, keep);
+  return options.gates === 'nand' ? toNandUnits(units, keep) : toNorUnits(units, keep);
 }
 
 /** 規格（2026-10-13 logic-to-breadboard）第 4、5 節。 */

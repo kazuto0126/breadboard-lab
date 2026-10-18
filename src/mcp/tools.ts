@@ -423,7 +423,7 @@ export function checkAgainstDiagram(f: LabFile): ToolResult {
 
 export function logicToBreadboard(
   f: LabFile,
-  args: { switch_to?: 'vcc' | 'gnd'; board?: 'auto' | LayoutId; gates?: 'direct' | 'nand'; pulls?: boolean },
+  args: { switch_to?: 'vcc' | 'gnd'; board?: 'auto' | LayoutId; gates?: 'direct' | 'nand' | 'nor'; pulls?: boolean },
 ): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
   const options = { switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false } as const;
