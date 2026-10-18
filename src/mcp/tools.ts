@@ -414,10 +414,10 @@ export function checkAgainstDiagram(f: LabFile): ToolResult {
 
 export function logicToBreadboard(
   f: LabFile,
-  args: { switch_to?: 'vcc' | 'gnd'; board?: 'auto' | LayoutId; gates?: 'direct' | 'nand' | 'nor'; pulls?: boolean; inputs?: 'switch' | 'button' },
+  args: { switch_to?: 'vcc' | 'gnd'; board?: 'auto' | LayoutId; gates?: 'direct' | 'nand' | 'nor'; pulls?: boolean; inputs?: 'switch' | 'button'; display?: 'ca' | 'cc' },
 ): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
-  const options = { switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false, inputs: args.inputs ?? 'switch' } as const;
+  const options = { switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false, inputs: args.inputs ?? 'switch', display: args.display ?? 'ca' } as const;
   let r = toBreadboard(f.logic, options);
   if (!r.ok) return fail(r.reason);
   let routed = autoPlaceAndRoute(r.circuit);
@@ -438,7 +438,7 @@ export function logicToBreadboard(
     bom.switch ? `${bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × 1` : `按鈕 × ${bom.buttons}`,
     `電阻 × ${bom.resistors}`,
     `LED × ${bom.leds}`,
-    ...(bom.displays > 0 ? [`7 段顯示器 × ${bom.displays}`] : []),
+    ...(bom.displays > 0 ? [`7 段顯示器 × ${bom.displays}（${options.display === 'cc' ? '共陰極' : '共陽極'}）`] : []),
   ];
   const lines = [
     `轉成麵包板（${bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}）：${parts.join('、')}。`,

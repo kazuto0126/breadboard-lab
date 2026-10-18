@@ -6,9 +6,9 @@ describe('component library sections', () => {
 
   it('groups every part into six sections', () => {
     expect(sections.map((s) => [s.id, s.items.length])).toEqual([
-      ['ic', 30],
+      ['ic', 31],
       ['resistor', 8],
-      ['led', 5],
+      ['led', 6],
       ['capacitor', 5],
       ['power', 3],
       ['input', 4],

@@ -255,7 +255,9 @@ function ToBreadboardDialog() {
   const [gates, setGates] = useState<NonNullable<ConvertOptions['gates']>>('direct');
   const [pulls, setPulls] = useState(false);
   const [inputs, setInputs] = useState<NonNullable<ConvertOptions['inputs']>>('switch');
-  const preview = toBreadboard(diagram, { switchTo, board, gates, pulls, inputs });
+  const [display, setDisplay] = useState<NonNullable<ConvertOptions['display']>>('ca');
+  const hasDisplay = diagram.nodes.some((n) => n.kind === 'DISPLAY');
+  const preview = toBreadboard(diagram, { switchTo, board, gates, pulls, inputs, display });
   const radio = (checked: boolean) => `flex cursor-pointer items-start gap-2 rounded border px-3 py-2 ${checked ? 'border-sky-500 bg-sky-950/40' : 'border-slate-700 hover:bg-slate-800'}`;
   return (
     <Modal title="轉成麵包板" onClose={() => store.closeDialog()} width="w-[520px]">
@@ -278,6 +280,25 @@ function ToBreadboardDialog() {
             </label>
           ))}
         </fieldset>
+        {hasDisplay && (
+          <fieldset className="space-y-1.5">
+            <legend className="mb-1 font-semibold text-slate-100">7 段顯示器</legend>
+            {(
+              [
+                ['ca', '共陽極 + 74LS47', '共同腳接 +5 V，74LS47 的輸出是低電位有效。'],
+                ['cc', '共陰極 + 74LS48', '共同腳接 GND，74LS48 的輸出是高電位有效。'],
+              ] as const
+            ).map(([id, label, hint]) => (
+              <label key={id} className={radio(display === id)}>
+                <input type="radio" name="display" className="mt-1" checked={display === id} onChange={() => setDisplay(id)} />
+                <span>
+                  <span className="block text-slate-100">{label}</span>
+                  <span className="block text-xs text-slate-400">{hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        )}
         <fieldset className="space-y-1.5">
           <legend className="mb-1 font-semibold text-slate-100">輸入</legend>
           {(
@@ -344,7 +365,7 @@ function ToBreadboardDialog() {
                 .map(([id, n]) => `${id} × ${n}`)
                 .join('、')}
               、{preview.bom.switch ? `${preview.bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × 1` : `按鈕 × ${preview.bom.buttons}`}、電阻 × {preview.bom.resistors}、LED × {preview.bom.leds}
-              {preview.bom.displays > 0 && `、7 段顯示器 × ${preview.bom.displays}（共陽極）`}；放在 {preview.bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}。
+              {preview.bom.displays > 0 && `、7 段顯示器 × ${preview.bom.displays}（${display === 'cc' ? '共陰極' : '共陽極'}）`}；放在 {preview.bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}。
             </>
           ) : (
             <span className="text-red-300">{preview.reason}</span>
@@ -357,7 +378,7 @@ function ToBreadboardDialog() {
         <button type="button" className={`${button} bg-slate-700 hover:bg-slate-600`} onClick={() => store.closeDialog()}>
           取消
         </button>
-        <button type="button" disabled={!preview.ok} className={`${button} bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50`} onClick={() => store.convertLogic({ switchTo, board, gates, pulls, inputs })}>
+        <button type="button" disabled={!preview.ok} className={`${button} bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50`} onClick={() => store.convertLogic({ switchTo, board, gates, pulls, inputs, display })}>
           轉換
         </button>
       </div>

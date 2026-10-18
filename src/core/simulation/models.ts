@@ -409,11 +409,11 @@ function bcd7segModel(spec: Bcd7segLogic): LogicModel {
     init: () => ({ prev: {}, bits: [] }),
     evaluate(read, state) {
       const outputs: Record<string, Level> = {};
-      // 亮 → 驅動 0；不亮 → 開集極斷開（Z）。
+      // 74LS47：亮 → 驅動 0；不亮 → 開集極斷開（Z）。子專案 32：74LS48 亮 → 1、不亮 → 0。
       const show = (on: (segment: string) => Logic) =>
         spec.segments.forEach((pin, i) => {
           const v = on(SEGMENT_LETTERS[i]);
-          outputs[pin] = v === 1 ? 0 : v === 0 ? 'Z' : 'X';
+          outputs[pin] = v === 'X' ? 'X' : spec.activeHigh ? v : v === 1 ? 0 : 'Z';
         });
       const bi = read(spec.blanking);
       const lt = read(spec.lampTest);

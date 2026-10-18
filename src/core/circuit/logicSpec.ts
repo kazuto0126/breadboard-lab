@@ -215,6 +215,7 @@ export function parseLogic(id: string, raw: unknown, pinNames: ReadonlySet<strin
         lampTest: pin(spec.lampTest, 'lampTest'),
         blanking: pin(spec.blanking, 'blanking'),
         rippleBlanking: pin(spec.rippleBlanking, 'rippleBlanking'),
+        ...(spec.activeHigh === true ? { activeHigh: true } : {}),
       };
     }
     case 'timer555':

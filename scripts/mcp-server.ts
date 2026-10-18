@@ -233,6 +233,7 @@ server.registerTool(
       board: z.enum(['auto', 'MB102', 'EIC1106']).optional().describe('麵包板（預設自動）'),
       gates: z.enum(['direct', 'nand', 'nor']).optional().describe('照種類對應（預設）、只用 NAND（74LS00）或只用 NOR（74LS02）'),
       inputs: z.enum(['switch', 'button']).optional().describe('輸入用指撥開關（預設）或每個輸入一顆按鈕'),
+      display: z.enum(['ca', 'cc']).optional().describe('7 段顯示器用共陽極 + 74LS47（預設）或共陰極 + 74LS48'),
       pulls: z.boolean().optional().describe('加上 / 下拉電阻（預設不加）'),
     },
   },

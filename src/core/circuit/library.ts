@@ -14,6 +14,7 @@ import dipsw8 from '../../data/components/generic/dipsw-8.json';
 import gnd from '../../data/components/generic/gnd.json';
 import led from '../../data/components/generic/led.json';
 import sevenSeg from '../../data/components/generic/7seg-ca.json';
+import sevenSegCc from '../../data/components/generic/7seg-cc.json';
 import capCeramic from '../../data/components/generic/capacitor-ceramic.json';
 import capElectrolytic from '../../data/components/generic/capacitor-electrolytic.json';
 import pushbutton from '../../data/components/generic/pushbutton.json';
@@ -28,6 +29,7 @@ import ls11 from '../../data/components/74ls/74LS11.json';
 import ls21 from '../../data/components/74ls/74LS21.json';
 import ls32 from '../../data/components/74ls/74LS32.json';
 import ls47 from '../../data/components/74ls/74LS47.json';
+import ls48 from '../../data/components/74ls/74LS48.json';
 import ls73 from '../../data/components/74ls/74LS73.json';
 import ls74 from '../../data/components/74ls/74LS74.json';
 import ls76 from '../../data/components/74ls/74LS76.json';
@@ -51,8 +53,8 @@ import ls273 from '../../data/components/74ls/74LS273.json';
 import ls283 from '../../data/components/74ls/74LS283.json';
 
 const RAW_DEFINITIONS: unknown[] = [
-  resistor, led, sevenSeg, capCeramic, capElectrolytic, vcc, gnd, dcPower, dipsw4, dipsw8, pushbutton, clock, ne555,
-  ls00, ls02, ls04, ls08, ls11, ls21, ls32, ls47, ls73, ls74, ls76, ls83, ls85, ls86, ls90, ls93, ls138,
+  resistor, led, sevenSeg, sevenSegCc, capCeramic, capElectrolytic, vcc, gnd, dcPower, dipsw4, dipsw8, pushbutton, clock, ne555,
+  ls00, ls02, ls04, ls08, ls11, ls21, ls32, ls47, ls48, ls73, ls74, ls76, ls83, ls85, ls86, ls90, ls93, ls138,
   ls151, ls153, ls154, ls161, ls163, ls173, ls174, ls175, ls193, ls245, ls273, ls283,
 ];
 

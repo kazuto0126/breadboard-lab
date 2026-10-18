@@ -32,6 +32,7 @@ const MODELS: Record<string, string> = {
   '74LS151': 'mux',
   '74LS153': 'mux',
   '74LS47': 'bcd7seg',
+  '74LS48': 'bcd7seg',
   NE555: 'timer555',
 };
 
@@ -41,7 +42,7 @@ describe('logic specs in the component library', () => {
       if (def.category === 'ic') expect(def.logic?.model, def.id).toBe(MODELS[def.id]);
       else expect(def.logic, def.id).toBeNull();
     }
-    expect(Object.keys(MODELS)).toHaveLength(30);
+    expect(Object.keys(MODELS)).toHaveLength(31);
   });
 
   it('wires 74LS00 gate 1 to pins 1A, 1B → 1Y', () => {

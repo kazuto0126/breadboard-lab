@@ -82,3 +82,19 @@ describe('converting a 7-segment display', () => {
     expect(Object.entries(r.netOf).some(([pin, sig]) => pin.startsWith('U1#') && sig === 'g1')).toBe(true);
   });
 });
+
+describe('common-cathode displays when converting (sub-project 32)', () => {
+  it('uses a 74LS48 and a common-cathode display and still shows every digit, before and after routing', async () => {
+    const { checkAgainstDiagram } = await import('../../src/logic/diagramCheck');
+    const { autoPlaceAndRoute } = await import('../../src/core/icPlacement/autoPlace');
+    const { applyRouting } = await import('../../src/core/routing/apply');
+    const r = ok(toBreadboard(bcdDiagram(), { switchTo: 'vcc', board: 'auto', display: 'cc' }));
+    expect(r.bom.ics).toEqual({ '74LS48': 1 });
+    expect(r.circuit.components.find((c) => c.id === 'DS1')!.defId).toBe('7seg-cc');
+    expect(SEG.CA.map((p) => r.netOf[`DS1#${p}`])).toEqual(['GND', 'GND']);
+    expect(checkAgainstDiagram(bcdDiagram(), r.circuit)).toMatchObject({ kind: 'done', result: { rows: 16, mismatches: [] } });
+    const routed = autoPlaceAndRoute(r.circuit);
+    expect(routed.status).toBe('success');
+    expect(checkAgainstDiagram(bcdDiagram(), applyRouting(r.circuit, routed))).toMatchObject({ kind: 'done', result: { rows: 16, mismatches: [] } });
+  }, 60_000);
+});

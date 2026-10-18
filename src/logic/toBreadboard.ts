@@ -25,6 +25,8 @@ export interface ConvertOptions {
   pulls?: boolean;
   /** 子專案 30：輸入用指撥開關（預設）或每個輸入一顆按鈕。 */
   inputs?: 'switch' | 'button';
+  /** 子專案 32：7 段顯示器用共陽極 + 74LS47（預設）或共陰極 + 74LS48。 */
+  display?: 'ca' | 'cc';
 }
 
 export interface Bom {
@@ -203,14 +205,19 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     BLOCK_PINS[chip].outputs.forEach((name, i) => tie(`${ic}#${numberOf(name)}`, signalOf(node.id, i)));
   });
 
-  // ---- 7 段顯示器：74LS47 + 共陽極顯示器 + 7 顆 220 Ω（規格 2026-10-13 seven-seg 第 6 節） ----
+  // ---- 7 段顯示器：74LS47 + 共陽極顯示器 + 7 顆 220 Ω（規格 2026-10-13 seven-seg 第 6 節）；
+  //      子專案 32：共陰極時是 74LS48 + 共陰極顯示器，共同腳接 GND ----
   const pinNo = (defId: string, name: string) => getComponentDefinition(defId)!.pins.filter((p) => p.name === name).map((p) => p.number);
+  const cc = options.display === 'cc';
+  const decoder = cc ? '74LS48' : '74LS47';
+  const dsDef = cc ? '7seg-cc' : '7seg-ca';
+  const segOut = (s: string) => (cc ? s : `/${s}`);
   const displayParts: Array<{ node: (typeof displays)[number]; ic: string; ds: string }> = displays.map((node, k) => ({ node, ic: `U${plans.length + chips.length + k + 1}`, ds: `DS${k + 1}` }));
   for (const { node, ic } of displayParts) {
-    icBlocks.push({ width: 8, place: (x) => components.push(comp(ic, '74LS47', hole(`F${x}`, icArea), { board: BOARD_ID })) });
-    ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo('74LS47', name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
-    for (const name of ['VCC', '/LT', '/BI/RBO', '/RBI']) pinNo('74LS47', name).forEach((p) => tie(`${ic}#${p}`, VCC));
-    pinNo('74LS47', 'GND').forEach((p) => tie(`${ic}#${p}`, GND));
+    icBlocks.push({ width: 8, place: (x) => components.push(comp(ic, decoder, hole(`F${x}`, icArea), { board: BOARD_ID })) });
+    ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
+    for (const name of ['VCC', '/LT', '/BI/RBO', '/RBI']) pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, VCC));
+    pinNo(decoder, 'GND').forEach((p) => tie(`${ic}#${p}`, GND));
   }
 
   const twoLeads: TwoLead[] = [];
@@ -230,13 +237,14 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const displayIds: Record<string, string> = {};
   for (const { node, ic, ds } of displayParts) {
     for (const s of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
-      const out = `${ic}:/${s}`;
+      const out = `${ic}:${segOut(s)}`;
       const into = `${ds}:${s}`;
-      pinNo('74LS47', `/${s}`).forEach((p) => tie(`${ic}#${p}`, out));
-      pinNo('7seg-ca', s).forEach((p) => tie(`${ds}#${p}`, into));
+      pinNo(decoder, segOut(s)).forEach((p) => tie(`${ic}#${p}`, out));
+      pinNo(dsDef, s).forEach((p) => tie(`${ds}#${p}`, into));
       twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [out, into], area: 3, group: ds });
     }
-    pinNo('7seg-ca', 'CA').forEach((p) => tie(`${ds}#${p}`, VCC));
+    if (cc) pinNo(dsDef, 'CC').forEach((p) => tie(`${ds}#${p}`, GND));
+    else pinNo(dsDef, 'CA').forEach((p) => tie(`${ds}#${p}`, VCC));
     displayIds[node.id] = ds;
   }
   for (const t of twoLeads) {
@@ -282,7 +290,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     if (shown)
       blocks[3].push({
         width: 5,
-        place: (x) => components.push(comp(shown.ds, '7seg-ca', hole(`H${x}`, eic ? 3 : undefined), { board: BOARD_ID, props: { labels: [shown.node.name ?? ''] } as never })),
+        place: (x) => components.push(comp(shown.ds, dsDef, hole(`H${x}`, eic ? 3 : undefined), { board: BOARD_ID, props: { labels: [shown.node.name ?? ''] } as never })),
       });
   }
   // 順序：開關、輸入的電阻（靠近開關）、IC、輸出的電阻與 LED。MB-102 時全部排在同一列。
@@ -377,7 +385,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const ics: Record<string, number> = {};
   for (const p of plans) ics[p.defId] = (ics[p.defId] ?? 0) + 1;
   for (const b of chips) ics[b.chip!] = (ics[b.chip!] ?? 0) + 1;
-  if (displays.length > 0) ics['74LS47'] = displays.length;
+  if (displays.length > 0) ics[decoder] = displays.length;
   return {
     ok: true,
     circuit,
