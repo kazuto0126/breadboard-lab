@@ -17,8 +17,8 @@ import {
   type TaskValue,
   type TruthTask,
 } from '../../logic/task';
-import { designFromTask } from '../../logic/design';
-import { literalsOf, minimize, sopText, type Term } from '../../logic/minimize';
+import { designFromTask, termsOfTask, usesPos, type DesignForm } from '../../logic/design';
+import { literalsOf, posText, sopText, sumLiteralsOf, type Term } from '../../logic/minimize';
 import type { LogicDiagram } from '../../logic/types';
 import { useLogic } from '../../state/logic';
 
@@ -122,26 +122,79 @@ function SumOfProducts({ terms, names }: { terms: Term[]; names: string[] }) {
   );
 }
 
-/** 子專案 25（規格 2026-10-17 task-to-diagram 第 4 節）：每個輸出化簡後的布林式與「產生邏輯圖」。 */
+/** 子專案 31：和積（「(A + B)(A + C)」），反相用上橫線。terms 是 F' 的積項。 */
+function ProductOfSums({ terms, names }: { terms: Term[]; names: string[] }) {
+  const sums = terms.map((t) => sumLiteralsOf(t, names));
+  if (sums.length === 0) return <>1</>;
+  if (sums.some((p) => p.length === 0)) return <>0</>;
+  const letter = (l: { name: string; negated: boolean }) => (
+    <span key={l.name} style={l.negated ? { textDecoration: 'overline' } : undefined}>
+      {l.name}
+    </span>
+  );
+  return (
+    <>
+      {sums.map((p, i) => {
+        const inner = p.map((l, j) => (
+          <span key={l.name}>
+            {j > 0 && ' + '}
+            {letter(l)}
+          </span>
+        ));
+        return <span key={i}>{sums.length > 1 && p.length > 1 ? <>({inner})</> : inner}</span>;
+      })}
+    </>
+  );
+}
+
+const FORMS: Array<[DesignForm, string, string]> = [
+  ['sop', '積項和', 'AND–OR'],
+  ['pos', '和積', 'OR–AND'],
+  ['nand', '只用 NAND', 'NAND–NAND'],
+  ['nor', '只用 NOR', 'NOR–NOR'],
+];
+
+/**
+ * 子專案 25（規格 2026-10-17 task-to-diagram 第 4 節）：每個輸出化簡後的布林式與「產生邏輯圖」。
+ * 子專案 31：可以選形式（積項和、和積、只用 NAND、只用 NOR）。
+ */
 function Simplified({ diagram, task }: { diagram: LogicDiagram; task: TruthTask }) {
-  const terms = useMemo(() => task.outputs.map((_, k) => minimize(task.inputs.length, rowsWith(task, k, 1), rowsWith(task, k, 'X'))), [task]);
+  const [form, setForm] = useState<DesignForm>('sop');
+  const terms = useMemo(() => termsOfTask(task, form), [task, form]);
+  const pos = usesPos(form);
   const generate = () => {
     const s = useLogic.getState();
-    s.apply({ ok: true, diagram: designFromTask(task).diagram }, '從題目產生邏輯圖', null);
+    s.apply({ ok: true, diagram: designFromTask(task, form).diagram }, `從題目產生邏輯圖（${FORMS.find((x) => x[0] === form)![1]}）`, null);
     s.fit();
   };
   return (
     <div data-testid="task-sop" className="mt-3 rounded border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs leading-5">
-      <div className="font-semibold text-slate-200">化簡（積項和）</div>
+      <div className="font-semibold text-slate-200">化簡與產生邏輯圖</div>
+      <div className="mt-1 flex flex-wrap gap-1" role="group" aria-label="形式">
+        {FORMS.map(([id, label, hint]) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={form === id}
+            title={hint}
+            onClick={() => setForm(id)}
+            className={`${btn} ${form === id ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {task.outputs.map((name, k) => (
-        <div key={name} data-sop={name} data-text={sopText(terms[k], task.inputs)} className="font-mono text-sm text-slate-100">
-          <span className="text-amber-300">{name}</span> = <SumOfProducts terms={terms[k]} names={task.inputs} />
+        <div key={name} data-sop={name} data-text={pos ? posText(terms[k], task.inputs) : sopText(terms[k], task.inputs)} className="mt-1 font-mono text-sm text-slate-100">
+          <span className="text-amber-300">{name}</span> = {pos ? <ProductOfSums terms={terms[k]} names={task.inputs} /> : <SumOfProducts terms={terms[k]} names={task.inputs} />}
         </div>
       ))}
       <button type="button" className={`${btn} mt-2 bg-sky-700 text-white hover:bg-sky-600`} onClick={generate}>
         {diagram.nodes.length > 0 ? '產生邏輯圖（取代目前的）' : '產生邏輯圖'}
       </button>
-      <p className="mt-1 text-[11px] text-slate-400">照化簡結果畫出 AND–OR 邏輯圖（X 的格子拿來幫忙化簡）；可以用 Undo 回到原本的圖。</p>
+      <p className="mt-1 text-[11px] text-slate-400">
+        照化簡結果畫出 {FORMS.find((x) => x[0] === form)![2]} 邏輯圖（X 的格子拿來幫忙化簡，多個輸出盡量共用閘）；可以用 Undo 回到原本的圖。
+      </p>
     </div>
   );
 }

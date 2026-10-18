@@ -90,3 +90,25 @@ describe('simplifying one output to a sum of products', () => {
     expect(Date.now() - start).toBeLessThan(2000);
   });
 });
+
+describe('product of sums (sub-project 31)', () => {
+  it('simplifies the 0 rows and writes sums in brackets', async () => {
+    const { minimizePos, posText } = await import('../../src/logic/minimize');
+    // 多數決：0 的列是 0、1、2、4 → (A + B)(A + C)(B + C)。
+    expect(posText(minimizePos(3, [0, 1, 2, 4], []), ['A', 'B', 'C'])).toBe('(A + B)(A + C)(B + C)');
+    // XOR：(A + B)(A' + B')。
+    expect(posText(minimizePos(2, [0, 3], []), ['A', 'B'])).toBe("(A + B)(A' + B')");
+    // 只有一個字母的和寫成那個字母；沒有 0 是 1；全部是 0 是 0。
+    expect(posText(minimizePos(2, [0, 1], []), ['A', 'B'])).toBe('A');
+    expect(posText(minimizePos(2, [], []), ['A', 'B'])).toBe('1');
+    expect(posText(minimizePos(2, [0, 1, 2, 3], []), ['A', 'B'])).toBe('0');
+  });
+
+  it('prefers terms another output already uses when two covers cost the same', async () => {
+    const { minimize, sopText } = await import('../../src/logic/minimize');
+    // Σm(0,1,2,5,6,7) 有兩組最少的 3 項；另一個輸出已經用了 AB 時，選含 AB 的那組。
+    const shared = minimize(3, [0, 1, 2, 5, 6, 7], [], new Set(['1:6']));
+    expect(sopText(shared, ['A', 'B', 'C'])).toContain('AB');
+    expect(shared).toHaveLength(3);
+  });
+});

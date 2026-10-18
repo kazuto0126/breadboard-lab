@@ -63,8 +63,14 @@ export function primeImplicants(n: number, ones: number[], dontCares: number[]):
   return sortTerms(n, [...primes.values()]);
 }
 
-/** 蓋住所有 1 的最少質項（項數最少，再來字母最少）：先拿必要質項，剩下的用分支限界。 */
-export function minimalCover(n: number, ones: number[], primes: Term[]): Term[] {
+/** 積項的鍵（判斷兩個輸出是不是用到同一個積項）。 */
+export const termKey = (t: Term) => `${t.mask}:${t.value}`;
+
+/**
+ * 蓋住所有 1 的最少質項（項數最少；子專案 31：再來是別的輸出沒用過的項最少，共用更多閘；最後字母最少）：
+ * 先拿必要質項，剩下的用分支限界。prefer 是別的輸出已經用到的積項（`termKey`）。
+ */
+export function minimalCover(n: number, ones: number[], primes: Term[], prefer: Set<string> = new Set()): Term[] {
   const relevant = primes.filter((p) => ones.some((m) => covers(p, m)));
   const chosen: Term[] = [];
   let uncovered = ones.filter((m, i) => ones.indexOf(m) === i);
@@ -85,11 +91,11 @@ export function minimalCover(n: number, ones: number[], primes: Term[]): Term[] 
     }
   }
 
-  const cost = (set: Term[]) => [set.length, set.reduce((s, t) => s + literalCount(n, t), 0)] as const;
+  const cost = (set: Term[]) => [set.length, set.filter((t) => !prefer.has(termKey(t))).length, set.reduce((s, t) => s + literalCount(n, t), 0)] as const;
   const better = (a: Term[], b: Term[]) => {
-    const [ca, la] = cost(a);
-    const [cb, lb] = cost(b);
-    return ca < cb || (ca === cb && la < lb);
+    const [ca, na, la] = cost(a);
+    const [cb, nb, lb] = cost(b);
+    return ca < cb || (ca === cb && (na < nb || (na === nb && la < lb)));
   };
   // 先用貪心法得到一個解，當作限界。
   const greedy: Term[] = [];
@@ -107,7 +113,7 @@ export function minimalCover(n: number, ones: number[], primes: Term[]): Term[] 
   const search = (left: number[], picked: Term[]) => {
     if (++steps > SEARCH_LIMIT) return;
     if (left.length === 0) {
-      if (better(picked, best)) best = [...picked];
+      if (better([...chosen, ...picked], [...chosen, ...best])) best = [...picked];
       return;
     }
     if (picked.length + 1 > best.length) return;
@@ -128,10 +134,33 @@ export function minimalCover(n: number, ones: number[], primes: Term[]): Term[] 
   return sortTerms(n, [...chosen, ...best]);
 }
 
-/** 化簡一個輸出；沒有 1 時是空的（輸出 0）。 */
-export function minimize(n: number, ones: number[], dontCares: number[]): Term[] {
+/** 化簡一個輸出；沒有 1 時是空的（輸出 0）。prefer：別的輸出已經用到的積項，同樣好時優先用它們。 */
+export function minimize(n: number, ones: number[], dontCares: number[], prefer: Set<string> = new Set()): Term[] {
   if (ones.length === 0) return [];
-  return minimalCover(n, ones, primeImplicants(n, ones, dontCares));
+  return minimalCover(n, ones, primeImplicants(n, ones, dontCares), prefer);
+}
+
+/**
+ * 子專案 31：和積式。化簡 0 的列（得到 F' 的積項），每一項換成一個「和」：字母反過來（F' 的 A 變成 F 的 A'）。
+ * 結果是 F' 的積項；沒有 0 時是空的（輸出 1）。
+ */
+export function minimizePos(n: number, zeros: number[], dontCares: number[], prefer: Set<string> = new Set()): Term[] {
+  return minimize(n, zeros, dontCares, prefer);
+}
+
+/** 和積式一個「和」的字母（F' 的積項把每個字母反過來）。 */
+export function sumLiteralsOf(term: Term, names: string[]): Array<{ name: string; negated: boolean }> {
+  return literalsOf(term, names).map((l) => ({ name: l.name, negated: !l.negated }));
+}
+
+/** 和積式的文字：「(A + B)(A' + C)」；只有一個和時不加括號；沒有項是 1，有一項沒有字母是 0。 */
+export function posText(terms: Term[], names: string[]): string {
+  if (terms.length === 0) return '1';
+  const sums = terms.map((t) => sumLiteralsOf(t, names));
+  if (sums.some((s) => s.length === 0)) return '0';
+  const text = sums.map((s) => s.map((l) => `${l.name}${l.negated ? "'" : ''}`).join(' + '));
+  if (text.length === 1) return text[0];
+  return text.map((t, i) => (sums[i].length === 1 ? t : `(${t})`)).join('');
 }
 
 /** 積項的字母（依輸入順序）；沒有字母代表常數 1。 */

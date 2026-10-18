@@ -115,3 +115,27 @@ test('真值表題目：看化簡結果、產生邏輯圖，和題目全部一�
   await expect(page.locator('[data-logic-node]')).toHaveCount(0);
   await expect(tab.locator('[data-sop="X"]')).toBeVisible();
 });
+
+test('真值表題目：選和積、只用 NAND 產生邏輯圖（子專案 31）', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByTestId('view-switch').getByRole('button', { name: '邏輯圖' }).click();
+  await page.getByRole('tab', { name: '題目' }).click();
+  const tab = page.getByTestId('task-tab');
+  await tab.getByLabel('輸入名稱').fill('A B C');
+  await tab.getByLabel('輸出名稱').fill('X');
+  await tab.getByRole('button', { name: '建立題目' }).click();
+  await tab.getByLabel('X 的 1 的列').fill('3, 5, 6, 7');
+  await tab.getByLabel('X 的 1 的列').press('Enter');
+
+  await tab.getByRole('button', { name: '和積', exact: true }).click();
+  await expect(tab.locator('[data-sop="X"]')).toHaveAttribute('data-text', '(A + B)(A + C)(B + C)');
+
+  await tab.getByRole('button', { name: '只用 NAND', exact: true }).click();
+  await expect(tab.locator('[data-sop="X"]')).toHaveAttribute('data-text', 'AB + AC + BC');
+  await tab.getByRole('button', { name: '產生邏輯圖' }).click();
+  // 輸入 3、NAND 4（三個積項 + 最後一個）、輸出 1。
+  await expect(page.locator('[data-logic-node]')).toHaveCount(8);
+  await expect(tab.getByTestId('task-compare')).toContainText('8 種輸入組合，邏輯圖和題目全部一致');
+});
