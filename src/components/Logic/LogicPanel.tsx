@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
-import { removeNodes, removeWire, renameNode, setConstant, setGateKind, setInputCount, setRotation } from '../../logic/edit';
+import { removeNodes, removeWire, renameNode, setConstant, setFlip, setGateKind, setInputCount, setRotation } from '../../logic/edit';
 import { BLOCK_PINS } from '../../logic/blocks';
 import { evaluate, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
 import { boxOf } from '../../logic/shapes';
@@ -163,7 +163,18 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
                 ))}
               </div>
             </div>
-            <p className="mt-1 text-xs text-slate-400">選取後按 R 順時針轉 90°。</p>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="w-12 text-slate-400">鏡射</span>
+              <button
+                type="button"
+                aria-pressed={!!node.flip}
+                onClick={() => run(setFlip(diagram, node.id, !node.flip), node.flip ? `${node.id} 取消鏡射` : `${node.id} 鏡射`)}
+                className={`${btn} ${node.flip ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+              >
+                左右鏡射
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">選取後按 R 順時針轉 90°、按 M 鏡射；放置前也可以先按 R / M。</p>
           </div>
         )}
         {(node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'DISPLAY') && <NameEditor node={node} />}
@@ -195,7 +206,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     return (
       <Section title="多個元件">
         <p className="text-slate-200">已選取 {selection.ids.length} 個元件：{selection.ids.join('、')}</p>
-        <p className="text-xs leading-5 text-slate-400">拖曳其中一個可以整組移動；R 轉向（閘與 IC 方塊）；Ctrl+C 複製、Ctrl+V 貼上；Del 刪除。</p>
+        <p className="text-xs leading-5 text-slate-400">拖曳其中一個可以整組移動；R 轉向、M 鏡射；Ctrl+C 複製、Ctrl+V 貼上；Del 刪除。</p>
         <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.deleteSelection()}>
           刪除這 {selection.ids.length} 個
         </button>

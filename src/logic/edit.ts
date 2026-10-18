@@ -38,10 +38,16 @@ function defaultInputs(kind: GateKind): number {
   return kind === 'NOT' ? 1 : 2;
 }
 
-export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, chip?: BlockChip): EditResult {
+/** 子專案 28：元件的方向（放置前先轉好、鏡射）。 */
+export interface Turn {
+  rotation?: Rotation;
+  flip?: true;
+}
+
+export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, chip?: BlockChip, turn: Turn = {}): EditResult {
   const id = nextNodeId(d, kind);
   if (kind === 'BLOCK' && !isBlockChip(chip)) return fail(d, '要指定哪一顆 IC');
-  const node: LogicNode =
+  const plain: LogicNode =
     kind === 'BLOCK'
       ? { id, kind, x, y, chip }
       : kind === 'HIGH' || kind === 'LOW'
@@ -51,6 +57,7 @@ export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, c
       : kind === 'OUTPUT' || kind === 'DISPLAY'
         ? { id, kind, x, y, name: defaultName(d, kind) }
         : { id, kind, x, y, inputs: defaultInputs(kind) };
+  const node: LogicNode = canRotate(kind) ? { ...plain, ...(turn.rotation ? { rotation: turn.rotation } : {}), ...(turn.flip ? { flip: true as const } : {}) } : plain;
   if (!canPlace(d, node)) return fail(d, '這裡已經有元件了');
   return { ok: true, diagram: { ...d, nodes: [...d.nodes, node] }, id };
 }
@@ -207,7 +214,7 @@ export function pasteNodes(d: LogicDiagram, clip: LogicClipboard): { ok: true; d
 function turnNodes(d: LogicDiagram, ids: string[], to: (n: LogicNode) => number): EditResult {
   const chosen = new Set(ids);
   const turning = d.nodes.filter((n) => chosen.has(n.id) && canRotate(n.kind));
-  if (turning.length === 0) return fail(d, '只有邏輯閘和 IC 方塊可以轉向');
+  if (turning.length === 0) return fail(d, '7 段顯示器不能轉向');
   const moved = new Set(turning.map((n) => n.id));
   const nodes = d.nodes.map((n) => {
     if (!moved.has(n.id)) return n;
@@ -233,4 +240,25 @@ export function rotateNodes(d: LogicDiagram, ids: string[]): EditResult {
 /** 直接設定方向（屬性面板的方向按鈕）。 */
 export function setRotation(d: LogicDiagram, id: string, angle: 0 | Rotation): EditResult {
   return turnNodes(d, [id], () => angle);
+}
+
+/** 子專案 28：左右鏡射（方框不變，位置不動）；把 flip 設成 to(node)。 */
+function mirrorNodes(d: LogicDiagram, ids: string[], to: (n: LogicNode) => boolean): EditResult {
+  const chosen = new Set(ids);
+  if (!d.nodes.some((n) => chosen.has(n.id) && canRotate(n.kind))) return fail(d, '7 段顯示器不能轉向');
+  const nodes = d.nodes.map((n) => {
+    if (!chosen.has(n.id) || !canRotate(n.kind)) return n;
+    const { flip: _old, ...rest } = n;
+    return to(n) ? { ...rest, flip: true as const } : rest;
+  });
+  return { ok: true, diagram: { ...d, nodes } };
+}
+
+/** 鏡射（快捷鍵 M）：鏡射過的再按一次就翻回來。 */
+export function flipNodes(d: LogicDiagram, ids: string[]): EditResult {
+  return mirrorNodes(d, ids, (n) => !n.flip);
+}
+
+export function setFlip(d: LogicDiagram, id: string, flip: boolean): EditResult {
+  return mirrorNodes(d, [id], () => flip);
 }

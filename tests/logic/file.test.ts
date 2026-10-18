@@ -48,7 +48,11 @@ describe('turned parts in files (sub-project 26)', () => {
 
   it('rejects other angles and parts that cannot turn', () => {
     expect(base({ id: 'g1', kind: 'AND', x: 0, y: 0, inputs: 2, rotation: 45 })).toEqual({ ok: false, error: '元件 g1 的方向 45 不合法（只能是 0、90、180、270）' });
-    expect(base({ id: 'i1', kind: 'INPUT', x: 0, y: 0, name: 'A', rotation: 90 })).toEqual({ ok: false, error: '元件 i1（INPUT）不能轉向' });
+    expect(base({ id: 'd1', kind: 'DISPLAY', x: 0, y: 0, name: 'S1', rotation: 90 })).toEqual({ ok: false, error: '元件 d1（DISPLAY）不能轉向' });
+    // 子專案 28：輸入端也能轉、可以鏡射；鏡射只能是 true。
+    expect(base({ id: 'i1', kind: 'INPUT', x: 0, y: 0, name: 'A', rotation: 90, flip: true })).toMatchObject({ ok: true, diagram: { nodes: [{ rotation: 90, flip: true }] } });
+    expect(base({ id: 'd1', kind: 'DISPLAY', x: 0, y: 0, name: 'S1', flip: true })).toEqual({ ok: false, error: '元件 d1（DISPLAY）不能轉向' });
+    expect(base({ id: 'g1', kind: 'AND', x: 0, y: 0, inputs: 2, flip: 1 })).toEqual({ ok: false, error: '元件 g1 的鏡射要是 true 或不寫' });
   });
 
   it('checks overlaps with the turned box', () => {

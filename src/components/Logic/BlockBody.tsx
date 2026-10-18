@@ -3,6 +3,7 @@ import type { Bit } from '../../logic/evaluate';
 import { bodyRect, inputDir, inputPins, outputDir, outputPins, type Facing } from '../../logic/shapes';
 import type { LogicNode } from '../../logic/types';
 import { LOGIC_CELL as C } from '../../state/logic';
+import { upright } from './GateSymbol';
 
 const pinColor = (b: Bit | undefined) => (b === 1 ? '#dc2626' : b === 0 ? '#2563eb' : '#94a3b8');
 /** 腳朝外的方向（格子）。 */
@@ -79,7 +80,7 @@ export function ConstantBody({ node, selected = false }: { node: LogicNode; sele
   return (
     <g data-logic-constant={node.id}>
       <rect x={0} y={-0.45 * C} width={1.6 * C} height={0.9 * C} rx={3} fill={high ? '#fee2e2' : '#dbeafe'} stroke={selected ? '#0284c7' : high ? '#dc2626' : '#2563eb'} strokeWidth={selected ? 2.4 : 1.6} />
-      <text x={0.8 * C} y={0} fontSize={0.42 * C} fontWeight={700} fill={high ? '#b91c1c' : '#1d4ed8'} textAnchor="middle" dominantBaseline="central">
+      <text x={0.8 * C} y={0} transform={upright(node, 0.8 * C, 0)} fontSize={0.42 * C} fontWeight={700} fill={high ? '#b91c1c' : '#1d4ed8'} textAnchor="middle" dominantBaseline="central">
         {high ? '5V' : 'GND'}
       </text>
       <line x1={1.6 * C} y1={0} x2={2 * C} y2={0} stroke={high ? '#dc2626' : '#2563eb'} strokeWidth={2} />

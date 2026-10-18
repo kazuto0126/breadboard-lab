@@ -33,11 +33,16 @@ function parseNode(raw: unknown, i: number): LogicNode {
     node.name = n.name as string;
     if (node.kind === 'INPUT') node.value = n.value === 1 ? 1 : 0;
   }
-  // 子專案 26：轉向（0 不寫）。
+  // 子專案 26：轉向（0 不寫）；子專案 28：鏡射（不鏡射不寫）。
   if (n.rotation !== undefined && n.rotation !== 0) {
     if (![90, 180, 270].includes(n.rotation as number)) fail(`元件 ${node.id} 的方向 ${String(n.rotation)} 不合法（只能是 0、90、180、270）`);
     if (!canRotate(node.kind)) fail(`元件 ${node.id}（${node.kind}）不能轉向`);
     node.rotation = n.rotation as Rotation;
+  }
+  if (n.flip !== undefined && n.flip !== false) {
+    if (n.flip !== true) fail(`元件 ${node.id} 的鏡射要是 true 或不寫`);
+    if (!canRotate(node.kind)) fail(`元件 ${node.id}（${node.kind}）不能轉向`);
+    node.flip = true;
   }
   return node;
 }

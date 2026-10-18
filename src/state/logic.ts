@@ -1,9 +1,9 @@
 import { create } from 'zustand';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
 import { DEFAULT_VIEWPORT, fitRect, type Viewport } from '../editor/viewport';
-import { addNode, copyNodes, pasteNodes, removeNodes, removeWire, rotateNodes, setInputValue, type EditResult, type LogicClipboard } from '../logic/edit';
+import { addNode, copyNodes, flipNodes, pasteNodes, removeNodes, removeWire, rotateNodes, setInputValue, type EditResult, type LogicClipboard, type Turn } from '../logic/edit';
 import { boxOf } from '../logic/shapes';
-import { emptyDiagram, type LogicDiagram, type NodeKind, type BlockChip } from '../logic/types';
+import { emptyDiagram, type LogicDiagram, type NodeKind, type BlockChip, type Rotation } from '../logic/types';
 import * as persistence from './persistence';
 
 /** 選取：一個元件、一條線，或框選的多個元件（子專案 15）。 */
@@ -20,6 +20,8 @@ export interface LogicState {
   placing: NodeKind | null;
   /** 子專案 21：放置 IC 方塊時是哪一顆。 */
   placingChip: BlockChip | null;
+  /** 子專案 28：放置中的元件的方向（按 R / M 先轉好）。 */
+  placingTurn: Turn;
   viewport: Viewport;
   canvasSize: { width: number; height: number };
   tab: LogicTab;
@@ -36,6 +38,10 @@ export interface LogicState {
   copy(): void;
   /** 子專案 26：選取的閘與 IC 方塊順時針轉 90°（一個 Undo 步驟）；不能轉時回傳原因，沒有選取時什麼都不做。 */
   rotateSelection(): string | null;
+  /** 子專案 28：選取的元件左右鏡射（一個 Undo 步驟）；不能鏡射時回傳原因。 */
+  flipSelection(): string | null;
+  /** 子專案 28：放置中的元件先轉 90° 或鏡射。 */
+  turnPlacing(how: 'rotate' | 'flip'): void;
   paste(): boolean;
   toggleInput(id: string): void;
   setInputs(values: Record<string, 0 | 1>): void;
@@ -45,10 +51,10 @@ export interface LogicState {
   setTab(tab: LogicTab): void;
 }
 
-export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'viewport' | 'canvasSize' | 'tab'> {
+export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab'> {
   const restored = typeof window !== 'undefined' ? persistence.loadAutosave()?.logic : undefined;
   const diagram = restored ?? emptyDiagram();
-  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect' };
+  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect' };
 }
 
 /** 規格第 1、2 節：邏輯圖自己的狀態與 Undo（不進主 store 的 Undo）。 */
@@ -80,11 +86,11 @@ export const useLogic = create<LogicState>((set, get) => ({
     set({ selection });
   },
   startPlacing(placing, chip) {
-    set({ placing, placingChip: placing === 'BLOCK' ? (chip ?? null) : null, selection: null });
+    set({ placing, placingChip: placing === 'BLOCK' ? (chip ?? null) : null, placingTurn: {}, selection: null });
   },
   place(kind, x, y) {
     const chip = get().placingChip ?? undefined;
-    const r = addNode(get().diagram, kind, x, y, chip);
+    const r = addNode(get().diagram, kind, x, y, chip, get().placingTurn);
     const name = kind === 'INPUT' ? '輸入端' : kind === 'OUTPUT' ? '輸出端' : kind === 'DISPLAY' ? '7 段顯示器' : kind === 'HIGH' ? '5V' : kind === 'LOW' ? 'GND' : kind === 'BLOCK' ? `${chip} 方塊` : kind;
     const done = get().apply(r, `新增 ${name}`, r.ok && r.id ? { kind: 'node', id: r.id } : undefined);
     if (done) set({ placing: null, placingChip: null });
@@ -108,6 +114,25 @@ export const useLogic = create<LogicState>((set, get) => ({
     if (!r.ok) return r.reason;
     get().apply(r, '轉向');
     return null;
+  },
+  flipSelection() {
+    const ids = selectedIds(get().selection);
+    if (ids.length === 0) return null;
+    const r = flipNodes(get().diagram, ids);
+    if (!r.ok) return r.reason;
+    get().apply(r, '鏡射');
+    return null;
+  },
+  turnPlacing(how) {
+    const t = get().placingTurn;
+    if (how === 'flip') {
+      const { flip: _old, ...rest } = t;
+      set({ placingTurn: t.flip ? rest : { ...rest, flip: true } });
+      return;
+    }
+    const angle = ((t.rotation ?? 0) + 90) % 360;
+    const { rotation: _r, ...rest } = t;
+    set({ placingTurn: angle === 0 ? rest : { ...rest, rotation: angle as Rotation } });
   },
   paste() {
     if (!clipboard) return false;

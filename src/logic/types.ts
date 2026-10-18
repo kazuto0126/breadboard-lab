@@ -22,14 +22,16 @@ export interface LogicNode {
   value?: 0 | 1;
   /** 只有 IC 方塊：哪一顆 IC。 */
   chip?: BlockChip;
-  /** 子專案 26：只有閘與 IC 方塊，順時針轉幾度（0 不寫）。 */
+  /** 子專案 26：順時針轉幾度（0 不寫）；7 段顯示器不轉。 */
   rotation?: Rotation;
+  /** 子專案 28：左右鏡射（先鏡射再轉）；不鏡射時不寫。 */
+  flip?: true;
 }
 
 export type Rotation = 90 | 180 | 270;
 
-/** 可以轉向的元件：邏輯閘與 IC 方塊。 */
-export const canRotate = (kind: NodeKind): boolean => isGate(kind) || kind === 'BLOCK';
+/** 可以轉向、鏡射的元件：子專案 28 起除了 7 段顯示器（數字有方向）都可以。 */
+export const canRotate = (kind: NodeKind): boolean => kind !== 'DISPLAY';
 
 export interface LogicWire {
   id: string;

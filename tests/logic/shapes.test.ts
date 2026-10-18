@@ -61,3 +61,23 @@ describe('turned parts (sub-project 26)', () => {
     expect(outputPins(block)[0]).toEqual({ x: 9, y: 6 });
   });
 });
+
+describe('mirrored parts and turned terminals (sub-project 28)', () => {
+  const and = (extra: Partial<LogicNode> = {}): LogicNode => ({ id: 'g1', kind: 'AND', x: 10, y: 20, inputs: 2, ...extra });
+
+  it('mirrors a gate left to right, keeping the order of the inputs', () => {
+    expect([inputPins(and({ flip: true })), outputPin(and({ flip: true }))]).toEqual([[{ x: 14, y: 20 }, { x: 14, y: 22 }], { x: 10, y: 21 }]);
+    expect([outputDir(and({ flip: true })), inputDir(and({ flip: true }))]).toEqual(['W', 'E']);
+    expect(bodyRect(and({ flip: true }))).toEqual(bodyRect(and()));
+    // 先鏡射再轉 90°：輸出朝上。
+    expect([inputPins(and({ flip: true, rotation: 90 })), outputPin(and({ flip: true, rotation: 90 }))]).toEqual([[{ x: 12, y: 24 }, { x: 10, y: 24 }], { x: 11, y: 20 }]);
+    expect(outputDir(and({ flip: true, rotation: 90 }))).toBe('N');
+  });
+
+  it('turns input terminals and constants too', () => {
+    const input: LogicNode = { id: 'i1', kind: 'INPUT', x: 0, y: 5, name: 'A', value: 0, rotation: 90 };
+    expect([outputPin(input), outputDir(input), boxOf(input)]).toEqual([{ x: 0, y: 7 }, 'S', { w: 1, h: 2 }]);
+    const high: LogicNode = { id: 'k1', kind: 'HIGH', x: 4, y: 4, flip: true };
+    expect([outputPin(high), outputDir(high)]).toEqual([{ x: 4, y: 4 }, 'W']);
+  });
+});

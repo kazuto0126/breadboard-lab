@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addNode } from '../../src/logic/edit';
-import { majorityDiagram } from '../../src/logic/examples';
+import { bcdDiagram, majorityDiagram } from '../../src/logic/examples';
 import { emptyDiagram } from '../../src/logic/types';
 import { initialLogicState, logicDirty, useLogic } from '../../src/state/logic';
 import { initialState, isDirty, useStore } from '../../src/state/store';
@@ -108,12 +108,37 @@ describe('turning the selection (sub-project 26)', () => {
     L().load(majorityDiagram());
     L().select({ kind: 'nodes', ids: ['g1', 'g2', 'i1'] });
     expect(L().rotateSelection()).toBeNull();
-    expect(L().diagram.nodes.filter((n) => n.rotation === 90).map((n) => n.id)).toEqual(['g1', 'g2']);
+    // 子專案 28 起輸入端也會轉。
+    expect(L().diagram.nodes.filter((n) => n.rotation === 90).map((n) => n.id)).toEqual(['i1', 'g1', 'g2']);
     L().undo();
     expect(L().diagram.nodes.some((n) => n.rotation)).toBe(false);
-    L().select({ kind: 'node', id: 'i1' });
-    expect(L().rotateSelection()).toBe('只有邏輯閘和 IC 方塊可以轉向');
+    L().load(bcdDiagram());
+    L().select({ kind: 'node', id: 'd1' });
+    expect(L().rotateSelection()).toBe('7 段顯示器不能轉向');
     L().select(null);
     expect(L().rotateSelection()).toBeNull();
+  });
+});
+
+describe('turning before placing and mirroring (sub-project 28)', () => {
+  it('turns and mirrors the part being placed, then places it that way', () => {
+    L().startPlacing('AND');
+    L().turnPlacing('rotate');
+    L().turnPlacing('flip');
+    expect(L().placingTurn).toEqual({ rotation: 90, flip: true });
+    expect(L().place('AND', 4, 4)).toBe(true);
+    expect(L().diagram.nodes[0]).toMatchObject({ rotation: 90, flip: true });
+    // 開始放下一個時重新從沒轉開始。
+    L().startPlacing('OR');
+    expect(L().placingTurn).toEqual({});
+  });
+
+  it('mirrors the selection in one undo step', () => {
+    L().load(majorityDiagram());
+    L().select({ kind: 'nodes', ids: ['g1', 'd9'] });
+    expect(L().flipSelection()).toBeNull();
+    expect(L().diagram.nodes.find((n) => n.id === 'g1')!.flip).toBe(true);
+    L().undo();
+    expect(L().diagram.nodes.some((n) => n.flip)).toBe(false);
   });
 });

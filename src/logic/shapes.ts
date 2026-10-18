@@ -38,10 +38,11 @@ export const BLOCK_WIDTH = 6;
 
 /**
  * 子專案 26：本地座標（沒轉時：輸入在 u = 0、輸出在 u = w，v 是列）換到轉向後、相對於 (x, y) 的位置。
- * 90°：(h − 1 − v, u)；180°：(w − u, h − 1 − v)；270°：(v, w − u)。
+ * 子專案 28：鏡射先把 u 換成 w − u，再轉：90°：(h − 1 − v, u)；180°：(w − u, h − 1 − v)；270°：(v, w − u)。
  */
-function turn(node: LogicNode, u: number, v: number): GridXY {
+function turn(node: LogicNode, u0: number, v: number): GridXY {
   const { w, h } = nodeSize(node);
+  const u = node.flip ? w - u0 : u0;
   switch (node.rotation) {
     case 90:
       return { x: h - 1 - v, y: u };
@@ -75,7 +76,7 @@ export function bodyRect(node: LogicNode): { x0: number; x1: number; y0: number;
 
 export type Facing = 'E' | 'S' | 'W' | 'N';
 const FACINGS: Facing[] = ['E', 'S', 'W', 'N'];
-const quarter = (node: LogicNode) => (node.rotation ?? 0) / 90;
+const quarter = (node: LogicNode) => (node.rotation ?? 0) / 90 + (node.flip ? 2 : 0);
 
 /** 輸出腳朝的方向（沒轉時朝右）。 */
 export function outputDir(node: LogicNode): Facing {

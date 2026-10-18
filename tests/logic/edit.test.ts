@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNode, connect, moveNode, removeNodes, renameNode, rotateNodes, setGateKind, setInputCount, setInputValue, setRotation } from '../../src/logic/edit';
+import { addNode, connect, flipNodes, moveNode, removeNodes, renameNode, rotateNodes, setFlip, setGateKind, setInputCount, setInputValue, setRotation } from '../../src/logic/edit';
 import { majorityDiagram } from '../../src/logic/examples';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 
@@ -118,7 +118,7 @@ describe('turning parts (sub-project 26)', () => {
     expect(at(rotateNodes(d, ['b1']).diagram, 'b1')).toMatchObject({ rotation: 90, x: 8, y: 12 });
   });
 
-  it('refuses to turn into another part, and only turns gates and IC blocks', () => {
+  it('refuses to turn into another part, and never turns a 7-segment display', async () => {
     let d = emptyDiagram();
     for (const [x, y] of [[0, 0], [0, 3]]) {
       const r = addNode(d, 'AND', x, y);
@@ -127,10 +127,12 @@ describe('turning parts (sub-project 26)', () => {
     }
     // g1 轉 90° 後佔 y 0–3，壓到 g2。
     expect(rotateNodes(d, ['g1'])).toEqual({ ok: false, diagram: d, reason: '轉向後會和別的元件重疊' });
-    const m = majorityDiagram();
-    expect(rotateNodes(m, ['i1', 'o1'])).toEqual({ ok: false, diagram: m, reason: '只有邏輯閘和 IC 方塊可以轉向' });
-    const mixed = rotateNodes(m, ['i1', 'g1']);
-    expect([at(mixed.diagram, 'i1').rotation, at(mixed.diagram, 'g1').rotation]).toEqual([undefined, 90]);
+    // 子專案 28：輸入端、輸出端、常數也能轉；只有 7 段顯示器不轉。
+    const { bcdDiagram } = await import('../../src/logic/examples');
+    const b = bcdDiagram();
+    expect(rotateNodes(b, ['d1'])).toEqual({ ok: false, diagram: b, reason: '7 段顯示器不能轉向' });
+    const mixed = rotateNodes(b, ['d1', 'i1']);
+    expect([at(mixed.diagram, 'd1').rotation, at(mixed.diagram, 'i1').rotation]).toEqual([undefined, 90]);
   });
 
   it('sets a direction directly, leaving 0 out of the data', () => {
@@ -139,6 +141,27 @@ describe('turning parts (sub-project 26)', () => {
     expect(at(half.diagram, 'g1')).toMatchObject({ rotation: 180, x: at(d, 'g1').x, y: at(d, 'g1').y });
     const back = setRotation(half.diagram, 'g1', 0);
     expect(at(back.diagram, 'g1')).toEqual(at(d, 'g1'));
-    expect(setRotation(d, 'i1', 90)).toMatchObject({ ok: false, reason: '只有邏輯閘和 IC 方塊可以轉向' });
+    expect(at(setRotation(d, 'i1', 90).diagram, 'i1').rotation).toBe(90);
+  });
+});
+
+describe('mirroring and placing turned parts (sub-project 28)', () => {
+  const at = (d: LogicDiagram, id: string) => d.nodes.find((n) => n.id === id)!;
+
+  it('mirrors in place, keeps the mirror when turning, and mirrors back', () => {
+    const d = majorityDiagram();
+    const once = flipNodes(d, ['g1']);
+    expect(at(once.diagram, 'g1')).toMatchObject({ flip: true, x: at(d, 'g1').x, y: at(d, 'g1').y });
+    expect(at(rotateNodes(once.diagram, ['g1']).diagram, 'g1')).toMatchObject({ flip: true, rotation: 90 });
+    expect(at(flipNodes(once.diagram, ['g1']).diagram, 'g1')).toEqual(at(d, 'g1'));
+    expect(setFlip(d, 'g1', true).diagram).toEqual(once.diagram);
+  });
+
+  it('places a part already turned and mirrored', () => {
+    const r = addNode(emptyDiagram(), 'AND', 4, 4, undefined, { rotation: 90, flip: true });
+    expect(r.ok && r.diagram.nodes[0]).toMatchObject({ kind: 'AND', rotation: 90, flip: true });
+    // 7 段顯示器不轉：放下去就是沒轉的。
+    const s = addNode(emptyDiagram(), 'DISPLAY', 4, 4, undefined, { rotation: 90 });
+    expect(s.ok && 'rotation' in s.diagram.nodes[0]).toBe(false);
   });
 });

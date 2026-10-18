@@ -73,3 +73,37 @@ test('邏輯閘轉向：按 R 轉 90°、屬性面板選方向，接線後真值
   await expect(page.locator('[data-logic-wire]')).toHaveCount(0);
   await expect(gate).toHaveAttribute('data-rotation', '90');
 });
+
+test('放置前按 R 先轉好、M 鏡射，輸入端也能轉而且名稱正著寫', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByTestId('view-switch').getByRole('button', { name: '邏輯圖' }).click();
+  await expect(page.getByTestId('logic-canvas')).toBeVisible();
+
+  // 點元件庫的 AND，按 R，再點畫布：放下去就是轉 90°。
+  await page.locator('[data-logic-part="AND"]').click();
+  await page.keyboard.press('r');
+  const p = await cell(page, 12, 4);
+  await page.mouse.click(p.x, p.y);
+  const gate = page.locator('[data-logic-node="g1"]');
+  await expect(gate).toHaveAttribute('data-rotation', '90');
+
+  // 選取後按 M 鏡射；屬性面板的「左右鏡射」再按一次取消。
+  const body = (await gate.boundingBox())!;
+  await page.mouse.click(body.x + body.width / 2, body.y + body.height / 2);
+  await page.keyboard.press('m');
+  await expect(gate).toHaveAttribute('data-flip', 'true');
+  await page.getByRole('tab', { name: '屬性' }).click();
+  await page.getByRole('button', { name: '左右鏡射' }).click();
+  await expect(gate).not.toHaveAttribute('data-flip', 'true');
+
+  // 輸入端轉 90°：輸出腳朝下，名稱正著寫（文字有轉回來的 transform）。
+  await placeAt(page, 'INPUT', 0, 0);
+  const input = page.locator('[data-logic-node="i1"]');
+  const box = (await input.boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.2, box.y + box.height / 2);
+  await page.keyboard.press('r');
+  await expect(input).toHaveAttribute('data-rotation', '90');
+  await expect(input.locator('text', { hasText: 'A' }).first()).toHaveAttribute('transform', /rotate\(-90\)/);
+});
