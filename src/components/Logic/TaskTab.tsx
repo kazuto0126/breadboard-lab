@@ -3,14 +3,18 @@ import {
   compareDiagramToTask,
   createTask,
   cycleCell,
+  isDisplayOutput,
   MAX_TASK_INPUTS,
   MAX_TASK_OUTPUTS,
+  parseDisplayValues,
   parseNames,
   parseRowList,
   renameTask,
   rowBits,
   rowsWith,
   setColumn,
+  setDisplayColumn,
+  setOutputKind,
   taskFromDiagram,
   withTask,
   type TaskResult,
@@ -26,7 +30,7 @@ import { useLogic } from '../../state/logic';
 const SHOWN = 8;
 const btn = 'rounded px-2 py-1 text-xs disabled:opacity-50';
 const field = 'w-full rounded border border-slate-600 bg-slate-950 px-2 py-1 text-sm text-slate-100 focus:border-sky-500 focus:outline-none';
-const valueTone = (v: TaskValue) => (v === 1 ? 'text-red-400' : v === 0 ? 'text-sky-400' : 'text-slate-400');
+const valueTone = (v: TaskValue, display: boolean) => (v === 'X' ? 'text-slate-400' : display ? 'text-emerald-300' : v === 1 ? 'text-red-400' : 'text-sky-400');
 /** 句子裡的值：不在乎寫「任意」（輸出常常就叫 X，寫 X = X 會看不懂）。 */
 const said = (v: string) => (v === 'X' ? '任意' : v);
 
@@ -73,9 +77,8 @@ function NamesForm({ initial, submit, onSubmit, onCancel }: { initial: [string, 
   );
 }
 
-/** 一個輸出的「1 的列」或「不在乎的列」：按 Enter 或離開欄位就套用。 */
-function RowsField({ label, rows, apply }: { label: string; rows: number[]; apply: (text: string) => string | null }) {
-  const text = rows.join(', ');
+/** 一個輸出的「1 的列」、「不在乎的列」或顯示器「每一列的數字」：按 Enter 或離開欄位就套用。 */
+function RowsField({ label, text, apply }: { label: string; text: string; apply: (text: string) => string | null }) {
   const [draft, setDraft] = useState(text);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -160,7 +163,7 @@ const FORMS: Array<[DesignForm, string, string]> = [
  */
 function Simplified({ diagram, task }: { diagram: LogicDiagram; task: TruthTask }) {
   const [form, setForm] = useState<DesignForm>('sop');
-  const terms = useMemo(() => termsOfTask(task, form), [task, form]);
+  const columns = useMemo(() => termsOfTask(task, form), [task, form]);
   const pos = usesPos(form);
   const generate = () => {
     const s = useLogic.getState();
@@ -184,11 +187,12 @@ function Simplified({ diagram, task }: { diagram: LogicDiagram; task: TruthTask 
           </button>
         ))}
       </div>
-      {task.outputs.map((name, k) => (
-        <div key={name} data-sop={name} data-text={pos ? posText(terms[k], task.inputs) : sopText(terms[k], task.inputs)} className="mt-1 font-mono text-sm text-slate-100">
-          <span className="text-amber-300">{name}</span> = {pos ? <ProductOfSums terms={terms[k]} names={task.inputs} /> : <SumOfProducts terms={terms[k]} names={task.inputs} />}
+      {columns.map(({ label, terms }) => (
+        <div key={label} data-sop={label} data-text={pos ? posText(terms, task.inputs) : sopText(terms, task.inputs)} className="mt-1 font-mono text-sm text-slate-100">
+          <span className="text-amber-300">{label}</span> = {pos ? <ProductOfSums terms={terms} names={task.inputs} /> : <SumOfProducts terms={terms} names={task.inputs} />}
         </div>
       ))}
+      {task.displays && <p className="mt-1 text-[11px] text-slate-400">顯示器拆成 A（最低位元）到 D 四個位元各自化簡，接到 7 段顯示器的 A–D。</p>}
       <button type="button" className={`${btn} mt-2 bg-sky-700 text-white hover:bg-sky-600`} onClick={generate}>
         {diagram.nodes.length > 0 ? '產生邏輯圖（取代目前的）' : '產生邏輯圖'}
       </button>
@@ -310,6 +314,18 @@ export function TaskTab({ diagram }: { diagram: LogicDiagram }) {
     save(diagram, r.task, `題目：${task.outputs[k]} 不在乎的列`);
     return null;
   };
+  const numbers = (k: number) => (text: string) => {
+    const values = parseDisplayValues(text, task.rows.length);
+    if (!values.ok) return values.reason;
+    const r = setDisplayColumn(task, k, values.values);
+    if (!r.ok) return r.reason;
+    save(diagram, r.task, `題目：${task.outputs[k]} 每一列的數字`);
+    return null;
+  };
+  const kind = (k: number, display: boolean) => {
+    const r = setOutputKind(task, k, display);
+    if (r.ok && r.task !== task) save(diagram, r.task, `題目：${task.outputs[k]} 改成${display ? ' 7 段顯示器' : '輸出端'}`);
+  };
 
   return (
     <div data-testid="task-tab" className="p-3 text-sm">
@@ -357,6 +373,7 @@ export function TaskTab({ diagram }: { diagram: LogicDiagram }) {
             {task.outputs.map((n, k) => (
               <th key={`o${n}`} className={`border-b border-slate-700 px-1 py-1 text-amber-300 ${k === 0 ? 'border-l' : ''}`}>
                 {n}
+                {isDisplayOutput(task, k) && <span className="ml-0.5 text-[10px] font-normal text-slate-400">7 段</span>}
               </th>
             ))}
           </tr>
@@ -376,8 +393,11 @@ export function TaskTab({ diagram }: { diagram: LogicDiagram }) {
                     type="button"
                     data-task-cell={k}
                     aria-label={`第 ${r} 列 ${task.outputs[k]}`}
-                    className={`w-full px-1 py-0.5 font-bold hover:bg-slate-700 ${valueTone(v)}`}
-                    onClick={() => save(diagram, cycleCell(task, r, k), `題目：${task.outputs[k]} 第 ${r} 列改成 ${v === 0 ? 1 : v === 1 ? 'X' : 0}`)}
+                    className={`w-full px-1 py-0.5 font-bold hover:bg-slate-700 ${valueTone(v, isDisplayOutput(task, k))}`}
+                    onClick={() => {
+                      const next = cycleCell(task, r, k);
+                      save(diagram, next, `題目：${task.outputs[k]} 第 ${r} 列改成 ${next.rows[r][k]}`);
+                    }}
                   >
                     {v}
                   </button>
@@ -387,18 +407,43 @@ export function TaskTab({ diagram }: { diagram: LogicDiagram }) {
           ))}
         </tbody>
       </table>
-      <p className="mt-1 text-xs text-slate-400">點輸出格換值：0 → 1 → X（不在乎，不比對）。也可以在下面直接輸入列號。</p>
+      <p className="mt-1 text-xs text-slate-400">
+        點輸出格換值：0 → 1 → X（不在乎，不比對）；7 段顯示器的格子是 0 → 1 → … → 15 → X。也可以在下面直接輸入。
+      </p>
 
       <div className="mt-2 space-y-2">
         {task.outputs.map((name, k) => (
           <div key={name} className="text-xs">
-            <div className="font-semibold text-amber-300">{name}</div>
-            <div className="mt-0.5 grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1">
-              <span className="pt-0.5 text-slate-400">1 的列</span>
-              <RowsField label={`${name} 的 1 的列`} rows={rowsWith(task, k, 1)} apply={column(k)} />
-              <span className="pt-0.5 text-slate-400">不在乎</span>
-              <RowsField label={`${name} 的不在乎的列`} rows={rowsWith(task, k, 'X')} apply={dontCare(k)} />
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-amber-300">{name}</span>
+              {/* 子專案 32：輸出可以是 7 段顯示器（BCD，格子是 0–15）。 */}
+              <div className="flex gap-1" role="group" aria-label={`${name} 的種類`}>
+                {([[false, '輸出端'], [true, '7 段顯示器']] as const).map(([display, text]) => (
+                  <button
+                    key={text}
+                    type="button"
+                    aria-pressed={isDisplayOutput(task, k) === display}
+                    onClick={() => kind(k, display)}
+                    className={`rounded px-1.5 py-0.5 text-[11px] ${isDisplayOutput(task, k) === display ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}`}
+                  >
+                    {text}
+                  </button>
+                ))}
+              </div>
             </div>
+            {isDisplayOutput(task, k) ? (
+              <div className="mt-0.5 grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1">
+                <span className="pt-0.5 text-slate-400">每一列</span>
+                <RowsField label={`${name} 每一列的數字`} text={task.rows.map((row) => String(row[k])).join(' ')} apply={numbers(k)} />
+              </div>
+            ) : (
+              <div className="mt-0.5 grid grid-cols-[auto_1fr] items-start gap-x-2 gap-y-1">
+                <span className="pt-0.5 text-slate-400">1 的列</span>
+                <RowsField label={`${name} 的 1 的列`} text={rowsWith(task, k, 1).join(', ')} apply={column(k)} />
+                <span className="pt-0.5 text-slate-400">不在乎</span>
+                <RowsField label={`${name} 的不在乎的列`} text={rowsWith(task, k, 'X').join(', ')} apply={dontCare(k)} />
+              </div>
+            )}
           </div>
         ))}
       </div>

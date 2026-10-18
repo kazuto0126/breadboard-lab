@@ -139,3 +139,43 @@ test('真值表題目：選和積、只用 NAND 產生邏輯圖（子專案 31�
   await expect(page.locator('[data-logic-node]')).toHaveCount(8);
   await expect(tab.getByTestId('task-compare')).toContainText('8 種輸入組合，邏輯圖和題目全部一致');
 });
+
+test('真值表題目：輸出是 7 段顯示器，產生邏輯圖、轉成麵包板比對（子專案 32）', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByTestId('view-switch').getByRole('button', { name: '邏輯圖' }).click();
+  await page.getByRole('tab', { name: '題目' }).click();
+  const tab = page.getByTestId('task-tab');
+  await tab.getByLabel('輸入名稱').fill('W X Y Z');
+  await tab.getByLabel('輸出名稱').fill('S1');
+  await tab.getByRole('button', { name: '建立題目' }).click();
+
+  // S1 改成 7 段顯示器：顯示 WXYZ + 1（9 之後是 0），10–15 不在乎。
+  await tab.getByRole('group', { name: 'S1 的種類' }).getByRole('button', { name: '7 段顯示器' }).click();
+  const numbers = tab.getByLabel('S1 每一列的數字');
+  await numbers.fill('1 2 3 4 5 6 7 8 9 0 x x x x x x');
+  await numbers.press('Enter');
+  await expect(tab.locator('tr[data-task-row="8"] [data-task-cell="0"]')).toHaveText('9');
+  await expect(tab.locator('tr[data-task-row="12"] [data-task-cell="0"]')).toHaveText('X');
+  // 點一格：9 → 10。
+  await tab.locator('tr[data-task-row="8"] [data-task-cell="0"]').click();
+  await expect(tab.locator('tr[data-task-row="8"] [data-task-cell="0"]')).toHaveText('10');
+  await page.keyboard.press('Control+z');
+  await expect(tab.locator('tr[data-task-row="8"] [data-task-cell="0"]')).toHaveText('9');
+
+  // 四個位元各自化簡：A 位元是 Z'。
+  await expect(tab.locator('[data-sop="S1.A"]')).toHaveAttribute('data-text', "Z'");
+  await tab.getByRole('button', { name: '產生邏輯圖' }).click();
+  await expect(page.locator('[data-logic-display]')).toHaveCount(1);
+  await expect(tab.getByTestId('task-compare')).toContainText('邏輯圖和題目全部一致');
+
+  // 轉成麵包板：「和題目比對」依名稱找到顯示器 S1，全部一致。
+  await page.getByRole('tab', { name: '屬性' }).click();
+  await page.getByRole('button', { name: '轉成麵包板…' }).click();
+  await page.getByRole('dialog', { name: '轉成麵包板' }).getByRole('button', { name: '轉換' }).click();
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 60_000 });
+  await page.getByRole('tab', { name: /檢查/ }).click();
+  await expect(page.getByTestId('task-check')).toContainText('麵包板的模擬結果和題目全部一致', { timeout: 60_000 });
+});

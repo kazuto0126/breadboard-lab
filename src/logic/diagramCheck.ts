@@ -142,7 +142,7 @@ export function checkAgainstDiagram(d: LogicDiagram, circuit: Circuit): DiagramC
  */
 export function checkAgainstTask(task: TruthTask | undefined, circuit: Circuit): DiagramCheck {
   if (!task || circuit.components.length === 0) return { kind: 'none' };
-  const io: NamedIo = { inputs: task.inputs.map((name) => ({ id: name, name })), outputs: task.outputs.map((name) => ({ id: name, name, display: false })) };
+  const io: NamedIo = { inputs: task.inputs.map((name) => ({ id: name, name })), outputs: task.outputs.map((name) => ({ id: name, name, display: task.displays?.includes(name) ?? false })) };
   const { bindings, issues, matched } = bindByNames(io, circuit);
   if (matched === 0) return { kind: 'hint' };
   if (issues.length > 0) return { kind: 'incomplete', issues };

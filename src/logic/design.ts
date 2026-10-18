@@ -1,6 +1,6 @@
 import { literalsOf, minimize, minimizePos, sumLiteralsOf, termKey, type Term } from './minimize';
-import { nodeSize, outputPin } from './shapes';
-import { rowsWith, type TruthTask } from './task';
+import { inputPins, nodeSize, outputPin } from './shapes';
+import { isDisplayOutput, type TaskValue, type TruthTask } from './task';
 import type { LogicDiagram, LogicNode, LogicWire, NodeKind } from './types';
 
 /** 閘最多幾個輸入（編輯器的限制）。 */
@@ -15,15 +15,38 @@ export type DesignForm = 'sop' | 'pos' | 'nand' | 'nor';
 /** 這種形式用的是和積（化簡 0 的列）嗎。 */
 export const usesPos = (form: DesignForm) => form === 'pos' || form === 'nor';
 
-/** 每個輸出化簡後的項；和積時是 F' 的積項（見 `minimizePos`）。依序化簡，後面的輸出優先用前面用過的項。 */
-export function termsOfTask(task: TruthTask, form: DesignForm = 'sop'): Term[][] {
+/** 化簡的一欄：一般輸出是一欄；子專案 32：顯示器拆成 A（最低位元）、B、C、D 四欄，名稱寫成「S1.A」。 */
+export interface TaskColumn {
+  label: string;
+  /** 第幾個輸出。 */
+  output: number;
+  /** 顯示器的第幾個位元（A 是 0）；一般輸出沒有。 */
+  bit?: number;
+  terms: Term[];
+}
+
+const BITS = ['A', 'B', 'C', 'D'];
+
+/** 這一欄在每一列的值（0 / 1 / X）。 */
+function columnValues(task: TruthTask, k: number, bit: number | undefined): TaskValue[] {
+  return task.rows.map((r) => (r[k] === 'X' || bit === undefined ? r[k] : (r[k] >> bit) & 1));
+}
+
+const rowsOf = (values: TaskValue[], value: TaskValue) => values.flatMap((v, i) => (v === value ? [i] : []));
+
+/** 每一欄化簡後的項；和積時是 F' 的積項（見 `minimizePos`）。依序化簡，後面的欄優先用前面用過的項。 */
+export function termsOfTask(task: TruthTask, form: DesignForm = 'sop'): TaskColumn[] {
   const n = task.inputs.length;
   const used = new Set<string>();
-  return task.outputs.map((_, k) => {
-    const dc = rowsWith(task, k, 'X');
-    const ts = usesPos(form) ? minimizePos(n, rowsWith(task, k, 0), dc, used) : minimize(n, rowsWith(task, k, 1), dc, used);
-    for (const t of ts) used.add(termKey(t));
-    return ts;
+  const columns = task.outputs.flatMap((name, k): Array<Omit<TaskColumn, 'terms'>> =>
+    isDisplayOutput(task, k) ? BITS.map((b, bit) => ({ label: `${name}.${b}`, output: k, bit })) : [{ label: name, output: k }],
+  );
+  return columns.map((c) => {
+    const values = columnValues(task, c.output, c.bit);
+    const dc = rowsOf(values, 'X');
+    const terms = usesPos(form) ? minimizePos(n, rowsOf(values, 0), dc, used) : minimize(n, rowsOf(values, 1), dc, used);
+    for (const t of terms) used.add(termKey(t));
+    return { ...c, terms };
   });
 }
 
@@ -31,8 +54,9 @@ export function termsOfTask(task: TruthTask, form: DesignForm = 'sop'): Term[][]
  * 規格（2026-10-17 task-to-diagram）第 3 節：照每個輸出化簡後的結果畫出兩層的邏輯圖。
  * 反相（NOT）與相同的項在各輸出之間共用；超過 4 個輸入的閘改用好幾個閘串起來；常數輸出接 5V / GND。
  * 子專案 31：可以選形式；只用 NAND / NOR 時，反相也用那種閘（兩個輸入接同一個訊號）。
+ * 子專案 32：顯示器的四個位元各自化簡，接到 7 段顯示器的 A–D。
  */
-export function designFromTask(task: TruthTask, form: DesignForm = 'sop'): { diagram: LogicDiagram; terms: Term[][] } {
+export function designFromTask(task: TruthTask, form: DesignForm = 'sop'): { diagram: LogicDiagram; columns: TaskColumn[] } {
   const nodes: LogicNode[] = [];
   const wires: LogicWire[] = [];
   const counters: Record<string, number> = {};
@@ -90,9 +114,8 @@ export function designFromTask(task: TruthTask, form: DesignForm = 'sop'): { dia
   const pos = usesPos(form);
   // 每一項的字母：積項和是積項的字母；和積是「和」的字母（F' 的積項反過來）。
   const letters = (t: Term) => (pos ? sumLiteralsOf(t, names) : literalsOf(t, names));
-  const terms = termsOfTask(task, form);
-  task.outputs.forEach((name, k) => {
-    const ts = terms[k];
+  const columns = termsOfTask(task, form);
+  const sourceOf = (ts: Term[]): string => {
     let source: string;
     if (ts.length === 0) source = constant(pos ? 'HIGH' : 'LOW');
     else if (ts.some((t) => letters(t).length === 0)) source = constant(pos ? 'LOW' : 'HIGH');
@@ -113,10 +136,21 @@ export function designFromTask(task: TruthTask, form: DesignForm = 'sop'): { dia
         source = ls.length === 1 ? literal(ls[0].name, ls[0].negated) : invert(inverse(ts[0]));
       }
     }
-    connect(source, add('o', { kind: 'OUTPUT', name }), 0);
+    return source;
+  };
+  task.outputs.forEach((name, k) => {
+    const mine = columns.filter((c) => c.output === k);
+    if (!isDisplayOutput(task, k)) {
+      connect(sourceOf(mine[0].terms), add('o', { kind: 'OUTPUT', name }), 0);
+      return;
+    }
+    // 先算出四個位元，再放顯示器（A 接第 0 腳 … D 接第 3 腳）。
+    const sources = mine.map((c) => sourceOf(c.terms));
+    const display = add('o', { kind: 'DISPLAY', name, inputs: 5 });
+    sources.forEach((s, bit) => connect(s, display, bit));
   });
 
-  return { diagram: { version: 1, nodes: layout(nodes, wires), wires, task }, terms };
+  return { diagram: { version: 1, nodes: layout(nodes, wires), wires, task }, columns };
 }
 
 /**
@@ -138,9 +172,10 @@ function layout(nodes: LogicNode[], wires: LogicWire[]): LogicNode[] {
     depth.set(id, d);
     return d;
   };
-  const inner = nodes.filter((nd) => nd.kind !== 'OUTPUT').map((nd) => depthOf(nd.id));
+  const sink = (nd: LogicNode) => nd.kind === 'OUTPUT' || nd.kind === 'DISPLAY';
+  const inner = nodes.filter((nd) => !sink(nd)).map((nd) => depthOf(nd.id));
   const last = Math.max(...inner) + 1;
-  for (const nd of nodes) if (nd.kind === 'OUTPUT') depth.set(nd.id, last);
+  for (const nd of nodes) if (sink(nd)) depth.set(nd.id, last);
   // 空的層（例如沒有 NOT）不佔一欄。
   const levels = [...new Set(depth.values())].sort((a, b) => a - b);
   const columns = levels.map((level) => nodes.filter((nd) => depth.get(nd.id) === level));
@@ -163,8 +198,9 @@ function layout(nodes: LogicNode[], wires: LogicWire[]): LogicNode[] {
       let y: number;
       if (c === 0) y = cursor;
       else {
-        // 輸出腳（輸出端是輸入腳）在元件裡的高度：閘在中間，其他在最上面。
-        const offset = nd.kind === 'OUTPUT' ? 0 : outputPin({ ...nd, x: 0, y: 0 })!.y;
+        // 輸出腳（輸出端是輸入腳）在元件裡的高度：閘在中間，其他在最上面；顯示器是 A–D 腳的中間。
+        const pins = inputPins({ ...nd, x: 0, y: 0 });
+        const offset = nd.kind === 'OUTPUT' ? 0 : nd.kind === 'DISPLAY' ? (pins[0].y + pins[3].y) / 2 : outputPin({ ...nd, x: 0, y: 0 })!.y;
         const ys = driversOf(nd.id).map((from) => outputPin(placed.get(from)!)!.y);
         y = Math.max(cursor, Math.round(ys.reduce((s, v) => s + v, 0) / ys.length - offset));
       }

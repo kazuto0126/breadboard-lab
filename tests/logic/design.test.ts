@@ -34,7 +34,8 @@ function expectSound(d: LogicDiagram, t: TruthTask) {
 describe('drawing a logic diagram from a task', () => {
   it('draws figure 2-5 for the majority task: three ANDs and an OR, no NOT', () => {
     const t = task(['A', 'B', 'C'], [{ ones: [3, 5, 6, 7] }], ['X']);
-    const { diagram, terms } = designFromTask(t);
+    const { diagram, columns } = designFromTask(t);
+    const terms = columns.map((c) => c.terms);
     expect(sopText(terms[0], t.inputs)).toBe('AB + AC + BC');
     expect(kinds(diagram)).toEqual({ INPUT: 3, AND: 3, OR: 1, OUTPUT: 1 });
     expect(diagram.nodes.filter((n) => n.kind === 'INPUT').map((n) => n.name)).toEqual(['A', 'B', 'C']);
