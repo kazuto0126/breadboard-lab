@@ -232,6 +232,7 @@ server.registerTool(
       switch_to: z.enum(['vcc', 'gnd']).optional().describe('開關另一端接 +5 V（ON = 1，預設）或 GND（ON = 0）'),
       board: z.enum(['auto', 'MB102', 'EIC1106']).optional().describe('麵包板（預設自動）'),
       gates: z.enum(['direct', 'nand', 'nor']).optional().describe('照種類對應（預設）、只用 NAND（74LS00）或只用 NOR（74LS02）'),
+      inputs: z.enum(['switch', 'button']).optional().describe('輸入用指撥開關（預設）或每個輸入一顆按鈕'),
       pulls: z.boolean().optional().describe('加上 / 下拉電阻（預設不加）'),
     },
   },

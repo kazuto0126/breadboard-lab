@@ -34,7 +34,7 @@ import {
 import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
 import { LOGIC_EXAMPLES } from '../logic/examples';
 import { toBreadboard, type ConvertOptions } from '../logic/toBreadboard';
-import { withSwitches, type SwitchBinding } from '../logic/verifyBreadboard';
+import { pressedFor, withSwitches, type SwitchBinding } from '../logic/verifyBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../logic/types';
 import { logicDirty, useLogic } from './logic';
 import { boardFrames, gridBounds, MM_TO_PX, worldBounds } from '../editor/geometry';
@@ -1090,6 +1090,8 @@ export const useStore = create<Store>()((set, get) => {
       // 撥開關不是結構編輯：模擬中也可以撥（和在板上點開關一樣）。
       commit(`把開關撥成 ${text}`, withSwitches(s.circuit, inputs, bits));
       if (!get().simulation && !get().routing) get().startSimulation();
+      // 子專案 30：按鈕照那一列按住或放開。
+      if (get().simulation) for (const [id, down] of Object.entries(pressedFor(inputs, bits))) get().pressButton(id, down);
     },
 
     loadExampleLogic(id) {

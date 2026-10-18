@@ -13,7 +13,10 @@ export interface VerifyResult {
 }
 
 export interface VerifyMap {
-  switchId: string;
+  /** 輸入用按鈕時是 null（看 buttons）。 */
+  switchId: string | null;
+  /** 子專案 30：第 k 個輸入的按鈕 id。 */
+  buttons?: string[];
   /** 依名稱排序的輸入端 id：第 k 個用開關的第 k 位。 */
   inputs: string[];
   /** 輸出端 id → LED 元件 id。 */
@@ -29,6 +32,8 @@ export interface SwitchBinding {
   /** 第幾個開關（0 起算）。 */
   index: number;
   onIs: 0 | 1;
+  /** 子專案 30：是按鈕（switchId 是按鈕的 id，index 是 0）：那一列的值 === onIs 時當成按住。 */
+  button?: true;
 }
 
 export interface Bindings {
@@ -40,11 +45,20 @@ export interface Bindings {
   displays: Record<string, string>;
 }
 
-/** 把每個對應到的開關撥成這一列的值（值 === onIs 就撥 ON）；沒對應到的開關維持原狀。 */
+/** 子專案 30：按鈕對應的這一列要不要按住。 */
+export function pressedFor(inputs: SwitchBinding[], bits: ReadonlyArray<0 | 1>): Record<string, boolean> {
+  const pressed: Record<string, boolean> = {};
+  inputs.forEach((b, k) => {
+    if (b.button && bits[k] !== undefined) pressed[b.switchId] = bits[k] === b.onIs;
+  });
+  return pressed;
+}
+
+/** 把每個對應到的開關撥成這一列的值（值 === onIs 就撥 ON）；沒對應到的開關維持原狀；按鈕不在這裡處理。 */
 export function withSwitches(circuit: Circuit, inputs: SwitchBinding[], bits: ReadonlyArray<0 | 1>): Circuit {
   const changes = new Map<string, Map<number, boolean>>();
   inputs.forEach((b, k) => {
-    if (bits[k] === undefined) return;
+    if (bits[k] === undefined || b.button) return;
     if (!changes.has(b.switchId)) changes.set(b.switchId, new Map());
     changes.get(b.switchId)!.set(b.index, bits[k] === b.onIs);
   });
@@ -84,7 +98,7 @@ export function verifyExpected(circuit: Circuit, bindings: Bindings, outputs: Ar
   const mismatches: VerifyResult['mismatches'] = [];
   for (const row of rows) {
     const sim = compileSimulation(withSwitches(circuit, bindings.inputs, row.in));
-    const result = settle(sim, initialSimState(sim), { pressed: {}, clocks: {} }).result;
+    const result = settle(sim, initialSimState(sim), { pressed: pressedFor(bindings.inputs, row.in), clocks: {} }).result;
     const lit = new Set(result.litLeds);
     const actual = outputs.map((o) => {
       if (!o.display) return lit.has(bindings.leds[o.id] ?? '') ? '1' : '0';
@@ -109,7 +123,7 @@ export function verifyBreadboard(d: LogicDiagram, circuit: Circuit, switchTo: 'v
   const off = sw ? { ...circuit, components: circuit.components.map((c) => (c === sw ? { ...c, props: { ...c.props, switchStates: Array(width).fill(false) } } : c)) } : circuit;
   const onIs = switchTo === 'vcc' ? 1 : 0;
   return verifyRows(d, off, {
-    inputs: map.inputs.map((node, index) => ({ node, switchId: map.switchId, index, onIs })),
+    inputs: map.buttons ? map.inputs.map((node, k) => ({ node, switchId: map.buttons![k], index: 0, onIs, button: true as const })) : map.inputs.map((node, index) => ({ node, switchId: map.switchId ?? '', index, onIs })),
     leds: map.leds,
     displays: map.displays ?? {},
   });

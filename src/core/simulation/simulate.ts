@@ -297,9 +297,10 @@ function resolve(sim: SimCircuit, node: (n: string) => string, outputs: SimState
   };
   throughResistors();
   // 子專案 19：理想開關。斷開的指撥開關一端是 0 / 1、另一端浮接（沒有上 / 下拉電阻）時，浮接端當成相反的電位。
+  // 子專案 30：放開的按鈕也一樣。
   const ideal = new Map<string, Level>();
-  for (const s of sim.switches) {
-    if (s.closed) continue;
+  const open = [...sim.switches.filter((s) => !s.closed), ...sim.buttons.filter((b) => !inputs.pressed[b.componentId])];
+  for (const s of open) {
     const a = node(s.a);
     const b = node(s.b);
     if (a === b) continue;

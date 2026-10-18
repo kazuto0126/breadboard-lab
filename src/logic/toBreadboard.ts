@@ -23,11 +23,16 @@ export interface ConvertOptions {
   gates?: 'direct' | 'nand' | 'nor';
   /** 子專案 19：輸入要不要接上 / 下拉電阻（預設不接，開關直接接 IC 輸入；模擬時當成理想開關）。 */
   pulls?: boolean;
+  /** 子專案 30：輸入用指撥開關（預設）或每個輸入一顆按鈕。 */
+  inputs?: 'switch' | 'button';
 }
 
 export interface Bom {
   ics: Record<string, number>;
-  switch: 'dipsw-4' | 'dipsw-8';
+  /** 指撥開關；輸入用按鈕時是 null。 */
+  switch: 'dipsw-4' | 'dipsw-8' | null;
+  /** 子專案 30：按鈕的個數（輸入用指撥開關時是 0）。 */
+  buttons: number;
   resistors: number;
   leds: number;
   /** 7 段顯示器（共陽極）的個數。 */
@@ -40,7 +45,10 @@ export type ConvertResult =
       ok: true;
       circuit: Circuit;
       bom: Bom;
-      switchId: 'SW1';
+      /** 輸入用按鈕時是 null。 */
+      switchId: 'SW1' | null;
+      /** 子專案 30：輸入用按鈕時，第 k 個輸入的按鈕 id。 */
+      buttons?: string[];
       /** 依名稱排序的輸入端 id：第 k 個用開關的第 k 位。 */
       inputs: string[];
       /** 輸出端 id → LED 元件 id。 */
@@ -135,12 +143,24 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const icArea = eic ? 2 : 1;
   const icBlocks: Array<{ width: number; place: (x: number) => void }> = [];
 
-  blocks[1].push({
-    width: swPins / 2,
-    place: (x) => components.push(comp('SW1', swDef, hole(`F${x}`, 1), { board: BOARD_ID, props: { switchStates: Array(swPins / 2).fill(false), labels: Array.from({ length: swPins / 2 }, (_, k) => inputs[k]?.name ?? '') } })),
-  });
+  const useButtons = options.inputs === 'button';
+  const buttonIds = inputs.map((_, k) => `BTN${k + 1}`);
+  if (useButtons) {
+    // 子專案 30：每個輸入一顆按鈕，跨過凹槽（第 1、2 腳是一側，第 3、4 腳是另一側）；一側接電源、另一側接輸入。
+    inputs.forEach((node, k) => {
+      const id = buttonIds[k];
+      blocks[1].push({ width: 3, place: (x) => components.push(comp(id, 'pushbutton', hole(`F${x}`, 1), { board: BOARD_ID, props: { labels: [node.name ?? ''] } })) });
+      tie(`${id}#1`, options.switchTo === 'vcc' ? VCC : GND);
+      tie(`${id}#3`, node.id);
+    });
+  } else {
+    blocks[1].push({
+      width: swPins / 2,
+      place: (x) => components.push(comp('SW1', swDef, hole(`F${x}`, 1), { board: BOARD_ID, props: { switchStates: Array(swPins / 2).fill(false), labels: Array.from({ length: swPins / 2 }, (_, k) => inputs[k]?.name ?? '') } })),
+    });
+  }
   // 開關接電源的那一側要靠近那條電源軌：+5 V 在上方（E 列那一側的腳 9 − k），GND 在下方（F 列那一側的腳 k）。
-  inputs.forEach((node, k) => {
+  if (!useButtons) inputs.forEach((node, k) => {
     const top = `SW1#${swPins - k}`;
     const bottom = `SW1#${k + 1}`;
     if (options.switchTo === 'vcc') {
@@ -361,8 +381,9 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   return {
     ok: true,
     circuit,
-    bom: { ics, switch: swDef, resistors: twoLeads.filter((t) => t.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
-    switchId: 'SW1',
+    bom: { ics, switch: useButtons ? null : swDef, buttons: useButtons ? inputs.length : 0, resistors: twoLeads.filter((t) => t.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
+    switchId: useButtons ? null : 'SW1',
+    ...(useButtons ? { buttons: buttonIds } : {}),
     inputs: inputs.map((n) => n.id),
     leds,
     displays: displayIds,

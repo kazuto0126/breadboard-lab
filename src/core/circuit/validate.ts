@@ -246,6 +246,28 @@ function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void
       }
     }
 
+    // 子專案 30：按鈕也一樣（腳 1、2 是一側，腳 3、4 是另一側）。
+    if (pc.def.category === 'pushbutton') {
+      const isUnconnected = (net: Net | undefined) => !net || net.pins.length === 1;
+      const hasResistor = (net: Net) => net.pins.some((r) => index.placedById.get(r.componentId)?.def.category === 'resistor');
+      const sides = [byPin.get(pinKey(refOf(pc, 1))), byPin.get(pinKey(refOf(pc, 3)))];
+      for (const [power, other] of [sides, [sides[1], sides[0]]]) {
+        if (isUnconnected(other) || !other!.pins.some((r) => role(r) === 'input') || hasResistor(other!)) continue;
+        const vcc = netHas(power, 'vcc-source');
+        if (!vcc && !netHas(power, 'gnd-source')) continue;
+        report({
+          code: 'SWITCH_NO_PULL',
+          severity: 'warning',
+          message: vcc
+            ? `⚠ ${label} 沒有下拉電阻：模擬時放開當成 0；實際接線時放開會懸空，TTL 會讀成 1`
+            : `⚠ ${label} 沒有上拉電阻：模擬時放開當成 1；實際接線時懸空容易受雜訊影響`,
+          componentIds: [pc.instance.id],
+          points: pointsOf([refOf(pc, 1), refOf(pc, 3)]),
+          netIds: [other!.id],
+        });
+      }
+    }
+
     if (pc.def.category === 'ic') {
       // 子專案 19：一整組閘的輸入、輸出都沒有接任何東西 = 沒用到的閘，輸入懸空不警告。
       const unusedPins = new Set<number>();
