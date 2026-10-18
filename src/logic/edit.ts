@@ -265,3 +265,17 @@ export function flipNodes(d: LogicDiagram, ids: string[]): EditResult {
 export function setFlip(d: LogicDiagram, id: string, flip: boolean): EditResult {
   return mirrorNodes(d, [id], () => flip);
 }
+
+/**
+ * 子專案 32：顯示器切換成每段直接控制（8 個輸入 a–g、dp）或 BCD（A–D、DP）。腳的意思換了，接到這個顯示器的線全部拿掉；
+ * 變高後會重疊就不換。
+ */
+export function setDisplayMode(d: LogicDiagram, id: string, segments: boolean): EditResult {
+  const node = d.nodes.find((n) => n.id === id);
+  if (!node || node.kind !== 'DISPLAY') return fail(d, '找不到顯示器');
+  if (!!node.segments === segments) return { ok: true, diagram: d };
+  const { segments: _old, ...rest } = node;
+  const next: LogicNode = segments ? { ...rest, segments: true } : rest;
+  if (d.nodes.some((n) => n.id !== id && overlaps(n, next))) return fail(d, '顯示器變高後會和別的元件重疊');
+  return { ok: true, diagram: { ...replaceNode(d, next), wires: d.wires.filter((w) => w.to.node !== id) } };
+}

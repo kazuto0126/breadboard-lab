@@ -9,11 +9,11 @@ import type { LayoutId } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance } from '../types/component';
 import type { GridPoint } from '../types/geometry';
-import { sortedIo } from './evaluate';
+import { SEGMENT_NAMES, sortedIo } from './evaluate';
 import { toNandUnits, toNorUnits } from './nandOnly';
 import { BLOCK_PINS } from './blocks';
-import { assignIcs, convertProblem, decompose, drivers, gateSlots } from './synth';
-import { isSink, signalOf, type LogicDiagram } from './types';
+import { assignIcs, convertProblem, decompose, drivers, gateSlots, type Unit } from './synth';
+import { isSink, signalOf, type LogicDiagram, type LogicNode } from './types';
 
 export interface ConvertOptions {
   /** 開關的另一側接 +5 V（撥 ON = 1，330 Ω 下拉）或 GND（撥 ON = 0，1 kΩ 上拉）。 */
@@ -90,7 +90,8 @@ class NoRoom extends Error {}
 
 /** 拆好的單元；只用 NAND / NOR 時再換成那一種 2 輸入閘（輸出端接的訊號一定保留）。 */
 function unitsFor(d: LogicDiagram, options: ConvertOptions) {
-  const units = decompose(d);
+  const extra = displayInverters(d, options);
+  const units = [...decompose(d), ...extra];
   if (options.gates !== 'nand' && options.gates !== 'nor') return units;
   // 接到輸出端、顯示器、IC 方塊的訊號一定保留（方塊照原本的 IC 放，不換成 NAND / NOR）。
   const driver = drivers(d);
@@ -100,7 +101,22 @@ function unitsFor(d: LogicDiagram, options: ConvertOptions) {
       return isSink(kind) || kind === 'BLOCK';
     })
     .map((w) => driver.get(`${w.to.node}#${w.to.pin}`)!);
+  keep.push(...extra.map((u) => u.output));
   return options.gates === 'nand' ? toNandUnits(units, keep) : toNorUnits(units, keep);
+}
+
+/** 顯示器上直接由邏輯驅動的腳（DP，或每段直接控制的段）：[腳的編號, 段名]。 */
+function directPins(node: LogicNode): Array<[number, string]> {
+  return node.segments ? SEGMENT_NAMES.map((s, p): [number, string] => [p, s]) : [[4, 'dp']];
+}
+
+/** 共陽極的顯示器亮的段要接低電位：DP 與每段直接控制的段先經過一個反相器（子專案 32）。 */
+function displayInverters(d: LogicDiagram, options: ConvertOptions): Unit[] {
+  if (options.display === 'cc') return [];
+  const driver = drivers(d);
+  return d.nodes
+    .filter((n) => n.kind === 'DISPLAY')
+    .flatMap((n) => directPins(n).flatMap(([p]) => (driver.has(`${n.id}#${p}`) ? [{ kind: 'NOT' as const, inputs: [driver.get(`${n.id}#${p}`)!], output: `inv~${n.id}~${p}` }] : [])));
 }
 
 /** 規格（2026-10-13 logic-to-breadboard）第 4、5 節。 */
@@ -212,8 +228,11 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const decoder = cc ? '74LS48' : '74LS47';
   const dsDef = cc ? '7seg-cc' : '7seg-ca';
   const segOut = (s: string) => (cc ? s : `/${s}`);
-  const displayParts: Array<{ node: (typeof displays)[number]; ic: string; ds: string }> = displays.map((node, k) => ({ node, ic: `U${plans.length + chips.length + k + 1}`, ds: `DS${k + 1}` }));
+  // 每段直接控制的顯示器不用解碼 IC。
+  let nextIc = plans.length + chips.length;
+  const displayParts: Array<{ node: (typeof displays)[number]; ic: string | null; ds: string }> = displays.map((node, k) => ({ node, ic: node.segments ? null : `U${++nextIc}`, ds: `DS${k + 1}` }));
   for (const { node, ic } of displayParts) {
+    if (!ic) continue;
     icBlocks.push({ width: 8, place: (x) => components.push(comp(ic, decoder, hole(`F${x}`, icArea), { board: BOARD_ID })) });
     ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
     for (const name of ['VCC', '/LT', '/BI/RBO', '/RBI']) pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, VCC));
@@ -236,7 +255,15 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   });
   const displayIds: Record<string, string> = {};
   for (const { node, ic, ds } of displayParts) {
-    for (const s of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
+    // DP 與每段直接控制的段：共陰極直接經過電阻；共陽極先經過反相器（見 displayInverters）。
+    for (const [p, s] of directPins(node)) {
+      const signal = driver.get(`${node.id}#${p}`);
+      if (!signal) continue;
+      const into = `${ds}:${s}`;
+      pinNo(dsDef, s).forEach((n) => tie(`${ds}#${n}`, into));
+      twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [cc ? signal : `inv~${node.id}~${p}`, into], area: 3, group: ds });
+    }
+    if (ic) for (const s of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
       const out = `${ic}:${segOut(s)}`;
       const into = `${ds}:${s}`;
       pinNo(decoder, segOut(s)).forEach((p) => tie(`${ic}#${p}`, out));
@@ -385,7 +412,8 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const ics: Record<string, number> = {};
   for (const p of plans) ics[p.defId] = (ics[p.defId] ?? 0) + 1;
   for (const b of chips) ics[b.chip!] = (ics[b.chip!] ?? 0) + 1;
-  if (displays.length > 0) ics[decoder] = displays.length;
+  const decoders = displays.filter((n) => !n.segments).length;
+  if (decoders > 0) ics[decoder] = decoders;
   return {
     ok: true,
     circuit,

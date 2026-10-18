@@ -353,7 +353,7 @@ export function LogicCanvas() {
                     <ConstantBody node={node} selected={sel} />
                   </g>
                 ) : node.kind === 'DISPLAY' ? (
-                  <DisplayBody node={node} value={values.loop ? undefined : values.displays.get(node.id)} inputs={ins} selected={sel} />
+                  <DisplayBody node={node} value={values.loop ? undefined : values.displays.get(node.id)} dp={values.loop ? undefined : values.dps.get(node.id)} lit={values.loop ? undefined : values.segs.get(node.id)} inputs={ins} selected={sel} />
                 ) : node.kind === 'OUTPUT' ? (
                   <g transform={turnTransform(node)}>
                     <OutputTerminal node={node} value={values.loop ? undefined : values.nodes.get(node.id)} selected={sel} />

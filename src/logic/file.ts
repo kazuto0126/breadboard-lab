@@ -40,6 +40,11 @@ function parseNode(raw: unknown, i: number): LogicNode {
     if (!canRotate(node.kind)) fail(`元件 ${node.id}（${node.kind}）不能轉向`);
     node.rotation = n.rotation as Rotation;
   }
+  // 子專案 32：每段直接控制的顯示器。
+  if (n.segments === true) {
+    if (node.kind !== 'DISPLAY') fail(`元件 ${node.id} 不是顯示器，不能每段直接控制`);
+    node.segments = true;
+  }
   if (n.flip !== undefined && n.flip !== false) {
     if (n.flip !== true) fail(`元件 ${node.id} 的鏡射要是 true 或不寫`);
     if (!canRotate(node.kind)) fail(`元件 ${node.id}（${node.kind}）不能轉向`);

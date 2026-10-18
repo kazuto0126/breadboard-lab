@@ -6,7 +6,8 @@ import { isGate, isSink, signalOf, type BlockChip, type GateKind, type LogicDiag
 
 export type Bit = 0 | 1 | 'X';
 /** 真值表的一格：輸出端是 0 / 1 / X，顯示器是 0–15 或 X。 */
-export type OutValue = Bit | number;
+/** 真值表的一格：輸出端 0 / 1 / X；BCD 顯示器是 0–15（有小數點時是「5.」）；每段直接控制的顯示器是亮的段（例如「bc.」、「-」）。 */
+export type OutValue = Bit | number | string;
 
 /** 規格第 3 節：三值邏輯。 */
 export function gateValue(kind: GateKind, inputs: Bit[]): Bit {
@@ -82,15 +83,20 @@ export function blockOutputs(chip: BlockChip, inputs: Bit[]): Bit[] {
   });
 }
 
-/** values：輸入端 id → 0 / 1；沒給的用節點自己的 value。displays：顯示器 id → 0–15（A + 2B + 4C + 8D）或 X。 */
+/**
+ * values：輸入端 id → 0 / 1；沒給的用節點自己的 value。displays：顯示器 id → 0–15（A + 2B + 4C + 8D）或 X。
+ * 子專案 32：dps 是小數點（沒接是 0）；segs 是每段直接控制的顯示器亮的段（沒接的段是 0，有不確定的是 X）。
+ */
 export function evaluate(
   d: LogicDiagram,
   values: Record<string, 0 | 1> = {},
-): { loop: string[] | null; nodes: Map<string, Bit>; displays: Map<string, number | 'X'> } {
+): { loop: string[] | null; nodes: Map<string, Bit>; displays: Map<string, number | 'X'>; dps: Map<string, Bit>; segs: Map<string, string[] | 'X'> } {
   const { order, loop } = topoOrder(d);
   const nodes = new Map<string, Bit>();
   const displays = new Map<string, number | 'X'>();
-  if (loop) return { loop, nodes, displays };
+  const dps = new Map<string, Bit>();
+  const segs = new Map<string, string[] | 'X'>();
+  if (loop) return { loop, nodes, displays, dps, segs };
   const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)]));
   const inputOf = (node: LogicNode, pin: number): Bit => {
     const from = driver.get(`${node.id}#${pin}`);
@@ -105,15 +111,23 @@ export function evaluate(
       blockOutputs(node.chip, ins).forEach((v, k) => nodes.set(signalOf(node.id, k), v));
     } else if (node.kind === 'OUTPUT') nodes.set(node.id, inputOf(node, 0));
     else if (node.kind === 'DISPLAY') {
-      const bits = [0, 1, 2, 3].map((i) => inputOf(node, i));
-      displays.set(node.id, bits.includes('X') ? 'X' : bits.reduce<number>((sum, b, i) => sum + (b as number) * (1 << i), 0));
+      // 沒接的 DP、沒接的段當成 0（不亮）。
+      const optional = (pin: number): Bit => (driver.has(`${node.id}#${pin}`) ? inputOf(node, pin) : 0);
+      if (node.segments) {
+        const bits = SEGMENT_NAMES.map((_, i) => optional(i));
+        segs.set(node.id, bits.includes('X') ? 'X' : SEGMENT_NAMES.filter((_, i) => bits[i] === 1));
+      } else {
+        const bits = [0, 1, 2, 3].map((i) => inputOf(node, i));
+        displays.set(node.id, bits.includes('X') ? 'X' : bits.reduce<number>((sum, b, i) => sum + (b as number) * (1 << i), 0));
+        dps.set(node.id, optional(4));
+      }
     }
     else if (isGate(node.kind)) {
       const ins = Array.from({ length: inputCountOf(node) }, (_, i) => inputOf(node, i));
       nodes.set(node.id, gateValue(node.kind, ins));
     }
   }
-  return { loop: null, nodes, displays };
+  return { loop: null, nodes, displays, dps, segs };
 }
 
 const byName = (a: LogicNode, b: LogicNode) => ((a.name ?? '') < (b.name ?? '') ? -1 : (a.name ?? '') > (b.name ?? '') ? 1 : 0);
@@ -126,6 +140,25 @@ export function sortedIo(d: LogicDiagram): { inputs: LogicNode[]; outputs: Logic
 }
 
 export const MAX_TABLE_INPUTS = 8;
+
+/** 7 段的名稱（每段直接控制的顯示器的輸入順序）。 */
+export const SEGMENT_NAMES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'];
+
+/** 子專案 32：顯示器在真值表裡的值（見 `OutValue`）。 */
+export function displayValue(node: LogicNode, v: ReturnType<typeof evaluate>): OutValue {
+  if (node.segments) {
+    const lit = v.segs.get(node.id) ?? 'X';
+    return lit === 'X' ? 'X' : segmentToken(lit);
+  }
+  const value = v.displays.get(node.id) ?? 'X';
+  return value !== 'X' && v.dps.get(node.id) === 1 ? `${value}.` : value;
+}
+
+/** 亮的段寫成文字：a–g 依序，再加上「.」（dp）；都不亮是「-」。 */
+export function segmentToken(lit: readonly string[]): string {
+  const text = SEGMENT_NAMES.slice(0, 7).filter((s) => lit.includes(s)).join('') + (lit.includes('dp') ? '.' : '');
+  return text || '-';
+}
 
 export type TruthTable =
   | { ok: true; inputs: string[]; outputs: string[]; rows: Array<{ in: Array<0 | 1>; out: OutValue[] }> }
@@ -142,7 +175,7 @@ export function truthTable(d: LogicDiagram): TruthTable {
   for (let r = 0; r < 1 << inputs.length; r++) {
     const bits = inputs.map((_, i) => ((r >> (inputs.length - 1 - i)) & 1) as 0 | 1);
     const v = evaluate(d, Object.fromEntries(inputs.map((n, i) => [n.id, bits[i]])));
-    rows.push({ in: bits, out: outputs.map((o) => (o.kind === 'DISPLAY' ? v.displays.get(o.id) : v.nodes.get(o.id)) ?? 'X') });
+    rows.push({ in: bits, out: outputs.map((o) => (o.kind === 'DISPLAY' ? displayValue(o, v) : (v.nodes.get(o.id) ?? 'X'))) });
   }
   return { ok: true, inputs: inputs.map((n) => n.name ?? n.id), outputs: outputs.map((n) => n.name ?? n.id), rows };
 }

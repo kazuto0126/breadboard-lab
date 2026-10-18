@@ -2,7 +2,7 @@ import { getComponentDefinition } from '../core/circuit/library';
 import { whyDark } from '../core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle } from '../core/simulation/simulate';
 import type { Circuit } from '../types/circuit';
-import { sortedIo, truthTable } from './evaluate';
+import { segmentToken, sortedIo, truthTable } from './evaluate';
 import { valueOfSegments } from './sevenSeg';
 import type { LogicDiagram } from './types';
 
@@ -83,7 +83,7 @@ export function withSwitches(circuit: Circuit, inputs: SwitchBinding[], bits: Re
 export function verifyRows(d: LogicDiagram, circuit: Circuit, bindings: Bindings): VerifyResult {
   const table = truthTable(d);
   if (!table.ok) return { rows: 0, mismatches: [] };
-  const outputs = sortedIo(d).outputs.map((o) => ({ id: o.id, display: o.kind === 'DISPLAY' }));
+  const outputs = sortedIo(d).outputs.map((o) => ({ id: o.id, display: o.kind === 'DISPLAY', segments: !!o.segments }));
   return verifyExpected(circuit, bindings, outputs, table.rows.map((row) => ({ in: row.in, out: row.out.map((b) => (b === 'X' ? '?' : String(b))) })));
 }
 
@@ -94,7 +94,7 @@ export interface ExpectedRow {
 }
 
 /** 逐列撥好開關、模擬、讀 LED 與顯示器，和期望值比較（`verifyRows` 與題目的比對共用）。 */
-export function verifyExpected(circuit: Circuit, bindings: Bindings, outputs: Array<{ id: string; display: boolean }>, rows: ExpectedRow[]): VerifyResult {
+export function verifyExpected(circuit: Circuit, bindings: Bindings, outputs: Array<{ id: string; display: boolean; segments?: boolean }>, rows: ExpectedRow[]): VerifyResult {
   const mismatches: VerifyResult['mismatches'] = [];
   for (const row of rows) {
     const sim = compileSimulation(withSwitches(circuit, bindings.inputs, row.in));
@@ -103,10 +103,14 @@ export function verifyExpected(circuit: Circuit, bindings: Bindings, outputs: Ar
     const actual = outputs.map((o) => {
       if (!o.display) return lit.has(bindings.leds[o.id] ?? '') ? '1' : '0';
       const id = bindings.displays[o.id] ?? '';
-      const segments = result.litSegments[id] ?? [];
-      if (segments.length === 0) return whyDark(sim, result, id)?.kind === 'fifteen' ? '15' : '暗';
+      const shown = result.litSegments[id] ?? [];
+      // 子專案 32：每段直接控制的顯示器寫亮的段；BCD 顯示器的小數點寫成「5.」。
+      if (o.segments) return segmentToken(shown);
+      const segments = shown.filter((s) => s !== 'dp');
+      const dot = shown.includes('dp') ? '.' : '';
+      if (segments.length === 0) return whyDark(sim, result, id)?.kind === 'fifteen' ? `15${dot}` : '暗';
       const v = valueOfSegments(segments);
-      return v === null ? '?' : String(v);
+      return v === null ? '?' : `${v}${dot}`;
     });
     if (row.out.some((e, k) => e !== 'X' && e !== actual[k])) mismatches.push({ inputs: row.in.join(''), expected: row.out, actual });
   }

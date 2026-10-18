@@ -341,6 +341,7 @@ function layoutMissing(raw: Obj): Obj {
     y,
     inputs: typeof n.inputs === 'number' ? n.inputs : n.kind === 'NOT' ? 1 : 2,
     ...(typeof n.chip === 'string' ? { chip: n.chip as LogicNode['chip'] } : {}),
+    ...(n.segments === true ? { segments: true as const } : {}),
   });
   const hasPos = (n: Obj) => Number.isInteger(n.x) && Number.isInteger(n.y);
   const placed: LogicNode[] = nodes.filter(hasPos).map((n) => asNode(n, n.x as number, n.y as number));

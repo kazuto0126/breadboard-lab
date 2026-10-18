@@ -27,6 +27,8 @@ export interface LogicNode {
   rotation?: Rotation;
   /** 子專案 28：左右鏡射（先鏡射再轉）；不鏡射時不寫。 */
   flip?: true;
+  /** 子專案 32：只有顯示器：每段直接控制（8 個輸入 a–g、dp），不寫是 BCD（A–D 與 DP）。 */
+  segments?: true;
 }
 
 export type Rotation = 90 | 180 | 270;

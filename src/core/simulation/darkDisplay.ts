@@ -17,7 +17,8 @@ export type DarkReason =
  */
 export function whyDark(sim: SimCircuit, result: SimResult, displayId: string): DarkReason | null {
   const display = sim.displays.find((d) => d.componentId === displayId);
-  if (!display || (result.litSegments[displayId]?.length ?? 0) > 0) return null;
+  // 小數點不算（15 時數字全暗、小數點可能亮著）。
+  if (!display || (result.litSegments[displayId] ?? []).some((s) => s !== 'dp')) return null;
   const keyOf = new Map<string, string>();
   for (const [key, node] of sim.nodeOfPin) if (!keyOf.has(node)) keyOf.set(node, key);
   const levelAt = (node: string | null | undefined): Level => {
