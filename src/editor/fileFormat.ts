@@ -36,7 +36,7 @@ export function toCircuitFile(circuit: Circuit, name: string, now: Date = new Da
   const file: CircuitFile = { format: FILE_FORMAT, version: FILE_VERSION, name, savedAt: now.toISOString(), circuit };
   if (checklist && Object.keys(checklist).length > 0) file.checklist = checklist;
   // 子專案 24：沒有元件、只有題目也要存。
-  if (logic && (logic.nodes.length > 0 || logic.task)) file.logic = logic;
+  if (logic && (logic.nodes.length > 0 || logic.task || logic.notes)) file.logic = logic;
   return file;
 }
 
@@ -189,7 +189,7 @@ function assertUnique(ids: string[], what: string): void {
 }
 
 /** 規格（2026-10-13 notes）第 3 節：便條。指向不存在的元件時忽略指向；文字太長截斷。 */
-function parseNote(raw: unknown, path: string, componentIds: Set<string>): Note {
+function parseNote(raw: unknown, path: string, componentIds: Set<string>, boardIds: Set<string>): Note {
   const n = obj(raw, path);
   const note: Note = { id: str(n.id, `${path}.id`), x: num(n.x, `${path}.x`), y: num(n.y, `${path}.y`), text: '', color: 'yellow' };
   if (typeof n.text !== 'string') fail(`${path}.text`, '必須是文字');
@@ -197,6 +197,11 @@ function parseNote(raw: unknown, path: string, componentIds: Set<string>): Note 
   if (!NOTE_COLORS.includes(n.color as NoteColor)) fail(`${path}.color`, `顏色不認得（${String(n.color)}）`);
   note.color = n.color as NoteColor;
   if (typeof n.target === 'string' && componentIds.has(n.target)) note.target = n.target;
+  // 子專案 29：指向的孔（板子不存在、或已經指向元件時忽略）。
+  const h = n.targetHole as Record<string, unknown> | undefined;
+  if (!note.target && h && typeof h === 'object' && typeof h.boardId === 'string' && boardIds.has(h.boardId) && Number.isInteger(h.x) && Number.isInteger(h.y)) {
+    note.targetHole = { boardId: h.boardId, x: h.x as number, y: h.y as number };
+  }
   return note;
 }
 
@@ -230,7 +235,7 @@ function parseCircuit(raw: unknown): Circuit {
     '導線',
   );
   const componentIds = new Set(components.map((x) => x.id));
-  const notes = arr(c.notes ?? [], 'circuit.notes').map((x, i) => parseNote(x, `circuit.notes[${i}]`, componentIds));
+  const notes = arr(c.notes ?? [], 'circuit.notes').map((x, i) => parseNote(x, `circuit.notes[${i}]`, componentIds, new Set(boards.map((b) => b.id))));
   assertUnique(
     notes.map((x) => x.id),
     '便條',

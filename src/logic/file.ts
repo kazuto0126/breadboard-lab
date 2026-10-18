@@ -1,5 +1,6 @@
 import { isBlockChip } from './blocks';
 import { inputCountOf, outputCountOf, overlaps } from './shapes';
+import { parseLogicNotes } from './notes';
 import { parseTask } from './task';
 import { canRotate, isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
@@ -89,10 +90,19 @@ export function parseLogicDiagram(raw: unknown): { ok: true; diagram: LogicDiagr
       if (pins.has(key)) fail(`${w.to.node} 的第 ${w.to.pin + 1} 個輸入接了兩條線`);
       pins.add(key);
     }
-    if (r.task === undefined) return { ok: true, diagram: { version: 1, nodes, wires } };
-    const task = parseTask(r.task);
-    if (!task.ok) return { ok: false, error: task.reason };
-    return { ok: true, diagram: { version: 1, nodes, wires, task: task.task } };
+    const diagram: LogicDiagram = { version: 1, nodes, wires };
+    if (r.task !== undefined) {
+      const task = parseTask(r.task);
+      if (!task.ok) return { ok: false, error: task.reason };
+      diagram.task = task.task;
+    }
+    // 子專案 29：便條。
+    if (r.notes !== undefined) {
+      const notes = parseLogicNotes(r.notes, new Set(nodes.map((n) => n.id)));
+      if (!notes.ok) return { ok: false, error: notes.reason };
+      if (notes.notes.length > 0) diagram.notes = notes.notes;
+    }
+    return { ok: true, diagram };
   } catch (err) {
     if (err instanceof LogicFormatError) return { ok: false, error: err.message };
     throw err;

@@ -6,6 +6,7 @@ import { bodyRect, inputPins, nodeSize, outputPin, outputPins, type GridXY } fro
 import { canRotate, isGate, isSink, signalOf, type LogicNode } from '../../logic/types';
 import { BlockBody, ConstantBody } from './BlockBody';
 import { DisplayBody } from './DisplayBody';
+import { LogicNoteLayer } from './LogicNoteLayer';
 import { junctions, wireRoutes } from '../../logic/wiring';
 import { LOGIC_CELL, selectedIds, useLogic } from '../../state/logic';
 import { bitColor, GateBody, turnTransform, upright } from './GateSymbol';
@@ -397,6 +398,9 @@ export function LogicCanvas() {
             </g>
           );
         })}
+
+        {/* 子專案 29：便條（畫在元件上層） */}
+        <LogicNoteLayer diagram={view} />
 
         {drag?.kind === 'wire' &&
           (() => {

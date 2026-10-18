@@ -9,6 +9,7 @@ import { canRotate, GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicN
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
 import { convertProblem } from '../../logic/synth';
 import { useStore } from '../../state/store';
+import { LogicNoteInspector } from './LogicNoteInspector';
 import { TaskTab } from './TaskTab';
 
 const TABS: Array<[LogicTab, string]> = [
@@ -95,6 +96,10 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     else setError(null);
   };
 
+  if (selection?.kind === 'note') {
+    const note = diagram.notes?.find((n) => n.id === selection.id);
+    return note ? <LogicNoteInspector diagram={diagram} note={note} /> : null;
+  }
   if (selection?.kind === 'node') {
     const node = diagram.nodes.find((n) => n.id === selection.id);
     if (!node) return null;

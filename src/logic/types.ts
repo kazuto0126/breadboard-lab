@@ -1,3 +1,4 @@
+import type { NoteColor } from '../types/circuit';
 import type { TruthTask } from './task';
 
 /** 規格（2026-10-11 logic-diagram）第 2 節：邏輯圖的資料。座標是格子（整數），x 往右、y 往下。 */
@@ -49,6 +50,18 @@ export interface LogicDiagram {
   wires: LogicWire[];
   /** 子專案 24：真值表題目（邏輯圖的編輯都用 `{ ...d }` 產生新的圖，會保留它）。 */
   task?: TruthTask;
+  /** 子專案 29：邏輯圖上的便條。 */
+  notes?: LogicNote[];
+}
+
+/** 子專案 29：邏輯圖的便條（位置是格子座標）；指向一個元件。 */
+export interface LogicNote {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+  color: NoteColor;
+  target?: string;
 }
 
 export function emptyDiagram(): LogicDiagram {

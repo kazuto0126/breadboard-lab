@@ -3,7 +3,7 @@ import { parseHoleName } from '../core/breadboard/naming';
 import { resolveFootprint } from '../core/circuit/footprint';
 import { getComponentDefinition } from '../core/circuit/library';
 import { validateCircuit } from '../core/circuit/validate';
-import { analyzeCircuit, holeLabel } from '../editor/analysis';
+import { analyzeCircuit, holeLabel, parseHoleLabel } from '../editor/analysis';
 import { addWire as addWireCommand, labelSlots, makeInstance, removeItems, setLabel, updateComponentProps } from '../editor/commands';
 import { circuitBrief } from '../editor/explain/brief';
 import { plainText } from '../editor/explain/helpers';
@@ -58,16 +58,7 @@ export function newLabFile(name: string, layout: LayoutId): LabFile {
 
 /** 孔位名稱 → 格點。有好幾塊板時一定要寫板子 ID（b2:F10）。 */
 export function parseHole(circuit: Circuit, raw: string): { ok: true; point: GridPoint } | { ok: false; error: string } {
-  const text = raw.trim();
-  const colon = text.indexOf(':');
-  let boardId: string;
-  if (colon >= 0) boardId = text.slice(0, colon);
-  else if (circuit.boards.length === 1) boardId = circuit.boards[0].id;
-  else return { ok: false, error: `有好幾塊麵包板，孔位前面要加板子 ID（例如 ${circuit.boards[1].id}:${text}）` };
-  const instance = circuit.boards.find((b) => b.id === boardId);
-  if (!instance) return { ok: false, error: `沒有麵包板 ${boardId}` };
-  const point = parseHoleName(getBoard(instance.layoutId, instance.id), colon >= 0 ? text : text);
-  return point ? { ok: true, point } : { ok: false, error: `孔位 ${text} 不存在` };
+  return parseHoleLabel(circuit, raw);
 }
 
 /** 「第 1 腳 1A @ F10、第 2 腳 1B @ F11…」 */

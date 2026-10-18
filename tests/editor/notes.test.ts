@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { removeItems } from '../../src/editor/commands';
-import { addNote, moveNote, NOTE_MAX, removeNote, setNoteColor, setNoteTarget, setNoteText } from '../../src/editor/notes';
+import { parseHoleLabel } from '../../src/editor/analysis';
+import { addNote, moveNote, NOTE_MAX, removeNote, setNoteColor, setNoteHole, setNoteTarget, setNoteText } from '../../src/editor/notes';
 import { circuit, comp } from '../fixtures/build';
 
 const base = () => circuit([comp('U1', '74LS00', 'F10'), comp('R1', 'resistor', 'A30')]);
@@ -80,5 +81,40 @@ describe('notes do not touch the circuit', () => {
     const r = autoRoute(noted);
     expect(r.wires).toEqual(autoRoute(plain).wires);
     expect(applyRouting(noted, r).notes).toBe(noted.notes);
+  });
+});
+
+describe('notes pointing at a hole (sub-project 29)', () => {
+  it('points at a hole instead of a component, and the two replace each other', () => {
+    let { circuit: c } = addNote(base(), 0, 0);
+    c = setNoteTarget(c, 'n1', 'U1');
+    c = setNoteHole(c, 'n1', { boardId: 'b1', x: 12, y: 15 });
+    expect(c.notes![0]).toMatchObject({ targetHole: { boardId: 'b1', x: 12, y: 15 } });
+    expect(c.notes![0]).not.toHaveProperty('target');
+    c = setNoteTarget(c, 'n1', 'U1');
+    expect(c.notes![0]).not.toHaveProperty('targetHole');
+    c = setNoteHole(c, 'n1', { boardId: 'b1', x: 12, y: 15 });
+    expect(setNoteHole(c, 'n1', null).notes![0]).not.toHaveProperty('targetHole');
+    // 不存在的板子不變。
+    expect(setNoteHole(c, 'n1', { boardId: 'b9', x: 1, y: 1 })).toBe(c);
+  });
+
+  it('reads hole names, with the board id when there are several boards', () => {
+    expect(parseHoleLabel(base(), 'f12')).toEqual({ ok: true, point: expect.objectContaining({ boardId: 'b1' }) });
+    expect(parseHoleLabel(base(), 'Z99')).toEqual({ ok: false, error: '孔位 Z99 不存在' });
+  });
+
+  it('round-trips the hole in files and drops it when its board is removed', async () => {
+    const { parseCircuitData, toCircuitFile } = await import('../../src/editor/fileFormat');
+    const { addBoard, removeBoard } = await import('../../src/editor/boards');
+    let { circuit: c } = addNote(base(), 0, 0);
+    c = setNoteHole(c, 'n1', { boardId: 'b1', x: 12, y: 15 });
+    const back = parseCircuitData(JSON.parse(JSON.stringify(toCircuitFile(c, 'x', new Date(0)))));
+    expect(back.ok && back.circuit.notes![0].targetHole).toEqual({ boardId: 'b1', x: 12, y: 15 });
+    const added = addBoard(c, 'MB102')!;
+    const two = added.circuit;
+    const b2 = added.id;
+    const pointed = setNoteHole(two, 'n1', { boardId: b2, x: 3, y: 3 });
+    expect(removeBoard(pointed, b2)!.notes![0]).not.toHaveProperty('targetHole');
   });
 });

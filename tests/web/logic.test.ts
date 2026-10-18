@@ -142,3 +142,37 @@ describe('turning before placing and mirroring (sub-project 28)', () => {
     expect(L().diagram.nodes.some((n) => n.flip)).toBe(false);
   });
 });
+
+describe('notes on the logic diagram (sub-project 29)', () => {
+  it('adds a note in the middle of the view, edits it, and drops it when left empty', () => {
+    L().setViewport({ scale: 1, x: 0, y: 0 });
+    L().setCanvasSize(800, 600);
+    L().addNoteAtCenter();
+    const id = L().diagram.notes![0].id;
+    expect(L().selection).toEqual({ kind: 'note', id });
+    expect(L().editingNote).toBe(id);
+    // 畫面中間 (400, 300) px = 格子 (20, 15)，往左上挪一點放便條。
+    expect(L().diagram.notes![0]).toMatchObject({ x: 18, y: 14 });
+    L().finishNoteEdit('   ');
+    expect(L().diagram.notes).toBeUndefined();
+    expect(L().editingNote).toBeNull();
+  });
+
+  it('edits, recolours, points, moves and deletes, each undoable', () => {
+    L().load(majorityDiagram());
+    L().addNoteAt(2, 2);
+    const id = L().diagram.notes![0].id;
+    L().finishNoteEdit('多數決');
+    L().setNoteColor(id, 'pink');
+    L().setNoteTarget(id, 'g4');
+    L().moveNote(id, 5, 6);
+    expect(L().diagram.notes![0]).toMatchObject({ text: '多數決', color: 'pink', target: 'g4', x: 5, y: 6 });
+    L().undo();
+    expect(L().diagram.notes![0]).toMatchObject({ x: 2, y: 2 });
+    L().select({ kind: 'note', id });
+    L().deleteSelection();
+    expect(L().diagram.notes).toBeUndefined();
+    L().undo();
+    expect(L().diagram.notes).toHaveLength(1);
+  });
+});

@@ -1,3 +1,4 @@
+import { dropNoteTargets } from './notes';
 import { buildLattice, MM_PER_UNIT, unitsFromMm } from '../core/breadboard/lattice';
 import { getBoard } from '../core/breadboard/registry';
 import { compareIds } from '../core/circuit/nets';
@@ -218,11 +219,14 @@ export function removeBoard(circuit: Circuit, id: string): Circuit | null {
   const touches = (w: Wire) => w.start.boardId === id || w.end.boardId === id || w.path.some((p) => p.boardId === id);
   const components = circuit.components.filter((c) => c.boardId !== id);
   const wires = circuit.wires.filter((w) => !touches(w));
+  // 子專案 29：指向這塊板上的元件或孔的便條拿掉指向。
+  const notes = dropNoteTargets(circuit.notes, new Set(circuit.components.filter((c) => c.boardId === id).map((c) => c.id)), id);
   return normalizeBoardGroups({
     ...circuit,
     boards: circuit.boards.filter((b) => b.id !== id),
     components: components.length === circuit.components.length ? circuit.components : components,
     wires: wires.length === circuit.wires.length ? circuit.wires : wires,
+    ...(notes ? { notes } : {}),
   });
 }
 

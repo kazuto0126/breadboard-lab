@@ -1,4 +1,5 @@
 import { isBlockChip } from './blocks';
+import { dropLogicNoteTargets } from './notes';
 import { boxOf, inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
 import { canRotate, isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
@@ -77,7 +78,9 @@ export function moveNode(d: LogicDiagram, id: string, x: number, y: number): Edi
 
 export function removeNodes(d: LogicDiagram, ids: string[]): LogicDiagram {
   const gone = new Set(ids);
-  return { ...d, nodes: d.nodes.filter((n) => !gone.has(n.id)), wires: d.wires.filter((w) => !gone.has(w.from) && !gone.has(w.to.node)) };
+  // 子專案 29：指向被刪掉的元件的便條拿掉指向。
+  const notes = dropLogicNoteTargets(d.notes, gone);
+  return { ...d, nodes: d.nodes.filter((n) => !gone.has(n.id)), wires: d.wires.filter((w) => !gone.has(w.from) && !gone.has(w.to.node)), ...(notes ? { notes } : {}) };
 }
 
 export function removeWire(d: LogicDiagram, id: string): LogicDiagram {

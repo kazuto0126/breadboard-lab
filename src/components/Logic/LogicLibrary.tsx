@@ -4,6 +4,7 @@ import type { NodeKind } from '../../logic/types';
 import { useLogic } from '../../state/logic';
 import { useStore } from '../../state/store';
 import { PartIcon } from './GateSymbol';
+import { LogicNoteCard } from './LogicNoteCard';
 
 const PARTS: Array<[NodeKind, string, string]> = [
   ['AND', 'AND', '及閘，2–4 輸入'],
@@ -80,6 +81,7 @@ export function LogicLibrary() {
             </button>
           ))}
         </div>
+        <LogicNoteCard />
         <p className="mt-3 px-1 text-[11px] leading-5 text-slate-400">
           點一下元件再點畫布放下（Esc 取消）。從一個腳拖到另一個腳連線；點輸入端的開關切換 0 / 1。
         </p>
