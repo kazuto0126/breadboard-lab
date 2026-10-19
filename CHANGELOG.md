@@ -3,6 +3,15 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## [未發布] — MCP 設定說明頁補上更多 AI 工具（網頁有改，合併後要發布）
+
+- 設定說明頁（`mcp/`）多了 7 個 AI 工具的設定：Codex CLI（OpenAI；命令列、桌面 App、編輯器擴充功能共用，附 `codex mcp add` 指令與 TOML 設定）、
+  Antigravity、Windsurf（設定檔位置依版本不同，改用 App 裡的「Open MCP config file」打開）、Cline、Zed（`context_servers`）、
+  JetBrains AI Assistant、LM Studio。每一個都照官方文件寫，附 Windows / macOS 兩種路徑；2026-10-19 查證。
+- 第 3 節最上面多一列工具名稱，點了跳到那個工具的設定。
+- 修正：手機上「有哪些工具」表格的第一欄不能換行，整頁會被撐到 670 px 寬、左右捲動；改成工具名稱之間可以換行。
+- 測試：說明頁列出 12 個工具、每個都有自己的段落、Codex 的 TOML 設定格式（Windows、macOS 各一）、其他設定都是合法的 JSON。
+
 ## 2026-10-19 — 子專案 34：轉成麵包板時電源接最近的軌（PR #48，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-19-nearest-power-rails-design.md`；實作計畫：`docs/superpowers/plans/2026-10-19-nearest-power-rails.md`。

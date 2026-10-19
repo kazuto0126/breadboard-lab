@@ -65,7 +65,11 @@
   table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
   th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
   th { color: var(--muted); font-weight: 600; }
-  .tools td:first-child { white-space: nowrap; }
+  /* 工具名稱各自不斷行，名稱之間可以換行（手機上整頁不會左右捲動）。 */
+  .tools td:first-child code { white-space: nowrap; }
+  .toc { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+  .toc a { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; text-decoration: none; font-size: 0.92rem; min-height: 32px; display: inline-flex; align-items: center; }
+  .toc a:hover { border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -100,7 +104,22 @@
 <p class="muted">下面的路徑是例子（檔案在 <code>C:\tools</code> 或 <code>/Users/你的帳號/tools</code>、工作資料夾是 <code>C:\circuits</code> 或 <code>/Users/你的帳號/circuits</code>），請換成你自己的。
 JSON 裡 Windows 的 <code>\</code> 要寫兩個（<code>\\</code>）。設定好之後<strong>把 AI 工具完全關掉再打開</strong>。各工具的設定方式在 2026-10-19 照官方文件查證過。</p>
 
-<h3>Cursor</h3>
+<nav class="toc" aria-label="AI 工具">
+  <a href="#tool-cursor">Cursor</a>
+  <a href="#tool-vscode">VS Code（Copilot）</a>
+  <a href="#tool-gemini-cli">Gemini CLI</a>
+  <a href="#tool-claude-desktop">Claude Desktop</a>
+  <a href="#tool-claude-code">Claude Code</a>
+  <a href="#tool-codex">Codex CLI</a>
+  <a href="#tool-antigravity">Antigravity</a>
+  <a href="#tool-windsurf">Windsurf</a>
+  <a href="#tool-cline">Cline</a>
+  <a href="#tool-zed">Zed</a>
+  <a href="#tool-jetbrains">JetBrains AI Assistant</a>
+  <a href="#tool-lm-studio">LM Studio</a>
+</nav>
+
+<h3 id="tool-cursor">Cursor</h3>
 <p>設定檔：所有專案都能用的 <code>~/.cursor/mcp.json</code>（Windows 是 <code>%USERPROFILE%\.cursor\mcp.json</code>），或只給一個專案用的 <code>.cursor/mcp.json</code>。
 （<a href="https://cursor.com/docs/context/mcp">Cursor 文件</a>）</p>
 <div class="block"><pre class="json win">{
@@ -122,7 +141,7 @@ JSON 裡 Windows 的 <code>\</code> 要寫兩個（<code>\\</code>）。設定�
   }
 }</pre></div>
 
-<h3>VS Code（Copilot 的 agent 模式）</h3>
+<h3 id="tool-vscode">VS Code（Copilot 的 agent 模式）</h3>
 <p>在專案裡建 <code>.vscode/mcp.json</code>；要所有專案都能用，從命令選擇區執行「MCP: Open User Configuration」，貼上同樣的內容（注意最外層是 <code>servers</code>）。
 在 Copilot Chat 切到 Agent 模式就能用；執行「MCP: List Servers」可以看狀態與輸出。（<a href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code 文件</a>）</p>
 <div class="block"><pre class="json win">{
@@ -144,7 +163,7 @@ JSON 裡 Windows 的 <code>\</code> 要寫兩個（<code>\\</code>）。設定�
   }
 }</pre></div>
 
-<h3>Gemini CLI</h3>
+<h3 id="tool-gemini-cli">Gemini CLI</h3>
 <p>設定檔：所有資料夾都能用的 <code>~/.gemini/settings.json</code>（Windows 是 <code>%USERPROFILE%\.gemini\settings.json</code>），或只給一個資料夾用的 <code>.gemini/settings.json</code>。
 檔案裡已經有別的設定時，把 <code>mcpServers</code> 加進去就好。在 Gemini CLI 裡輸入 <code>/mcp</code> 看有沒有連上。
 （<a href="https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md">Gemini CLI 文件</a>）</p>
@@ -165,7 +184,7 @@ JSON 裡 Windows 的 <code>\</code> 要寫兩個（<code>\\</code>）。設定�
   }
 }</pre></div>
 
-<h3>Claude Desktop</h3>
+<h3 id="tool-claude-desktop">Claude Desktop</h3>
 <p>從 Claude 的選單打開「Settings…」→「Developer」→「Edit Config」，會打開 <code>claude_desktop_config.json</code>
 （Windows：<code>%APPDATA%\Claude\claude_desktop_config.json</code>；macOS：<code>~/Library/Application Support/Claude/claude_desktop_config.json</code>）。
 存檔後把 Claude Desktop 完全結束再打開。（<a href="https://modelcontextprotocol.io/docs/develop/connect-local-servers">設定說明</a>）</p>
@@ -186,10 +205,152 @@ JSON 裡 Windows 的 <code>\</code> 要寫兩個（<code>\\</code>）。設定�
   }
 }</pre></div>
 
-<h3>Claude Code</h3>
+<h3 id="tool-claude-code">Claude Code</h3>
 <p>在終端機執行一次（<code>--scope user</code> 是所有專案都能用），再用 <code>claude mcp list</code> 看有沒有連上。（<a href="https://code.claude.com/docs/en/mcp">Claude Code 文件</a>）</p>
 <div class="block"><pre class="cmd win">claude mcp add --scope user breadboard-lab -- node C:\tools\breadboard-lab-mcp.mjs --folder C:\circuits</pre></div>
 <div class="block"><pre class="cmd mac">claude mcp add --scope user breadboard-lab -- node ~/tools/breadboard-lab-mcp.mjs --folder ~/circuits</pre></div>
+
+<h3 id="tool-codex">Codex CLI</h3>
+<p>OpenAI 的 Codex（命令列、桌面 App、編輯器擴充功能共用同一份設定）。在終端機執行一次：</p>
+<div class="block"><pre class="cmd win">codex mcp add breadboard-lab -- node C:\tools\breadboard-lab-mcp.mjs --folder C:\circuits</pre></div>
+<div class="block"><pre class="cmd mac">codex mcp add breadboard-lab -- node ~/tools/breadboard-lab-mcp.mjs --folder ~/circuits</pre></div>
+<p>也可以直接編輯 <code>~/.codex/config.toml</code>（Windows 是 <code>%USERPROFILE%\.codex\config.toml</code>），加上下面這段（這是 TOML 格式；Windows 的路徑用單引號，<code>\</code> 不用寫兩個）。
+用 <code>codex mcp list</code> 確認，在 Codex 裡輸入 <code>/mcp</code> 看有沒有連上。（<a href="https://learn.chatgpt.com/docs/extend/mcp?surface=cli">Codex 文件</a>）</p>
+<div class="block"><pre class="toml win">[mcp_servers.breadboard-lab]
+command = "node"
+args = ['C:\tools\breadboard-lab-mcp.mjs', '--folder', 'C:\circuits']</pre></div>
+<div class="block"><pre class="toml mac">[mcp_servers.breadboard-lab]
+command = "node"
+args = ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"]</pre></div>
+
+<h3 id="tool-antigravity">Antigravity</h3>
+<p>Google 的 Antigravity：在 agent 側邊欄上方按「…」→「MCP Servers」→「Manage MCP Servers」→「View raw config」，會打開 <code>mcp_config.json</code>
+（所有專案共用的是 <code>~/.gemini/config/mcp_config.json</code>，只給一個專案用的是專案裡的 <code>.agents/mcp_config.json</code>）。貼上下面的內容，存檔後回到 MCP Servers 看狀態。
+（<a href="https://antigravity.google/docs/mcp">Antigravity 文件</a>）</p>
+<div class="block"><pre class="json win">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["C:\\tools\\breadboard-lab-mcp.mjs", "--folder", "C:\\circuits"]
+    }
+  }
+}</pre></div>
+<div class="block"><pre class="json mac">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"]
+    }
+  }
+}</pre></div>
+
+<h3 id="tool-windsurf">Windsurf</h3>
+<p>在 Cascade 的 MCP 選單按「Open MCP config file」打開 <code>mcp_config.json</code>（不同版本放的位置不一樣，用這個按鈕打開最準；也可以從 Windsurf Settings 的「Add Server」加），
+貼上下面的內容，存檔後按 MCP 的重新整理按鈕。（<a href="https://docs.windsurf.com/windsurf/mcp">Windsurf 文件</a>）</p>
+<div class="block"><pre class="json win">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["C:\\tools\\breadboard-lab-mcp.mjs", "--folder", "C:\\circuits"]
+    }
+  }
+}</pre></div>
+<div class="block"><pre class="json mac">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"]
+    }
+  }
+}</pre></div>
+
+<h3 id="tool-cline">Cline</h3>
+<p>VS Code 的 Cline 擴充功能：在 Cline 面板上方按「MCP Servers」圖示 →「Configure」分頁 →「Configure MCP Servers」，會打開設定檔，貼上下面的內容。
+<code>autoApprove</code> 是不用你按同意就能執行的工具，先留空比較安全。（<a href="https://docs.cline.bot/mcp/configuring-mcp-servers">Cline 文件</a>）</p>
+<div class="block"><pre class="json win">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["C:\\tools\\breadboard-lab-mcp.mjs", "--folder", "C:\\circuits"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}</pre></div>
+<div class="block"><pre class="json mac">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}</pre></div>
+
+<h3 id="tool-zed">Zed</h3>
+<p>從「Settings → AI → MCP Servers」按「Add Server」→「Add Local Server」填指令與參數；或執行「zed: open settings file」打開 <code>settings.json</code>，
+在最外層加上 <code>context_servers</code>（下面是檔案裡只有這一項時的樣子，已經有別的設定就只加 <code>context_servers</code> 那一段）。
+伺服器名稱旁邊是綠點、提示「Server is active」就是連上了。（<a href="https://zed.dev/docs/ai/mcp">Zed 文件</a>）</p>
+<div class="block"><pre class="json win">{
+  "context_servers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["C:\\tools\\breadboard-lab-mcp.mjs", "--folder", "C:\\circuits"],
+      "env": {}
+    }
+  }
+}</pre></div>
+<div class="block"><pre class="json mac">{
+  "context_servers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"],
+      "env": {}
+    }
+  }
+}</pre></div>
+
+<h3 id="tool-jetbrains">JetBrains AI Assistant</h3>
+<p>IntelliJ IDEA、PyCharm、WebStorm 等 JetBrains 編輯器的 AI Assistant：「Settings → Tools → AI Assistant → Model Context Protocol (MCP)」→「Add」→ 選「STDIO」，
+把下面的 JSON 貼到「JSON configuration」欄位 →「OK」→「Apply」。「Server level」選 Global 就所有專案都能用；「Status」欄看有沒有連上。
+（<a href="https://www.jetbrains.com/help/ai-assistant/mcp.html">JetBrains 文件</a>）</p>
+<div class="block"><pre class="json win">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["C:\\tools\\breadboard-lab-mcp.mjs", "--folder", "C:\\circuits"]
+    }
+  }
+}</pre></div>
+<div class="block"><pre class="json mac">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"]
+    }
+  }
+}</pre></div>
+
+<h3 id="tool-lm-studio">LM Studio</h3>
+<p>在自己電腦跑模型的 LM Studio（0.3.17 以上）：右邊側欄切到「Program」分頁 →「Install」→「Edit mcp.json」，貼上下面的內容（和 Cursor 的寫法一樣）。
+模型要支援使用工具（tool use），AI 才會呼叫這些工具。（<a href="https://lmstudio.ai/docs/app/mcp">LM Studio 文件</a>）</p>
+<div class="block"><pre class="json win">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["C:\\tools\\breadboard-lab-mcp.mjs", "--folder", "C:\\circuits"]
+    }
+  }
+}</pre></div>
+<div class="block"><pre class="json mac">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"]
+    }
+  }
+}</pre></div>
 
 <h2>4. 第一次可以怎麼問</h2>
 <ul>

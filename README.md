@@ -92,7 +92,7 @@ GitHub Actions（`.github/workflows/ci.yml`）在每個 Pull Request 與 push �
 MCP 伺服器 `breadboard-lab` 讓 AI 工具直接檢查、編輯、佈線、模擬電路檔，把邏輯圖轉成麵包板並比對真值表，也能寫入真值表題目、產生邏輯圖。
 電路檔就是網頁「匯出 JSON」的格式，做完在網頁用「檔案 → 匯入 JSON」打開。
 
-- **Cursor、VS Code（Copilot）、Gemini CLI、Claude Desktop 等**：從網站下載一個檔案（[設定說明](https://kazuto0126.github.io/breadboard-lab-site/mcp/)），
+- **Cursor、VS Code（Copilot）、Gemini CLI、Claude Desktop、Codex、Antigravity、Windsurf、Cline、Zed、JetBrains AI Assistant、LM Studio 等**：從網站下載一個檔案（[設定說明](https://kazuto0126.github.io/breadboard-lab-site/mcp/)），
   需要 Node.js 22 以上；設定裡用 `--folder` 指定放電路檔的工作資料夾。打包檔由 `npm run build:mcp` 產生（`dist-mcp/breadboard-lab-mcp.mjs`）。
 - **在這個專案資料夾裡開 Claude Code**：專案根目錄的 `.mcp.json` 直接用原始碼啟動（第一次會問要不要允許；也可以用 `/mcp` 查看狀態）。
 
