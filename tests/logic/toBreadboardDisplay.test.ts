@@ -82,3 +82,58 @@ describe('converting a 7-segment display', () => {
     expect(Object.entries(r.netOf).some(([pin, sig]) => pin.startsWith('U1#') && sig === 'g1')).toBe(true);
   });
 });
+
+describe('common-cathode displays when converting (sub-project 32)', () => {
+  it('uses a 74LS48 and a common-cathode display and still shows every digit, before and after routing', async () => {
+    const { checkAgainstDiagram } = await import('../../src/logic/diagramCheck');
+    const { autoPlaceAndRoute } = await import('../../src/core/icPlacement/autoPlace');
+    const { applyRouting } = await import('../../src/core/routing/apply');
+    const r = ok(toBreadboard(bcdDiagram(), { switchTo: 'vcc', board: 'auto', display: 'cc' }));
+    expect(r.bom.ics).toEqual({ '74LS48': 1 });
+    expect(r.circuit.components.find((c) => c.id === 'DS1')!.defId).toBe('7seg-cc');
+    expect(SEG.CA.map((p) => r.netOf[`DS1#${p}`])).toEqual(['GND', 'GND']);
+    expect(checkAgainstDiagram(bcdDiagram(), r.circuit)).toMatchObject({ kind: 'done', result: { rows: 16, mismatches: [] } });
+    const routed = autoPlaceAndRoute(r.circuit);
+    expect(routed.status).toBe('success');
+    expect(checkAgainstDiagram(bcdDiagram(), applyRouting(r.circuit, routed))).toMatchObject({ kind: 'done', result: { rows: 16, mismatches: [] } });
+  }, 60_000);
+});
+
+describe('decimal points and per-segment displays when converting (sub-project 32)', () => {
+  /** BCD 範例再加一個輸入端 P 接到 DP。 */
+  const withDp = () => {
+    let d = bcdDiagram();
+    d = must(addNode(d, 'INPUT', 0, 12));
+    const p = d.nodes.at(-1)!.id;
+    const named = { ...d, nodes: d.nodes.map((n) => (n.id === p ? { ...n, name: 'P' } : n)) };
+    return must(connect(named, p, { node: 'd1', pin: 4 }));
+  };
+  /** 兩個輸入：A 接 b、c 段（「1」），B 接 a、dp 段。 */
+  const segments = async () => {
+    const { setDisplayMode } = await import('../../src/logic/edit');
+    let d = emptyDiagram();
+    d = must(addNode(d, 'INPUT', 0, 0));
+    d = must(addNode(d, 'INPUT', 0, 4));
+    d = must(addNode(d, 'DISPLAY', 10, 0));
+    d = must(setDisplayMode(d, 'd1', true));
+    for (const [from, pin] of [['i1', 1], ['i1', 2], ['i2', 0], ['i2', 7]] as const) d = must(connect(d, from, { node: 'd1', pin }));
+    return d;
+  };
+
+  it.each(['ca', 'cc'] as const)('lights the decimal point from DP (%s)', async (display) => {
+    const { checkAgainstDiagram } = await import('../../src/logic/diagramCheck');
+    const r = ok(toBreadboard(withDp(), { switchTo: 'vcc', board: 'auto', display }));
+    // 共陽極時 DP 先經過一個反相器（74LS04）。
+    expect(Object.keys(r.bom.ics).sort()).toEqual(display === 'ca' ? ['74LS04', '74LS47'] : ['74LS48']);
+    expect(checkAgainstDiagram(withDp(), r.circuit)).toMatchObject({ kind: 'done', result: { rows: 32, mismatches: [] } });
+  });
+
+  it.each(['ca', 'cc'] as const)('drives each segment directly without a decoder (%s)', async (display) => {
+    const { checkAgainstDiagram } = await import('../../src/logic/diagramCheck');
+    const d = await segments();
+    const r = ok(toBreadboard(d, { switchTo: 'vcc', board: 'auto', display }));
+    expect(Object.keys(r.bom.ics)).toEqual(display === 'ca' ? ['74LS04'] : []);
+    expect(r.circuit.components.filter((c) => c.defId === 'resistor')).toHaveLength(4);
+    expect(checkAgainstDiagram(d, r.circuit)).toMatchObject({ kind: 'done', result: { rows: 4, mismatches: [] } });
+  });
+});

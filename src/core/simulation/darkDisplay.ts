@@ -5,8 +5,8 @@ import type { SimCircuit, SimResult } from './simulate';
 
 /** 7 段顯示器全暗的原因。 */
 export type DarkReason =
-  | { kind: 'no-power' }
-  | { kind: 'fifteen'; driver: string }
+  | { kind: 'no-power'; cathode?: true }
+  | { kind: 'fifteen'; driver: string; chip?: '74LS48' }
   | { kind: 'blanked'; driver: string }
   | { kind: 'driver-unpowered'; driver: string }
   | { kind: 'unwired' };
@@ -17,14 +17,15 @@ export type DarkReason =
  */
 export function whyDark(sim: SimCircuit, result: SimResult, displayId: string): DarkReason | null {
   const display = sim.displays.find((d) => d.componentId === displayId);
-  if (!display || (result.litSegments[displayId]?.length ?? 0) > 0) return null;
+  // 小數點不算（15 時數字全暗、小數點可能亮著）。
+  if (!display || (result.litSegments[displayId] ?? []).some((s) => s !== 'dp')) return null;
   const keyOf = new Map<string, string>();
   for (const [key, node] of sim.nodeOfPin) if (!keyOf.has(node)) keyOf.set(node, key);
   const levelAt = (node: string | null | undefined): Level => {
     const key = node ? keyOf.get(node) : undefined;
     return key ? (result.pinLevels[key] ?? 'Z') : 'Z';
   };
-  if (levelAt(display.anode) !== 1) return { kind: 'no-power' };
+  if (levelAt(display.common) !== (display.cathode ? 0 : 1)) return display.cathode ? { kind: 'no-power', cathode: true } : { kind: 'no-power' };
 
   const segments = new Set(display.segments.flatMap((s) => (s.node ? [s.node] : [])));
   const near = new Set(segments);
@@ -46,7 +47,7 @@ export function whyDark(sim: SimCircuit, result: SimResult, displayId: string): 
     };
     if (read(spec.blanking) === 0) return { kind: 'blanked', driver };
     const value = toNumber(spec.inputs.map(read));
-    if (value === 15 && read(spec.lampTest) !== 0) return { kind: 'fifteen', driver };
+    if (value === 15 && read(spec.lampTest) !== 0) return spec.activeHigh ? { kind: 'fifteen', driver, chip: '74LS48' } : { kind: 'fifteen', driver };
     if (value === 0 && read(spec.rippleBlanking) === 0) return { kind: 'blanked', driver };
   }
   return { kind: 'unwired' };
@@ -56,9 +57,11 @@ export function whyDark(sim: SimCircuit, result: SimResult, displayId: string): 
 export function darkReasonText(r: DarkReason): string {
   switch (r.kind) {
     case 'no-power':
-      return '共陽極（COM）沒有接到 +5 V，所以全暗。';
-    case 'fifteen':
-      return `${r.driver}（74LS47）的輸入 DCBA 是 1111，也就是 15：74LS47 遇到 15 本來就全暗，不是沒通電（沒接的輸入腳算 1）。`;
+      return r.cathode ? '共陰極（COM）沒有接到 GND，所以全暗。' : '共陽極（COM）沒有接到 +5 V，所以全暗。';
+    case 'fifteen': {
+      const chip = r.chip ?? '74LS47';
+      return `${r.driver}（${chip}）的輸入 DCBA 是 1111，也就是 15：${chip} 遇到 15 本來就全暗，不是沒通電（沒接的輸入腳算 1）。`;
+    }
     case 'blanked':
       return `${r.driver}（74LS47）的消隱腳（/BI/RBO 或 /RBI）是 0，讓顯示器全暗。`;
     case 'driver-unpowered':

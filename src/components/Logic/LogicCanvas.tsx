@@ -3,12 +3,13 @@ import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../.
 import { canPlace, connect, moveNodes, nodesInRect } from '../../logic/edit';
 import { evaluate, type Bit } from '../../logic/evaluate';
 import { bodyRect, inputPins, nodeSize, outputPin, outputPins, type GridXY } from '../../logic/shapes';
-import { isGate, isSink, signalOf, type LogicNode } from '../../logic/types';
+import { canRotate, isGate, isSink, signalOf, type LogicNode } from '../../logic/types';
 import { BlockBody, ConstantBody } from './BlockBody';
 import { DisplayBody } from './DisplayBody';
+import { LogicNoteLayer } from './LogicNoteLayer';
 import { junctions, wireRoutes } from '../../logic/wiring';
 import { LOGIC_CELL, selectedIds, useLogic } from '../../state/logic';
-import { bitColor, GateBody, turnTransform } from './GateSymbol';
+import { bitColor, GateBody, turnTransform, upright } from './GateSymbol';
 
 const C = LOGIC_CELL;
 
@@ -43,7 +44,7 @@ function InputTerminal({ node, selected }: { node: LogicNode; selected: boolean 
   return (
     <g>
       <rect x={-0.9 * C} y={-0.45 * C} width={2.3 * C} height={0.9 * C} rx={4} fill="#ffffff" stroke={selected ? '#0284c7' : '#1e293b'} strokeWidth={selected ? 2.4 : 1.6} />
-      <text x={-0.45 * C} y={0} fontSize={0.5 * C} fontWeight={700} fill="#1e293b" textAnchor="middle" dominantBaseline="central">
+      <text x={-0.45 * C} y={0} transform={upright(node, -0.45 * C, 0)} fontSize={0.5 * C} fontWeight={700} fill="#1e293b" textAnchor="middle" dominantBaseline="central">
         {node.name}
       </text>
       <g
@@ -57,7 +58,7 @@ function InputTerminal({ node, selected }: { node: LogicNode; selected: boolean 
       >
         <rect x={0.05 * C} y={-0.32 * C} width={1.1 * C} height={0.64 * C} rx={0.32 * C} fill={v === 1 ? '#fecaca' : '#dbeafe'} stroke={bitColor(v)} strokeWidth={1.5} />
         <circle cx={v === 1 ? 0.83 * C : 0.37 * C} cy={0} r={0.24 * C} fill={bitColor(v)} />
-        <text x={v === 1 ? 0.37 * C : 0.83 * C} y={0} fontSize={0.36 * C} fontWeight={700} fill="#334155" textAnchor="middle" dominantBaseline="central">
+        <text x={v === 1 ? 0.37 * C : 0.83 * C} y={0} transform={upright(node, v === 1 ? 0.37 * C : 0.83 * C, 0)} fontSize={0.36 * C} fontWeight={700} fill="#334155" textAnchor="middle" dominantBaseline="central">
           {v}
         </text>
       </g>
@@ -74,10 +75,10 @@ function OutputTerminal({ node, value, selected }: { node: LogicNode; value: Bit
       <line x1={0} y1={0} x2={0.5 * C} y2={0} stroke={bitColor(value)} strokeWidth={2} />
       <rect x={0.5 * C} y={-0.45 * C} width={2.2 * C} height={0.9 * C} rx={4} fill="#ffffff" stroke={selected ? '#0284c7' : '#1e293b'} strokeWidth={selected ? 2.4 : 1.6} />
       <circle cx={0.95 * C} cy={0} r={0.3 * C} fill={value === 1 ? '#ef4444' : value === 0 ? '#bfdbfe' : '#e2e8f0'} stroke={bitColor(value)} strokeWidth={1.5} />
-      <text data-logic-lamp={node.id} x={0.95 * C} y={0} fontSize={0.36 * C} fontWeight={700} fill={value === 1 ? '#ffffff' : '#334155'} textAnchor="middle" dominantBaseline="central">
+      <text data-logic-lamp={node.id} x={0.95 * C} y={0} transform={upright(node, 0.95 * C, 0)} fontSize={0.36 * C} fontWeight={700} fill={value === 1 ? '#ffffff' : '#334155'} textAnchor="middle" dominantBaseline="central">
         {text}
       </text>
-      <text x={1.85 * C} y={0} fontSize={0.5 * C} fontWeight={700} fill="#1e293b" textAnchor="middle" dominantBaseline="central">
+      <text x={1.85 * C} y={0} transform={upright(node, 1.85 * C, 0)} fontSize={0.5 * C} fontWeight={700} fill="#1e293b" textAnchor="middle" dominantBaseline="central">
         {node.name}
       </text>
     </g>
@@ -100,6 +101,7 @@ export function LogicCanvas() {
   const valueOf = (id: string): Bit | undefined => (values.loop ? undefined : values.nodes.get(id));
   const driver = useMemo(() => new Map(diagram.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)])), [diagram]);
   const placingChip = useLogic((s) => s.placingChip);
+  const placingTurn = useLogic((s) => s.placingTurn);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -258,7 +260,7 @@ export function LogicCanvas() {
   };
 
   const ghost: LogicNode | null =
-    placing && hover ? { id: '__ghost', kind: placing, x: hover.x, y: hover.y, inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: isGate(placing) ? undefined : '?', value: 0, ...(placing === 'BLOCK' && placingChip ? { chip: placingChip } : {}) } : null;
+    placing && hover ? { id: '__ghost', kind: placing, x: hover.x, y: hover.y, inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: isGate(placing) ? undefined : '?', value: 0, ...(placing === 'BLOCK' && placingChip ? { chip: placingChip } : {}), ...(canRotate(placing) ? placingTurn : {}) } : null;
   const ghostOk = ghost ? canPlace(diagram, ghost) : true;
   const moveOk = drag?.kind === 'move' ? moveNodes(diagram, drag.ids, drag.dx, drag.dy).ok : true;
   const wireOk = drag?.kind === 'wire' ? drag.to === null || wirePair(drag.from, drag.to) !== null : true;
@@ -324,7 +326,7 @@ export function LogicCanvas() {
             return from === undefined ? undefined : valueOf(from);
           });
           return (
-            <g key={node.id} data-logic-node={node.id} data-rotation={node.rotation ?? 0} transform={`translate(${node.x * C} ${node.y * C})`} opacity={moving && !moveOk ? 0.5 : 1}>
+            <g key={node.id} data-logic-node={node.id} data-rotation={node.rotation ?? 0} data-flip={node.flip ? 'true' : undefined} transform={`translate(${node.x * C} ${node.y * C})`} opacity={moving && !moveOk ? 0.5 : 1}>
               {/* 拖曳與選取的範圍（子專案 26：轉向的閘整個轉；轉向的 IC 方塊用本體範圍） */}
               {node.kind === 'BLOCK' && node.rotation ? (
                 (() => {
@@ -337,7 +339,7 @@ export function LogicCanvas() {
                   y={-0.5 * C}
                   width={(w - 0.6) * C + (node.kind === 'INPUT' ? 1.2 * C : 0) + (isSink(node.kind) ? 0.7 * C : 0)}
                   height={h * C}
-                  transform={isGate(node.kind) ? turnTransform(node) : undefined}
+                  transform={turnTransform(node)}
                   fill="transparent"
                   style={{ cursor: 'move' }}
                   onPointerDown={(e) => onNodeDown(e, node)}
@@ -347,11 +349,15 @@ export function LogicCanvas() {
                 {node.kind === 'INPUT' ? null : node.kind === 'BLOCK' ? (
                   <BlockBody node={node} inputs={ins} outputs={outputPins(node).map((_, k) => valueOf(signalOf(node.id, k)))} selected={sel} />
                 ) : node.kind === 'HIGH' || node.kind === 'LOW' ? (
-                  <ConstantBody node={node} selected={sel} />
+                  <g transform={turnTransform(node)}>
+                    <ConstantBody node={node} selected={sel} />
+                  </g>
                 ) : node.kind === 'DISPLAY' ? (
-                  <DisplayBody node={node} value={values.loop ? undefined : values.displays.get(node.id)} inputs={ins} selected={sel} />
+                  <DisplayBody node={node} value={values.loop ? undefined : values.displays.get(node.id)} dp={values.loop ? undefined : values.dps.get(node.id)} lit={values.loop ? undefined : values.segs.get(node.id)} inputs={ins} selected={sel} />
                 ) : node.kind === 'OUTPUT' ? (
-                  <OutputTerminal node={node} value={values.loop ? undefined : values.nodes.get(node.id)} selected={sel} />
+                  <g transform={turnTransform(node)}>
+                    <OutputTerminal node={node} value={values.loop ? undefined : values.nodes.get(node.id)} selected={sel} />
+                  </g>
                 ) : (
                   <g transform={turnTransform(node)}>
                     <GateBody node={node} value={valueOf(node.id)} inputs={ins} selected={sel} />
@@ -359,7 +365,7 @@ export function LogicCanvas() {
                 )}
               </g>
               {node.kind === 'INPUT' && (
-                <g onPointerDown={(e) => onNodeDown(e, node)}>
+                <g transform={turnTransform(node)} onPointerDown={(e) => onNodeDown(e, node)}>
                   <InputTerminal node={node} selected={sel} />
                 </g>
               )}
@@ -393,6 +399,9 @@ export function LogicCanvas() {
           );
         })}
 
+        {/* 子專案 29：便條（畫在元件上層） */}
+        <LogicNoteLayer diagram={view} />
+
         {drag?.kind === 'wire' &&
           (() => {
             const a = pinXY(drag.from);
@@ -409,8 +418,20 @@ export function LogicCanvas() {
 
         {ghost && (
           <g transform={`translate(${ghost.x * C} ${ghost.y * C})`} opacity={0.55} pointerEvents="none">
-            {ghost.kind === 'INPUT' ? <InputTerminal node={ghost} selected={false} /> : ghost.kind === 'BLOCK' ? <BlockBody node={ghost} /> : ghost.kind === 'HIGH' || ghost.kind === 'LOW' ? <ConstantBody node={ghost} /> : ghost.kind === 'DISPLAY' ? <DisplayBody node={ghost} /> : ghost.kind === 'OUTPUT' ? <OutputTerminal node={ghost} value={undefined} selected={false} /> : <GateBody node={ghost} />}
-            {!ghostOk && <rect x={0} y={-0.5 * C} width={nodeSize(ghost).w * C} height={nodeSize(ghost).h * C} fill="#ef4444" opacity={0.35} />}
+            {ghost.kind === 'BLOCK' ? (
+              <BlockBody node={ghost} />
+            ) : ghost.kind === 'DISPLAY' ? (
+              <DisplayBody node={ghost} />
+            ) : (
+              <g transform={turnTransform(ghost)}>
+                {ghost.kind === 'INPUT' ? <InputTerminal node={ghost} selected={false} /> : ghost.kind === 'HIGH' || ghost.kind === 'LOW' ? <ConstantBody node={ghost} /> : ghost.kind === 'OUTPUT' ? <OutputTerminal node={ghost} value={undefined} selected={false} /> : <GateBody node={ghost} />}
+              </g>
+            )}
+            {!ghostOk &&
+              (() => {
+                const r = bodyRect({ ...ghost, x: 0, y: 0 });
+                return <rect x={r.x0 * C} y={r.y0 * C} width={(r.x1 - r.x0) * C} height={(r.y1 - r.y0) * C} fill="#ef4444" opacity={0.35} />;
+              })()}
           </g>
         )}
       </g>

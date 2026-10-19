@@ -278,9 +278,9 @@ function ComponentInspector({ id, circuit, analysis }: { id: string; circuit: Ci
             </select>
           </Row>
         )}
-        {(def.category === 'led' || def.category === 'seven-seg') && (
+        {(def.category === 'led' || def.category === 'seven-seg' || def.category === 'pushbutton') && (
           <Row label="名稱">
-            <LabelInput key={`${id}-0-${props.labels?.[0] ?? ''}`} value={props.labels?.[0] ?? ''} ariaLabel={def.category === 'led' ? 'LED 名稱' : '顯示器名稱'} onCommit={(text) => store.setLabel(id, 0, text)} />
+            <LabelInput key={`${id}-0-${props.labels?.[0] ?? ''}`} value={props.labels?.[0] ?? ''} ariaLabel={def.category === 'led' ? 'LED 名稱' : def.category === 'pushbutton' ? '按鈕名稱' : '顯示器名稱'} onCommit={(text) => store.setLabel(id, 0, text)} />
           </Row>
         )}
         {def.category === 'dip-switch' && (

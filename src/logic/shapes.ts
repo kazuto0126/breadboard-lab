@@ -10,7 +10,8 @@ export interface GridXY {
 export function inputCountOf(node: LogicNode): number {
   if (isSource(node.kind)) return 0;
   if (node.kind === 'BLOCK') return node.chip ? BLOCK_PINS[node.chip].inputs.length : 0;
-  if (node.kind === 'DISPLAY') return 4;
+  // 子專案 32：BCD 顯示器是 A–D 加上 DP；每段直接控制時是 a–g、dp。
+  if (node.kind === 'DISPLAY') return node.segments ? 8 : 5;
   if (node.kind === 'OUTPUT' || node.kind === 'NOT') return 1;
   if (node.kind === 'XOR') return 2;
   return node.inputs ?? 2;
@@ -27,6 +28,7 @@ export function outputCountOf(node: LogicNode): number {
 export function nodeSize(node: LogicNode): { w: number; h: number } {
   if (node.kind === 'BLOCK') return { w: BLOCK_WIDTH, h: Math.max(inputCountOf(node), outputCountOf(node)) + 1 };
   if (node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'HIGH' || node.kind === 'LOW') return { w: 2, h: 1 };
+  if (node.kind === 'DISPLAY') return { w: 4, h: node.segments ? 8 : 5 };
   if (node.kind === 'NOT') return { w: 3, h: 1 };
   return { w: 4, h: inputCountOf(node) === 4 ? 5 : 3 };
 }
@@ -38,10 +40,11 @@ export const BLOCK_WIDTH = 6;
 
 /**
  * 子專案 26：本地座標（沒轉時：輸入在 u = 0、輸出在 u = w，v 是列）換到轉向後、相對於 (x, y) 的位置。
- * 90°：(h − 1 − v, u)；180°：(w − u, h − 1 − v)；270°：(v, w − u)。
+ * 子專案 28：鏡射先把 u 換成 w − u，再轉：90°：(h − 1 − v, u)；180°：(w − u, h − 1 − v)；270°：(v, w − u)。
  */
-function turn(node: LogicNode, u: number, v: number): GridXY {
+function turn(node: LogicNode, u0: number, v: number): GridXY {
   const { w, h } = nodeSize(node);
+  const u = node.flip ? w - u0 : u0;
   switch (node.rotation) {
     case 90:
       return { x: h - 1 - v, y: u };
@@ -75,7 +78,7 @@ export function bodyRect(node: LogicNode): { x0: number; x1: number; y0: number;
 
 export type Facing = 'E' | 'S' | 'W' | 'N';
 const FACINGS: Facing[] = ['E', 'S', 'W', 'N'];
-const quarter = (node: LogicNode) => (node.rotation ?? 0) / 90;
+const quarter = (node: LogicNode) => (node.rotation ?? 0) / 90 + (node.flip ? 2 : 0);
 
 /** 輸出腳朝的方向（沒轉時朝右）。 */
 export function outputDir(node: LogicNode): Facing {
@@ -90,6 +93,8 @@ export function inputDir(node: LogicNode): Facing {
 export function inputPins(node: LogicNode): GridXY[] {
   const n = inputCountOf(node);
   if (node.kind === 'BLOCK') return Array.from({ length: n }, (_, k) => place(node, 0, k));
+  // 子專案 32：顯示器的 DP 在 B 和 C 中間那一列；每段直接控制時 8 個輸入一列一個。
+  if (node.kind === 'DISPLAY') return (node.segments ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1, 3, 4, 2]).map((dy) => place(node, 0, dy));
   return (OFFSETS[n] ?? []).map((dy) => place(node, 0, dy));
 }
 

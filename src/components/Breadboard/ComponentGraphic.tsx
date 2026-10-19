@@ -387,6 +387,8 @@ function PushButton({ instance, sim }: { instance: ComponentInstance; sim?: Comp
           {instance.id}
         </Upright>
       </g>
+      {/* 子專案 30：按鈕的名稱 */}
+      {instance.props.labels?.[0] && <Label x={P} y={-3.85 * P} rotation={instance.rotation} text={instance.props.labels[0]} />}
     </>
   );
 }

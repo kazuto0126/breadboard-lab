@@ -9,25 +9,32 @@ import type { LayoutId } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance } from '../types/component';
 import type { GridPoint } from '../types/geometry';
-import { sortedIo } from './evaluate';
-import { toNandUnits } from './nandOnly';
+import { SEGMENT_NAMES, sortedIo } from './evaluate';
+import { toNandUnits, toNorUnits } from './nandOnly';
 import { BLOCK_PINS } from './blocks';
-import { assignIcs, convertProblem, decompose, drivers, gateSlots } from './synth';
-import { isSink, signalOf, type LogicDiagram } from './types';
+import { assignIcs, convertProblem, decompose, drivers, gateSlots, type Unit } from './synth';
+import { isSink, signalOf, type LogicDiagram, type LogicNode } from './types';
 
 export interface ConvertOptions {
   /** 開關的另一側接 +5 V（撥 ON = 1，330 Ω 下拉）或 GND（撥 ON = 0，1 kΩ 上拉）。 */
   switchTo: 'vcc' | 'gnd';
   board: 'auto' | LayoutId;
-  /** 照種類對應（預設）或只用 NAND（74LS00）。 */
-  gates?: 'direct' | 'nand';
+  /** 照種類對應（預設）、只用 NAND（74LS00）或只用 NOR（74LS02，子專案 27）。 */
+  gates?: 'direct' | 'nand' | 'nor';
   /** 子專案 19：輸入要不要接上 / 下拉電阻（預設不接，開關直接接 IC 輸入；模擬時當成理想開關）。 */
   pulls?: boolean;
+  /** 子專案 30：輸入用指撥開關（預設）或每個輸入一顆按鈕。 */
+  inputs?: 'switch' | 'button';
+  /** 子專案 32：7 段顯示器用共陽極 + 74LS47（預設）或共陰極 + 74LS48。 */
+  display?: 'ca' | 'cc';
 }
 
 export interface Bom {
   ics: Record<string, number>;
-  switch: 'dipsw-4' | 'dipsw-8';
+  /** 指撥開關；輸入用按鈕時是 null。 */
+  switch: 'dipsw-4' | 'dipsw-8' | null;
+  /** 子專案 30：按鈕的個數（輸入用指撥開關時是 0）。 */
+  buttons: number;
   resistors: number;
   leds: number;
   /** 7 段顯示器（共陽極）的個數。 */
@@ -40,7 +47,10 @@ export type ConvertResult =
       ok: true;
       circuit: Circuit;
       bom: Bom;
-      switchId: 'SW1';
+      /** 輸入用按鈕時是 null。 */
+      switchId: 'SW1' | null;
+      /** 子專案 30：輸入用按鈕時，第 k 個輸入的按鈕 id。 */
+      buttons?: string[];
       /** 依名稱排序的輸入端 id：第 k 個用開關的第 k 位。 */
       inputs: string[];
       /** 輸出端 id → LED 元件 id。 */
@@ -78,11 +88,12 @@ interface TwoLead {
 
 class NoRoom extends Error {}
 
-/** 拆好的單元；只用 NAND 時再換成 2 輸入 NAND（輸出端接的訊號一定保留）。 */
+/** 拆好的單元；只用 NAND / NOR 時再換成那一種 2 輸入閘（輸出端接的訊號一定保留）。 */
 function unitsFor(d: LogicDiagram, options: ConvertOptions) {
-  const units = decompose(d);
-  if (options.gates !== 'nand') return units;
-  // 接到輸出端、顯示器、IC 方塊的訊號一定保留（方塊照原本的 IC 放，不換成 NAND）。
+  const extra = displayInverters(d, options);
+  const units = [...decompose(d), ...extra];
+  if (options.gates !== 'nand' && options.gates !== 'nor') return units;
+  // 接到輸出端、顯示器、IC 方塊的訊號一定保留（方塊照原本的 IC 放，不換成 NAND / NOR）。
   const driver = drivers(d);
   const keep = d.wires
     .filter((w) => {
@@ -90,7 +101,22 @@ function unitsFor(d: LogicDiagram, options: ConvertOptions) {
       return isSink(kind) || kind === 'BLOCK';
     })
     .map((w) => driver.get(`${w.to.node}#${w.to.pin}`)!);
-  return toNandUnits(units, keep);
+  keep.push(...extra.map((u) => u.output));
+  return options.gates === 'nand' ? toNandUnits(units, keep) : toNorUnits(units, keep);
+}
+
+/** 顯示器上直接由邏輯驅動的腳（DP，或每段直接控制的段）：[腳的編號, 段名]。 */
+function directPins(node: LogicNode): Array<[number, string]> {
+  return node.segments ? SEGMENT_NAMES.map((s, p): [number, string] => [p, s]) : [[4, 'dp']];
+}
+
+/** 共陽極的顯示器亮的段要接低電位：DP 與每段直接控制的段先經過一個反相器（子專案 32）。 */
+function displayInverters(d: LogicDiagram, options: ConvertOptions): Unit[] {
+  if (options.display === 'cc') return [];
+  const driver = drivers(d);
+  return d.nodes
+    .filter((n) => n.kind === 'DISPLAY')
+    .flatMap((n) => directPins(n).flatMap(([p]) => (driver.has(`${n.id}#${p}`) ? [{ kind: 'NOT' as const, inputs: [driver.get(`${n.id}#${p}`)!], output: `inv~${n.id}~${p}` }] : [])));
 }
 
 /** 規格（2026-10-13 logic-to-breadboard）第 4、5 節。 */
@@ -135,12 +161,24 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const icArea = eic ? 2 : 1;
   const icBlocks: Array<{ width: number; place: (x: number) => void }> = [];
 
-  blocks[1].push({
-    width: swPins / 2,
-    place: (x) => components.push(comp('SW1', swDef, hole(`F${x}`, 1), { board: BOARD_ID, props: { switchStates: Array(swPins / 2).fill(false), labels: Array.from({ length: swPins / 2 }, (_, k) => inputs[k]?.name ?? '') } })),
-  });
+  const useButtons = options.inputs === 'button';
+  const buttonIds = inputs.map((_, k) => `BTN${k + 1}`);
+  if (useButtons) {
+    // 子專案 30：每個輸入一顆按鈕，跨過凹槽（第 1、2 腳是一側，第 3、4 腳是另一側）；一側接電源、另一側接輸入。
+    inputs.forEach((node, k) => {
+      const id = buttonIds[k];
+      blocks[1].push({ width: 3, place: (x) => components.push(comp(id, 'pushbutton', hole(`F${x}`, 1), { board: BOARD_ID, props: { labels: [node.name ?? ''] } })) });
+      tie(`${id}#1`, options.switchTo === 'vcc' ? VCC : GND);
+      tie(`${id}#3`, node.id);
+    });
+  } else {
+    blocks[1].push({
+      width: swPins / 2,
+      place: (x) => components.push(comp('SW1', swDef, hole(`F${x}`, 1), { board: BOARD_ID, props: { switchStates: Array(swPins / 2).fill(false), labels: Array.from({ length: swPins / 2 }, (_, k) => inputs[k]?.name ?? '') } })),
+    });
+  }
   // 開關接電源的那一側要靠近那條電源軌：+5 V 在上方（E 列那一側的腳 9 − k），GND 在下方（F 列那一側的腳 k）。
-  inputs.forEach((node, k) => {
+  if (!useButtons) inputs.forEach((node, k) => {
     const top = `SW1#${swPins - k}`;
     const bottom = `SW1#${k + 1}`;
     if (options.switchTo === 'vcc') {
@@ -183,14 +221,22 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     BLOCK_PINS[chip].outputs.forEach((name, i) => tie(`${ic}#${numberOf(name)}`, signalOf(node.id, i)));
   });
 
-  // ---- 7 段顯示器：74LS47 + 共陽極顯示器 + 7 顆 220 Ω（規格 2026-10-13 seven-seg 第 6 節） ----
+  // ---- 7 段顯示器：74LS47 + 共陽極顯示器 + 7 顆 220 Ω（規格 2026-10-13 seven-seg 第 6 節）；
+  //      子專案 32：共陰極時是 74LS48 + 共陰極顯示器，共同腳接 GND ----
   const pinNo = (defId: string, name: string) => getComponentDefinition(defId)!.pins.filter((p) => p.name === name).map((p) => p.number);
-  const displayParts: Array<{ node: (typeof displays)[number]; ic: string; ds: string }> = displays.map((node, k) => ({ node, ic: `U${plans.length + chips.length + k + 1}`, ds: `DS${k + 1}` }));
+  const cc = options.display === 'cc';
+  const decoder = cc ? '74LS48' : '74LS47';
+  const dsDef = cc ? '7seg-cc' : '7seg-ca';
+  const segOut = (s: string) => (cc ? s : `/${s}`);
+  // 每段直接控制的顯示器不用解碼 IC。
+  let nextIc = plans.length + chips.length;
+  const displayParts: Array<{ node: (typeof displays)[number]; ic: string | null; ds: string }> = displays.map((node, k) => ({ node, ic: node.segments ? null : `U${++nextIc}`, ds: `DS${k + 1}` }));
   for (const { node, ic } of displayParts) {
-    icBlocks.push({ width: 8, place: (x) => components.push(comp(ic, '74LS47', hole(`F${x}`, icArea), { board: BOARD_ID })) });
-    ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo('74LS47', name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
-    for (const name of ['VCC', '/LT', '/BI/RBO', '/RBI']) pinNo('74LS47', name).forEach((p) => tie(`${ic}#${p}`, VCC));
-    pinNo('74LS47', 'GND').forEach((p) => tie(`${ic}#${p}`, GND));
+    if (!ic) continue;
+    icBlocks.push({ width: 8, place: (x) => components.push(comp(ic, decoder, hole(`F${x}`, icArea), { board: BOARD_ID })) });
+    ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
+    for (const name of ['VCC', '/LT', '/BI/RBO', '/RBI']) pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, VCC));
+    pinNo(decoder, 'GND').forEach((p) => tie(`${ic}#${p}`, GND));
   }
 
   const twoLeads: TwoLead[] = [];
@@ -209,14 +255,23 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   });
   const displayIds: Record<string, string> = {};
   for (const { node, ic, ds } of displayParts) {
-    for (const s of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
-      const out = `${ic}:/${s}`;
+    // DP 與每段直接控制的段：共陰極直接經過電阻；共陽極先經過反相器（見 displayInverters）。
+    for (const [p, s] of directPins(node)) {
+      const signal = driver.get(`${node.id}#${p}`);
+      if (!signal) continue;
       const into = `${ds}:${s}`;
-      pinNo('74LS47', `/${s}`).forEach((p) => tie(`${ic}#${p}`, out));
-      pinNo('7seg-ca', s).forEach((p) => tie(`${ds}#${p}`, into));
+      pinNo(dsDef, s).forEach((n) => tie(`${ds}#${n}`, into));
+      twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [cc ? signal : `inv~${node.id}~${p}`, into], area: 3, group: ds });
+    }
+    if (ic) for (const s of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
+      const out = `${ic}:${segOut(s)}`;
+      const into = `${ds}:${s}`;
+      pinNo(decoder, segOut(s)).forEach((p) => tie(`${ic}#${p}`, out));
+      pinNo(dsDef, s).forEach((p) => tie(`${ds}#${p}`, into));
       twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [out, into], area: 3, group: ds });
     }
-    pinNo('7seg-ca', 'CA').forEach((p) => tie(`${ds}#${p}`, VCC));
+    if (cc) pinNo(dsDef, 'CC').forEach((p) => tie(`${ds}#${p}`, GND));
+    else pinNo(dsDef, 'CA').forEach((p) => tie(`${ds}#${p}`, VCC));
     displayIds[node.id] = ds;
   }
   for (const t of twoLeads) {
@@ -262,7 +317,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     if (shown)
       blocks[3].push({
         width: 5,
-        place: (x) => components.push(comp(shown.ds, '7seg-ca', hole(`H${x}`, eic ? 3 : undefined), { board: BOARD_ID, props: { labels: [shown.node.name ?? ''] } as never })),
+        place: (x) => components.push(comp(shown.ds, dsDef, hole(`H${x}`, eic ? 3 : undefined), { board: BOARD_ID, props: { labels: [shown.node.name ?? ''] } as never })),
       });
   }
   // 順序：開關、輸入的電阻（靠近開關）、IC、輸出的電阻與 LED。MB-102 時全部排在同一列。
@@ -357,12 +412,14 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const ics: Record<string, number> = {};
   for (const p of plans) ics[p.defId] = (ics[p.defId] ?? 0) + 1;
   for (const b of chips) ics[b.chip!] = (ics[b.chip!] ?? 0) + 1;
-  if (displays.length > 0) ics['74LS47'] = displays.length;
+  const decoders = displays.filter((n) => !n.segments).length;
+  if (decoders > 0) ics[decoder] = decoders;
   return {
     ok: true,
     circuit,
-    bom: { ics, switch: swDef, resistors: twoLeads.filter((t) => t.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
-    switchId: 'SW1',
+    bom: { ics, switch: useButtons ? null : swDef, buttons: useButtons ? inputs.length : 0, resistors: twoLeads.filter((t) => t.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
+    switchId: useButtons ? null : 'SW1',
+    ...(useButtons ? { buttons: buttonIds } : {}),
     inputs: inputs.map((n) => n.id),
     leds,
     displays: displayIds,

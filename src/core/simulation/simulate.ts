@@ -38,7 +38,8 @@ export interface SimCircuit {
   ics: SimIC[];
   leds: Array<{ componentId: string; anode: string | null; cathode: string | null }>;
   /** 7 段顯示器：共陽極節點與每一段的節點（依 SEGMENT_ORDER）。 */
-  displays: Array<{ componentId: string; anode: string | null; segments: Array<{ name: string; node: string | null }> }>;
+  /** 子專案 32：common 是共同腳的節點，cathode 是共陰極（段接高電位才亮）。 */
+  displays: Array<{ componentId: string; common: string | null; cathode: boolean; segments: Array<{ name: string; node: string | null }> }>;
 }
 
 /** 模擬的外部輸入：按鈕是否按下、每個時脈目前的電位。 */
@@ -177,12 +178,14 @@ export function compileSimulation(circuit: Circuit): SimCircuit {
         break;
       }
       case 'seven-seg': {
-        const anode = def.pins.find((p) => p.role === 'anode');
+        // 共陽極：CA 是陽極、段是陰極；共陰極（子專案 32）：CC 是陰極、段是陽極。
+        const cathode = def.pins.some((p) => p.name === 'CC');
+        const anode = def.pins.find((p) => p.name === (cathode ? 'CC' : 'CA'));
         const segments = def.pins
-          .filter((p) => p.role === 'cathode')
+          .filter((p) => p.role === (cathode ? 'anode' : 'cathode'))
           .sort((a, b) => SEGMENT_ORDER.indexOf(a.name) - SEGMENT_ORDER.indexOf(b.name))
           .map((p) => ({ name: p.name, node: nodeOf(id, p.number) }));
-        sim.displays.push({ componentId: id, anode: anode ? nodeOf(id, anode.number) : null, segments });
+        sim.displays.push({ componentId: id, common: anode ? nodeOf(id, anode.number) : null, cathode, segments });
         break;
       }
       case 'ic': {
@@ -297,9 +300,10 @@ function resolve(sim: SimCircuit, node: (n: string) => string, outputs: SimState
   };
   throughResistors();
   // 子專案 19：理想開關。斷開的指撥開關一端是 0 / 1、另一端浮接（沒有上 / 下拉電阻）時，浮接端當成相反的電位。
+  // 子專案 30：放開的按鈕也一樣。
   const ideal = new Map<string, Level>();
-  for (const s of sim.switches) {
-    if (s.closed) continue;
+  const open = [...sim.switches.filter((s) => !s.closed), ...sim.buttons.filter((b) => !inputs.pressed[b.componentId])];
+  for (const s of open) {
     const a = node(s.a);
     const b = node(s.b);
     if (a === b) continue;
@@ -397,7 +401,8 @@ export function settle(sim: SimCircuit, state: SimState, inputs: SimInputs): { s
 
   const litSegments: Record<string, string[]> = {};
   for (const d of sim.displays) {
-    litSegments[d.componentId] = levelOf(d.anode) === 1 ? d.segments.filter((s) => levelOf(s.node) === 0).map((s) => s.name) : [];
+    const on: Level = d.cathode ? 0 : 1;
+    litSegments[d.componentId] = levelOf(d.common) === on ? d.segments.filter((s) => levelOf(s.node) === (d.cathode ? 1 : 0)).map((s) => s.name) : [];
   }
 
   return {

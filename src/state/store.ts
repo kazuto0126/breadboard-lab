@@ -14,7 +14,7 @@ import {
   type SimResult,
   type SimState,
 } from '../core/simulation/simulate';
-import { analyzeCircuit } from '../editor/analysis';
+import { analyzeCircuit, holeLabel } from '../editor/analysis';
 import { addBoard, boardMoveProblem, crossBoardWires, detachBoard, groupMembers, MAX_BOARDS, moveBoards, removeBoard } from '../editor/boards';
 import { pruneChecklist, setChecked, type ChecklistState } from '../editor/checklist';
 import {
@@ -34,7 +34,7 @@ import {
 import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
 import { LOGIC_EXAMPLES } from '../logic/examples';
 import { toBreadboard, type ConvertOptions } from '../logic/toBreadboard';
-import { withSwitches, type SwitchBinding } from '../logic/verifyBreadboard';
+import { pressedFor, withSwitches, type SwitchBinding } from '../logic/verifyBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../logic/types';
 import { logicDirty, useLogic } from './logic';
 import { boardFrames, gridBounds, MM_TO_PX, worldBounds } from '../editor/geometry';
@@ -49,7 +49,7 @@ import type { GridPoint } from '../types/geometry';
 import type { IcMove, RoutingMetrics, RoutingResult } from '../types/routing';
 import { RoutingCancelled, startRouting, type RoutingJob } from '../workers/routingClient';
 import * as persistence from './persistence';
-import { addNote, moveNote, NOTE_WIDTH_MM, removeNote, setNoteColor, setNoteTarget, setNoteText } from '../editor/notes';
+import { addNote, moveNote, NOTE_WIDTH_MM, removeNote, setNoteColor, setNoteHole, setNoteTarget, setNoteText } from '../editor/notes';
 
 export type Selection =
   | { kind: 'component'; id: string }
@@ -194,6 +194,8 @@ export interface AppActions {
   setNoteText(id: string, text: string): void;
   setNoteColor(id: string, color: NoteColor): void;
   setNoteTarget(id: string, target: string | null): void;
+  /** 子專案 29：便條指向一個孔（null 是不指向孔）。 */
+  setNoteHole(id: string, point: GridPoint | null): void;
   /** 位置是世界座標 mm（會對齊格點）。 */
   moveNote(id: string, x: number, y: number): void;
   deleteNote(id: string): void;
@@ -765,6 +767,11 @@ export const useStore = create<Store>()((set, get) => {
       commit(target ? `便條 ${id} 指向 ${target}` : `便條 ${id} 不指向元件`, setNoteTarget(get().circuit, id, target));
     },
 
+    setNoteHole(id, point) {
+      const c = get().circuit;
+      commit(point ? `便條 ${id} 指向 ${holeLabel(c, point)}` : `便條 ${id} 不指向孔`, setNoteHole(c, id, point));
+    },
+
     moveNote(id, x, y) {
       commit(`移動便條 ${id}`, moveNote(get().circuit, id, x, y));
     },
@@ -1083,6 +1090,8 @@ export const useStore = create<Store>()((set, get) => {
       // 撥開關不是結構編輯：模擬中也可以撥（和在板上點開關一樣）。
       commit(`把開關撥成 ${text}`, withSwitches(s.circuit, inputs, bits));
       if (!get().simulation && !get().routing) get().startSimulation();
+      // 子專案 30：按鈕照那一列按住或放開。
+      if (get().simulation) for (const [id, down] of Object.entries(pressedFor(inputs, bits))) get().pressButton(id, down);
     },
 
     loadExampleLogic(id) {

@@ -73,3 +73,24 @@ test('預設不加上 / 下拉電阻，勾選後零件清單多出輸入電阻',
   await dialog.getByLabel(/加上 \/ 下拉電阻/).check();
   await expect(preview).toContainText('電阻 × 4');
 });
+
+test('轉成麵包板時輸入用按鈕：每個輸入一顆、名稱在板上，依名稱比對全部一致（子專案 30）', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: '多數決電路（圖 2-5）' }).click();
+  await page.getByRole('button', { name: '轉成麵包板…' }).click();
+  const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
+  await dialog.getByText('按鈕', { exact: true }).click();
+  await expect(dialog.getByTestId('convert-preview')).toContainText('按鈕 × 3');
+  await dialog.getByRole('button', { name: '轉換' }).click();
+
+  for (const id of ['BTN1', 'BTN2', 'BTN3']) await expect(page.locator(`g[data-component-id="${id}"]`)).toHaveCount(1);
+  for (const name of ['A', 'B', 'C']) await expect(page.locator(`[data-label="${name}"]`)).toHaveCount(1);
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 60_000 });
+  await page.getByRole('tab', { name: /檢查/ }).click();
+  await expect(page.getByTestId('diagram-check')).toContainText('8 種輸入組合，麵包板的模擬結果和真值表全部一致', { timeout: 60_000 });
+  await expect(page.getByTestId('diagram-check')).toContainText('A → BTN1（按下 = 1）');
+});

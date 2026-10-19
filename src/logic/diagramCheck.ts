@@ -54,6 +54,7 @@ export function bindByNames(io: NamedIo, circuit: Circuit): { bindings: Bindings
   const { inputs, outputs } = io;
   const analysis = analyzeCircuit(circuit);
   const switches = labelsOf(circuit, 'dip-switch');
+  const buttons = labelsOf(circuit, 'pushbutton');
   const leds = labelsOf(circuit, 'led');
   const displays = labelsOf(circuit, 'seven-seg');
   const bindings: Bindings = { inputs: [], leds: {}, displays: {} };
@@ -64,17 +65,27 @@ export function bindByNames(io: NamedIo, circuit: Circuit): { bindings: Bindings
 
   for (const node of inputs) {
     const name = node.name;
-    const found = switches.get(name) ?? [];
+    // 子專案 30：輸入可以是指撥開關的某一個開關，也可以是按鈕。
+    const asButtons = (buttons.get(name) ?? []).map((f) => ({ ...f, button: true }));
+    const found = [...(switches.get(name) ?? []).map((f) => ({ ...f, button: false })), ...asButtons];
     if (found.length === 0) {
-      missing.push(`輸入 ${name}：找不到名稱是 ${name} 的開關`);
+      missing.push(`輸入 ${name}：找不到名稱是 ${name} 的開關或按鈕`);
       continue;
     }
     matched++;
     if (found.length > 1) {
-      twice.push(`名稱 ${name} 用在好幾個開關：${found.map((f) => `${f.id} 第 ${f.index + 1} 個`).join('、')}`);
+      twice.push(`名稱 ${name} 用在好幾個開關或按鈕：${found.map((f) => (f.button ? f.id : `${f.id} 第 ${f.index + 1} 個`)).join('、')}`);
       continue;
     }
     const { id, index } = found[0];
+    if (found[0].button) {
+      // 按鈕：腳 1、2 是一側，腳 3、4 是另一側；接電源的那一側按下時送進輸入。
+      const kinds = [1, 3].map((p) => analysis.netByPin.get(`${id}#${p}`)?.kind).filter((k) => k === 'power' || k === 'ground');
+      if (kinds.length === 0) rails.push(`${id}（${name}）沒有接到 +5 V 或 GND`);
+      else if (kinds.length === 2) rails.push(`${id}（${name}）兩邊都接到電源`);
+      else bindings.inputs.push({ node: node.id, switchId: id, index: 0, onIs: kinds[0] === 'power' ? 1 : 0, button: true });
+      continue;
+    }
     const instance = circuit.components.find((c) => c.id === id)!;
     const n = getComponentDefinition(instance.defId)!.pins.length;
     // 第 index 個開關接通第 index + 1 腳和第 n − index 腳。
@@ -103,11 +114,11 @@ export function bindByNames(io: NamedIo, circuit: Circuit): { bindings: Bindings
   return { bindings, issues: [...missing, ...twice, ...rails], matched };
 }
 
-/** 「A → SW1 第 1 個開關（ON = 1）、X → D1」。 */
+/** 「A → SW1 第 1 個開關（ON = 1）、B → BTN1（按下 = 1）、X → D1」。 */
 function mappingText(io: NamedIo, b: Bindings): string {
   const name = (id: string) => io.inputs.find((n) => n.id === id)?.name ?? id;
   return [
-    ...b.inputs.map((s) => `${name(s.node)} → ${s.switchId} 第 ${s.index + 1} 個開關（ON = ${s.onIs}）`),
+    ...b.inputs.map((s) => (s.button ? `${name(s.node)} → ${s.switchId}（按下 = ${s.onIs}）` : `${name(s.node)} → ${s.switchId} 第 ${s.index + 1} 個開關（ON = ${s.onIs}）`)),
     ...io.outputs.map((o) => `${o.name} → ${(o.display ? b.displays : b.leds)[o.id]}`),
   ].join('、');
 }
@@ -131,7 +142,7 @@ export function checkAgainstDiagram(d: LogicDiagram, circuit: Circuit): DiagramC
  */
 export function checkAgainstTask(task: TruthTask | undefined, circuit: Circuit): DiagramCheck {
   if (!task || circuit.components.length === 0) return { kind: 'none' };
-  const io: NamedIo = { inputs: task.inputs.map((name) => ({ id: name, name })), outputs: task.outputs.map((name) => ({ id: name, name, display: false })) };
+  const io: NamedIo = { inputs: task.inputs.map((name) => ({ id: name, name })), outputs: task.outputs.map((name) => ({ id: name, name, display: task.displays?.includes(name) ?? false })) };
   const { bindings, issues, matched } = bindByNames(io, circuit);
   if (matched === 0) return { kind: 'hint' };
   if (issues.length > 0) return { kind: 'incomplete', issues };

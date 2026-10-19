@@ -27,6 +27,8 @@ export interface Note {
   color: NoteColor;
   /** 指向的元件 ID。 */
   target?: string;
+  /** 子專案 29：指向的孔（和 target 只會有一個）。 */
+  targetHole?: GridPoint;
 }
 
 export interface Circuit {

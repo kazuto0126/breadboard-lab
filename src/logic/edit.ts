@@ -1,4 +1,5 @@
 import { isBlockChip } from './blocks';
+import { dropLogicNoteTargets } from './notes';
 import { boxOf, inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
 import { canRotate, isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
@@ -38,10 +39,16 @@ function defaultInputs(kind: GateKind): number {
   return kind === 'NOT' ? 1 : 2;
 }
 
-export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, chip?: BlockChip): EditResult {
+/** 子專案 28：元件的方向（放置前先轉好、鏡射）。 */
+export interface Turn {
+  rotation?: Rotation;
+  flip?: true;
+}
+
+export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, chip?: BlockChip, turn: Turn = {}): EditResult {
   const id = nextNodeId(d, kind);
   if (kind === 'BLOCK' && !isBlockChip(chip)) return fail(d, '要指定哪一顆 IC');
-  const node: LogicNode =
+  const plain: LogicNode =
     kind === 'BLOCK'
       ? { id, kind, x, y, chip }
       : kind === 'HIGH' || kind === 'LOW'
@@ -51,6 +58,7 @@ export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, c
       : kind === 'OUTPUT' || kind === 'DISPLAY'
         ? { id, kind, x, y, name: defaultName(d, kind) }
         : { id, kind, x, y, inputs: defaultInputs(kind) };
+  const node: LogicNode = canRotate(kind) ? { ...plain, ...(turn.rotation ? { rotation: turn.rotation } : {}), ...(turn.flip ? { flip: true as const } : {}) } : plain;
   if (!canPlace(d, node)) return fail(d, '這裡已經有元件了');
   return { ok: true, diagram: { ...d, nodes: [...d.nodes, node] }, id };
 }
@@ -70,7 +78,9 @@ export function moveNode(d: LogicDiagram, id: string, x: number, y: number): Edi
 
 export function removeNodes(d: LogicDiagram, ids: string[]): LogicDiagram {
   const gone = new Set(ids);
-  return { ...d, nodes: d.nodes.filter((n) => !gone.has(n.id)), wires: d.wires.filter((w) => !gone.has(w.from) && !gone.has(w.to.node)) };
+  // 子專案 29：指向被刪掉的元件的便條拿掉指向。
+  const notes = dropLogicNoteTargets(d.notes, gone);
+  return { ...d, nodes: d.nodes.filter((n) => !gone.has(n.id)), wires: d.wires.filter((w) => !gone.has(w.from) && !gone.has(w.to.node)), ...(notes ? { notes } : {}) };
 }
 
 export function removeWire(d: LogicDiagram, id: string): LogicDiagram {
@@ -207,7 +217,7 @@ export function pasteNodes(d: LogicDiagram, clip: LogicClipboard): { ok: true; d
 function turnNodes(d: LogicDiagram, ids: string[], to: (n: LogicNode) => number): EditResult {
   const chosen = new Set(ids);
   const turning = d.nodes.filter((n) => chosen.has(n.id) && canRotate(n.kind));
-  if (turning.length === 0) return fail(d, '只有邏輯閘和 IC 方塊可以轉向');
+  if (turning.length === 0) return fail(d, '7 段顯示器不能轉向');
   const moved = new Set(turning.map((n) => n.id));
   const nodes = d.nodes.map((n) => {
     if (!moved.has(n.id)) return n;
@@ -233,4 +243,39 @@ export function rotateNodes(d: LogicDiagram, ids: string[]): EditResult {
 /** 直接設定方向（屬性面板的方向按鈕）。 */
 export function setRotation(d: LogicDiagram, id: string, angle: 0 | Rotation): EditResult {
   return turnNodes(d, [id], () => angle);
+}
+
+/** 子專案 28：左右鏡射（方框不變，位置不動）；把 flip 設成 to(node)。 */
+function mirrorNodes(d: LogicDiagram, ids: string[], to: (n: LogicNode) => boolean): EditResult {
+  const chosen = new Set(ids);
+  if (!d.nodes.some((n) => chosen.has(n.id) && canRotate(n.kind))) return fail(d, '7 段顯示器不能轉向');
+  const nodes = d.nodes.map((n) => {
+    if (!chosen.has(n.id) || !canRotate(n.kind)) return n;
+    const { flip: _old, ...rest } = n;
+    return to(n) ? { ...rest, flip: true as const } : rest;
+  });
+  return { ok: true, diagram: { ...d, nodes } };
+}
+
+/** 鏡射（快捷鍵 M）：鏡射過的再按一次就翻回來。 */
+export function flipNodes(d: LogicDiagram, ids: string[]): EditResult {
+  return mirrorNodes(d, ids, (n) => !n.flip);
+}
+
+export function setFlip(d: LogicDiagram, id: string, flip: boolean): EditResult {
+  return mirrorNodes(d, [id], () => flip);
+}
+
+/**
+ * 子專案 32：顯示器切換成每段直接控制（8 個輸入 a–g、dp）或 BCD（A–D、DP）。腳的意思換了，接到這個顯示器的線全部拿掉；
+ * 變高後會重疊就不換。
+ */
+export function setDisplayMode(d: LogicDiagram, id: string, segments: boolean): EditResult {
+  const node = d.nodes.find((n) => n.id === id);
+  if (!node || node.kind !== 'DISPLAY') return fail(d, '找不到顯示器');
+  if (!!node.segments === segments) return { ok: true, diagram: d };
+  const { segments: _old, ...rest } = node;
+  const next: LogicNode = segments ? { ...rest, segments: true } : rest;
+  if (d.nodes.some((n) => n.id !== id && overlaps(n, next))) return fail(d, '顯示器變高後會和別的元件重疊');
+  return { ok: true, diagram: { ...replaceNode(d, next), wires: d.wires.filter((w) => w.to.node !== id) } };
 }

@@ -1,5 +1,6 @@
 import { isBlockChip } from './blocks';
 import { inputCountOf, outputCountOf, overlaps } from './shapes';
+import { parseLogicNotes } from './notes';
 import { parseTask } from './task';
 import { canRotate, isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
@@ -33,11 +34,21 @@ function parseNode(raw: unknown, i: number): LogicNode {
     node.name = n.name as string;
     if (node.kind === 'INPUT') node.value = n.value === 1 ? 1 : 0;
   }
-  // 子專案 26：轉向（0 不寫）。
+  // 子專案 26：轉向（0 不寫）；子專案 28：鏡射（不鏡射不寫）。
   if (n.rotation !== undefined && n.rotation !== 0) {
     if (![90, 180, 270].includes(n.rotation as number)) fail(`元件 ${node.id} 的方向 ${String(n.rotation)} 不合法（只能是 0、90、180、270）`);
     if (!canRotate(node.kind)) fail(`元件 ${node.id}（${node.kind}）不能轉向`);
     node.rotation = n.rotation as Rotation;
+  }
+  // 子專案 32：每段直接控制的顯示器。
+  if (n.segments === true) {
+    if (node.kind !== 'DISPLAY') fail(`元件 ${node.id} 不是顯示器，不能每段直接控制`);
+    node.segments = true;
+  }
+  if (n.flip !== undefined && n.flip !== false) {
+    if (n.flip !== true) fail(`元件 ${node.id} 的鏡射要是 true 或不寫`);
+    if (!canRotate(node.kind)) fail(`元件 ${node.id}（${node.kind}）不能轉向`);
+    node.flip = true;
   }
   return node;
 }
@@ -84,10 +95,19 @@ export function parseLogicDiagram(raw: unknown): { ok: true; diagram: LogicDiagr
       if (pins.has(key)) fail(`${w.to.node} 的第 ${w.to.pin + 1} 個輸入接了兩條線`);
       pins.add(key);
     }
-    if (r.task === undefined) return { ok: true, diagram: { version: 1, nodes, wires } };
-    const task = parseTask(r.task);
-    if (!task.ok) return { ok: false, error: task.reason };
-    return { ok: true, diagram: { version: 1, nodes, wires, task: task.task } };
+    const diagram: LogicDiagram = { version: 1, nodes, wires };
+    if (r.task !== undefined) {
+      const task = parseTask(r.task);
+      if (!task.ok) return { ok: false, error: task.reason };
+      diagram.task = task.task;
+    }
+    // 子專案 29：便條。
+    if (r.notes !== undefined) {
+      const notes = parseLogicNotes(r.notes, new Set(nodes.map((n) => n.id)));
+      if (!notes.ok) return { ok: false, error: notes.reason };
+      if (notes.notes.length > 0) diagram.notes = notes.notes;
+    }
+    return { ok: true, diagram };
   } catch (err) {
     if (err instanceof LogicFormatError) return { ok: false, error: err.message };
     throw err;

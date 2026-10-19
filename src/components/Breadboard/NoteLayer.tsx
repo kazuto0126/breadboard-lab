@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
-import { MM_TO_PX, type BoardFrame } from '../../editor/geometry';
+import { MM_TO_PX, toWorld, type BoardFrame } from '../../editor/geometry';
 import { NOTE_MAX, NOTE_WIDTH_MM } from '../../editor/notes';
 import { useStore } from '../../state/store';
 import type { Circuit, Note, NoteColor } from '../../types/circuit';
@@ -102,7 +102,10 @@ export function NoteLayer({ circuit, frames }: { circuit: Circuit; frames: Board
         const x = note.x * MM_TO_PX + (moving ? drag.dx : 0);
         const y = note.y * MM_TO_PX + (moving ? drag.dy : 0);
         const target = note.target ? circuit.components.find((c) => c.id === note.target) : undefined;
-        const rect = target ? componentRect(frames, target) : null;
+        const box = target ? componentRect(frames, target) : null;
+        // 子專案 29：指向孔時指到孔的中心。
+        const hole = note.targetHole ? toWorld(frames, note.targetHole) : null;
+        const rect = box ?? (hole ? { x: hole.x, y: hole.y, width: 0, height: 0 } : null);
         return rect ? (
           <line
             key={`arrow-${note.id}`}

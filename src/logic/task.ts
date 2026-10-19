@@ -1,14 +1,16 @@
-import { evaluate, sortedIo, topoOrder, truthTable } from './evaluate';
+import { displayValue, evaluate, sortedIo, topoOrder, truthTable } from './evaluate';
 import { isSink, type LogicDiagram } from './types';
 
-/** 規格（2026-10-17 truth-table-task）第 2 節：真值表題目。 */
-export type TaskValue = 0 | 1 | 'X';
+/** 規格（2026-10-17 truth-table-task）第 2 節：真值表題目的一格：輸出端是 0 / 1，顯示器（子專案 32）是 0–15；X 是不在乎。 */
+export type TaskValue = number | 'X';
 
 export interface TruthTask {
   /** 輸入名稱，第一個是最高位元。 */
   inputs: string[];
   /** 輸出名稱。 */
   outputs: string[];
+  /** 子專案 32：哪些輸出是 7 段顯示器（BCD，格子是 0–15）；沒有時不寫。 */
+  displays?: string[];
   /** rows[r][k]：第 r 列（輸入照二進位從全 0 數到全 1）第 k 個輸出的值；X 是不在乎。 */
   rows: TaskValue[][];
 }
@@ -54,9 +56,45 @@ export function createTask(inputs: string[], outputs: string[]): TaskResult {
 
 const NEXT: Record<string, TaskValue> = { '0': 1, '1': 'X', X: 0 };
 
-/** 點一格：0 → 1 → X → 0。 */
+/** 子專案 32：第 k 個輸出是不是 7 段顯示器。 */
+export const isDisplayOutput = (task: TruthTask, k: number) => task.displays?.includes(task.outputs[k]) ?? false;
+
+/** 點一格：0 → 1 → X → 0；顯示器是 0 → 1 → … → 15 → X → 0。 */
 export function cycleCell(task: TruthTask, row: number, k: number): TruthTask {
-  return { ...task, rows: task.rows.map((r, i) => (i === row ? r.map((v, j) => (j === k ? NEXT[String(v)] : v)) : r)) };
+  const display = isDisplayOutput(task, k);
+  const next = (v: TaskValue): TaskValue => (!display ? NEXT[String(v)] : v === 'X' ? 0 : v >= 15 ? 'X' : v + 1);
+  return { ...task, rows: task.rows.map((r, i) => (i === row ? r.map((v, j) => (j === k ? next(v) : v)) : r)) };
+}
+
+/** 子專案 32：「0 1 2 … X」→ 每一列的數字（0–15，X 或 - 是不在乎）；要剛好 rowCount 個。 */
+export function parseDisplayValues(text: string, rowCount: number): { ok: true; values: TaskValue[] } | { ok: false; reason: string } {
+  const parts = text.split(/[\s,，、]+/).filter(Boolean);
+  if (parts.length !== rowCount) return { ok: false, reason: `要寫 ${rowCount} 個數字（有 ${parts.length} 個）` };
+  const values: TaskValue[] = [];
+  for (const part of parts) {
+    if (/^[xX-]$/.test(part)) values.push('X');
+    else if (/^\d+$/.test(part) && Number(part) <= 15) values.push(Number(part));
+    else return { ok: false, reason: `${part} 不是 0–15 的數字或 X` };
+  }
+  return { ok: true, values };
+}
+
+/** 子專案 32：顯示器那一欄改成這些值（每列一個）。 */
+export function setDisplayColumn(task: TruthTask, k: number, values: TaskValue[]): TaskResult {
+  if (!isDisplayOutput(task, k)) return { ok: false, reason: '這個輸出不是顯示器' };
+  if (values.length !== task.rows.length) return { ok: false, reason: `要寫 ${task.rows.length} 個數字（有 ${values.length} 個）` };
+  return { ok: true, task: { ...task, rows: task.rows.map((r, i) => r.map((v, j) => (j === k ? values[i] : v))) } };
+}
+
+/** 子專案 32：第 k 個輸出換成顯示器或輸出端；換回輸出端時超過 1 的值變成 0。 */
+export function setOutputKind(task: TruthTask, k: number, display: boolean): TaskResult {
+  const name = task.outputs[k];
+  if (name === undefined) return { ok: false, reason: '找不到這個輸出' };
+  if (isDisplayOutput(task, k) === display) return { ok: true, task };
+  const names = task.outputs.filter((n, j) => (j === k ? display : isDisplayOutput(task, j)));
+  const { displays: _old, ...rest } = task;
+  const rows = display ? task.rows : task.rows.map((r) => r.map((v, j) => (j === k && v !== 'X' && v > 1 ? 0 : v)));
+  return { ok: true, task: names.length > 0 ? { ...rest, displays: names, rows } : { ...rest, rows } };
 }
 
 /** 第 row 列的輸入值（第一個輸入是最高位元）。 */
@@ -95,9 +133,13 @@ export function setColumn(task: TruthTask, k: number, ones: number[], dontCares:
  */
 export function renameTask(task: TruthTask, inputs: string[], outputs: string[]): TaskResult {
   const made = createTask(inputs, outputs);
-  if (!made.ok || inputs.length !== task.inputs.length) return made;
+  if (!made.ok) return made;
+  // 子專案 32：同名的輸出保留它是不是顯示器。
+  const displays = (task.displays ?? []).filter((n) => outputs.includes(n));
+  const kinds = displays.length > 0 ? { displays } : {};
+  if (inputs.length !== task.inputs.length) return { ok: true, task: { ...made.task, ...kinds } };
   const from = outputs.map((name) => task.outputs.indexOf(name));
-  return { ok: true, task: { ...made.task, rows: task.rows.map((r) => from.map((j): TaskValue => (j < 0 ? 0 : r[j]))) } };
+  return { ok: true, task: { ...made.task, ...kinds, rows: task.rows.map((r) => from.map((j): TaskValue => (j < 0 ? 0 : r[j]))) } };
 }
 
 /** 讀檔時檢查題目（規格第 2 節）。 */
@@ -112,11 +154,20 @@ export function parseTask(raw: unknown): TaskResult {
   if (r.rows.length !== count) return { ok: false, reason: `題目的列數要是 ${count} 列（有 ${r.rows.length} 列）` };
   const width = r.outputs.length;
   const rows = r.rows as unknown[];
+  // 子專案 32：顯示器的欄是 0–15。
+  if (r.displays !== undefined && (!strings(r.displays) || !r.displays.every((n) => (r.outputs as string[]).includes(n)))) return { ok: false, reason: '題目的顯示器要是輸出的名稱' };
+  const displays = (r.displays as string[] | undefined) ?? [];
+  const isDisplay = (k: number) => displays.includes((r.outputs as string[])[k]);
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    if (!Array.isArray(row) || row.length !== width || !row.every((v) => v === 0 || v === 1 || v === 'X')) return { ok: false, reason: `題目第 ${i} 列的值只能是 0、1 或 X` };
+    if (!Array.isArray(row) || row.length !== width) return { ok: false, reason: `題目第 ${i} 列的值只能是 0、1 或 X` };
+    for (let k = 0; k < width; k++) {
+      const v = row[k];
+      if (isDisplay(k) ? !(v === 'X' || (Number.isInteger(v) && v >= 0 && v <= 15)) : !(v === 0 || v === 1 || v === 'X'))
+        return { ok: false, reason: isDisplay(k) ? `題目第 ${i} 列的顯示器要是 0–15 或 X` : `題目第 ${i} 列的值只能是 0、1 或 X` };
+    }
   }
-  return { ok: true, task: { inputs: [...r.inputs], outputs: [...r.outputs], rows: rows.map((row) => [...(row as TaskValue[])]) } };
+  return { ok: true, task: { inputs: [...r.inputs], outputs: [...r.outputs], ...(displays.length > 0 ? { displays: [...displays] } : {}), rows: rows.map((row) => [...(row as TaskValue[])]) } };
 }
 
 /** 規格第 3 節：邏輯圖和題目比對的結果。 */
@@ -138,19 +189,26 @@ export function compareDiagramToTask(d: LogicDiagram, task: TruthTask): TaskComp
   const issues: string[] = [];
   for (const name of task.inputs) if (!inputs.has(name)) issues.push(`題目的輸入 ${name} 在邏輯圖找不到輸入端`);
   for (const name of inputs.keys()) if (!task.inputs.includes(name)) issues.push(`邏輯圖的輸入端 ${name} 不在題目裡`);
-  for (const name of task.outputs) {
+  task.outputs.forEach((name, k) => {
     const sink = sinks.get(name);
+    if (isDisplayOutput(task, k)) {
+      // 子專案 32：題目的顯示器要對到 BCD 的 7 段顯示器。
+      if (!sink) issues.push(`題目的顯示器 ${name} 在邏輯圖找不到 7 段顯示器`);
+      else if (sink.kind !== 'DISPLAY') issues.push(`${name} 在邏輯圖是輸出端，題目的這個輸出是 7 段顯示器`);
+      else if (sink.segments) issues.push(`${name} 在邏輯圖是每段直接控制的顯示器，題目的顯示器要用 BCD（A–D）`);
+      return;
+    }
     if (!sink) issues.push(`題目的輸出 ${name} 在邏輯圖找不到輸出端`);
     else if (sink.kind === 'DISPLAY') issues.push(`${name} 在邏輯圖是 7 段顯示器，題目的輸出要接輸出端`);
-  }
+  });
   if (issues.length > 0) return { kind: 'issues', issues };
 
   const mismatches: Extract<TaskComparison, { kind: 'done' }>['mismatches'] = [];
   task.rows.forEach((want, row) => {
     const bits = rowBits(task, row);
     const v = evaluate(d, Object.fromEntries(task.inputs.map((name, i) => [inputs.get(name)!.id, bits[i]])));
-    const actual = task.outputs.map((name) => {
-      const b = v.nodes.get(sinks.get(name)!.id) ?? 'X';
+    const actual = task.outputs.map((name, k) => {
+      const b = isDisplayOutput(task, k) ? displayValue(sinks.get(name)!, v) : (v.nodes.get(sinks.get(name)!.id) ?? 'X');
       return b === 'X' ? '?' : String(b);
     });
     const expected = want.map(String);
@@ -163,12 +221,16 @@ export function compareDiagramToTask(d: LogicDiagram, task: TruthTask): TaskComp
 export function taskFromDiagram(d: LogicDiagram): TaskResult {
   const table = truthTable(d);
   if (!table.ok) return { ok: false, reason: table.reason === 'loop' ? `邏輯圖有迴圈（${(table.loop ?? []).join('、')}），不能算真值表` : table.reason === 'too-many' ? `輸入最多 ${MAX_TASK_INPUTS} 個（${1 << MAX_TASK_INPUTS} 列）` : '先在邏輯圖放輸入端和輸出端' };
-  const display = sortedIo(d).outputs.find((o) => o.kind === 'DISPLAY');
-  if (display) return { ok: false, reason: `題目的輸出只能是輸出端（邏輯圖有 7 段顯示器 ${display.name ?? display.id}）` };
+  const sinks = sortedIo(d).outputs;
+  // 子專案 32：BCD 顯示器可以當題目的輸出（格子是 0–15）；每段直接控制、用到小數點的不行。
+  const segments = sinks.find((o) => o.kind === 'DISPLAY' && o.segments);
+  if (segments) return { ok: false, reason: `題目的顯示器要用 BCD（${segments.name ?? segments.id} 是每段直接控制）` };
   const made = createTask(table.inputs, table.outputs);
   if (!made.ok) return made;
   if (table.rows.some((r) => r.out.includes('X'))) return { ok: false, reason: '邏輯圖還有沒接好的地方（有些輸出不確定），先把邏輯圖接好' };
-  return { ok: true, task: { ...made.task, rows: table.rows.map((r) => r.out.map((b): TaskValue => (b === 1 ? 1 : 0))) } };
+  if (table.rows.some((r) => r.out.some((b) => typeof b === 'string'))) return { ok: false, reason: '題目的顯示器不能用小數點（DP 有接線）' };
+  const displays = sinks.filter((o) => o.kind === 'DISPLAY').map((o) => o.name ?? o.id);
+  return { ok: true, task: { ...made.task, ...(displays.length > 0 ? { displays } : {}), rows: table.rows.map((r) => r.out.map((b): TaskValue => (typeof b === 'number' ? b : 0))) } };
 }
 
 /** 邏輯圖換上題目；undefined 是拿掉題目（不留下空的欄位）。 */

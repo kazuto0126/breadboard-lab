@@ -1,4 +1,4 @@
-import { getNode, holeName } from '../core/breadboard/naming';
+import { getNode, holeName, parseHoleName } from '../core/breadboard/naming';
 import { getBoard } from '../core/breadboard/registry';
 import { extractNets, pinKey } from '../core/circuit/nets';
 import { validateCircuit } from '../core/circuit/validate';
@@ -34,6 +34,22 @@ export function holeLabel(circuit: Pick<Circuit, 'boards'>, p: GridPoint): strin
   if (!instance) return `(${p.x}, ${p.y})`;
   const name = holeName(getBoard(instance.layoutId, instance.id), p) ?? `(${p.x}, ${p.y})`;
   return circuit.boards.length > 1 ? `${p.boardId}:${name}` : name;
+}
+
+/**
+ * 孔位名稱 → 孔（「F12」；有多塊板時要寫板子 ID，例如「b2:F12」）。子專案 29 從 MCP 搬過來，便條指向孔也用。
+ */
+export function parseHoleLabel(circuit: Pick<Circuit, 'boards'>, raw: string): { ok: true; point: GridPoint } | { ok: false; error: string } {
+  const text = raw.trim();
+  const colon = text.indexOf(':');
+  let boardId: string;
+  if (colon >= 0) boardId = text.slice(0, colon);
+  else if (circuit.boards.length === 1) boardId = circuit.boards[0].id;
+  else return { ok: false, error: `有好幾塊麵包板，孔位前面要加板子 ID（例如 ${circuit.boards[1].id}:${text}）` };
+  const instance = circuit.boards.find((b) => b.id === boardId);
+  if (!instance) return { ok: false, error: `沒有麵包板 ${boardId}` };
+  const point = parseHoleName(getBoard(instance.layoutId, instance.id), text);
+  return point ? { ok: true, point } : { ok: false, error: `孔位 ${text} 不存在` };
 }
 
 export function groupIdAt(circuit: Circuit, p: GridPoint): string | null {

@@ -1,13 +1,15 @@
 import { create } from 'zustand';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
-import { DEFAULT_VIEWPORT, fitRect, type Viewport } from '../editor/viewport';
-import { addNode, copyNodes, pasteNodes, removeNodes, removeWire, rotateNodes, setInputValue, type EditResult, type LogicClipboard } from '../logic/edit';
+import { DEFAULT_VIEWPORT, fitRect, screenToWorld, type Viewport } from '../editor/viewport';
+import { addLogicNote, moveLogicNote, removeLogicNote, setLogicNoteColor, setLogicNoteTarget, setLogicNoteText } from '../logic/notes';
+import type { NoteColor } from '../types/circuit';
+import { addNode, copyNodes, flipNodes, pasteNodes, removeNodes, removeWire, rotateNodes, setInputValue, type EditResult, type LogicClipboard, type Turn } from '../logic/edit';
 import { boxOf } from '../logic/shapes';
-import { emptyDiagram, type LogicDiagram, type NodeKind, type BlockChip } from '../logic/types';
+import { emptyDiagram, type LogicDiagram, type NodeKind, type BlockChip, type Rotation } from '../logic/types';
 import * as persistence from './persistence';
 
 /** 選取：一個元件、一條線，或框選的多個元件（子專案 15）。 */
-export type LogicSelection = { kind: 'node'; id: string } | { kind: 'wire'; id: string } | { kind: 'nodes'; ids: string[] } | null;
+export type LogicSelection = { kind: 'node'; id: string } | { kind: 'wire'; id: string } | { kind: 'nodes'; ids: string[] } | { kind: 'note'; id: string } | null;
 export type LogicTab = 'inspect' | 'table' | 'task' | 'check';
 /** 邏輯圖一格的畫面大小（px，縮放 1 時）。 */
 export const LOGIC_CELL = 20;
@@ -20,9 +22,13 @@ export interface LogicState {
   placing: NodeKind | null;
   /** 子專案 21：放置 IC 方塊時是哪一顆。 */
   placingChip: BlockChip | null;
+  /** 子專案 28：放置中的元件的方向（按 R / M 先轉好）。 */
+  placingTurn: Turn;
   viewport: Viewport;
   canvasSize: { width: number; height: number };
   tab: LogicTab;
+  /** 子專案 29：正在直接編輯文字的便條。 */
+  editingNote: string | null;
   load(d: LogicDiagram): void;
   markSaved(): void;
   apply(r: EditResult, label: string, selection?: LogicSelection): boolean;
@@ -36,6 +42,10 @@ export interface LogicState {
   copy(): void;
   /** 子專案 26：選取的閘與 IC 方塊順時針轉 90°（一個 Undo 步驟）；不能轉時回傳原因，沒有選取時什麼都不做。 */
   rotateSelection(): string | null;
+  /** 子專案 28：選取的元件左右鏡射（一個 Undo 步驟）；不能鏡射時回傳原因。 */
+  flipSelection(): string | null;
+  /** 子專案 28：放置中的元件先轉 90° 或鏡射。 */
+  turnPlacing(how: 'rotate' | 'flip'): void;
   paste(): boolean;
   toggleInput(id: string): void;
   setInputs(values: Record<string, 0 | 1>): void;
@@ -43,12 +53,23 @@ export interface LogicState {
   setCanvasSize(width: number, height: number): void;
   fit(): void;
   setTab(tab: LogicTab): void;
+  /** 子專案 29：便條（格子座標）；新增後選取並開始編輯。 */
+  addNoteAt(x: number, y: number): void;
+  addNoteAtCenter(): void;
+  startNoteEdit(id: string): void;
+  /** 結束編輯：空白的便條直接拿掉。 */
+  finishNoteEdit(text: string): void;
+  moveNote(id: string, x: number, y: number): void;
+  setNoteText(id: string, text: string): void;
+  setNoteColor(id: string, color: NoteColor): void;
+  setNoteTarget(id: string, target: string | null): void;
+  deleteNote(id: string): void;
 }
 
-export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'viewport' | 'canvasSize' | 'tab'> {
+export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote'> {
   const restored = typeof window !== 'undefined' ? persistence.loadAutosave()?.logic : undefined;
   const diagram = restored ?? emptyDiagram();
-  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect' };
+  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null };
 }
 
 /** 規格第 1、2 節：邏輯圖自己的狀態與 Undo（不進主 store 的 Undo）。 */
@@ -56,7 +77,7 @@ export const useLogic = create<LogicState>((set, get) => ({
   ...initialLogicState(),
 
   load(d) {
-    set({ diagram: d, saved: d, history: emptyHistory(), selection: null, placing: null });
+    set({ diagram: d, saved: d, history: emptyHistory(), selection: null, placing: null, editingNote: null });
     get().fit();
   },
   markSaved() {
@@ -80,11 +101,11 @@ export const useLogic = create<LogicState>((set, get) => ({
     set({ selection });
   },
   startPlacing(placing, chip) {
-    set({ placing, placingChip: placing === 'BLOCK' ? (chip ?? null) : null, selection: null });
+    set({ placing, placingChip: placing === 'BLOCK' ? (chip ?? null) : null, placingTurn: {}, selection: null });
   },
   place(kind, x, y) {
     const chip = get().placingChip ?? undefined;
-    const r = addNode(get().diagram, kind, x, y, chip);
+    const r = addNode(get().diagram, kind, x, y, chip, get().placingTurn);
     const name = kind === 'INPUT' ? '輸入端' : kind === 'OUTPUT' ? '輸出端' : kind === 'DISPLAY' ? '7 段顯示器' : kind === 'HIGH' ? '5V' : kind === 'LOW' ? 'GND' : kind === 'BLOCK' ? `${chip} 方塊` : kind;
     const done = get().apply(r, `新增 ${name}`, r.ok && r.id ? { kind: 'node', id: r.id } : undefined);
     if (done) set({ placing: null, placingChip: null });
@@ -93,6 +114,10 @@ export const useLogic = create<LogicState>((set, get) => ({
   deleteSelection() {
     const { selection, diagram } = get();
     if (!selection) return;
+    if (selection.kind === 'note') {
+      get().deleteNote(selection.id);
+      return;
+    }
     const ids = selectedIds(selection);
     const next = selection.kind === 'wire' ? removeWire(diagram, selection.id) : removeNodes(diagram, ids);
     get().apply({ ok: true, diagram: next }, selection.kind === 'wire' ? '刪除線' : `刪除 ${ids.join('、')}`, null);
@@ -108,6 +133,25 @@ export const useLogic = create<LogicState>((set, get) => ({
     if (!r.ok) return r.reason;
     get().apply(r, '轉向');
     return null;
+  },
+  flipSelection() {
+    const ids = selectedIds(get().selection);
+    if (ids.length === 0) return null;
+    const r = flipNodes(get().diagram, ids);
+    if (!r.ok) return r.reason;
+    get().apply(r, '鏡射');
+    return null;
+  },
+  turnPlacing(how) {
+    const t = get().placingTurn;
+    if (how === 'flip') {
+      const { flip: _old, ...rest } = t;
+      set({ placingTurn: t.flip ? rest : { ...rest, flip: true } });
+      return;
+    }
+    const angle = ((t.rotation ?? 0) + 90) % 360;
+    const { rotation: _r, ...rest } = t;
+    set({ placingTurn: angle === 0 ? rest : { ...rest, rotation: angle as Rotation } });
   },
   paste() {
     if (!clipboard) return false;
@@ -144,6 +188,56 @@ export const useLogic = create<LogicState>((set, get) => ({
   setTab(tab) {
     set({ tab });
   },
+  addNoteAt(x, y) {
+    const r = addLogicNote(get().diagram, x, y);
+    get().apply({ ok: true, diagram: r.diagram }, '新增便條', { kind: 'note', id: r.id });
+    set({ editingNote: r.id, placing: null, placingChip: null });
+  },
+  addNoteAtCenter() {
+    const { viewport, canvasSize } = get();
+    const w = screenToWorld(viewport, canvasSize.width / 2, canvasSize.height / 2);
+    // 便條的左上角放在畫面中間往左上一點（便條大約 4 × 2 格）。
+    get().addNoteAt(Math.round(w.x / LOGIC_CELL) - 2, Math.round(w.y / LOGIC_CELL) - 1);
+  },
+  startNoteEdit(id) {
+    if (get().diagram.notes?.some((n) => n.id === id)) set({ editingNote: id, selection: { kind: 'note', id } });
+  },
+  finishNoteEdit(text) {
+    const id = get().editingNote;
+    if (!id) return;
+    set({ editingNote: null });
+    const d = get().diagram;
+    if (text.trim() === '') get().apply({ ok: true, diagram: removeLogicNote(d, id) }, `刪除空白便條 ${id}`, null);
+    else {
+      const next = setLogicNoteText(d, id, text);
+      if (next !== d) get().apply({ ok: true, diagram: next }, `便條 ${id} 改文字`);
+    }
+  },
+  moveNote(id, x, y) {
+    const d = get().diagram;
+    const next = moveLogicNote(d, id, x, y);
+    if (next !== d) get().apply({ ok: true, diagram: next }, `移動便條 ${id}`);
+  },
+  setNoteText(id, text) {
+    const d = get().diagram;
+    const next = setLogicNoteText(d, id, text);
+    if (next !== d) get().apply({ ok: true, diagram: next }, `便條 ${id} 改文字`);
+  },
+  setNoteColor(id, color) {
+    const d = get().diagram;
+    const next = setLogicNoteColor(d, id, color);
+    if (next !== d) get().apply({ ok: true, diagram: next }, `便條 ${id} 換顏色`);
+  },
+  setNoteTarget(id, target) {
+    const d = get().diagram;
+    const next = setLogicNoteTarget(d, id, target);
+    if (next !== d) get().apply({ ok: true, diagram: next }, target ? `便條 ${id} 指向 ${target}` : `便條 ${id} 不指向元件`);
+  },
+  deleteNote(id) {
+    const d = get().diagram;
+    const next = removeLogicNote(d, id);
+    if (next !== d) get().apply({ ok: true, diagram: next }, `刪除便條 ${id}`, null);
+  },
 }));
 
 /** 子專案 15：複製的內容（只在這個分頁）。 */
@@ -159,6 +253,6 @@ export function selectedIds(sel: LogicSelection): string[] {
 
 /** 邏輯圖有沒有還沒儲存的修改（開關切換也算：開關狀態會存檔；子專案 24 的題目也算）。 */
 export function logicDirty(s: LogicState = useLogic.getState()): boolean {
-  const hasContent = (d: LogicDiagram) => d.nodes.length > 0 || d.task !== undefined;
+  const hasContent = (d: LogicDiagram) => d.nodes.length > 0 || d.task !== undefined || d.notes !== undefined;
   return s.diagram !== s.saved && (hasContent(s.diagram) || hasContent(s.saved));
 }

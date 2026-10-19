@@ -3,7 +3,7 @@ import { parseHoleName } from '../core/breadboard/naming';
 import { resolveFootprint } from '../core/circuit/footprint';
 import { getComponentDefinition } from '../core/circuit/library';
 import { validateCircuit } from '../core/circuit/validate';
-import { analyzeCircuit, holeLabel } from '../editor/analysis';
+import { analyzeCircuit, holeLabel, parseHoleLabel } from '../editor/analysis';
 import { addWire as addWireCommand, labelSlots, makeInstance, removeItems, setLabel, updateComponentProps } from '../editor/commands';
 import { circuitBrief } from '../editor/explain/brief';
 import { plainText } from '../editor/explain/helpers';
@@ -58,16 +58,7 @@ export function newLabFile(name: string, layout: LayoutId): LabFile {
 
 /** 孔位名稱 → 格點。有好幾塊板時一定要寫板子 ID（b2:F10）。 */
 export function parseHole(circuit: Circuit, raw: string): { ok: true; point: GridPoint } | { ok: false; error: string } {
-  const text = raw.trim();
-  const colon = text.indexOf(':');
-  let boardId: string;
-  if (colon >= 0) boardId = text.slice(0, colon);
-  else if (circuit.boards.length === 1) boardId = circuit.boards[0].id;
-  else return { ok: false, error: `有好幾塊麵包板，孔位前面要加板子 ID（例如 ${circuit.boards[1].id}:${text}）` };
-  const instance = circuit.boards.find((b) => b.id === boardId);
-  if (!instance) return { ok: false, error: `沒有麵包板 ${boardId}` };
-  const point = parseHoleName(getBoard(instance.layoutId, instance.id), colon >= 0 ? text : text);
-  return point ? { ok: true, point } : { ok: false, error: `孔位 ${text} 不存在` };
+  return parseHoleLabel(circuit, raw);
 }
 
 /** 「第 1 腳 1A @ F10、第 2 腳 1B @ F11…」 */
@@ -350,6 +341,7 @@ function layoutMissing(raw: Obj): Obj {
     y,
     inputs: typeof n.inputs === 'number' ? n.inputs : n.kind === 'NOT' ? 1 : 2,
     ...(typeof n.chip === 'string' ? { chip: n.chip as LogicNode['chip'] } : {}),
+    ...(n.segments === true ? { segments: true as const } : {}),
   });
   const hasPos = (n: Obj) => Number.isInteger(n.x) && Number.isInteger(n.y);
   const placed: LogicNode[] = nodes.filter(hasPos).map((n) => asNode(n, n.x as number, n.y as number));
@@ -423,10 +415,10 @@ export function checkAgainstDiagram(f: LabFile): ToolResult {
 
 export function logicToBreadboard(
   f: LabFile,
-  args: { switch_to?: 'vcc' | 'gnd'; board?: 'auto' | LayoutId; gates?: 'direct' | 'nand'; pulls?: boolean },
+  args: { switch_to?: 'vcc' | 'gnd'; board?: 'auto' | LayoutId; gates?: 'direct' | 'nand' | 'nor'; pulls?: boolean; inputs?: 'switch' | 'button'; display?: 'ca' | 'cc' },
 ): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
-  const options = { switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false } as const;
+  const options = { switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false, inputs: args.inputs ?? 'switch', display: args.display ?? 'ca' } as const;
   let r = toBreadboard(f.logic, options);
   if (!r.ok) return fail(r.reason);
   let routed = autoPlaceAndRoute(r.circuit);
@@ -444,10 +436,10 @@ export function logicToBreadboard(
   const bom = r.bom;
   const parts = [
     ...Object.entries(bom.ics).map(([id, n]) => `${id} × ${n}`),
-    `${bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × 1`,
+    bom.switch ? `${bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × 1` : `按鈕 × ${bom.buttons}`,
     `電阻 × ${bom.resistors}`,
     `LED × ${bom.leds}`,
-    ...(bom.displays > 0 ? [`7 段顯示器 × ${bom.displays}`] : []),
+    ...(bom.displays > 0 ? [`7 段顯示器 × ${bom.displays}（${options.display === 'cc' ? '共陰極' : '共陽極'}）`] : []),
   ];
   const lines = [
     `轉成麵包板（${bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}）：${parts.join('、')}。`,

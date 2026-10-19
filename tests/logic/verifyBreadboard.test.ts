@@ -35,6 +35,18 @@ describe('verifyBreadboard', () => {
   });
 });
 
+describe('NOR-only conversion (sub-project 27)', () => {
+  it('uses only 74LS02 and still matches the truth table, before and after routing', () => {
+    const r = toBreadboard(majorityDiagram(), { switchTo: 'vcc', board: 'EIC1106', gates: 'nor' });
+    if (!r.ok) throw new Error(r.reason);
+    expect(Object.keys(r.bom.ics)).toEqual(['74LS02']);
+    expect(verifyBreadboard(majorityDiagram(), r.circuit, 'vcc', r)).toEqual({ rows: 8, mismatches: [] });
+    const routed = autoPlaceAndRoute(r.circuit);
+    expect(routed.status).toBe('success');
+    expect(verifyBreadboard(majorityDiagram(), applyRouting(r.circuit, routed), 'vcc', r)).toEqual({ rows: 8, mismatches: [] });
+  }, 60_000);
+});
+
 describe('NAND-only conversion and labels', () => {
   it.each(['vcc', 'gnd'] as const)('uses only 74LS00 and still matches the truth table (switches to %s)', (switchTo) => {
     // MB-102 上只用 NAND 的線排不完（store 會自動改用 EIC-1106），這裡直接用 EIC-1106。

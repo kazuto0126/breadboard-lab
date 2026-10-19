@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
-import { removeNodes, removeWire, renameNode, setConstant, setGateKind, setInputCount, setRotation } from '../../logic/edit';
+import { removeNodes, removeWire, renameNode, setConstant, setDisplayMode, setFlip, setGateKind, setInputCount, setRotation } from '../../logic/edit';
 import { BLOCK_PINS } from '../../logic/blocks';
-import { evaluate, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
+import { evaluate, segmentToken, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
 import { boxOf } from '../../logic/shapes';
 import { canRotate, GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
 import { convertProblem } from '../../logic/synth';
 import { useStore } from '../../state/store';
+import { LogicNoteInspector } from './LogicNoteInspector';
 import { TaskTab } from './TaskTab';
 
 const TABS: Array<[LogicTab, string]> = [
@@ -95,6 +96,10 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     else setError(null);
   };
 
+  if (selection?.kind === 'note') {
+    const note = diagram.notes?.find((n) => n.id === selection.id);
+    return note ? <LogicNoteInspector diagram={diagram} note={note} /> : null;
+  }
   if (selection?.kind === 'node') {
     const node = diagram.nodes.find((n) => n.id === selection.id);
     if (!node) return null;
@@ -163,7 +168,18 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
                 ))}
               </div>
             </div>
-            <p className="mt-1 text-xs text-slate-400">選取後按 R 順時針轉 90°。</p>
+            <div className="mt-2 flex items-center gap-2">
+              <span className="w-12 text-slate-400">鏡射</span>
+              <button
+                type="button"
+                aria-pressed={!!node.flip}
+                onClick={() => run(setFlip(diagram, node.id, !node.flip), node.flip ? `${node.id} 取消鏡射` : `${node.id} 鏡射`)}
+                className={`${btn} ${node.flip ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+              >
+                左右鏡射
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-slate-400">選取後按 R 順時針轉 90°、按 M 鏡射；放置前也可以先按 R / M。</p>
           </div>
         )}
         {(node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'DISPLAY') && <NameEditor node={node} />}
@@ -195,7 +211,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     return (
       <Section title="多個元件">
         <p className="text-slate-200">已選取 {selection.ids.length} 個元件：{selection.ids.join('、')}</p>
-        <p className="text-xs leading-5 text-slate-400">拖曳其中一個可以整組移動；R 轉向（閘與 IC 方塊）；Ctrl+C 複製、Ctrl+V 貼上；Del 刪除。</p>
+        <p className="text-xs leading-5 text-slate-400">拖曳其中一個可以整組移動；R 轉向、M 鏡射；Ctrl+C 複製、Ctrl+V 貼上；Del 刪除。</p>
         <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.deleteSelection()}>
           刪除這 {selection.ids.length} 個
         </button>
@@ -237,17 +253,56 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
 /** 規格（2026-10-13 seven-seg）第 5 節：顯示器目前的值與 D C B A 四條線。 */
 function DisplayValue({ diagram, node }: { diagram: LogicDiagram; node: LogicNode }) {
   const values = useMemo(() => evaluate(diagram), [diagram]);
+  const s = useLogic.getState();
+  // 子專案 32：BCD（A–D 與 DP）或每段直接控制（a–g、dp）。
+  const modes = (
+    <div className="flex items-center gap-2">
+      <span className="w-12 text-slate-400">輸入</span>
+      {([[false, 'BCD（A–D）'], [true, '每段直接控制']] as const).map(([segments, label]) => (
+        <button
+          key={label}
+          type="button"
+          aria-pressed={!!node.segments === segments}
+          onClick={() => {
+            const r = setDisplayMode(diagram, node.id, segments);
+            if (!r.ok) useStore.getState().toast('warning', r.reason);
+            else s.apply(r, segments ? `${node.name} 改成每段直接控制` : `${node.name} 改成 BCD`);
+          }}
+          className={`${btn} ${!!node.segments === segments ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+  if (node.segments) {
+    const lit = values.segs.get(node.id) ?? 'X';
+    return (
+      <div className="space-y-2">
+        {modes}
+        <p data-testid="display-value" className="text-slate-300">
+          {lit === 'X' ? '有不確定的輸入' : lit.length === 0 ? '目前每一段都不亮' : `目前亮的段：${segmentToken(lit)}`}
+          <span className="block text-xs text-slate-400">每隻腳直接控制一段：1 就亮。沒接的段不亮。切換時會拿掉接到這個顯示器的線。</span>
+        </p>
+      </div>
+    );
+  }
   const v = values.displays.get(node.id) ?? 'X';
+  const dot = values.dps.get(node.id) === 1;
   const driver = new Map(diagram.wires.map((w) => [`${w.to.node}#${w.to.pin}`, w.from]));
   const bits = [3, 2, 1, 0].map((pin) => {
     const from = driver.get(`${node.id}#${pin}`);
     return bitText(from === undefined ? 'X' : (values.nodes.get(from) ?? 'X'));
   });
   return (
-    <p data-testid="display-value" className="text-slate-300">
-      {v === 'X' ? '有沒接好或不確定的輸入，顯示「–」' : `目前顯示 ${v}`}（輸入 D C B A = {bits.join(' ')}）
-      {typeof v === 'number' && v > 9 && <span className="block text-xs text-slate-400">10–15 不是 BCD 數字，74LS47 會亮出特殊的圖形。</span>}
-    </p>
+    <div className="space-y-2">
+      {modes}
+      <p data-testid="display-value" className="text-slate-300">
+        {v === 'X' ? '有沒接好或不確定的輸入，顯示「–」' : `目前顯示 ${v}${dot ? '.' : ''}`}（輸入 D C B A = {bits.join(' ')}）
+        {typeof v === 'number' && v > 9 && <span className="block text-xs text-slate-400">10–15 不是 BCD 數字，74LS47 會亮出特殊的圖形。</span>}
+        <span className="block text-xs text-slate-400">DP 腳（B 和 C 中間）接 1 時點亮小數點，可以不接。</span>
+      </p>
+    </div>
   );
 }
 

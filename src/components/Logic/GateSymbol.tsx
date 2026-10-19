@@ -115,19 +115,21 @@ export function PartIcon({ kind }: { kind: NodeKind }) {
 }
 
 /**
- * 子專案 26：閘轉向時，把沒轉的符號（本地座標）轉到畫面上的 SVG transform（相對於節點的 (x, y)）。
- * 和 `shapes.ts` 的換法一致：90° (h − 1 − v, u)、180° (w − u, h − 1 − v)、270° (v, w − u)。
+ * 子專案 26：元件轉向時，把沒轉的符號（本地座標）轉到畫面上的 SVG transform（相對於節點的 (x, y)）。
+ * 和 `shapes.ts` 的換法一致：先鏡射 (w − u, v)（子專案 28），再轉 90° (h − 1 − v, u)、180° (w − u, h − 1 − v)、270° (v, w − u)。
  */
 export function turnTransform(node: LogicNode): string | undefined {
   const { w, h } = nodeSize(node);
-  switch (node.rotation) {
-    case 90:
-      return `translate(${(h - 1) * C} 0) rotate(90)`;
-    case 180:
-      return `translate(${w * C} ${(h - 1) * C}) rotate(180)`;
-    case 270:
-      return `translate(0 ${w * C}) rotate(-90)`;
-    default:
-      return undefined;
-  }
+  const rot =
+    node.rotation === 90 ? `translate(${(h - 1) * C} 0) rotate(90)` : node.rotation === 180 ? `translate(${w * C} ${(h - 1) * C}) rotate(180)` : node.rotation === 270 ? `translate(0 ${w * C}) rotate(-90)` : '';
+  const flip = node.flip ? `translate(${w * C} 0) scale(-1 1)` : '';
+  // SVG 的 transform 從右邊開始套用：先鏡射再轉。
+  const both = [rot, flip].filter(Boolean).join(' ');
+  return both || undefined;
+}
+
+/** 子專案 28：在轉向（或鏡射）過的元件裡，讓一段文字正著寫（繞著文字的位置 (x, y) 轉回來）。 */
+export function upright(node: LogicNode, x: number, y: number): string | undefined {
+  if (!node.rotation && !node.flip) return undefined;
+  return `translate(${x} ${y})${node.flip ? ' scale(-1 1)' : ''} rotate(${-(node.rotation ?? 0)}) translate(${-x} ${-y})`;
 }

@@ -37,6 +37,12 @@ export function checkDiagram(d: LogicDiagram): LogicIssue[] {
       continue;
     }
     if (node.kind === 'DISPLAY') {
+      // 子專案 32：DP、每段直接控制的段可以不接（不亮）；每段直接控制時一段都沒接才提醒。
+      if (node.segments) {
+        if (!Array.from({ length: 8 }, (_, pin) => driven.has(`${node.id}#${pin}`)).some(Boolean))
+          issues.push({ code: 'LOGIC_INPUT_OPEN', severity: 'warning', message: `顯示器 ${node.name} 的每一段都沒有接線`, nodeIds: [node.id] });
+        continue;
+      }
       for (let pin = 0; pin < 4; pin++) {
         if (!driven.has(`${node.id}#${pin}`))
           issues.push({ code: 'LOGIC_INPUT_OPEN', severity: 'warning', message: `顯示器 ${node.name} 的 ${'ABCD'[pin]} 腳沒有接線，值不確定`, nodeIds: [node.id] });

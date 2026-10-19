@@ -167,7 +167,12 @@ describe('making a task from the logic diagram', () => {
   it('says why it cannot', async () => {
     const { taskFromDiagram } = await import('../../src/logic/task');
     const { majorityDiagram, bcdDiagram } = await import('../../src/logic/examples');
-    expect(taskFromDiagram(bcdDiagram())).toEqual({ ok: false, reason: '題目的輸出只能是輸出端（邏輯圖有 7 段顯示器 S1）' });
+    // 子專案 32：BCD 顯示器可以當題目的輸出；每段直接控制、小數點有接線的不行。
+    const segments = { ...bcdDiagram(), nodes: bcdDiagram().nodes.map((n) => (n.kind === 'DISPLAY' ? { ...n, segments: true as const } : n)) };
+    expect(taskFromDiagram(segments)).toEqual({ ok: false, reason: '題目的顯示器要用 BCD（S1 是每段直接控制）' });
+    const s1 = bcdDiagram().nodes.find((n) => n.kind === 'DISPLAY')!.id;
+    const dot = { ...bcdDiagram(), nodes: [...bcdDiagram().nodes, { id: 'kdp', kind: 'HIGH' as const, x: 0, y: 30 }], wires: [...bcdDiagram().wires, { id: 'wdp', from: 'kdp', to: { node: s1, pin: 4 } }] };
+    expect(taskFromDiagram(dot)).toEqual({ ok: false, reason: '題目的顯示器不能用小數點（DP 有接線）' });
     const open = { ...majorityDiagram(), wires: majorityDiagram().wires.filter((w) => w.to.node !== 'o1') };
     expect(taskFromDiagram(open)).toEqual({ ok: false, reason: '邏輯圖還有沒接好的地方（有些輸出不確定），先把邏輯圖接好' });
     expect(taskFromDiagram(emptyDiagram())).toEqual({ ok: false, reason: '先在邏輯圖放輸入端和輸出端' });

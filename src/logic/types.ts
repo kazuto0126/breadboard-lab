@@ -1,3 +1,4 @@
+import type { NoteColor } from '../types/circuit';
 import type { TruthTask } from './task';
 
 /** 規格（2026-10-11 logic-diagram）第 2 節：邏輯圖的資料。座標是格子（整數），x 往右、y 往下。 */
@@ -22,14 +23,18 @@ export interface LogicNode {
   value?: 0 | 1;
   /** 只有 IC 方塊：哪一顆 IC。 */
   chip?: BlockChip;
-  /** 子專案 26：只有閘與 IC 方塊，順時針轉幾度（0 不寫）。 */
+  /** 子專案 26：順時針轉幾度（0 不寫）；7 段顯示器不轉。 */
   rotation?: Rotation;
+  /** 子專案 28：左右鏡射（先鏡射再轉）；不鏡射時不寫。 */
+  flip?: true;
+  /** 子專案 32：只有顯示器：每段直接控制（8 個輸入 a–g、dp），不寫是 BCD（A–D 與 DP）。 */
+  segments?: true;
 }
 
 export type Rotation = 90 | 180 | 270;
 
-/** 可以轉向的元件：邏輯閘與 IC 方塊。 */
-export const canRotate = (kind: NodeKind): boolean => isGate(kind) || kind === 'BLOCK';
+/** 可以轉向、鏡射的元件：子專案 28 起除了 7 段顯示器（數字有方向）都可以。 */
+export const canRotate = (kind: NodeKind): boolean => kind !== 'DISPLAY';
 
 export interface LogicWire {
   id: string;
@@ -47,6 +52,18 @@ export interface LogicDiagram {
   wires: LogicWire[];
   /** 子專案 24：真值表題目（邏輯圖的編輯都用 `{ ...d }` 產生新的圖，會保留它）。 */
   task?: TruthTask;
+  /** 子專案 29：邏輯圖上的便條。 */
+  notes?: LogicNote[];
+}
+
+/** 子專案 29：邏輯圖的便條（位置是格子座標）；指向一個元件。 */
+export interface LogicNote {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+  color: NoteColor;
+  target?: string;
 }
 
 export function emptyDiagram(): LogicDiagram {

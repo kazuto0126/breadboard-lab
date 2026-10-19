@@ -246,6 +246,28 @@ function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void
       }
     }
 
+    // 子專案 30：按鈕也一樣（腳 1、2 是一側，腳 3、4 是另一側）。
+    if (pc.def.category === 'pushbutton') {
+      const isUnconnected = (net: Net | undefined) => !net || net.pins.length === 1;
+      const hasResistor = (net: Net) => net.pins.some((r) => index.placedById.get(r.componentId)?.def.category === 'resistor');
+      const sides = [byPin.get(pinKey(refOf(pc, 1))), byPin.get(pinKey(refOf(pc, 3)))];
+      for (const [power, other] of [sides, [sides[1], sides[0]]]) {
+        if (isUnconnected(other) || !other!.pins.some((r) => role(r) === 'input') || hasResistor(other!)) continue;
+        const vcc = netHas(power, 'vcc-source');
+        if (!vcc && !netHas(power, 'gnd-source')) continue;
+        report({
+          code: 'SWITCH_NO_PULL',
+          severity: 'warning',
+          message: vcc
+            ? `⚠ ${label} 沒有下拉電阻：模擬時放開當成 0；實際接線時放開會懸空，TTL 會讀成 1`
+            : `⚠ ${label} 沒有上拉電阻：模擬時放開當成 1；實際接線時懸空容易受雜訊影響`,
+          componentIds: [pc.instance.id],
+          points: pointsOf([refOf(pc, 1), refOf(pc, 3)]),
+          netIds: [other!.id],
+        });
+      }
+    }
+
     if (pc.def.category === 'ic') {
       // 子專案 19：一整組閘的輸入、輸出都沒有接任何東西 = 沒用到的閘，輸入懸空不警告。
       const unusedPins = new Set<number>();
@@ -316,8 +338,8 @@ function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void
     }
     for (const pin of pc.def.pins) {
       if (pin.role !== 'passive' && pin.role !== 'anode' && pin.role !== 'cathode') continue;
-      // 7 段顯示器沒用到的段（例如 dp）是正常的。
-      if (pc.def.category === 'seven-seg' && pin.role === 'cathode') continue;
+      // 7 段顯示器沒用到的段（例如 dp）是正常的（共陽極的段是陰極，共陰極的段是陽極）。
+      if (pc.def.category === 'seven-seg' && pin.name !== 'CA' && pin.name !== 'CC') continue;
       if (unusedSwitchPins.has(pin.number)) continue;
       const ref = refOf(pc, pin.number);
       if (lonely(pin.number)) {
@@ -325,18 +347,24 @@ function checkElectrical(index: CircuitIndex, nets: Net[], report: Report): void
       }
     }
     if (pc.def.category === 'seven-seg') {
-      const anode = pc.def.pins.find((p) => p.role === 'anode');
+      // 子專案 32：共陰極顯示器的共同腳是 CC（陰極），段是陽極。
+      const cathodeCommon = pc.def.pins.some((p) => p.name === 'CC');
+      const segmentRole = cathodeCommon ? 'anode' : 'cathode';
+      const anode = pc.def.pins.find((p) => p.name === (cathodeCommon ? 'CC' : 'CA'));
       if (anode) {
         const anodeRef = refOf(pc, anode.number);
         const anodeNet = byPin.get(pinKey(anodeRef));
         const where = pointsOf([anodeRef]);
-        if (netHas(anodeNet, 'gnd-source')) {
+        if (!cathodeCommon && netHas(anodeNet, 'gnd-source')) {
           report({ code: 'LED_REVERSED', severity: 'warning', message: `⚠ ${label} 的共陽極（CA）接到 GND 了，要接 VCC`, componentIds: [pc.instance.id], points: where });
+        }
+        if (cathodeCommon && netHas(anodeNet, 'vcc-source')) {
+          report({ code: 'LED_REVERSED', severity: 'warning', message: `⚠ ${label} 的共陰極（CC）接到 VCC 了，要接 GND`, componentIds: [pc.instance.id], points: where });
         }
         const withResistor = (net: Net | undefined) =>
           net !== undefined && net.pins.some((r) => index.placedById.get(r.componentId)?.def.category === 'resistor');
         const bare = pc.def.pins
-          .filter((p) => p.role === 'cathode')
+          .filter((p) => p.role === segmentRole)
           .filter((p) => {
             const net = byPin.get(pinKey(refOf(pc, p.number)));
             return net !== undefined && net.pins.length > 1 && !withResistor(net) && !withResistor(anodeNet);

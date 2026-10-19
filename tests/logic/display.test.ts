@@ -10,15 +10,16 @@ const ok = (r: { ok: boolean; diagram: LogicDiagram }) => {
 };
 
 describe('7-segment display node', () => {
-  it('has 4 inputs placed like a 4-input gate and no output', () => {
+  it('has 4 inputs placed like a 4-input gate (plus DP in the middle) and no output', () => {
     const node = { id: 'd1', kind: 'DISPLAY' as const, x: 10, y: 2, name: 'S1' };
     expect(isGate('DISPLAY')).toBe(false);
     expect(isSink('DISPLAY')).toBe(true);
     expect(isSink('OUTPUT')).toBe(true);
     expect(isSink('AND')).toBe(false);
-    expect(inputCountOf(node)).toBe(4);
+    // 子專案 32：第 5 個輸入是 DP，在 B 和 C 中間。
+    expect(inputCountOf(node)).toBe(5);
     expect(nodeSize(node)).toEqual({ w: 4, h: 5 });
-    expect(inputPins(node).map((p) => p.y)).toEqual([2, 3, 5, 6]);
+    expect(inputPins(node).map((p) => p.y)).toEqual([2, 3, 5, 6, 4]);
     expect(outputPin(node)).toBeNull();
   });
 
@@ -30,7 +31,7 @@ describe('7-segment display node', () => {
     expect(d.nodes.slice(1).map((n) => [n.id, n.name])).toEqual([['d1', 'S1'], ['d2', 'S2']]);
     d = ok(connect(d, 'i1', { node: 'd1', pin: 3 }));
     expect(connect(d, 'd1', { node: 'd2', pin: 0 })).toMatchObject({ ok: false, reason: '顯示器沒有可以接出去的腳' });
-    expect(connect(d, 'i1', { node: 'd1', pin: 4 }).ok).toBe(false);
+    expect(connect(d, 'i1', { node: 'd1', pin: 5 }).ok).toBe(false);
     expect(renameNode(d, 'd1', 'HEX').ok).toBe(true);
   });
 

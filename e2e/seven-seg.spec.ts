@@ -86,3 +86,34 @@ test('範例「BCD 顯示」轉成麵包板：74LS47 與 7 段顯示器，比對
   await page.locator('g[data-component-id="DS1"]').hover();
   await expect(page.getByTestId('hover-info')).toContainText('輸入 DCBA 是 1111，也就是 15');
 });
+
+test('7 段顯示器的小數點與每段直接控制（子專案 32）', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByTestId('view-switch').getByRole('button', { name: '邏輯圖' }).click();
+  await expect(page.getByTestId('logic-canvas')).toBeVisible();
+
+  // A（i1）接 A 腳、P（i2）接 DP 腳。
+  await placeAt(page, 'INPUT', 0, 0);
+  await placeAt(page, 'INPUT', 0, 6);
+  await placeAt(page, 'DISPLAY', 10, 2);
+  await drag(page, 'i1:out', 'd1:in:0');
+  await drag(page, 'i2:out', 'd1:in:4');
+  const display = page.locator('[data-logic-display="d1"]');
+  await page.locator('[data-logic-switch="i2"]').click();
+  await expect(display).toHaveAttribute('data-dp', 'true');
+
+  // 屬性面板切成每段直接控制：線拿掉、8 隻腳。
+  const box = (await page.locator('[data-logic-node="d1"]').boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.6, box.y + box.height * 0.6);
+  await page.getByRole('tab', { name: '屬性' }).click();
+  await page.getByRole('button', { name: '每段直接控制' }).click();
+  await expect(page.locator('[data-logic-wire]')).toHaveCount(0);
+  await expect(page.locator('[data-logic-pin^="d1:in:"]')).toHaveCount(8);
+  // i1 接 b 段（第 1 隻腳）：撥成 1 時 b 段亮。
+  await drag(page, 'i1:out', 'd1:in:1');
+  await page.locator('[data-logic-switch="i1"]').click();
+  await expect(display.locator('[data-segment="b"]')).toHaveAttribute('data-lit', 'true');
+  await expect(page.getByTestId('display-value')).toContainText('目前亮的段：b');
+});

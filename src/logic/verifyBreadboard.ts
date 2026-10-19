@@ -2,7 +2,7 @@ import { getComponentDefinition } from '../core/circuit/library';
 import { whyDark } from '../core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle } from '../core/simulation/simulate';
 import type { Circuit } from '../types/circuit';
-import { sortedIo, truthTable } from './evaluate';
+import { segmentToken, sortedIo, truthTable } from './evaluate';
 import { valueOfSegments } from './sevenSeg';
 import type { LogicDiagram } from './types';
 
@@ -13,7 +13,10 @@ export interface VerifyResult {
 }
 
 export interface VerifyMap {
-  switchId: string;
+  /** 輸入用按鈕時是 null（看 buttons）。 */
+  switchId: string | null;
+  /** 子專案 30：第 k 個輸入的按鈕 id。 */
+  buttons?: string[];
   /** 依名稱排序的輸入端 id：第 k 個用開關的第 k 位。 */
   inputs: string[];
   /** 輸出端 id → LED 元件 id。 */
@@ -29,6 +32,8 @@ export interface SwitchBinding {
   /** 第幾個開關（0 起算）。 */
   index: number;
   onIs: 0 | 1;
+  /** 子專案 30：是按鈕（switchId 是按鈕的 id，index 是 0）：那一列的值 === onIs 時當成按住。 */
+  button?: true;
 }
 
 export interface Bindings {
@@ -40,11 +45,20 @@ export interface Bindings {
   displays: Record<string, string>;
 }
 
-/** 把每個對應到的開關撥成這一列的值（值 === onIs 就撥 ON）；沒對應到的開關維持原狀。 */
+/** 子專案 30：按鈕對應的這一列要不要按住。 */
+export function pressedFor(inputs: SwitchBinding[], bits: ReadonlyArray<0 | 1>): Record<string, boolean> {
+  const pressed: Record<string, boolean> = {};
+  inputs.forEach((b, k) => {
+    if (b.button && bits[k] !== undefined) pressed[b.switchId] = bits[k] === b.onIs;
+  });
+  return pressed;
+}
+
+/** 把每個對應到的開關撥成這一列的值（值 === onIs 就撥 ON）；沒對應到的開關維持原狀；按鈕不在這裡處理。 */
 export function withSwitches(circuit: Circuit, inputs: SwitchBinding[], bits: ReadonlyArray<0 | 1>): Circuit {
   const changes = new Map<string, Map<number, boolean>>();
   inputs.forEach((b, k) => {
-    if (bits[k] === undefined) return;
+    if (bits[k] === undefined || b.button) return;
     if (!changes.has(b.switchId)) changes.set(b.switchId, new Map());
     changes.get(b.switchId)!.set(b.index, bits[k] === b.onIs);
   });
@@ -69,7 +83,7 @@ export function withSwitches(circuit: Circuit, inputs: SwitchBinding[], bits: Re
 export function verifyRows(d: LogicDiagram, circuit: Circuit, bindings: Bindings): VerifyResult {
   const table = truthTable(d);
   if (!table.ok) return { rows: 0, mismatches: [] };
-  const outputs = sortedIo(d).outputs.map((o) => ({ id: o.id, display: o.kind === 'DISPLAY' }));
+  const outputs = sortedIo(d).outputs.map((o) => ({ id: o.id, display: o.kind === 'DISPLAY', segments: !!o.segments }));
   return verifyExpected(circuit, bindings, outputs, table.rows.map((row) => ({ in: row.in, out: row.out.map((b) => (b === 'X' ? '?' : String(b))) })));
 }
 
@@ -80,19 +94,23 @@ export interface ExpectedRow {
 }
 
 /** 逐列撥好開關、模擬、讀 LED 與顯示器，和期望值比較（`verifyRows` 與題目的比對共用）。 */
-export function verifyExpected(circuit: Circuit, bindings: Bindings, outputs: Array<{ id: string; display: boolean }>, rows: ExpectedRow[]): VerifyResult {
+export function verifyExpected(circuit: Circuit, bindings: Bindings, outputs: Array<{ id: string; display: boolean; segments?: boolean }>, rows: ExpectedRow[]): VerifyResult {
   const mismatches: VerifyResult['mismatches'] = [];
   for (const row of rows) {
     const sim = compileSimulation(withSwitches(circuit, bindings.inputs, row.in));
-    const result = settle(sim, initialSimState(sim), { pressed: {}, clocks: {} }).result;
+    const result = settle(sim, initialSimState(sim), { pressed: pressedFor(bindings.inputs, row.in), clocks: {} }).result;
     const lit = new Set(result.litLeds);
     const actual = outputs.map((o) => {
       if (!o.display) return lit.has(bindings.leds[o.id] ?? '') ? '1' : '0';
       const id = bindings.displays[o.id] ?? '';
-      const segments = result.litSegments[id] ?? [];
-      if (segments.length === 0) return whyDark(sim, result, id)?.kind === 'fifteen' ? '15' : '暗';
+      const shown = result.litSegments[id] ?? [];
+      // 子專案 32：每段直接控制的顯示器寫亮的段；BCD 顯示器的小數點寫成「5.」。
+      if (o.segments) return segmentToken(shown);
+      const segments = shown.filter((s) => s !== 'dp');
+      const dot = shown.includes('dp') ? '.' : '';
+      if (segments.length === 0) return whyDark(sim, result, id)?.kind === 'fifteen' ? `15${dot}` : '暗';
       const v = valueOfSegments(segments);
-      return v === null ? '?' : String(v);
+      return v === null ? '?' : `${v}${dot}`;
     });
     if (row.out.some((e, k) => e !== 'X' && e !== actual[k])) mismatches.push({ inputs: row.in.join(''), expected: row.out, actual });
   }
@@ -109,7 +127,7 @@ export function verifyBreadboard(d: LogicDiagram, circuit: Circuit, switchTo: 'v
   const off = sw ? { ...circuit, components: circuit.components.map((c) => (c === sw ? { ...c, props: { ...c.props, switchStates: Array(width).fill(false) } } : c)) } : circuit;
   const onIs = switchTo === 'vcc' ? 1 : 0;
   return verifyRows(d, off, {
-    inputs: map.inputs.map((node, index) => ({ node, switchId: map.switchId, index, onIs })),
+    inputs: map.buttons ? map.inputs.map((node, k) => ({ node, switchId: map.buttons![k], index: 0, onIs, button: true as const })) : map.inputs.map((node, index) => ({ node, switchId: map.switchId ?? '', index, onIs })),
     leds: map.leds,
     displays: map.displays ?? {},
   });

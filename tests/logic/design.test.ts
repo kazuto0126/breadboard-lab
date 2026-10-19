@@ -34,7 +34,8 @@ function expectSound(d: LogicDiagram, t: TruthTask) {
 describe('drawing a logic diagram from a task', () => {
   it('draws figure 2-5 for the majority task: three ANDs and an OR, no NOT', () => {
     const t = task(['A', 'B', 'C'], [{ ones: [3, 5, 6, 7] }], ['X']);
-    const { diagram, terms } = designFromTask(t);
+    const { diagram, columns } = designFromTask(t);
+    const terms = columns.map((c) => c.terms);
     expect(sopText(terms[0], t.inputs)).toBe('AB + AC + BC');
     expect(kinds(diagram)).toEqual({ INPUT: 3, AND: 3, OR: 1, OUTPUT: 1 });
     expect(diagram.nodes.filter((n) => n.kind === 'INPUT').map((n) => n.name)).toEqual(['A', 'B', 'C']);
@@ -144,6 +145,67 @@ describe('drawing a logic diagram from a task', () => {
       });
       const t = task(['A', 'B', 'C', 'D', 'E', 'F'].slice(0, n), columns);
       expectSound(designFromTask(t).diagram, t);
+    }
+  });
+});
+
+describe('other forms (sub-project 31)', () => {
+  const majority = () => task(['A', 'B', 'C'], [{ ones: [3, 5, 6, 7] }], ['X']);
+
+  it('draws OR–AND, NAND–NAND and NOR–NOR diagrams with only the right gates', () => {
+    const pos = designFromTask(majority(), 'pos').diagram;
+    expect(kinds(pos)).toEqual({ INPUT: 3, OR: 3, AND: 1, OUTPUT: 1 });
+    expectSound(pos, majority());
+    const nand = designFromTask(majority(), 'nand').diagram;
+    expect(kinds(nand)).toEqual({ INPUT: 3, NAND: 4, OUTPUT: 1 });
+    expectSound(nand, majority());
+    const nor = designFromTask(majority(), 'nor').diagram;
+    expect(kinds(nor)).toEqual({ INPUT: 3, NOR: 4, OUTPUT: 1 });
+    expectSound(nor, majority());
+  });
+
+  it('makes NOT gates out of NAND or NOR with both inputs tied together', () => {
+    // X = A'B：只用 NAND 時 A' 是兩個輸入都接 A 的 NAND。
+    const t = task(['A', 'B'], [{ ones: [1] }], ['X']);
+    const d = designFromTask(t, 'nand').diagram;
+    const tied = d.nodes.filter((n) => n.kind === 'NAND' && new Set(d.wires.filter((w) => w.to.node === n.id).map((w) => w.from)).size === 1);
+    expect(tied.length).toBeGreaterThanOrEqual(1);
+    expect(d.nodes.every((n) => n.kind === 'INPUT' || n.kind === 'OUTPUT' || n.kind === 'NAND')).toBe(true);
+    expectSound(d, t);
+  });
+
+  it('shares product terms between outputs when it can', () => {
+    // X1 = AB；X2 = Σm(0,1,2,5,6,7) 選含 AB 的那組，AB 只做一個 AND。
+    const t = task(['A', 'B', 'C'], [{ ones: [6, 7] }, { ones: [0, 1, 2, 5, 6, 7] }]);
+    const d = designFromTask(t).diagram;
+    expect(d.nodes.filter((n) => n.kind === 'AND')).toHaveLength(3);
+    expectSound(d, t);
+  });
+
+  it.each(['sop', 'pos', 'nand', 'nor'] as const)('always draws a sound %s diagram for random tasks', (form) => {
+    let seed = 31;
+    const rand = () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    for (let trial = 0; trial < 40; trial++) {
+      const n = 1 + Math.floor(rand() * 6);
+      const m = 1 + Math.floor(rand() * 3);
+      const columns = Array.from({ length: m }, () => {
+        const ones: number[] = [];
+        const x: number[] = [];
+        for (let r = 0; r < 1 << n; r++) {
+          const p = rand();
+          if (p < 0.45) ones.push(r);
+          else if (p < 0.55) x.push(r);
+        }
+        return { ones, x };
+      });
+      const t = task(['A', 'B', 'C', 'D', 'E', 'F'].slice(0, n), columns);
+      const d = designFromTask(t, form).diagram;
+      expectSound(d, t);
+      if (form === 'nand') expect(d.nodes.every((nd) => ['INPUT', 'OUTPUT', 'NAND', 'HIGH', 'LOW'].includes(nd.kind))).toBe(true);
+      if (form === 'nor') expect(d.nodes.every((nd) => ['INPUT', 'OUTPUT', 'NOR', 'HIGH', 'LOW'].includes(nd.kind))).toBe(true);
     }
   });
 });

@@ -177,6 +177,8 @@ export interface Bcd7segLogic {
   lampTest: string;
   blanking: string;
   rippleBlanking: string;
+  /** 子專案 32：74LS48 的輸出是高電位有效（亮 = 1），74LS47 是低電位有效（亮 = 0、不亮 = 開集極斷開）。 */
+  activeHigh?: boolean;
 }
 
 /** NE555：OUT 跟著模擬時間驅動的虛擬振盪腳；reset 有效時 OUT = 0。 */

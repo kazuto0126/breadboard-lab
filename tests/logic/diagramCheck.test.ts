@@ -43,14 +43,14 @@ describe('checking a hand-wired breadboard against the logic diagram by name', (
 
   it('says which names are missing', () => {
     const d = gateDiagram('XOR');
-    expect(issues(d, handWired({ chip: '74LS86', labels: { ...named, sw2: [] } }))).toEqual(['輸入 B：找不到名稱是 B 的開關']);
+    expect(issues(d, handWired({ chip: '74LS86', labels: { ...named, sw2: [] } }))).toEqual(['輸入 B：找不到名稱是 B 的開關或按鈕']);
     expect(issues(d, handWired({ chip: '74LS86', labels: { ...named, led: [] } }))).toEqual(['輸出 X：找不到名稱是 X 的 LED']);
   });
 
   it('reports names used twice', () => {
     const d = gateDiagram('XOR');
     // SW1 第 2 個開關（致能）也標成 A。
-    expect(issues(d, handWired({ chip: '74LS86', labels: { ...named, sw1: ['A', 'A'] } }))).toEqual(['名稱 A 用在好幾個開關：SW1 第 1 個、SW1 第 2 個']);
+    expect(issues(d, handWired({ chip: '74LS86', labels: { ...named, sw1: ['A', 'A'] } }))).toEqual(['名稱 A 用在好幾個開關或按鈕：SW1 第 1 個、SW1 第 2 個']);
     const base = handWired({ chip: '74LS86', labels: named });
     const twoLeds = { ...base, components: [...base.components, comp('D2', 'led', 'A55', { props: { color: 'red', labels: ['X'] } })] };
     expect(issues(d, twoLeds)).toEqual(['名稱 X 用在好幾顆 LED：D1、D2']);
@@ -129,7 +129,7 @@ describe('checking a breadboard against a truth table task (sub-project 24)', ()
   });
 
   it('says which names are missing, and only hints when nothing matches', () => {
-    expect(checkAgainstTask(task([3], [], ['A', 'C']), handWired({ labels: named }))).toEqual({ kind: 'incomplete', issues: ['輸入 C：找不到名稱是 C 的開關'] });
+    expect(checkAgainstTask(task([3], [], ['A', 'C']), handWired({ labels: named }))).toEqual({ kind: 'incomplete', issues: ['輸入 C：找不到名稱是 C 的開關或按鈕'] });
     expect(checkAgainstTask(task([3], [], ['P', 'Q']), handWired({ labels: { led: ['Y'] } }))).toEqual({ kind: 'hint' });
     expect(checkAgainstTask(task([3]), { ...handWired({}), components: [], wires: [] })).toEqual({ kind: 'none' });
   });

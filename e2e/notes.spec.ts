@@ -94,3 +94,72 @@ test('從元件庫把便條拖到麵包板上；寬度跟著文字變', async ({
   expect(wide.width).toBeGreaterThan(narrow * 2);
   expect(wide.height).toBeGreaterThan(box.height); // 超過最寬就換行
 });
+
+test('便條指向孔位：選「孔位…」輸入 F12，畫線指到那個孔，重新整理後還在', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.keyboard.press('n');
+  await page.getByLabel('便條內容').fill('這裡接 VCC');
+  await page.keyboard.press('Control+Enter');
+  await page.locator('[data-note="n1"]').click();
+  await page.getByRole('tab', { name: '屬性' }).click();
+  await page.getByLabel('便條指向').selectOption('__hole__');
+  await page.getByLabel('指向的孔位').fill('Z99');
+  await page.getByLabel('指向的孔位').press('Enter');
+  await expect(page.getByText('孔位 Z99 不存在')).toBeVisible();
+  await page.getByLabel('指向的孔位').fill('F12');
+  await page.getByLabel('指向的孔位').press('Enter');
+  await expect(page.locator('[data-note-arrow="n1"]')).toHaveCount(1);
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('breadboard-lab:autosave') ?? 'null')?.circuit?.notes?.[0]?.targetHole ?? null))
+    .not.toBeNull();
+  await page.reload();
+  await expect(page.locator('[data-note-arrow="n1"]')).toHaveCount(1);
+});
+
+test('邏輯圖的便條：點元件庫的便條、打字、指向元件、拖曳、刪除與復原、重新整理後還在', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: '多數決電路（圖 2-5）' }).click();
+  await expect(page.locator('[data-logic-node]')).toHaveCount(8);
+
+  await page.locator('[data-logic-part="NOTE"]').click();
+  const editor = page.getByLabel('便條內容');
+  await expect(editor).toBeFocused();
+  await editor.fill('三個輸入有兩個以上是 1');
+  await page.keyboard.press('Control+Enter');
+  const note = page.locator('[data-logic-note="n1"]');
+  await expect(note).toContainText('三個輸入有兩個以上是 1');
+
+  // 選取後在屬性面板指向輸出端 X。
+  await note.click();
+  await page.getByRole('tab', { name: '屬性' }).click();
+  await page.getByLabel('便條指向').selectOption('o1');
+  await expect(page.locator('[data-logic-note-arrow="n1"]')).toHaveCount(1);
+
+  // 拖曳移動。
+  const before = (await note.boundingBox())!;
+  await page.mouse.move(before.x + 20, before.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(before.x + 140, before.y + 80, { steps: 8 });
+  await page.mouse.up();
+  const after = (await note.boundingBox())!;
+  expect(after.x - before.x).toBeGreaterThan(60);
+
+  // Delete 刪除、Ctrl+Z 復原。
+  await note.click();
+  await page.keyboard.press('Delete');
+  await expect(note).toHaveCount(0);
+  await page.keyboard.press('Control+z');
+  await expect(note).toHaveCount(1);
+
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('breadboard-lab:autosave') ?? 'null')?.logic?.notes?.[0]?.target ?? null))
+    .toBe('o1');
+  await page.reload();
+  await page.getByTestId('view-switch').getByRole('button', { name: '邏輯圖' }).click();
+  await expect(page.locator('[data-logic-note="n1"]')).toContainText('三個輸入有兩個以上是 1');
+});

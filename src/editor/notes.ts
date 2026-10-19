@@ -1,4 +1,5 @@
 import type { Circuit, Note, NoteColor } from '../types/circuit';
+import type { GridPoint } from '../types/geometry';
 
 /** 規格（2026-10-13 notes）第 2 節：便條的編輯動作。沒有改變時回傳原本的 Circuit。 */
 export const NOTE_MAX = 200;
@@ -53,13 +54,26 @@ export function setNoteColor(circuit: Circuit, id: string, color: NoteColor): Ci
   return update(circuit, id, (n) => (n.color === color ? n : { ...n, color }));
 }
 
-/** 指向一個元件（null 是不指向）；元件不存在時不變。 */
+/** 指向一個元件（null 是不指向）；元件不存在時不變。指向元件時拿掉指向的孔。 */
 export function setNoteTarget(circuit: Circuit, id: string, target: string | null): Circuit {
   if (target !== null && !circuit.components.some((c) => c.id === target)) return circuit;
   return update(circuit, id, (n) => {
-    if ((n.target ?? null) === target) return n;
-    const { target: _old, ...rest } = n;
-    return target === null ? rest : { ...rest, target };
+    if ((n.target ?? null) === target && (target === null || !n.targetHole)) return n;
+    const { target: _old, targetHole: _hole, ...rest } = n;
+    if (target === null) return n.targetHole ? { ...rest, targetHole: n.targetHole } : rest;
+    return { ...rest, target };
+  });
+}
+
+/** 子專案 29：指向一個孔（null 是不指向孔）；板子不存在時不變。指向孔時拿掉指向的元件。 */
+export function setNoteHole(circuit: Circuit, id: string, point: GridPoint | null): Circuit {
+  if (point !== null && !circuit.boards.some((b) => b.id === point.boardId)) return circuit;
+  return update(circuit, id, (n) => {
+    const same = point === null ? !n.targetHole : n.targetHole?.boardId === point.boardId && n.targetHole.x === point.x && n.targetHole.y === point.y && !n.target;
+    if (same) return n;
+    const { target: _old, targetHole: _hole, ...rest } = n;
+    if (point === null) return n.target ? { ...rest, target: n.target } : rest;
+    return { ...rest, targetHole: { boardId: point.boardId, x: point.x, y: point.y } };
   });
 }
 
@@ -69,12 +83,13 @@ export function removeNote(circuit: Circuit, id: string): Circuit {
   return withNotes(circuit, list.filter((n) => n.id !== id));
 }
 
-/** 元件刪除後，指向它的便條拿掉指向（沒有受影響時回傳原本的陣列）。 */
-export function dropNoteTargets(notes: Note[] | undefined, removed: Set<string>): Note[] | undefined {
-  if (!notes || !notes.some((n) => n.target !== undefined && removed.has(n.target))) return notes;
+/** 元件刪除後，指向它的便條拿掉指向（沒有受影響時回傳原本的陣列）；子專案 29：板子刪除後，指向那塊板上的孔也拿掉。 */
+export function dropNoteTargets(notes: Note[] | undefined, removed: Set<string>, removedBoard?: string): Note[] | undefined {
+  const hit = (n: Note) => (n.target !== undefined && removed.has(n.target)) || (removedBoard !== undefined && n.targetHole?.boardId === removedBoard);
+  if (!notes || !notes.some(hit)) return notes;
   return notes.map((n) => {
-    if (n.target === undefined || !removed.has(n.target)) return n;
-    const { target: _old, ...rest } = n;
+    if (!hit(n)) return n;
+    const { target: _old, targetHole: _hole, ...rest } = n;
     return rest;
   });
 }

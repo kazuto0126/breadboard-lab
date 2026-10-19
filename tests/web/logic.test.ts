@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addNode } from '../../src/logic/edit';
-import { majorityDiagram } from '../../src/logic/examples';
+import { bcdDiagram, majorityDiagram } from '../../src/logic/examples';
 import { emptyDiagram } from '../../src/logic/types';
 import { initialLogicState, logicDirty, useLogic } from '../../src/state/logic';
 import { initialState, isDirty, useStore } from '../../src/state/store';
@@ -108,12 +108,71 @@ describe('turning the selection (sub-project 26)', () => {
     L().load(majorityDiagram());
     L().select({ kind: 'nodes', ids: ['g1', 'g2', 'i1'] });
     expect(L().rotateSelection()).toBeNull();
-    expect(L().diagram.nodes.filter((n) => n.rotation === 90).map((n) => n.id)).toEqual(['g1', 'g2']);
+    // 子專案 28 起輸入端也會轉。
+    expect(L().diagram.nodes.filter((n) => n.rotation === 90).map((n) => n.id)).toEqual(['i1', 'g1', 'g2']);
     L().undo();
     expect(L().diagram.nodes.some((n) => n.rotation)).toBe(false);
-    L().select({ kind: 'node', id: 'i1' });
-    expect(L().rotateSelection()).toBe('只有邏輯閘和 IC 方塊可以轉向');
+    L().load(bcdDiagram());
+    L().select({ kind: 'node', id: 'd1' });
+    expect(L().rotateSelection()).toBe('7 段顯示器不能轉向');
     L().select(null);
     expect(L().rotateSelection()).toBeNull();
+  });
+});
+
+describe('turning before placing and mirroring (sub-project 28)', () => {
+  it('turns and mirrors the part being placed, then places it that way', () => {
+    L().startPlacing('AND');
+    L().turnPlacing('rotate');
+    L().turnPlacing('flip');
+    expect(L().placingTurn).toEqual({ rotation: 90, flip: true });
+    expect(L().place('AND', 4, 4)).toBe(true);
+    expect(L().diagram.nodes[0]).toMatchObject({ rotation: 90, flip: true });
+    // 開始放下一個時重新從沒轉開始。
+    L().startPlacing('OR');
+    expect(L().placingTurn).toEqual({});
+  });
+
+  it('mirrors the selection in one undo step', () => {
+    L().load(majorityDiagram());
+    L().select({ kind: 'nodes', ids: ['g1', 'd9'] });
+    expect(L().flipSelection()).toBeNull();
+    expect(L().diagram.nodes.find((n) => n.id === 'g1')!.flip).toBe(true);
+    L().undo();
+    expect(L().diagram.nodes.some((n) => n.flip)).toBe(false);
+  });
+});
+
+describe('notes on the logic diagram (sub-project 29)', () => {
+  it('adds a note in the middle of the view, edits it, and drops it when left empty', () => {
+    L().setViewport({ scale: 1, x: 0, y: 0 });
+    L().setCanvasSize(800, 600);
+    L().addNoteAtCenter();
+    const id = L().diagram.notes![0].id;
+    expect(L().selection).toEqual({ kind: 'note', id });
+    expect(L().editingNote).toBe(id);
+    // 畫面中間 (400, 300) px = 格子 (20, 15)，往左上挪一點放便條。
+    expect(L().diagram.notes![0]).toMatchObject({ x: 18, y: 14 });
+    L().finishNoteEdit('   ');
+    expect(L().diagram.notes).toBeUndefined();
+    expect(L().editingNote).toBeNull();
+  });
+
+  it('edits, recolours, points, moves and deletes, each undoable', () => {
+    L().load(majorityDiagram());
+    L().addNoteAt(2, 2);
+    const id = L().diagram.notes![0].id;
+    L().finishNoteEdit('多數決');
+    L().setNoteColor(id, 'pink');
+    L().setNoteTarget(id, 'g4');
+    L().moveNote(id, 5, 6);
+    expect(L().diagram.notes![0]).toMatchObject({ text: '多數決', color: 'pink', target: 'g4', x: 5, y: 6 });
+    L().undo();
+    expect(L().diagram.notes![0]).toMatchObject({ x: 2, y: 2 });
+    L().select({ kind: 'note', id });
+    L().deleteSelection();
+    expect(L().diagram.notes).toBeUndefined();
+    L().undo();
+    expect(L().diagram.notes).toHaveLength(1);
   });
 });

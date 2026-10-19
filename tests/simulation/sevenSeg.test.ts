@@ -14,7 +14,7 @@ import { circuit, comp, wire } from '../fixtures/build';
  * 7 段顯示器 DS1 在 H45（兩排間距 6）：下排 H45–H49 = e d CA c dp，上排 D49–D45 = b a CA f g。
  * 每一段經一顆直立跨過凹槽的電阻（第 25、27…37 欄）：74LS47 的輸出 → 電阻上端，電阻下端 → 段。
  */
-function display(value: number, opts: { resistors?: boolean; anodeToGround?: boolean } = {}): Circuit {
+function display(value: number, opts: { resistors?: boolean; anodeToGround?: boolean; cathode?: boolean; commonToVcc?: boolean } = {}): Circuit {
   const resistors = opts.resistors ?? true;
   const bits = [0, 1, 2, 3].map((i) => (value >> i) & 1);
   // 輸入：1 = 接 VCC（T+），0 = 接 GND（B-）。A 第 7 腳 F21、B 第 1 腳 F15、C 第 2 腳 F16、D 第 6 腳 F20。
@@ -32,7 +32,8 @@ function display(value: number, opts: { resistors?: boolean; anodeToGround?: boo
     ['f', 16, 'A46'],
     ['g', 17, 'A45'],
   ];
-  const parts = [comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3'), comp('U1', '74LS47', 'F15'), comp('DS1', '7seg-ca', 'H45')];
+  // 子專案 32：cathode 時改用 74LS48（腳位和 74LS47 一樣）與共陰極顯示器。
+  const parts = [comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3'), comp('U1', opts.cathode ? '74LS48' : '74LS47', 'F15'), comp('DS1', opts.cathode ? '7seg-cc' : '7seg-ca', 'H45')];
   const wires = [wire('vcc', 'T+15', 'A15'), wire('gnd', 'J22', 'B-22'), ...inputs];
   segs.forEach(([name, col, hole], i) => {
     if (resistors) {
@@ -44,7 +45,8 @@ function display(value: number, opts: { resistors?: boolean; anodeToGround?: boo
       wires.push(wire(name, `A${col}`, hole));
     }
   });
-  wires.push(opts.anodeToGround ? wire('ca', 'J47', 'B-47') : wire('ca', 'A47', 'T+47'));
+  if (opts.cathode) wires.push(opts.commonToVcc ? wire('cc', 'A47', 'T+47') : wire('cc', 'J47', 'B-47'));
+  else wires.push(opts.anodeToGround ? wire('ca', 'J47', 'B-47') : wire('ca', 'A47', 'T+47'));
   return circuit(parts, wires);
 }
 const segments = (c: Circuit) => {
@@ -143,5 +145,35 @@ describe('why a 7-segment display is dark', () => {
     expect(darkReasonText({ kind: 'driver-unpowered', driver: 'U1' })).toContain('U1');
     expect(darkReasonText({ kind: 'blanked', driver: 'U1' })).toContain('BI');
     expect(darkReasonText({ kind: 'unwired' })).toContain('a–g');
+  });
+});
+
+describe('common-cathode displays with a 74LS48 (sub-project 32)', () => {
+  it('shows every digit 0–9', () => {
+    for (let n = 0; n < 10; n++) expect(segments(display(n, { cathode: true })).join(''), String(n)).toBe(BCD_GLYPHS[n]);
+  });
+
+  it('is a common-cathode part with the same pinout', () => {
+    const def = getComponentDefinition('7seg-cc')!;
+    expect(def.category).toBe('seven-seg');
+    expect(def.pins.filter((p) => p.name === 'CC').map((p) => [p.number, p.role])).toEqual([
+      [3, 'cathode'],
+      [8, 'cathode'],
+    ]);
+    expect(getComponentDefinition('74LS48')!.logic).toMatchObject({ model: 'bcd7seg', activeHigh: true });
+  });
+
+  it('explains why it is dark and warns when the common cathode goes to +5 V', () => {
+    const why = (c: Circuit) => {
+      const sim = compileSimulation(c);
+      return whyDark(sim, settle(sim, initialSimState(sim), { pressed: {}, clocks: {} }).result, 'DS1');
+    };
+    expect(why(display(15, { cathode: true }))).toEqual({ kind: 'fifteen', driver: 'U1', chip: '74LS48' });
+    expect(why(display(3, { cathode: true, commonToVcc: true }))).toEqual({ kind: 'no-power', cathode: true });
+    expect(darkReasonText({ kind: 'no-power', cathode: true })).toContain('共陰極');
+    expect(darkReasonText({ kind: 'fifteen', driver: 'U1', chip: '74LS48' })).toContain('74LS48');
+    const codes = validateCircuit(display(3, { cathode: true, commonToVcc: true })).filter((e) => e.componentIds.includes('DS1'));
+    expect(codes.find((e) => e.code === 'LED_REVERSED')?.message).toContain('共陰極（CC）接到 VCC');
+    expect(validateCircuit(display(8, { cathode: true })).filter((e) => e.componentIds.includes('DS1'))).toEqual([]);
   });
 });
