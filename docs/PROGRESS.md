@@ -13,7 +13,7 @@
 
 ## 進行中
 
-- 沒有進行中的子專案。
+- 子專案 38：轉換時共用 2 輸入閘、EIC-1106 一排擺法、兩個 4 位元開關（分支 `feat/encoder-optimization`，規格 `docs/superpowers/specs/2026-10-19-shared-gates-one-row-design.md`）：已實作，PR 等使用者看過後合併；合併後執行 `npm run publish:site` 發布。
 - 待使用者確認：MCP 打包檔還沒在真的 AI 工具上試過（本機 Claude Code 命令列沒有登入，Codex 的模型設定不適用），請使用者在自己的工具上試一次。
 
 ## 接下來（依優先順序）
