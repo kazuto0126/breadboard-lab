@@ -16,6 +16,13 @@ import * as tools from '../src/mcp/tools';
 import { listCircuitFiles, loadLabFile } from './mcp-files';
 import { folderFromArgs, insideProject } from './mcp-paths';
 
+/** 版本號：打包時換成建置的日期（vite.mcp.config.ts），原始碼版是 1.0.0。 */
+const VERSION = process.env.BREADBOARD_LAB_MCP_VERSION ?? '1.0.0';
+if (process.argv.includes('--version')) {
+  console.log(VERSION);
+  process.exit(0);
+}
+
 const where0 = folderFromArgs(process.argv.slice(2), process.cwd());
 if (!where0.ok) {
   console.error(where0.error);
@@ -56,7 +63,7 @@ const hole = (what: string) =>
   z.string().describe(`${what}：孔位名稱，寫法和網頁一樣，例如 F10、A3、T+10（上方 + 軌）、B-3（下方 − 軌）；EIC-1106 寫 1-F10、P2+12；有好幾塊板時加板子 ID，例如 b2:F10`);
 
 const server = new McpServer(
-  { name: 'breadboard-lab', version: '1.0.0' },
+  { name: 'breadboard-lab', version: VERSION },
   {
     instructions: [
       'Breadboard Lab：在 MB-102 / EIC-1106 麵包板上放 74LS IC、電阻、LED、指撥開關並接線，可以檢查、AI 佈線、模擬，也可以把邏輯圖轉成麵包板。',
