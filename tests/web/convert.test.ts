@@ -13,36 +13,48 @@ beforeEach(() => {
 });
 
 describe('convertLogic', () => {
-  it('replaces the breadboard in one undo step, switches to it and starts routing', async () => {
+  it('converts in the background, then puts the board and its routing in two undo steps', async () => {
     const before = circuit([comp('R9', 'resistor', 'A10')]);
     useStore.setState({ circuit: before, workspace: 'logic' });
     useLogic.getState().load(majorityDiagram());
     S().openDialog('to-breadboard');
 
+    // 子專案 36：在背景試好幾種擺法；算完之前板子不變、不能編輯。
     S().convertLogic({ switchTo: 'vcc', board: 'auto' });
-    expect(S().circuit.components.map((c) => c.id)).toEqual(expect.arrayContaining(['SW1', 'U1', 'U2', 'D1']));
     expect(S().workspace).toBe('breadboard');
     expect(S().dialog).toBeNull();
+    expect(S().routing).toMatchObject({ purpose: 'apply', moveIcs: true, converting: true });
+    expect(S().circuit).toBe(before);
+    await vi.waitFor(() => expect(S().routing).toBeNull(), { timeout: 120_000 });
+
+    expect(S().circuit.components.map((c) => c.id)).toEqual(expect.arrayContaining(['SW1', 'U1', 'U2', 'D1']));
     // 子專案 22：比對改成依名稱，轉換只要把名稱填好（不再記住對應）。
     const part = (id: string) => S().circuit.components.find((c) => c.id === id)!;
     expect(part('SW1').props.labels).toEqual(['A', 'B', 'C', '']);
     expect(part('D1').props.labels).toEqual(['X']);
-    expect('conversion' in S()).toBe(false);
-    expect(S().routing).toMatchObject({ purpose: 'apply', moveIcs: true });
-
-    S().cancelRouting();
-    await vi.waitFor(() => expect(S().routing).toBeNull(), { timeout: 30_000 });
+    expect(S().circuit.wires.length).toBeGreaterThan(0);
+    expect(S().history.past.slice(-2).map((h) => h.label)[0]).toBe('邏輯圖轉成麵包板');
+    S().undo();
     S().undo();
     expect(S().circuit).toBe(before);
+  }, 120_000);
+
+  it('keeps the breadboard when the conversion is cancelled', async () => {
+    const before = S().circuit;
+    useLogic.getState().load(majorityDiagram());
+    S().convertLogic({ switchTo: 'vcc', board: 'auto' });
+    S().cancelRouting();
+    await vi.waitFor(() => expect(S().routing).toBeNull(), { timeout: 30_000 });
+    expect(S().circuit).toBe(before);
+    expect(S().toasts.at(-1)?.message).toBe('已取消轉成麵包板');
   });
 
   it('names the display after the diagram', async () => {
     useLogic.getState().load(bcdDiagram());
     S().convertLogic({ switchTo: 'gnd', board: 'auto' });
+    await vi.waitFor(() => expect(S().routing).toBeNull(), { timeout: 120_000 });
     expect(S().circuit.components.find((c) => c.id === 'DS1')!.props.labels).toEqual(['S1']);
-    S().cancelRouting();
-    await vi.waitFor(() => expect(S().routing).toBeNull(), { timeout: 30_000 });
-  });
+  }, 120_000);
 
   it('explains why a diagram cannot be converted and keeps the breadboard', () => {
     const before = S().circuit;

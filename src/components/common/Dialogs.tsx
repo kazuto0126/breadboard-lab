@@ -372,7 +372,7 @@ function ToBreadboardDialog() {
           )}
         </div>
         {hasParts && <p className="text-xs text-amber-300">會取代目前的麵包板（可以按復原找回來）。</p>}
-        <p className="text-xs text-slate-400">轉換後會自動執行 AI 佈線（可移動 IC），並用模擬逐列比對真值表。</p>
+        <p className="text-xs text-slate-400">轉換時會試好幾種擺法，每一種用 AI 佈線（可移動 IC）試過、挑線最少的一種（大電路要等十幾秒），並用模擬逐列比對真值表。</p>
       </div>
       <div className="mt-4 flex justify-end gap-2">
         <button type="button" className={`${button} bg-slate-700 hover:bg-slate-600`} onClick={() => store.closeDialog()}>

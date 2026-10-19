@@ -411,9 +411,15 @@ function RoutingOverlay() {
     <div className="absolute inset-0 z-30 flex items-center justify-center bg-slate-950/35">
       <div className="w-[340px] rounded-lg border border-slate-600 bg-slate-900/95 p-5 text-center shadow-2xl">
         <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-sky-500 border-t-transparent" />
-        <div className="text-base font-semibold text-slate-100">{routing.moveIcs ? 'AI 佈線（可移動 IC）計算中…' : 'AI 標準佈線計算中…'}</div>
+        <div className="text-base font-semibold text-slate-100">
+          {routing.converting ? '轉成麵包板：試好幾種擺法…' : routing.moveIcs ? 'AI 佈線（可移動 IC）計算中…' : 'AI 標準佈線計算中…'}
+        </div>
         <div className="mt-1 text-xs text-slate-400">
-          {routing.moveIcs ? '找 IC 位置 → 直線跳線佈線 → 合法性檢查' : '分析 Electrical Nets → 直線跳線搜尋 → 協商式拆線重排 → 合法性檢查'}
+          {routing.converting
+            ? '每種擺法用可移動 IC 的佈線試一次，挑最好的（大電路要等十幾秒）'
+            : routing.moveIcs
+              ? '找 IC 位置 → 直線跳線佈線 → 合法性檢查'
+              : '分析 Electrical Nets → 直線跳線搜尋 → 協商式拆線重排 → 合法性檢查'}
         </div>
         <div className="mt-2 text-sm tabular-nums text-slate-300">{seconds.toFixed(1)} 秒</div>
         <button type="button" className="mt-3 rounded bg-slate-700 px-4 py-1 text-sm text-slate-100 hover:bg-slate-600" onClick={() => useStore.getState().cancelRouting()}>
