@@ -279,3 +279,12 @@ export function setDisplayMode(d: LogicDiagram, id: string, segments: boolean): 
   if (d.nodes.some((n) => n.id !== id && overlaps(n, next))) return fail(d, '顯示器變高後會和別的元件重疊');
   return { ok: true, diagram: { ...replaceNode(d, next), wires: d.wires.filter((w) => w.to.node !== id) } };
 }
+
+/** 子專案 37：輸出端切換成低態致動（0 時亮）或一般（1 時亮）；線不動。 */
+export function setActiveLow(d: LogicDiagram, id: string, on: boolean): EditResult {
+  const node = d.nodes.find((n) => n.id === id);
+  if (!node || node.kind !== 'OUTPUT') return fail(d, '找不到輸出端');
+  if (!!node.activeLow === on) return { ok: true, diagram: d };
+  const { activeLow: _old, ...rest } = node;
+  return { ok: true, diagram: replaceNode(d, on ? { ...rest, activeLow: true } : rest) };
+}

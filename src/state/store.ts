@@ -33,7 +33,8 @@ import {
 } from '../editor/commands';
 import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
 import { LOGIC_EXAMPLES } from '../logic/examples';
-import { toBreadboard, type ConvertOptions } from '../logic/toBreadboard';
+import { convertProblem } from '../logic/synth';
+import type { ConvertOptions } from '../logic/toBreadboard';
 import { pressedFor, withSwitches, type SwitchBinding } from '../logic/verifyBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../logic/types';
 import { logicDirty, useLogic } from './logic';
@@ -47,7 +48,7 @@ import type { Circuit, NoteColor, Wire } from '../types/circuit';
 import type { ComponentInstance, ComponentProps, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
 import type { IcMove, RoutingMetrics, RoutingResult } from '../types/routing';
-import { RoutingCancelled, startRouting, type RoutingJob } from '../workers/routingClient';
+import { RoutingCancelled, startConversion, startRouting } from '../workers/routingClient';
 import * as persistence from './persistence';
 import { addNote, moveNote, NOTE_WIDTH_MM, removeNote, setNoteColor, setNoteHole, setNoteTarget, setNoteText } from '../editor/notes';
 
@@ -133,7 +134,8 @@ export interface AppState {
   workspace: 'breadboard' | 'logic';
   compareLayout: 'side' | 'stacked';
   showCheck: boolean;
-  routing: { startedAt: number; purpose: 'apply' | 'compare'; moveIcs: boolean } | null;
+  /** converting：子專案 36，邏輯圖轉成麵包板（在 Worker 裡試好幾種擺法）。 */
+  routing: { startedAt: number; purpose: 'apply' | 'compare'; moveIcs: boolean; converting?: true } | null;
   comparison: Comparison | null;
   animation: WireAnimation | null;
   resultVisible: boolean;
@@ -367,7 +369,7 @@ function componentName(circuit: Circuit, id: string): string {
 
 const TOAST_MS: Record<Toast['kind'], number> = { info: 2500, success: 3500, warning: 5000, error: 7000 };
 
-let routingJob: RoutingJob | null = null;
+let routingJob: { cancel(): void } | null = null;
 let simTimer: ReturnType<typeof setInterval> | null = null;
 let simHintShown = false;
 
@@ -524,6 +526,39 @@ export const useStore = create<Store>()((set, get) => {
     const animation = planAnimation(wires, moves);
     set({ animation, resultVisible: false });
     animationTimer = setTimeout(() => get().finishAnimation(), animation.totalMs + 120);
+  };
+
+  /** 佈線算完：沒有線要接時說明；比較模式切到比較；排不完時顯示結果；成功時套用並播放動畫（AI 佈線與轉成麵包板共用）。 */
+  const applyRoutingOutcome = (circuit: Circuit, result: RoutingResult, purpose: 'apply' | 'compare') => {
+    const comparison: Comparison = {
+      beforeWires: circuit.wires,
+      beforeScore: analyzeCircuit(circuit).routing,
+      result,
+      components: circuit.components,
+      boards: circuit.boards,
+      appliedComponents: null,
+    };
+    if (result.status === 'success' && result.wires.length === 0) {
+      set({ comparison: null });
+      get().toast(
+        'info',
+        circuit.wires.length === 0
+          ? 'AI 標準佈線會保留你接線所定義的電氣連接。請先手動接線，告訴系統哪些腳要連在一起。'
+          : '沒有需要用導線連接的 Net（每個 Net 都已經在同一個導通群組裡）。',
+      );
+      return;
+    }
+    if (purpose === 'compare') {
+      set({ comparison, view: 'compare' });
+      return;
+    }
+    if (result.status !== 'success') {
+      set({ comparison, resultVisible: true });
+      return;
+    }
+    const applied = applyRouting(circuit, result);
+    commit(routingLabel(result), applied, { comparison: withApplied(comparison, applied), selection: null, view: 'edit' });
+    startAnimation(get().circuit.wires, result.moves ?? []);
   };
 
   return {
@@ -917,35 +952,7 @@ export const useStore = create<Store>()((set, get) => {
             get().toast('warning', '電路在計算期間被修改，已捨棄這次的佈線結果');
             return;
           }
-          const comparison: Comparison = {
-            beforeWires: circuit.wires,
-            beforeScore: analyzeCircuit(circuit).routing,
-            result,
-            components: circuit.components,
-            boards: circuit.boards,
-            appliedComponents: null,
-          };
-          if (result.status === 'success' && result.wires.length === 0) {
-            set({ comparison: null });
-            get().toast(
-              'info',
-              circuit.wires.length === 0
-                ? 'AI 標準佈線會保留你接線所定義的電氣連接。請先手動接線，告訴系統哪些腳要連在一起。'
-                : '沒有需要用導線連接的 Net（每個 Net 都已經在同一個導通群組裡）。',
-            );
-            return;
-          }
-          if (purpose === 'compare') {
-            set({ comparison, view: 'compare' });
-            return;
-          }
-          if (result.status !== 'success') {
-            set({ comparison, resultVisible: true });
-            return;
-          }
-          const applied = applyRouting(circuit, result);
-          commit(routingLabel(result), applied, { comparison: withApplied(comparison, applied), selection: null, view: 'edit' });
-          startAnimation(get().circuit.wires, result.moves ?? []);
+          applyRoutingOutcome(circuit, result, purpose);
         })
         .catch((err: unknown) => {
           if (err instanceof RoutingCancelled) get().toast('info', '已取消 AI 標準佈線');
@@ -1056,30 +1063,41 @@ export const useStore = create<Store>()((set, get) => {
 
     convertLogic(options) {
       if (guardEdit()) return;
-      const result = toBreadboard(useLogic.getState().diagram, options);
-      if (!result.ok) {
-        get().toast('error', result.reason);
+      const diagram = useLogic.getState().diagram;
+      const problem = convertProblem(diagram);
+      if (problem) {
+        get().toast('error', problem);
         return;
       }
-      commit('邏輯圖轉成麵包板', result.circuit, { selection: null });
-      // 轉換時開關、LED、顯示器已經依邏輯圖填好名稱；「檢查」分頁依名稱比對（子專案 22）。
+      // 子專案 36：在 Worker 裡試好幾種擺法、挑佈線最好的（自動選板時 MB-102 都排不完才用 EIC-1106）；
+      // 算完先放上轉換的麵包板，再套用佈線（兩步 Undo，和以前一樣）。開關、LED、顯示器已經依邏輯圖填好名稱（子專案 22）。
       set({ workspace: 'breadboard', dialog: null });
       writeWorkspace('breadboard');
-      get().fitToScreen();
-      get().runAutoRoute('apply', { moveIcs: true, nearestPower: true });
-      // 子專案 14：「自動」選了 MB-102 但 AI 佈線排不完時（例如只用 NAND，連線比較多），改用 EIC-1106 再轉一次。
-      if (options.board === 'auto' && result.bom.layout === 'MB102') {
-        const converted = result.circuit;
-        const off = useStore.subscribe((s, prev) => {
-          if (!prev.routing || s.routing) return;
-          off();
-          const done = s.comparison;
-          if (!done || done.beforeWires !== converted.wires || done.result.status === 'success') return;
-          if (s.circuit !== converted) return;
-          get().toast('info', 'MB-102 上的線排不完，改用 EIC-1106 大型麵包板再轉一次');
-          get().convertLogic({ ...options, board: 'EIC1106' });
+      clearAnimationTimer();
+      set({ routing: { startedAt: performance.now(), purpose: 'apply', moveIcs: true, converting: true }, animation: null, resultVisible: false, placing: null });
+      const job = startConversion(diagram, options);
+      routingJob = job;
+      job.promise
+        .then((r) => {
+          if (routingJob !== job) return;
+          if (!r.ok) {
+            get().toast('error', r.reason);
+            return;
+          }
+          commit('邏輯圖轉成麵包板', r.result.circuit, { selection: null });
+          get().fitToScreen();
+          applyRoutingOutcome(r.result.circuit, r.routed, 'apply');
+        })
+        .catch((err: unknown) => {
+          if (err instanceof RoutingCancelled) get().toast('info', '已取消轉成麵包板');
+          else get().toast('error', `轉成麵包板失敗：${err instanceof Error ? err.message : String(err)}`);
+        })
+        .finally(() => {
+          if (routingJob === job) {
+            routingJob = null;
+            set({ routing: null });
+          }
         });
-      }
     },
 
     applyDiagramRow(inputs, bits, names) {

@@ -130,6 +130,9 @@ export function evaluate(
   return { loop: null, nodes, displays, dps, segs };
 }
 
+/** 輸出端的燈號亮不亮：一般是 1 時亮；子專案 37 低態致動是 0 時亮；不確定時不亮。 */
+export const lampLit = (node: LogicNode, value: Bit | undefined): boolean => value === (node.activeLow ? 0 : 1);
+
 const byName = (a: LogicNode, b: LogicNode) => ((a.name ?? '') < (b.name ?? '') ? -1 : (a.name ?? '') > (b.name ?? '') ? 1 : 0);
 
 export function sortedIo(d: LogicDiagram): { inputs: LogicNode[]; outputs: LogicNode[] } {

@@ -25,6 +25,14 @@ export function powerProblems(c: Circuit): string[] {
       if (nearest !== rail) problems.push(`${w.id}: ${group} 接到 ${rail}，最近的是 ${nearest}`);
     }
   }
+  // 子專案 36：直接插在電源軌上的元件腳（例如直立的上 / 下拉電阻）也算用到那條軌。
+  for (const x of c.components) {
+    if (x.defId === 'vcc' || x.defId === 'gnd') continue;
+    for (const p of index.placedById.get(x.id)?.footprint.pins ?? []) {
+      const g = groupOfPoint(index, p.point);
+      if (g && isRail(g)) used.add(g);
+    }
+  }
   const symbolAt = new Map<string, string>();
   for (const x of c.components) {
     if (x.defId !== 'vcc' && x.defId !== 'gnd') continue;

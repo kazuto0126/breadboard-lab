@@ -45,6 +45,12 @@ function parseNode(raw: unknown, i: number): LogicNode {
     if (node.kind !== 'DISPLAY') fail(`元件 ${node.id} 不是顯示器，不能每段直接控制`);
     node.segments = true;
   }
+  // 子專案 37：低態致動的輸出端。
+  if (n.activeLow !== undefined && n.activeLow !== false) {
+    if (n.activeLow !== true) fail(`元件 ${node.id} 的低態致動要是 true 或不寫`);
+    if (node.kind !== 'OUTPUT') fail(`元件 ${node.id} 不是輸出端，不能設成低態致動`);
+    node.activeLow = true;
+  }
   if (n.flip !== undefined && n.flip !== false) {
     if (n.flip !== true) fail(`元件 ${node.id} 的鏡射要是 true 或不寫`);
     if (!canRotate(node.kind)) fail(`元件 ${node.id}（${node.kind}）不能轉向`);

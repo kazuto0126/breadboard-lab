@@ -234,6 +234,18 @@ describe('logic diagram tools', () => {
     expect(powerProblems(f.circuit)).toEqual([]);
   }, 120_000);
 
+  it('tries several layouts and keeps the best one (sub-project 36)', async () => {
+    const { logicToBreadboard } = await import('../../src/mcp/tools');
+    const { comparator } = await import('../fixtures/labCircuits');
+    const r = logicToBreadboard({ ...newLabFile('x', 'MB102'), logic: comparator() }, { pulls: true });
+    okFile(r);
+    expect(r.text).toContain('轉成麵包板（MB-102）');
+    expect(r.text).toMatch(/試了 \d+ 種擺法/);
+    const wires = Number(/佈線成功：(\d+) 條線/.exec(r.text)?.[1]);
+    expect(wires).toBeLessThanOrEqual(27);
+    expect(r.text).toContain('全部一致');
+  }, 120_000);
+
   it('checks a hand-wired board against the diagram by name', async () => {
     const { checkAgainstDiagram } = await import('../../src/mcp/tools');
     const { handWired, gateDiagram } = await import('../fixtures/handWired');

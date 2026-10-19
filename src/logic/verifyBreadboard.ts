@@ -1,6 +1,6 @@
 import { getComponentDefinition } from '../core/circuit/library';
 import { whyDark } from '../core/simulation/darkDisplay';
-import { compileSimulation, initialSimState, settle } from '../core/simulation/simulate';
+import { compileSimulation, initialSimState, settle, type SimCircuit } from '../core/simulation/simulate';
 import type { Circuit } from '../types/circuit';
 import { segmentToken, sortedIo, truthTable } from './evaluate';
 import { valueOfSegments } from './sevenSeg';
@@ -93,15 +93,28 @@ export interface ExpectedRow {
   out: string[];
 }
 
-/** 逐列撥好開關、模擬、讀 LED 與顯示器，和期望值比較（`verifyRows` 與題目的比對共用）。 */
+/** 子專案 37：陽極直接接在 +5 V 的 LED 是低態致動（陰極經過電阻接到輸出，訊號 0 時亮）。 */
+export function activeLowLeds(sim: SimCircuit): Set<string> {
+  const vcc = new Set(sim.sources.filter((s) => s.level === 1).map((s) => s.node));
+  return new Set(sim.leds.filter((l) => l.anode !== null && vcc.has(l.anode)).map((l) => l.componentId));
+}
+
+/**
+ * 逐列撥好開關、模擬、讀 LED 與顯示器，和期望值比較（`verifyRows` 與題目的比對共用）。
+ * 子專案 37：LED 讀成訊號的值：陽極接 +5 V 的 LED 亮 = 0，其他 LED 亮 = 1。
+ */
 export function verifyExpected(circuit: Circuit, bindings: Bindings, outputs: Array<{ id: string; display: boolean; segments?: boolean }>, rows: ExpectedRow[]): VerifyResult {
   const mismatches: VerifyResult['mismatches'] = [];
   for (const row of rows) {
     const sim = compileSimulation(withSwitches(circuit, bindings.inputs, row.in));
     const result = settle(sim, initialSimState(sim), { pressed: pressedFor(bindings.inputs, row.in), clocks: {} }).result;
     const lit = new Set(result.litLeds);
+    const low = activeLowLeds(sim);
     const actual = outputs.map((o) => {
-      if (!o.display) return lit.has(bindings.leds[o.id] ?? '') ? '1' : '0';
+      if (!o.display) {
+        const led = bindings.leds[o.id] ?? '';
+        return lit.has(led) !== low.has(led) ? '1' : '0';
+      }
       const id = bindings.displays[o.id] ?? '';
       const shown = result.litSegments[id] ?? [];
       // 子專案 32：每段直接控制的顯示器寫亮的段；BCD 顯示器的小數點寫成「5.」。

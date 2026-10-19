@@ -1,0 +1,40 @@
+import { describe, expect, it } from 'vitest';
+import { applyRouting } from '../../src/core/routing/apply';
+import { convertAndRoute } from '../../src/logic/convertRoute';
+import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
+import { bcdDiagram, majorityDiagram } from '../../src/logic/examples';
+import type { ConvertOptions } from '../../src/logic/toBreadboard';
+import type { LogicDiagram } from '../../src/logic/types';
+import { comparator, decoder, encoder } from '../fixtures/labCircuits';
+
+/**
+ * 子專案 36（規格 2026-10-20 conversion-placement 第 3 節）：「轉成麵包板」的量測。比較慢，不在一般的 npm test 與 CI 跑；
+ * 用 npm run bench:convert 執行，結果印出來並檢查目標。
+ */
+const cases: Array<{ name: string; d: () => LogicDiagram; options: Partial<ConvertOptions>; board?: 'MB102' | 'EIC1106'; maxWires?: number }> = [
+  { name: 'A 比較器（下拉電阻）', d: comparator, options: { pulls: true }, board: 'MB102', maxWires: 27 },
+  { name: '多數決（下拉電阻）', d: majorityDiagram, options: { pulls: true }, board: 'MB102', maxWires: 28 },
+  { name: 'B 解碼器', d: () => decoder(), options: {}, board: 'MB102' },
+  // 子專案 37：輸出端設成低態致動（LED 正極接 +5 V）。
+  { name: 'B 解碼器（低態致動 LED）', d: () => decoder(true), options: {}, board: 'MB102' },
+  { name: 'C 編碼器', d: encoder, options: {}, maxWires: 73 },
+  { name: 'BCD 範例', d: bcdDiagram, options: {}, maxWires: 60 },
+];
+
+describe('logic-to-breadboard measurements', () => {
+  for (const c of cases)
+    it(c.name, () => {
+      const d = c.d();
+      const started = performance.now();
+      const r = convertAndRoute(d, { switchTo: 'vcc', board: 'auto', ...c.options });
+      const ms = Math.round(performance.now() - started);
+      if (!r.ok) throw new Error(r.reason);
+      const { metrics } = r.routed;
+      console.log(`MEASURE ${c.name}: ${r.result.bom.layout} ${r.routed.status} ${metrics.wireCount} 條線、總長 ${metrics.totalLength}、試了 ${r.tried} 種擺法、${ms} ms`);
+      expect(r.routed.status).toBe('success');
+      if (c.board) expect(r.result.bom.layout).toBe(c.board);
+      if (c.maxWires) expect(metrics.wireCount).toBeLessThanOrEqual(c.maxWires);
+      expect(ms).toBeLessThan(45_000);
+      expect(checkAgainstDiagram(d, applyRouting(r.result.circuit, r.routed))).toMatchObject({ kind: 'done', result: { mismatches: [] } });
+    }, 120_000);
+});

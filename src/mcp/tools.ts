@@ -19,12 +19,12 @@ import { darkReasonText, whyDark } from '../core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle } from '../core/simulation/simulate';
 import { routingSummaryText, summarizeRouting } from '../editor/explain/routing';
 import { checkDiagram } from '../logic/check';
+import { convertAndRoute } from '../logic/convertRoute';
 import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
 import { truthTable } from '../logic/evaluate';
 import { parseLogicDiagram } from '../logic/file';
 import { valueOfSegments } from '../logic/sevenSeg';
 import { overlaps } from '../logic/shapes';
-import { toBreadboard } from '../logic/toBreadboard';
 import { emptyDiagram, isGate, type LogicDiagram, type LogicNode } from '../logic/types';
 import { verifyText } from '../logic/verifyBreadboard';
 import type { LayoutId } from '../types/board';
@@ -435,21 +435,11 @@ export function logicToBreadboard(
 ): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
   const options = { switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false, inputs: args.inputs ?? 'switch', display: args.display ?? 'ca' } as const;
-  let r = toBreadboard(f.logic, options);
-  if (!r.ok) return fail(r.reason);
-  // 子專案 34：電源腳接搬好 IC 之後最近的軌，軌和軌之間不拉線（和網頁的轉換一樣）。
-  const nearestPower = { placement: { nearestPowerRail: true } };
-  let routed = autoPlaceAndRoute(r.circuit, nearestPower);
-  const notes: string[] = [];
-  // 和網頁一樣：自動選板時 MB-102 排不完就改用 EIC-1106 再轉一次。
-  if (routed.status !== 'success' && options.board === 'auto' && r.bom.layout === 'MB102') {
-    const again = toBreadboard(f.logic, { ...options, board: 'EIC1106' });
-    if (again.ok) {
-      r = again;
-      routed = autoPlaceAndRoute(again.circuit, nearestPower);
-      notes.push('MB-102 上的線排不完，改用 EIC-1106 大型麵包板。');
-    }
-  }
+  // 子專案 36：和網頁一樣，試好幾種擺法挑佈線最好的（自動選板時 MB-102 都排不完才用 EIC-1106）；電源接最近的軌（子專案 34）。
+  const converted = convertAndRoute(f.logic, options);
+  if (!converted.ok) return fail(converted.reason);
+  const { result: r, routed, tried } = converted;
+  const notes = [`試了 ${tried} 種擺法，用佈線最好的一種。`];
   const circuit = routed.status === 'success' ? applyRouting(r.circuit, routed) : r.circuit;
   const bom = r.bom;
   const parts = [

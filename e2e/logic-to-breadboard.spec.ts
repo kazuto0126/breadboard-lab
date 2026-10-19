@@ -14,7 +14,8 @@ test('圖 2-5 轉成麵包板：產生 IC、開關、LED，佈線後真值表全
   await expect(dialog.getByTestId('convert-preview')).toContainText('74LS08 × 1、74LS32 × 1、4 位元指撥開關 × 1、電阻 × 1、LED × 1');
   await dialog.getByRole('button', { name: '轉換' }).click();
 
-  for (const id of ['U1', 'U2', 'SW1', 'D1']) await expect(page.locator(`g[data-component-id="${id}"]`)).toHaveCount(1);
+  // 子專案 36：轉換在背景試好幾種擺法，算完才放上麵包板。
+  for (const id of ['U1', 'U2', 'SW1', 'D1']) await expect(page.locator(`g[data-component-id="${id}"]`)).toHaveCount(1, { timeout: 90_000 });
   // 等 AI 佈線（可移動 IC）結束。
   await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 60_000 });
   await page.getByRole('tab', { name: /檢查/ }).click();
@@ -87,7 +88,7 @@ test('轉成麵包板時輸入用按鈕：每個輸入一顆、名稱在板上�
   await expect(dialog.getByTestId('convert-preview')).toContainText('按鈕 × 3');
   await dialog.getByRole('button', { name: '轉換' }).click();
 
-  for (const id of ['BTN1', 'BTN2', 'BTN3']) await expect(page.locator(`g[data-component-id="${id}"]`)).toHaveCount(1);
+  for (const id of ['BTN1', 'BTN2', 'BTN3']) await expect(page.locator(`g[data-component-id="${id}"]`)).toHaveCount(1, { timeout: 90_000 });
   for (const name of ['A', 'B', 'C']) await expect(page.locator(`[data-label="${name}"]`)).toHaveCount(1);
   await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 60_000 });
   await page.getByRole('tab', { name: /檢查/ }).click();
@@ -124,4 +125,79 @@ test('轉成麵包板：電源接最近的軌，軌和軌之間不拉線（子�
     const nearest = Number(h[1]) + (h[2] <= 'E' ? 1 : 2);
     expect(Number(r[1]), `${label} 不是最近的軌`).toBe(nearest);
   }
+});
+
+test('轉成麵包板：在背景試好幾種擺法，下拉電阻直立插進電源軌，兩步 Undo（子專案 36）', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: '多數決電路（圖 2-5）' }).click();
+  await page.getByRole('button', { name: '轉成麵包板…' }).click();
+  const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
+  await dialog.getByText('加上 / 下拉電阻（實際接線建議勾）').click();
+  await dialog.getByRole('button', { name: '轉換' }).click();
+
+  // 算的時候顯示在試擺法；算完放上麵包板並佈好線。
+  await expect(page.getByText('轉成麵包板：試好幾種擺法…')).toBeVisible();
+  await expect(page.locator('g[data-component-id="U1"]')).toHaveCount(1, { timeout: 90_000 });
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 90_000 });
+  await page.getByRole('tab', { name: /檢查/ }).click();
+  await expect(page.getByTestId('diagram-check')).toContainText('全部一致', { timeout: 60_000 });
+
+  // 下拉電阻直立：接線清單裡沒有接到下拉電阻那一排 J 列的電源線（電阻直接插進電源軌）。
+  const wires = Number(await page.getByTestId('wire-count').textContent());
+  expect(wires).toBeLessThanOrEqual(30);
+
+  // 兩步 Undo：先回到還沒佈線的轉換結果，再回到轉換前（空的麵包板）。
+  await page.locator('[data-testid="status"]').click();
+  await page.keyboard.press('Control+z');
+  await expect(page.getByTestId('wire-count')).not.toHaveText(String(wires));
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('g[data-component-id="U1"]')).toHaveCount(0);
+});
+
+test('低態致動的輸出端：屬性面板切換後燈號 0 時亮，轉成麵包板後比對全部一致、LED 在 0 時亮（子專案 37）', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: '多數決電路（圖 2-5）' }).click();
+  const lamp = page.locator('[data-logic-lamp="o1"]');
+  await expect(lamp).toHaveText('0');
+  await expect(lamp).toHaveAttribute('data-lit', 'off');
+
+  // 選取輸出端 X，在屬性面板改成 0 時亮：燈號仍然寫 0，但亮了；輸入那一側多一個小圓圈。
+  await page.locator('[data-logic-node="o1"]').click();
+  const low = page.getByRole('button', { name: '0 時亮（低態致動）' });
+  await low.click();
+  await expect(low).toHaveAttribute('aria-pressed', 'true');
+  await expect(lamp).toHaveText('0');
+  await expect(lamp).toHaveAttribute('data-lit', 'on');
+  await expect(page.locator('[data-active-low="o1"]')).toHaveCount(1);
+  // 可以 Undo（Undo 會取消選取，再選一次）。
+  await page.keyboard.press('Control+z');
+  await expect(lamp).toHaveAttribute('data-lit', 'off');
+  await expect(page.locator('[data-active-low="o1"]')).toHaveCount(0);
+  await page.locator('[data-logic-node="o1"]').click();
+  await low.click();
+  await expect(lamp).toHaveAttribute('data-lit', 'on');
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: '轉成麵包板…' }).click();
+  await page.getByRole('dialog', { name: '轉成麵包板' }).getByRole('button', { name: '轉換' }).click();
+  await expect(page.locator('g[data-component-id="D1"]')).toHaveCount(1, { timeout: 90_000 });
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 90_000 });
+  await page.getByRole('tab', { name: /檢查/ }).click();
+  await expect(page.getByTestId('diagram-check')).toContainText('8 種輸入組合，麵包板的模擬結果和真值表全部一致', { timeout: 60_000 });
+
+  // 模擬：開關都 OFF 時 X = 0，LED 亮；A、B 撥 ON（X = 1）後熄滅。
+  await page.getByRole('button', { name: '▶ 模擬', exact: true }).click();
+  await expect(page.getByTestId('simulation-bar')).toContainText('模擬中');
+  const lit = () => page.locator('g[data-component-id="D1"][data-lit]').count();
+  await expect.poll(lit).toBe(1);
+  for (const k of [0, 1]) await page.locator(`g[data-component-id="SW1"] [data-switch="${k}"]`).click();
+  await expect.poll(lit).toBe(0);
 });
