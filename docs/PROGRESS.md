@@ -13,8 +13,9 @@
 
 ## 進行中
 
-- 子專案 27–32：小功能（分支 `feat/small-features`，規格 `docs/superpowers/specs/2026-10-18-small-features-design.md`）：
-  只用 NOR ✅、轉向加強 ✅、便條 ✅、輸入用按鈕 ✅、題目產生邏輯圖的其他形式 ✅、7 段顯示器加強 ✅（多位數測過佈線接不完，維持最多 2 個）。全部做完，準備開 PR。
+- 子專案 27–32（小功能）已在 PR #46 合併（2026-10-19），**線上版還沒發布**；下一次發布會一起帶上。
+- 子專案 33：給其他 AI 工具用的 MCP 與真值表題目工具（分支 `feat/mcp-other-tools`，規格 `docs/superpowers/specs/2026-10-19-mcp-other-tools-design.md`）：
+  規格寫好，等使用者看過再實作。
 
 ## 接下來（依優先順序）
 
