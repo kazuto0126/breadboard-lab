@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -28,11 +28,11 @@ afterAll(async () => {
 });
 
 describe('the MCP server', () => {
-  it('lists the 14 tools', async () => {
+  it('lists the 15 tools', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
-        'add_wire', 'auto_route', 'check_against_diagram', 'check_circuit', 'circuit_summary', 'list_parts', 'logic_set',
+        'add_wire', 'auto_route', 'check_against_diagram', 'check_circuit', 'circuit_summary', 'list_files', 'list_parts', 'logic_set',
         'logic_to_breadboard', 'logic_truth_table', 'new_circuit', 'place_part', 'remove', 'set_part', 'simulate',
       ].sort(),
     );
@@ -52,8 +52,25 @@ describe('the MCP server', () => {
     expect(JSON.parse(readFileSync(join(root, file), 'utf8')).circuit.components).toHaveLength(1);
   });
 
+  it('keeps a task-only diagram when another tool rewrites the file, and lists circuit files (sub-project 33)', async () => {
+    const only = 'tests/.tmp-mcp/only-task.json';
+    const task = { inputs: ['A', 'B'], outputs: ['X'], rows: [[0], [1], [1], [0]] };
+    const blank = JSON.parse(readFileSync(join(root, file), 'utf8'));
+    writeFileSync(join(root, only), JSON.stringify({ ...blank, circuit: { ...blank.circuit, components: [], wires: [] }, logic: { version: 1, nodes: [], wires: [], task } }));
+    expect(await call('place_part', { file: only, part: '74LS86', hole: 'F10' })).toMatchObject({ isError: false });
+    expect(JSON.parse(readFileSync(join(root, only), 'utf8')).logic?.task).toEqual(task);
+    // list_files 略過 . 開頭的資料夾，所以另外用 --folder 指到暫存資料夾啟動一次。
+    const inFolder = new Client({ name: 'breadboard-lab-test-folder', version: '1.0.0' });
+    await inFolder.connect(new StdioClientTransport({ command: process.execPath, args: ['--import', 'tsx', 'scripts/mcp-server.ts', '--folder', 'tests/.tmp-mcp'], cwd: root }));
+    const listed = (await inFolder.callTool({ name: 'list_files', arguments: {} })) as Result;
+    await inFolder.close();
+    const text = listed.content.map((c) => c.text ?? '').join('\n');
+    expect(text).toContain('- xor.json：MB-102，元件 1 個');
+    expect(text).toContain('- only-task.json：MB-102，元件 1 個，沒有邏輯圖，有題目（A B → X）');
+  });
+
   it('refuses paths outside the project and never overwrites files that are not circuits', async () => {
-    expect(await call('circuit_summary', { file: '../outside.json' })).toMatchObject({ isError: true, text: expect.stringContaining('只能讀寫專案資料夾裡的檔案') });
+    expect(await call('circuit_summary', { file: '../outside.json' })).toMatchObject({ isError: true, text: expect.stringContaining('只能讀寫工作資料夾裡的檔案') });
     const before = readFileSync(join(root, 'package.json'), 'utf8');
     expect(await call('new_circuit', { file: 'package.json', overwrite: true })).toMatchObject({ isError: true, text: expect.stringContaining('不是電路檔') });
     expect(readFileSync(join(root, 'package.json'), 'utf8')).toBe(before);
