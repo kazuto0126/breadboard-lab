@@ -1,5 +1,6 @@
 import { designFromTask, termsOfTask, usesPos, type DesignForm } from '../logic/design';
 import { checkAgainstTask } from '../logic/diagramCheck';
+import { taskFromExpressions } from '../logic/expression';
 import { posText, sopText } from '../logic/minimize';
 import {
   compareDiagramToTask,
@@ -74,18 +75,22 @@ function taskSummary(task: TruthTask): string {
   return `輸入 ${task.inputs.join(' ')}，輸出 ${task.outputs.join(' ')}（${task.inputs.length} 個輸入、${task.outputs.length} 個輸出、${task.rows.length} 列${displays}）`;
 }
 
-export function taskSet(f: LabFile, args: { inputs?: string[]; outputs?: TaskOutputArg[]; from_diagram?: boolean; clear?: boolean }): ToolResult {
+export function taskSet(f: LabFile, args: { inputs?: string[]; outputs?: TaskOutputArg[]; expressions?: string; from_diagram?: boolean; clear?: boolean }): ToolResult {
   const direct = args.inputs !== undefined || args.outputs !== undefined;
-  const modes = [direct, args.from_diagram === true, args.clear === true].filter(Boolean).length;
-  if (modes > 1) return fail('inputs / outputs、from_diagram、clear 只能選一種');
-  if (modes === 0) return fail('要給 inputs 與 outputs（直接寫題目）、from_diagram: true（用邏輯圖的真值表）或 clear: true（刪除題目）');
+  const modes = [direct, args.expressions !== undefined, args.from_diagram === true, args.clear === true].filter(Boolean).length;
+  if (modes > 1) return fail('inputs / outputs、expressions、from_diagram、clear 只能選一種');
+  if (modes === 0) return fail('要給 inputs 與 outputs（直接寫題目）、expressions（布林式）、from_diagram: true（用邏輯圖的真值表）或 clear: true（刪除題目）');
   if (args.clear) {
     if (!f.logic.task) return { text: '檔案裡沒有題目' };
     return { text: '刪除了題目（邏輯圖不變）。', file: { ...f, logic: withTask(f.logic, undefined) } };
   }
   let made: TaskResult;
   let how: string;
-  if (args.from_diagram) {
+  if (args.expressions !== undefined) {
+    // 子專案 35：布林式（每行一個輸出），算出真值表建立題目。
+    made = taskFromExpressions(args.expressions);
+    how = '用布林式建立題目';
+  } else if (args.from_diagram) {
     if (f.logic.nodes.length === 0) return fail('檔案裡還沒有邏輯圖；用 logic_set 寫入，或用 inputs / outputs 直接寫題目');
     made = taskFromDiagram(f.logic);
     how = '用邏輯圖的真值表建立題目';

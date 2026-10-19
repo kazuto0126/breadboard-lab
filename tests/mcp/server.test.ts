@@ -81,7 +81,7 @@ describe('the MCP server', () => {
     expect(checked).toMatch(/邏輯圖：8 種輸入組合，邏輯圖和題目全部一致/);
     expect(checked).toMatch(/麵包板：8 種輸入組合，麵包板的模擬結果和題目全部一致/);
     const before = readFileSync(join(root, t), 'utf8');
-    expect(await call('task_set', { file: t, clear: true, from_diagram: true })).toMatchObject({ isError: true, text: 'inputs / outputs、from_diagram、clear 只能選一種' });
+    expect(await call('task_set', { file: t, clear: true, from_diagram: true })).toMatchObject({ isError: true, text: 'inputs / outputs、expressions、from_diagram、clear 只能選一種' });
     expect(readFileSync(join(root, t), 'utf8')).toBe(before);
   }, 120_000);
 

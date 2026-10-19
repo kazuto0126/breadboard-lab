@@ -284,14 +284,16 @@ server.registerTool(
   {
     title: '寫入真值表題目',
     description: [
-      '寫入（取代）電路檔裡的真值表題目，邏輯圖不動。三種用法選一種：',
+      '寫入（取代）電路檔裡的真值表題目，邏輯圖不動。四種用法選一種：',
       'inputs + outputs 直接寫題目（輸入最多 6 個、輸出最多 8 個；每一列的輸入照二進位從全 0 數到全 1，第一個輸入是最高位元）；',
+      'expressions 用布林式建立（例如 "X = AB + A\'C"，每行一個輸出；A\' 是反相、連寫是 AND、+ 是 OR、⊕ 或 ^ 是 XOR；輸入依字母排序）；',
       'from_diagram: true 用檔案裡邏輯圖的真值表建立；clear: true 刪除題目。',
     ].join(''),
     inputSchema: {
       file,
       inputs: z.array(z.string()).optional().describe('輸入名稱，第一個是最高位元，例如 ["A", "B", "C"]'),
       outputs: z.array(output).optional().describe('每個輸出一個物件，例如 [{ "name": "X", "ones": [3, 5, 6, 7] }]'),
+      expressions: z.string().optional().describe('布林式，每行一個輸出，例如 "X = AB + A\'C\\nY = A ⊕ B"'),
       from_diagram: z.boolean().optional().describe('用檔案裡邏輯圖的真值表建立題目'),
       clear: z.boolean().optional().describe('刪除題目'),
     },

@@ -42,14 +42,25 @@ describe('task_set (sub-project 33)', () => {
       expect(r.file).toBeUndefined();
       return r.text;
     };
-    expect(bad({ inputs: ['A'], outputs: [{ name: 'X' }], clear: true })).toBe('inputs / outputs、from_diagram、clear 只能選一種');
-    expect(bad({})).toBe('要給 inputs 與 outputs（直接寫題目）、from_diagram: true（用邏輯圖的真值表）或 clear: true（刪除題目）');
+    expect(bad({ inputs: ['A'], outputs: [{ name: 'X' }], clear: true })).toBe('inputs / outputs、expressions、from_diagram、clear 只能選一種');
+    expect(bad({ expressions: 'X = A', from_diagram: true })).toBe('inputs / outputs、expressions、from_diagram、clear 只能選一種');
+    expect(bad({})).toBe('要給 inputs 與 outputs（直接寫題目）、expressions（布林式）、from_diagram: true（用邏輯圖的真值表）或 clear: true（刪除題目）');
+    expect(bad({ expressions: 'X = (A' })).toBe('第 1 行第 5 個字：括號沒有關起來');
     expect(bad({ inputs: ['A', 'B', 'C'], outputs: [{ name: 'X', ones: [8] }] })).toBe('X 的 ones：列號 8 超出範圍（0–7）');
     expect(bad({ inputs: ['A', 'A'], outputs: [{ name: 'X' }] })).toBe('名稱 A 重複');
     expect(bad({ inputs: ['A', 'B', 'C', 'D'], outputs: [{ name: 'S1', display: true, values: [1, 2, 3] }] })).toBe('S1 的 values：要寫 16 個數字（有 3 個）');
     expect(bad({ inputs: ['A'], outputs: [{ name: 'S1', display: true, values: [16, 0] }] })).toBe('S1 的 values：16 不是 0–15 的數字或 X');
     expect(bad({ inputs: ['A'], outputs: [{ name: 'X', values: [0, 1] }] })).toBe('X 是一般輸出，用 ones / dont_care');
     expect(bad({ inputs: ['A'], outputs: [{ name: 'S1', display: true, ones: [1] }] })).toBe('S1 是顯示器，用 values');
+  });
+
+  it('writes the task from boolean expressions (sub-project 35)', () => {
+    const r = taskSet(blank(), { expressions: "X = AB + A'C\nY = A ⊕ B" });
+    expect(r.text).toContain('用布林式建立題目');
+    const t = task(saved(r));
+    expect(t.inputs).toEqual(['A', 'B', 'C']);
+    expect(t.rows.flatMap((row, i) => (row[0] === 1 ? [i] : []))).toEqual([1, 3, 6, 7]);
+    expect(t.rows.flatMap((row, i) => (row[1] === 1 ? [i] : []))).toEqual([2, 3, 4, 5]);
   });
 
   it('makes the task from the diagram in the file', () => {
