@@ -97,6 +97,7 @@
 3. 下載 `breadboard-lab-mcp.mjs`，放在固定的位置（例如 `C:\tools\` 或 `~/tools/`），再準備一個放電路檔的資料夾。
 4. 每個 AI 工具一段照著貼的設定，Windows 與 macOS 的路徑各一個例子：
    Cursor、VS Code（Copilot 的 agent 模式）、Gemini CLI、Claude Desktop、Claude Code。
+   （2026-10-19 使用者要求補上：Codex CLI、Antigravity、Windsurf、Cline、Zed、JetBrains AI Assistant、LM Studio。）
    設定檔的位置與格式**實作時照各工具目前的官方文件寫**，並寫上查證的日期。
 5. 第一次可以怎麼問（三、四個例子，包含題目的流程）。
 6. 結果怎麼看：在網頁用「檔案 → 匯入 JSON」打開。
