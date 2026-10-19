@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { addNode, connect, setInputCount } from '../../src/logic/edit';
-import { truthTable } from '../../src/logic/evaluate';
+import { sortedIo, truthTable } from '../../src/logic/evaluate';
 import { majorityDiagram } from '../../src/logic/examples';
-import { assignIcs, convertProblem, decompose, evaluateUnits, gateSlots } from '../../src/logic/synth';
+import { parseLogicDiagram } from '../../src/logic/file';
+import { toNandUnits, toNorUnits } from '../../src/logic/nandOnly';
+import { assignIcs, convertProblem, decompose, evaluateUnits, gateSlots, type Unit } from '../../src/logic/synth';
 import { emptyDiagram, type GateKind, type LogicDiagram } from '../../src/logic/types';
+import { encoder } from '../fixtures/labCircuits';
 
 const must = (r: { ok: boolean; diagram: LogicDiagram }) => {
   if (!r.ok) throw new Error('bad edit');
@@ -114,5 +117,74 @@ describe('convertProblem', () => {
     many = must(addNode(many, 'OUTPUT', 10, 0));
     many = must(connect(many, 'i1', { node: 'o1', pin: 0 }));
     expect(convertProblem(many)).toBe('輸入端最多 8 個（指撥開關最多 8 位元）');
+  });
+});
+
+/** 子專案 38：輸入端 A、B、C、D（i1–i4），閘與輸出端依序排好（不重疊）。gates：[種類, 輸入數, 接的訊號]。 */
+function diagramOf(gates: Array<[GateKind, number, string[]]>): LogicDiagram {
+  const nodes = [
+    ...['A', 'B', 'C', 'D'].map((name, k) => ({ id: `i${k + 1}`, kind: 'INPUT', x: 0, y: k * 3, name })),
+    ...gates.map(([kind, inputs], k) => ({ id: `g${k + 1}`, kind, x: 10, y: k * 6, inputs })),
+    ...gates.map((_, k) => ({ id: `o${k + 1}`, kind: 'OUTPUT', x: 20, y: k * 6, name: `X${k + 1}` })),
+  ];
+  const wires = gates.flatMap(([, , from], k) => [
+    ...from.map((f, pin) => ({ id: `w${k}-${pin}`, from: f, to: { node: `g${k + 1}`, pin } })),
+    { id: `w${k}-out`, from: `g${k + 1}`, to: { node: `o${k + 1}`, pin: 0 } },
+  ]);
+  const r = parseLogicDiagram({ version: 1, nodes, wires });
+  if (!r.ok) throw new Error(r.error);
+  return r.diagram;
+}
+
+/** 拆開後的單元算出來的每個輸出都和真值表一樣。 */
+function unitsMatchTable(d: LogicDiagram, units: Unit[]): boolean {
+  const t = truthTable(d);
+  if (!t.ok) throw new Error('no table');
+  const { inputs, outputs } = sortedIo(d);
+  const source = outputs.map((o) => d.wires.find((w) => w.to.node === o.id)!.from);
+  return t.rows.every((r) => {
+    const v = evaluateUnits(units, Object.fromEntries(inputs.map((n, i) => [n.id, r.in[i]])));
+    return source.every((s, k) => v[s] === r.out[k]);
+  });
+}
+
+describe('sharing 2-input ORs when splitting gates (sub-project 38)', () => {
+  it('shares the pair two 4-input ORs both need, so the 8-to-3 encoder fits two 74LS32', () => {
+    const d = encoder();
+    const units = decompose(d);
+    expect(units.map((u) => u.kind)).toEqual(Array(8).fill('OR2'));
+    expect(assignIcs(units).map((p) => p.defId)).toEqual(['74LS32', '74LS32']);
+    expect(unitsMatchTable(d, units)).toBe(true);
+  });
+
+  it('reuses a 2-input OR that already is the shared pair', () => {
+    const d = diagramOf([['OR', 2, ['i1', 'i2']], ['OR', 3, ['i1', 'i2', 'i3']]]);
+    const units = decompose(d);
+    expect(units).toHaveLength(2);
+    expect(units).toContainEqual({ kind: 'OR2', inputs: ['i1', 'i2'], output: 'g1' });
+    expect(units).toContainEqual({ kind: 'OR2', inputs: ['g1', 'i3'], output: 'g2' });
+    expect(unitsMatchTable(d, units)).toBe(true);
+  });
+
+  it('shares a pair between a 3-input NOR and a 3-input OR', () => {
+    const d = diagramOf([['NOR', 3, ['i1', 'i2', 'i3']], ['OR', 3, ['i1', 'i2', 'i4']]]);
+    const units = decompose(d);
+    expect(units.map((u) => u.kind).sort()).toEqual(['NOR2', 'OR2', 'OR2']);
+    expect(unitsMatchTable(d, units)).toBe(true);
+  });
+
+  it('keeps two identical 2-input ORs as they are', () => {
+    const d = diagramOf([['OR', 2, ['i1', 'i2']], ['OR', 2, ['i1', 'i2']]]);
+    expect(decompose(d)).toEqual([
+      { kind: 'OR2', inputs: ['i1', 'i2'], output: 'g1' },
+      { kind: 'OR2', inputs: ['i1', 'i2'], output: 'g2' },
+    ]);
+  });
+
+  it('still works when everything is turned into NAND or NOR gates', () => {
+    const d = encoder();
+    const keep = ['gx', 'gy', 'gz'];
+    expect(unitsMatchTable(d, toNandUnits(decompose(d), keep))).toBe(true);
+    expect(unitsMatchTable(d, toNorUnits(decompose(d), keep))).toBe(true);
   });
 });
