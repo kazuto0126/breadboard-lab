@@ -27,12 +27,16 @@ export const LAYOUT_VARIANTS: Record<LayoutId, LayoutVariant[]> = {
     { gap: 3, leds: 'straddle', split: false },
     { gap: 3, leds: 'straddle', split: true },
     { gap: 2, leds: 'pair', split: true },
+    // 子專案 38：加上電阻、輸入超過 4 個時開關拆成兩個 4 位元（其他時候和上面的擺法一樣，不會重複試）。
+    { gap: 2, leds: 'pair', split: false, splitSwitches: true },
   ],
-  // 子專案 38：一排擺法（全部在第 2 區，上下兩區留給跨線）；2026-10-19 量測：編碼器 73 → 59 條線。
+  // 子專案 38：一排擺法（全部在第 2 區，上下兩區留給跨線）與兩個 4 位元開關；2026-10-19 量測：編碼器 73 → 62 條線，加上下拉電阻 81 → 58 條。
   EIC1106: [
     DEFAULT_LAYOUT,
     { gap: 3, leds: 'straddle', split: false, oneRow: true },
     { gap: 2, leds: 'pair', split: false, oneRow: true },
+    { gap: 2, leds: 'pair', split: false, oneRow: true, splitSwitches: true },
+    { gap: 3, leds: 'straddle', split: false, oneRow: true, splitSwitches: true },
     { gap: 4, leds: 'straddle', split: false },
     { gap: 3, leds: 'straddle', split: false },
     { gap: 2, leds: 'pair', split: false },

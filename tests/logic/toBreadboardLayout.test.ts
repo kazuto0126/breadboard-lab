@@ -5,7 +5,7 @@ import { holeLabel } from '../../src/editor/analysis';
 import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
 import { addNode, connect } from '../../src/logic/edit';
 import { majorityDiagram } from '../../src/logic/examples';
-import { DEFAULT_LAYOUT, toBreadboard, type ConvertOptions, type LayoutVariant } from '../../src/logic/toBreadboard';
+import { DEFAULT_LAYOUT, switchText, toBreadboard, type ConvertOptions, type LayoutVariant } from '../../src/logic/toBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 import type { Circuit } from '../../src/types/circuit';
 import { encoder } from '../fixtures/labCircuits';
@@ -139,5 +139,63 @@ describe('one row on the EIC-1106 (sub-project 38)', () => {
 
   it('has no effect on the MB-102', () => {
     expect(convert(majorityDiagram(), { oneRow: true })).toEqual(convert(majorityDiagram(), {}));
+  });
+});
+
+describe('two 4-bit switches when pull resistors are on (sub-project 38)', () => {
+  const build = (d: LogicDiagram, board: 'MB102' | 'EIC1106', layout: Partial<LayoutVariant>, options: Partial<ConvertOptions> = {}) => {
+    const r = toBreadboard(d, { switchTo: 'vcc', board, ...options }, { ...DEFAULT_LAYOUT, ...(board === 'EIC1106' ? { oneRow: true as const } : {}), ...layout });
+    if (!r.ok) throw new Error(r.reason);
+    return r;
+  };
+  const labels = (c: Circuit, id: string) => c.components.find((x) => x.id === id)!.props.labels;
+
+  it('splits eight inputs over two 4-bit switches so every pull resistor plugs straight into the rail', () => {
+    const d = encoder();
+    for (const switchTo of ['vcc', 'gnd'] as const) {
+      const r = build(d, 'EIC1106', { gap: 2, splitSwitches: true }, { pulls: true, switchTo });
+      const c = r.circuit;
+      expect(c.components.filter((x) => x.defId.startsWith('dipsw')).map((x) => `${x.id}:${x.defId}`)).toEqual(['SW1:dipsw-4', 'SW2:dipsw-4']);
+      expect(labels(c, 'SW1')).toEqual(['A', 'B', 'C', 'D']);
+      expect(labels(c, 'SW2')).toEqual(['E', 'F', 'G', 'H']);
+      // 8 顆都直立插進電源軌（沒有平放的電阻）。
+      const rail = switchTo === 'vcc' ? /^P4-/ : /^P3\+/;
+      const pulls = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8'];
+      for (const id of pulls) expect(at(c, id, 2), `${switchTo} ${id}`).toMatch(rail);
+      // 第二個開關放在第一顆 IC 後面（和輸入靠近用到它的 IC）。
+      expect(col(at(c, 'SW2', 1))).toBeGreaterThan(col(at(c, 'U1', 1)));
+      expect(r.bom).toMatchObject({ switch: 'dipsw-4', switches: 2, resistors: 11 });
+      sound(d, c);
+    }
+  });
+
+  it('works on the MB-102 too', () => {
+    const d = encoder();
+    const r = build(d, 'MB102', { gap: 2, splitSwitches: true }, { pulls: true });
+    expect(r.bom).toMatchObject({ switch: 'dipsw-4', switches: 2 });
+    sound(d, r.circuit);
+  });
+
+  it('keeps one switch without pull resistors, with four inputs or fewer, or with buttons', () => {
+    const d = encoder();
+    expect(build(d, 'EIC1106', { splitSwitches: true }).circuit).toEqual(build(d, 'EIC1106', {}).circuit);
+    expect(build(majorityDiagram(), 'MB102', { splitSwitches: true }, { pulls: true }).circuit).toEqual(build(majorityDiagram(), 'MB102', {}, { pulls: true }).circuit);
+    // 按鈕（8 顆按鈕和 8 顆電阻排不進一排，用分區的擺法）。
+    const buttons = (layout: Partial<LayoutVariant>) => toBreadboard(d, { switchTo: 'vcc', board: 'EIC1106', pulls: true, inputs: 'button' }, { ...DEFAULT_LAYOUT, ...layout });
+    expect(buttons({ splitSwitches: true })).toEqual(buttons({}));
+    expect(build(d, 'EIC1106', {}).bom).toMatchObject({ switch: 'dipsw-8', switches: 1 });
+  });
+
+  it('every combination with two switches is wired as planned', () => {
+    for (const board of ['MB102', 'EIC1106'] as const)
+      for (const gap of [1, 2, 3])
+        for (const leds of ['pair', 'straddle'] as const)
+          for (const switchTo of ['vcc', 'gnd'] as const) sound(encoder(), build(encoder(), board, { gap, leds, splitSwitches: true }, { pulls: true, switchTo }).circuit);
+  });
+
+  it('describes the switches in the parts list', () => {
+    expect(switchText({ switch: 'dipsw-8', switches: 1, buttons: 0 })).toBe('8 位元指撥開關 × 1');
+    expect(switchText({ switch: 'dipsw-4', switches: 2, buttons: 0 })).toBe('4 位元指撥開關 × 2');
+    expect(switchText({ switch: null, switches: 0, buttons: 3 })).toBe('按鈕 × 3');
   });
 });

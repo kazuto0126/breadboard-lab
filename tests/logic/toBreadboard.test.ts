@@ -59,7 +59,7 @@ describe('toBreadboard', () => {
       ['R4', 'resistor', 220],
       ['D1', 'led', null],
     ]);
-    expect(r.bom).toEqual({ ics: { '74LS08': 1, '74LS32': 1 }, switch: 'dipsw-4', buttons: 0, resistors: 4, leds: 1, displays: 0, layout: 'MB102' });
+    expect(r.bom).toEqual({ ics: { '74LS08': 1, '74LS32': 1 }, switch: 'dipsw-4', switches: 1, buttons: 0, resistors: 4, leds: 1, displays: 0, layout: 'MB102' });
     expect(r.inputs).toEqual(['i1', 'i2', 'i3']);
     expect(r.leds).toEqual({ o1: 'D1' });
     expect(validateCircuit(r.circuit).filter((e) => e.severity === 'error' && !e.code.startsWith('WIRE'))).toEqual([]);

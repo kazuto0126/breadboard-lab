@@ -43,6 +43,14 @@
   MB-102 時 `oneRow` 沒有作用；`LAYOUT_VARIANTS.EIC1106` 有一排的擺法。
 - [ ] 失敗 → 實作 → 通過 → commit `feat(logic): one-row layout on the EIC-1106 (sub-project 38)`
 
+### Task 2b: 兩個 4 位元開關（量完 Task 1、2 後加的）
+
+**Files:** Modify `src/logic/toBreadboard.ts`、`src/logic/convertRoute.ts`、`src/components/common/Dialogs.tsx`、`src/mcp/tools.ts`；Test `tests/logic/toBreadboardLayout.test.ts`
+
+- [ ] 測試：加上電阻、8 個輸入時 SW1、SW2 都是 4 位元，8 顆電阻都插進電源軌（P4− 或 P3+），SW2 在 U1 後面，零件清單 `switches: 2`；
+  MB-102 也可以；沒有電阻、4 個以下的輸入、按鈕時和沒有這個選項一樣；所有組合照計畫接線；`switchText` 的寫法。
+- [ ] 失敗 → 實作 → 通過 → commit `feat(logic): two 4-bit switches when pull resistors are on (sub-project 38)`
+
 ### Task 3: 量測、文件、檢查、PR
 
 - [ ] 量測測試加上 C 的目標（≤ 62 條、2 片 IC）；跑 `npm run bench:convert`。

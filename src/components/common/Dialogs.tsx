@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GEMINI_MODEL } from '../../ai/gemini';
-import { toBreadboard, type ConvertOptions } from '../../logic/toBreadboard';
+import { switchText, toBreadboard, type ConvertOptions } from '../../logic/toBreadboard';
 import { useAi } from '../../state/ai';
 import { useLogic } from '../../state/logic';
 import { listProjects, storageAvailable, type ProjectSummary } from '../../state/persistence';
@@ -364,7 +364,10 @@ function ToBreadboardDialog() {
               {Object.entries(preview.bom.ics)
                 .map(([id, n]) => `${id} × ${n}`)
                 .join('、')}
-              、{preview.bom.switch ? `${preview.bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × 1` : `按鈕 × ${preview.bom.buttons}`}、電阻 × {preview.bom.resistors}、LED × {preview.bom.leds}
+              、{switchText(preview.bom)}
+              {/* 子專案 38：加上電阻、輸入超過 4 個時，轉換可能改用兩個 4 位元開關（預覽是預設的擺法）。 */}
+              {preview.bom.switch === 'dipsw-8' && pulls && '（可能改用 4 位元 × 2，電阻才能都直接插進電源軌）'}
+              、電阻 × {preview.bom.resistors}、LED × {preview.bom.leds}
               {preview.bom.displays > 0 && `、7 段顯示器 × ${preview.bom.displays}（${display === 'cc' ? '共陰極' : '共陽極'}）`}；放在 {preview.bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}。
             </>
           ) : (

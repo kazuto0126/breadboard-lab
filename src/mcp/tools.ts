@@ -25,6 +25,7 @@ import { truthTable } from '../logic/evaluate';
 import { parseLogicDiagram } from '../logic/file';
 import { valueOfSegments } from '../logic/sevenSeg';
 import { overlaps } from '../logic/shapes';
+import { switchText } from '../logic/toBreadboard';
 import { emptyDiagram, isGate, type LogicDiagram, type LogicNode } from '../logic/types';
 import { verifyText } from '../logic/verifyBreadboard';
 import type { LayoutId } from '../types/board';
@@ -444,7 +445,7 @@ export function logicToBreadboard(
   const bom = r.bom;
   const parts = [
     ...Object.entries(bom.ics).map(([id, n]) => `${id} × ${n}`),
-    bom.switch ? `${bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × 1` : `按鈕 × ${bom.buttons}`,
+    switchText(bom),
     `電阻 × ${bom.resistors}`,
     `LED × ${bom.leds}`,
     ...(bom.displays > 0 ? [`7 段顯示器 × ${bom.displays}（${options.display === 'cc' ? '共陰極' : '共陽極'}）`] : []),
