@@ -22,9 +22,11 @@ import {
   type TruthTask,
 } from '../../logic/task';
 import { designFromTask, termsOfTask, usesPos, type DesignForm } from '../../logic/design';
+import { taskFromExpressions } from '../../logic/expression';
 import { literalsOf, posText, sopText, sumLiteralsOf, type Term } from '../../logic/minimize';
 import type { LogicDiagram } from '../../logic/types';
 import { useLogic } from '../../state/logic';
+import { openConvert } from './LogicPanel';
 
 /** 最多列出幾列不一致。 */
 const SHOWN = 8;
@@ -62,6 +64,47 @@ function NamesForm({ initial, submit, onSubmit, onCancel }: { initial: [string, 
         <span className="text-xs text-slate-400">輸出名稱</span>
         <input aria-label="輸出名稱" value={outputs} placeholder="X Y" onChange={(e) => setOutputs(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && run()} className={field} />
       </label>
+      {error && <p className="text-xs text-red-300">{error}</p>}
+      <div className="flex gap-2">
+        <button type="button" className={`${btn} bg-sky-700 text-white hover:bg-sky-600`} onClick={run}>
+          {submit}
+        </button>
+        {onCancel && (
+          <button type="button" className={`${btn} bg-slate-800 text-slate-200 hover:bg-slate-700`} onClick={onCancel}>
+            取消
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** 子專案 35：用布林式建立或改寫題目（每行一個輸出，例如 X = AB + A'C）。Ctrl+Enter 也可以送出。 */
+function ExpressionForm({ submit, onSubmit, onCancel }: { submit: string; onSubmit: (task: TruthTask) => void; onCancel?: () => void }) {
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const run = () => {
+    const r = taskFromExpressions(text);
+    setError(r.ok ? null : r.reason);
+    if (r.ok) onSubmit(r.task);
+  };
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="text-xs text-slate-400">布林式（每行一個輸出）</span>
+        <textarea
+          aria-label="布林式"
+          rows={3}
+          value={text}
+          placeholder={"X = AB + A'C\nY = (A + B)'C"}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => (e.ctrlKey || e.metaKey) && e.key === 'Enter' && run()}
+          className={`${field} font-mono`}
+        />
+      </label>
+      <p className="text-[11px] leading-4 text-slate-400">
+        A' 是反相（也可以寫 !A），AB 是 AND，+ 是 OR，⊕ 或 ^ 是 XOR，可以加括號。變數是一個英文字母（後面可以接數字），依字母排序、第一個是最高位元；會先化簡再畫。
+      </p>
       {error && <p className="text-xs text-red-300">{error}</p>}
       <div className="flex gap-2">
         <button type="button" className={`${btn} bg-sky-700 text-white hover:bg-sky-600`} onClick={run}>
@@ -193,9 +236,22 @@ function Simplified({ diagram, task }: { diagram: LogicDiagram; task: TruthTask 
         </div>
       ))}
       {task.displays && <p className="mt-1 text-[11px] text-slate-400">顯示器拆成 A（最低位元）到 D 四個位元各自化簡，接到 7 段顯示器的 A–D。</p>}
-      <button type="button" className={`${btn} mt-2 bg-sky-700 text-white hover:bg-sky-600`} onClick={generate}>
-        {diagram.nodes.length > 0 ? '產生邏輯圖（取代目前的）' : '產生邏輯圖'}
-      </button>
+      <div className="mt-2 flex flex-wrap gap-1">
+        <button type="button" className={`${btn} bg-sky-700 text-white hover:bg-sky-600`} onClick={generate}>
+          {diagram.nodes.length > 0 ? '產生邏輯圖（取代目前的）' : '產生邏輯圖'}
+        </button>
+        {/* 子專案 35：產生邏輯圖後直接打開「轉成麵包板」的設定視窗。 */}
+        <button
+          type="button"
+          className={`${btn} bg-emerald-600 text-white hover:bg-emerald-500`}
+          onClick={() => {
+            generate();
+            openConvert();
+          }}
+        >
+          產生並轉成麵包板…
+        </button>
+      </div>
       <p className="mt-1 text-[11px] text-slate-400">
         照化簡結果畫出 {FORMS.find((x) => x[0] === form)![2]} 邏輯圖（X 的格子拿來幫忙化簡，多個輸出盡量共用閘）；可以用 Undo 回到原本的圖。
       </p>
@@ -257,9 +313,13 @@ function DiagramCompare({ diagram, task }: { diagram: LogicDiagram; task: TruthT
 export function TaskTab({ diagram }: { diagram: LogicDiagram }) {
   const task = diagram.task;
   const [renaming, setRenaming] = useState(false);
+  const [rewriting, setRewriting] = useState(false);
   const [fromDiagramError, setFromDiagramError] = useState<string | null>(null);
   useEffect(() => {
-    if (!task) setRenaming(false);
+    if (!task) {
+      setRenaming(false);
+      setRewriting(false);
+    }
   }, [task]);
 
   if (!task) {
@@ -294,6 +354,10 @@ export function TaskTab({ diagram }: { diagram: LogicDiagram }) {
         <p className="text-xs text-slate-400">
           輸入最多 {MAX_TASK_INPUTS} 個、輸出最多 {MAX_TASK_OUTPUTS} 個，名稱用空白或逗號分開。
         </p>
+        <div className="border-t border-slate-700 pt-3">
+          <div className="mb-1 text-xs font-semibold text-slate-300">或用布林式建立</div>
+          <ExpressionForm submit="用布林式建立題目" onSubmit={(t) => save(diagram, t, '用布林式建立題目')} />
+        </div>
       </div>
     );
   }
@@ -337,6 +401,9 @@ export function TaskTab({ diagram }: { diagram: LogicDiagram }) {
           <button type="button" className={`${btn} bg-slate-800 text-slate-200 hover:bg-slate-700`} onClick={() => setRenaming(!renaming)}>
             改名稱
           </button>
+          <button type="button" className={`${btn} bg-slate-800 text-slate-200 hover:bg-slate-700`} onClick={() => setRewriting(!rewriting)}>
+            布林式…
+          </button>
           <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => save(diagram, undefined, '刪除題目')}>
             刪除題目
           </button>
@@ -358,6 +425,19 @@ export function TaskTab({ diagram }: { diagram: LogicDiagram }) {
             }}
           />
           <p className="mt-1 text-[11px] text-slate-400">輸入的個數改變時，每一列重新從 0 開始；輸出依名稱保留。</p>
+        </div>
+      )}
+      {rewriting && (
+        <div className="mt-2 rounded border border-slate-700 p-2">
+          <ExpressionForm
+            submit="用布林式改寫題目"
+            onCancel={() => setRewriting(false)}
+            onSubmit={(t) => {
+              save(diagram, t, '用布林式改寫題目');
+              setRewriting(false);
+            }}
+          />
+          <p className="mt-1 text-[11px] text-slate-400">整個題目換成布林式算出來的真值表；可以用 Undo 回到原本的題目。</p>
         </div>
       )}
 
