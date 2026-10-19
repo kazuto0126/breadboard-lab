@@ -97,6 +97,8 @@ interface TwoLead {
   area: 1 | 3;
   /** 兩個一組時只和同一組的配對（輸入、LED、第 k 個顯示器）。 */
   group: string;
+  /** 子專案 37：低態致動的 LED 轉 180°（陰極在電阻那一側、陽極接 +5 V）。 */
+  reversed?: true;
 }
 
 class NoRoom extends Error {}
@@ -301,8 +303,10 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   outputs.forEach((node, k) => {
     const source = driver.get(`${node.id}#0`)!;
     const mid = `led:${node.id}`;
+    // 子專案 37：低態致動時 LED 陽極接 +5 V、陰極經過電阻接到輸出（0 時亮）；一般是輸出經過電阻接陽極、陰極接 GND。
+    const low = node.activeLow === true;
     twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [source, mid], area: 3, group: 'led' });
-    twoLeads.push({ id: `D${k + 1}`, defId: 'led', props: { color: 'red', labels: [node.name ?? ''] }, span: 1, nets: [mid, GND], area: 3, group: 'led' });
+    twoLeads.push({ id: `D${k + 1}`, defId: 'led', props: { color: 'red', labels: [node.name ?? ''] }, span: 1, nets: low ? [VCC, mid] : [mid, GND], area: 3, group: 'led', ...(low ? { reversed: true as const } : {}) });
     leds[node.id] = `D${k + 1}`;
   });
   const displayIds: Record<string, string> = {};
@@ -337,11 +341,15 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     const area = list[0].area;
     if (group === 'led') {
       const at = (row: string, col: number) => hole(`${row}${col}`, eic ? area : undefined);
+      // 子專案 37：低態致動的 LED 轉 180°、往右一欄放：陰極還是和電阻的那一腳同一排，陽極在右邊一排。
+      const putLed = (led: TwoLead, row: string, col: number) =>
+        components.push(comp(led.id, led.defId, at(row, led.reversed ? col + 1 : col), { board: BOARD_ID, ...(led.reversed ? { rotation: 180 as const } : {}), props: led.props as never }));
       const units: Array<[TwoLead, TwoLead]> = [];
       for (let i = 0; i < list.length; i += 2) units.push([list[i], list[i + 1]]);
       const ledBlocks: Block[] = [];
       if (variant.leds === 'straddle') {
         // 子專案 36：電阻直立跨過凹槽（E → F），LED 在 I 列：陽極和電阻的下端同一排（不用接線）、陰極在右邊一排；每顆 2 欄，一顆接一顆。
+        // （低態致動時相反：陰極和電阻同一排、陽極在右邊一排。）
         const half = Math.floor(units.length / 2);
         const chunks = variant.split && !eic && units.length >= 4 ? [units.slice(0, half), units.slice(half)] : [units];
         for (const chunk of chunks)
@@ -350,7 +358,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
             place: (x) =>
               chunk.forEach(([res, led], j) => {
                 components.push(comp(res.id, res.defId, at('E', x + 2 * j), { board: BOARD_ID, rotation: 90, props: res.props as never, span: 3 }));
-                components.push(comp(led.id, led.defId, at('I', x + 2 * j), { board: BOARD_ID, props: led.props as never }));
+                putLed(led, 'I', x + 2 * j);
               }),
           });
       } else {
@@ -364,7 +372,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
               pair.forEach(([res, led], j) => {
                 const [rRow, dRow] = j === 0 ? ['A', 'B'] : ['J', 'I'];
                 components.push(comp(res.id, res.defId, at(rRow, x), { board: BOARD_ID, props: res.props as never, span: res.span }));
-                components.push(comp(led.id, led.defId, at(dRow, x + res.span), { board: BOARD_ID, props: led.props as never }));
+                putLed(led, dRow, x + res.span);
               }),
           });
         }

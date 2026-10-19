@@ -36,8 +36,14 @@ const TOTAL_MS = 40_000;
 const MIN_QUICK_MS = 300;
 const MAX_QUICK_MS = 4_000;
 const POLISHED = 2;
+/**
+ * 不是最後一塊板、快速試都排不完，但最好的那一種只差這麼幾條：還是花時間把它排完再決定要不要換板。
+ * 慢的電腦（或很忙的時候）快速試的時間不夠，小電路常常只差 1 條（2026-10-20 量測：比較器差 1 條、編碼器差 4–5 條）。
+ */
+const CLOSE_NETS = 2;
 
-export function convertAndRoute(d: LogicDiagram, options: ConvertOptions, budget: { totalMs?: number } = {}): ConvertRouted {
+/** route：佈線用的函式（測試時換成假的，不用真的等時間）。 */
+export function convertAndRoute(d: LogicDiagram, options: ConvertOptions, budget: { totalMs?: number } = {}, route: typeof autoPlaceAndRoute = autoPlaceAndRoute): ConvertRouted {
   const problem = convertProblem(d);
   if (problem) return { ok: false, reason: problem };
   const total = budget.totalMs ?? TOTAL_MS;
@@ -70,19 +76,22 @@ export function convertAndRoute(d: LogicDiagram, options: ConvertOptions, budget
     const ranked: Array<{ result: ConvertSuccess; routed: RoutingResult }> = [];
     for (const result of candidates) {
       tried++;
-      ranked.push({ result, routed: autoPlaceAndRoute(result.circuit, { placement: { ...power, timeBudgetMs: quickMs, maxPasses: 1 } }) });
+      ranked.push({ result, routed: route(result.circuit, { placement: { ...power, timeBudgetMs: quickMs, maxPasses: 1 } }) });
     }
     // 好的排前面（同分時保持試的順序）。
     ranked.sort((a, b) => (isBetterRouting(a.routed, b.routed) ? -1 : isBetterRouting(b.routed, a.routed) ? 1 : 0));
     let best = ranked[0];
     const last = i === boards.length - 1;
-    // 不是最後一塊板、試的時候就排不完：直接換下一塊板，把時間留給它。
-    if (last || best.routed.status === 'success') {
-      const top = ranked.slice(0, POLISHED);
+    // 不是最後一塊板、試的時候就差很多條排不完：直接換下一塊板，把時間留給它。
+    // 只差幾條時只排最好的一種，時間至少用剩下的一半（快速試常常超過給的時間，這塊板分到的時間可能已經用完）。
+    const close = best.routed.status !== 'success' && best.routed.failedNets.length <= CLOSE_NETS;
+    if (last || best.routed.status === 'success' || close) {
+      const top = ranked.slice(0, last || !close ? POLISHED : 1);
+      const until = last || !close ? boardStart + boardMs : Math.max(boardStart + boardMs, (performance.now() + started + total) / 2);
       for (const [k, entry] of top.entries()) {
-        const polishMs = (boardStart + boardMs - performance.now()) / (top.length - k);
+        const polishMs = (until - performance.now()) / (top.length - k);
         if (polishMs <= MIN_QUICK_MS) break;
-        const polished = autoPlaceAndRoute(entry.result.circuit, { placement: { ...power, timeBudgetMs: polishMs } });
+        const polished = route(entry.result.circuit, { placement: { ...power, timeBudgetMs: polishMs } });
         const routed = isBetterRouting(polished, entry.routed) ? polished : entry.routed;
         if (isBetterRouting(routed, best.routed) || entry === best) best = { result: entry.result, routed };
       }

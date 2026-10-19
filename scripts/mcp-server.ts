@@ -218,7 +218,7 @@ server.registerTool(
   {
     title: '寫入邏輯圖',
     description: [
-      '寫入（取代）電路檔裡的邏輯圖。節點種類：AND、OR、NAND、NOR（inputs 2–4）、NOT、XOR、INPUT、OUTPUT（要有 name）、DISPLAY（7 段顯示器，name）、',
+      '寫入（取代）電路檔裡的邏輯圖。節點種類：AND、OR、NAND、NOR（inputs 2–4）、NOT、XOR、INPUT、OUTPUT（要有 name；activeLow: true 是低態致動，0 時亮，轉成麵包板時 LED 正極接 +5 V、負極經過電阻接到輸出）、DISPLAY（7 段顯示器，name）、',
       'HIGH（5V）、LOW（GND）、BLOCK（chip：74LS83、74LS151、74LS153、74LS138、74LS85）。',
       '線：{ id, from, fromPin?（方塊的第幾個輸出）, to: { node, pin } }。節點沒有 x、y 時自動排版。',
     ].join(''),

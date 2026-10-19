@@ -157,3 +157,47 @@ test('轉成麵包板：在背景試好幾種擺法，下拉電阻直立插進�
   await page.keyboard.press('Control+z');
   await expect(page.locator('g[data-component-id="U1"]')).toHaveCount(0);
 });
+
+test('低態致動的輸出端：屬性面板切換後燈號 0 時亮，轉成麵包板後比對全部一致、LED 在 0 時亮（子專案 37）', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: '多數決電路（圖 2-5）' }).click();
+  const lamp = page.locator('[data-logic-lamp="o1"]');
+  await expect(lamp).toHaveText('0');
+  await expect(lamp).toHaveAttribute('data-lit', 'off');
+
+  // 選取輸出端 X，在屬性面板改成 0 時亮：燈號仍然寫 0，但亮了；輸入那一側多一個小圓圈。
+  await page.locator('[data-logic-node="o1"]').click();
+  const low = page.getByRole('button', { name: '0 時亮（低態致動）' });
+  await low.click();
+  await expect(low).toHaveAttribute('aria-pressed', 'true');
+  await expect(lamp).toHaveText('0');
+  await expect(lamp).toHaveAttribute('data-lit', 'on');
+  await expect(page.locator('[data-active-low="o1"]')).toHaveCount(1);
+  // 可以 Undo（Undo 會取消選取，再選一次）。
+  await page.keyboard.press('Control+z');
+  await expect(lamp).toHaveAttribute('data-lit', 'off');
+  await expect(page.locator('[data-active-low="o1"]')).toHaveCount(0);
+  await page.locator('[data-logic-node="o1"]').click();
+  await low.click();
+  await expect(lamp).toHaveAttribute('data-lit', 'on');
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('button', { name: '轉成麵包板…' }).click();
+  await page.getByRole('dialog', { name: '轉成麵包板' }).getByRole('button', { name: '轉換' }).click();
+  await expect(page.locator('g[data-component-id="D1"]')).toHaveCount(1, { timeout: 90_000 });
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 90_000 });
+  await page.getByRole('tab', { name: /檢查/ }).click();
+  await expect(page.getByTestId('diagram-check')).toContainText('8 種輸入組合，麵包板的模擬結果和真值表全部一致', { timeout: 60_000 });
+
+  // 模擬：開關都 OFF 時 X = 0，LED 亮；A、B 撥 ON（X = 1）後熄滅。
+  await page.getByRole('button', { name: '▶ 模擬', exact: true }).click();
+  await expect(page.getByTestId('simulation-bar')).toContainText('模擬中');
+  const lit = () => page.locator('g[data-component-id="D1"][data-lit]').count();
+  await expect.poll(lit).toBe(1);
+  for (const k of [0, 1]) await page.locator(`g[data-component-id="SW1"] [data-switch="${k}"]`).click();
+  await expect.poll(lit).toBe(0);
+});

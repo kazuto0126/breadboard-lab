@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
-import { removeNodes, removeWire, renameNode, setConstant, setDisplayMode, setFlip, setGateKind, setInputCount, setRotation } from '../../logic/edit';
+import { removeNodes, removeWire, renameNode, setActiveLow, setConstant, setDisplayMode, setFlip, setGateKind, setInputCount, setRotation } from '../../logic/edit';
 import { BLOCK_PINS } from '../../logic/blocks';
 import { evaluate, segmentToken, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
 import { boxOf } from '../../logic/shapes';
@@ -183,6 +183,25 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
           </div>
         )}
         {(node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'DISPLAY') && <NameEditor node={node} />}
+        {node.kind === 'OUTPUT' && (
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-12 text-slate-400">燈號</span>
+              {([[false, '1 時亮'], [true, '0 時亮（低態致動）']] as const).map(([low, label]) => (
+                <button
+                  key={label}
+                  type="button"
+                  aria-pressed={!!node.activeLow === low}
+                  onClick={() => run(setActiveLow(diagram, node.id, low), low ? `${node.name} 改成低態致動` : `${node.name} 改成 1 時亮`)}
+                  className={`${btn} ${!!node.activeLow === low ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400">低態致動：轉成麵包板時 LED 正極接 +5 V、負極經過電阻接到輸出，訊號 0 時亮（例如 74LS138 的 /Y0–/Y7）。真值表仍然寫訊號的 0 / 1。</p>
+          </div>
+        )}
         {(node.kind === 'HIGH' || node.kind === 'LOW') && (
           <div className="flex items-center gap-2">
             <span className="w-12 text-slate-400">值</span>

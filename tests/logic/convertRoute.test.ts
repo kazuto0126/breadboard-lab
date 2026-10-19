@@ -5,6 +5,7 @@ import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
 import { addNode, connect } from '../../src/logic/edit';
 import { majorityDiagram } from '../../src/logic/examples';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
+import type { DeepPartial, RoutingConfig, RoutingResult } from '../../src/types/routing';
 import { comparator } from '../fixtures/labCircuits';
 import { powerProblems } from '../fixtures/powerChecks';
 
@@ -50,6 +51,36 @@ describe('converting with a layout search (sub-project 36)', () => {
     if (!r.ok) throw new Error(r.reason);
     expect(r.result.bom.layout).toBe('EIC1106');
   }, 120_000);
+
+  it('still finishes a nearly routed MB-102 layout before moving to the EIC-1106 (slow computers)', () => {
+    // 假的佈線：快速試（maxPasses 1）時差 missing 條排不完，花時間排的那一次排得完。慢的電腦上小電路常常這樣。
+    const fake = (failed: number): RoutingResult => ({
+      status: failed === 0 ? 'success' : 'partial',
+      message: '',
+      wires: [],
+      failedNets: Array.from({ length: failed }, (_, k) => ({ netId: `n${k}`, reason: 'TIME_LIMIT' as const, detail: '' })),
+      metrics: { wireCount: 20, totalLength: 80, bends: 0, crossings: 0, overlaps: 0, shortJogs: 0 },
+      score: 0,
+      stats: { iterations: 0, elapsedMs: 0 },
+      moves: [],
+    });
+    const run = (missing: number) => {
+      const calls: string[] = [];
+      const route = (_c: unknown, config?: DeepPartial<RoutingConfig>) => {
+        const quick = config?.placement?.maxPasses === 1;
+        calls.push(quick ? 'quick' : 'polish');
+        return fake(quick ? missing : 0);
+      };
+      const r = convertAndRoute(comparator(), { switchTo: 'vcc', board: 'auto', pulls: true }, { totalMs: 10_000 }, route);
+      if (!r.ok) throw new Error(r.reason);
+      return { layout: r.result.bom.layout, polished: calls.filter((c) => c === 'polish').length };
+    };
+    // 只差 1、2 條：MB-102 上最好的那一種花時間排完。
+    expect(run(1)).toEqual({ layout: 'MB102', polished: 1 });
+    expect(run(2)).toEqual({ layout: 'MB102', polished: 1 });
+    // 差很多（像編碼器）：直接換 EIC-1106，把時間留給它（在 EIC-1106 上排最好的兩種）。
+    expect(run(3)).toEqual({ layout: 'EIC1106', polished: 2 });
+  });
 
   it('explains when no layout fits', () => {
     expect(convertAndRoute(andChain(28), { switchTo: 'vcc', board: 'MB102', pulls: true })).toEqual({ ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' });

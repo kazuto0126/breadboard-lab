@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
 import { canPlace, connect, moveNodes, nodesInRect } from '../../logic/edit';
-import { evaluate, type Bit } from '../../logic/evaluate';
+import { evaluate, lampLit, type Bit } from '../../logic/evaluate';
 import { bodyRect, inputPins, nodeSize, outputPin, outputPins, type GridXY } from '../../logic/shapes';
 import { canRotate, isGate, isSink, signalOf, type LogicNode } from '../../logic/types';
 import { BlockBody, ConstantBody } from './BlockBody';
@@ -70,12 +70,15 @@ function InputTerminal({ node, selected }: { node: LogicNode; selected: boolean 
 /** 輸出端：燈號（1 / 0 / ?）與名稱。 */
 function OutputTerminal({ node, value, selected }: { node: LogicNode; value: Bit | undefined; selected: boolean }) {
   const text = value === 1 ? '1' : value === 0 ? '0' : '?';
+  // 子專案 37：低態致動的輸出端 0 時亮，輸入那一側畫一個小圓圈（和反相的圓圈一樣的意思）。
+  const lit = lampLit(node, value);
   return (
     <g>
       <line x1={0} y1={0} x2={0.5 * C} y2={0} stroke={bitColor(value)} strokeWidth={2} />
+      {node.activeLow && <circle data-active-low={node.id} cx={0.37 * C} cy={0} r={0.13 * C} fill="#ffffff" stroke={bitColor(value)} strokeWidth={1.5} />}
       <rect x={0.5 * C} y={-0.45 * C} width={2.2 * C} height={0.9 * C} rx={4} fill="#ffffff" stroke={selected ? '#0284c7' : '#1e293b'} strokeWidth={selected ? 2.4 : 1.6} />
-      <circle cx={0.95 * C} cy={0} r={0.3 * C} fill={value === 1 ? '#ef4444' : value === 0 ? '#bfdbfe' : '#e2e8f0'} stroke={bitColor(value)} strokeWidth={1.5} />
-      <text data-logic-lamp={node.id} x={0.95 * C} y={0} transform={upright(node, 0.95 * C, 0)} fontSize={0.36 * C} fontWeight={700} fill={value === 1 ? '#ffffff' : '#334155'} textAnchor="middle" dominantBaseline="central">
+      <circle cx={0.95 * C} cy={0} r={0.3 * C} fill={lit ? '#ef4444' : value === 0 || value === 1 ? '#bfdbfe' : '#e2e8f0'} stroke={bitColor(value)} strokeWidth={1.5} />
+      <text data-logic-lamp={node.id} data-lit={lit ? 'on' : 'off'} x={0.95 * C} y={0} transform={upright(node, 0.95 * C, 0)} fontSize={0.36 * C} fontWeight={700} fill={lit ? '#ffffff' : '#334155'} textAnchor="middle" dominantBaseline="central">
         {text}
       </text>
       <text x={1.85 * C} y={0} transform={upright(node, 1.85 * C, 0)} fontSize={0.5 * C} fontWeight={700} fill="#1e293b" textAnchor="middle" dominantBaseline="central">

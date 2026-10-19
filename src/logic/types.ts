@@ -29,6 +29,8 @@ export interface LogicNode {
   flip?: true;
   /** 子專案 32：只有顯示器：每段直接控制（8 個輸入 a–g、dp），不寫是 BCD（A–D 與 DP）。 */
   segments?: true;
+  /** 子專案 37：只有輸出端：低態致動（0 時亮）；不寫是 1 時亮。真值表與比對仍然寫訊號的 0 / 1。 */
+  activeLow?: true;
 }
 
 export type Rotation = 90 | 180 | 270;
