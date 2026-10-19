@@ -5,6 +5,7 @@ import { addNode, connect } from '../../src/logic/edit';
 import { majorityDiagram } from '../../src/logic/examples';
 import { toBreadboard, type ConvertResult } from '../../src/logic/toBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
+import { powerProblems } from '../fixtures/powerChecks';
 
 const must = (r: { ok: boolean; diagram: LogicDiagram }) => {
   if (!r.ok) throw new Error('bad edit');
@@ -20,8 +21,11 @@ function wiredAsPlanned(r: Extract<ConvertResult, { ok: true }>) {
   const nets = analyzeCircuit(r.circuit).nets;
   const signalsOf = nets.map((n) => new Set(n.pins.map((p) => r.netOf[`${p.componentId}#${p.pinNumber}`]).filter(Boolean)));
   const merged = signalsOf.filter((s) => s.size > 1);
-  const split = Object.values(r.netOf).filter((sig, i, all) => all.indexOf(sig) === i).filter((sig) => signalsOf.filter((s) => s.has(sig)).length > 1);
-  return { merged: merged.map((s) => [...s]), split };
+  // 子專案 34：5V / GND 每條軌各自有符號，本來就會分成好幾塊；改用 powerProblems 檢查電源的接法。
+  const split = Object.values(r.netOf)
+    .filter((sig, i, all) => all.indexOf(sig) === i)
+    .filter((sig) => sig !== 'VCC' && sig !== 'GND' && signalsOf.filter((s) => s.has(sig)).length > 1);
+  return { merged: merged.map((s) => [...s]), split: [...split, ...powerProblems(r.circuit)] };
 }
 
 /** n 個 2 輸入 AND 串成一串：i1 & i2 → g1，g1 & i2 → g2…，最後接到輸出端。 */
@@ -42,7 +46,8 @@ function andChain(n: number): LogicDiagram {
 describe('toBreadboard', () => {
   it.each(['vcc', 'gnd'] as const)('builds figure 2-5 with switches to %s', (switchTo) => {
     const r = ok(toBreadboard(majorityDiagram(), { switchTo, board: 'auto', pulls: true }));
-    const parts = r.circuit.components.map((c) => [c.id, c.defId, c.props.resistance ?? null]);
+    // 5V / GND 符號由 powerProblems 檢查（子專案 34：用到的軌各一個）。
+    const parts = r.circuit.components.filter((c) => c.defId !== 'vcc' && c.defId !== 'gnd').map((c) => [c.id, c.defId, c.props.resistance ?? null]);
     const pull = switchTo === 'vcc' ? 330 : 1000;
     expect(parts).toEqual([
       ['SW1', 'dipsw-4', null],
@@ -53,10 +58,6 @@ describe('toBreadboard', () => {
       ['U2', '74LS32', null],
       ['R4', 'resistor', 220],
       ['D1', 'led', null],
-      ['V1', 'vcc', null],
-      ['G1', 'gnd', null],
-      ['V2', 'vcc', null],
-      ['G2', 'gnd', null],
     ]);
     expect(r.bom).toEqual({ ics: { '74LS08': 1, '74LS32': 1 }, switch: 'dipsw-4', buttons: 0, resistors: 4, leds: 1, displays: 0, layout: 'MB102' });
     expect(r.inputs).toEqual(['i1', 'i2', 'i3']);

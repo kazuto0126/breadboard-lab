@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { autoPlaceAndRoute } from '../../src/core/icPlacement/autoPlace';
 import { applyRouting } from '../../src/core/routing/apply';
-import { circuit, comp } from '../../src/editor/builder';
+import { extractNets } from '../../src/core/circuit/nets';
+import { circuit, comp, straightWire } from '../../src/editor/builder';
 import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
-import { bcdDiagram, majorityDiagram } from '../../src/logic/examples';
+import { bcdDiagram } from '../../src/logic/examples';
 import { toBreadboard } from '../../src/logic/toBreadboard';
 import type { RoutingResult } from '../../src/types/routing';
 import { powerProblems } from '../fixtures/powerChecks';
@@ -31,11 +32,16 @@ describe('IC-moving routing with nearest-rail power', () => {
     expect(checkAgainstDiagram(bcdDiagram(), applied)).toMatchObject({ kind: 'done', result: { mismatches: [] } });
   }, 120_000);
 
-  it('changes nothing when the option is off (rail-to-rail wires stay)', () => {
-    const r = toBreadboard(majorityDiagram(), { switchTo: 'vcc', board: 'MB102' });
-    if (!r.ok) throw new Error(r.reason);
-    const routed = autoPlaceAndRoute(r.circuit, { placement: { timeBudgetMs: 8000 } });
+  it('keeps the rails the user joined when the option is off', () => {
+    // 使用者自己用跳線把上下的 + 軌接在一起（T+10 → B+10）：一般的 AI 佈線要保留這個連接，也不會動符號。
+    const c = circuit(
+      [comp('U1', '74LS00', 'F10'), comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3')],
+      [straightWire('j', 'T+10', 'B+10'), straightWire('p', 'C10', 'T+12'), straightWire('g', 'H16', 'B-16')],
+    );
+    const routed = autoPlaceAndRoute(c, { placement: { timeBudgetMs: 4000 } });
+    expect(routed.status).toBe('success');
     expect(routed.powerSymbols).toBeUndefined();
-    expect(powerProblems(applyRouting(r.circuit, routed)).some((p) => p.includes('兩端都在電源軌'))).toBe(true);
+    const vcc = extractNets(applyRouting(c, routed)).find((n) => n.kind === 'power')!;
+    expect(vcc.groupIds).toEqual(expect.arrayContaining(['b1:rail-T+', 'b1:rail-B+']));
   }, 120_000);
 });
