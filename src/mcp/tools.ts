@@ -437,14 +437,16 @@ export function logicToBreadboard(
   const options = { switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false, inputs: args.inputs ?? 'switch', display: args.display ?? 'ca' } as const;
   let r = toBreadboard(f.logic, options);
   if (!r.ok) return fail(r.reason);
-  let routed = autoPlaceAndRoute(r.circuit);
+  // 子專案 34：電源腳接搬好 IC 之後最近的軌，軌和軌之間不拉線（和網頁的轉換一樣）。
+  const nearestPower = { placement: { nearestPowerRail: true } };
+  let routed = autoPlaceAndRoute(r.circuit, nearestPower);
   const notes: string[] = [];
   // 和網頁一樣：自動選板時 MB-102 排不完就改用 EIC-1106 再轉一次。
   if (routed.status !== 'success' && options.board === 'auto' && r.bom.layout === 'MB102') {
     const again = toBreadboard(f.logic, { ...options, board: 'EIC1106' });
     if (again.ok) {
       r = again;
-      routed = autoPlaceAndRoute(again.circuit);
+      routed = autoPlaceAndRoute(again.circuit, nearestPower);
       notes.push('MB-102 上的線排不完，改用 EIC-1106 大型麵包板。');
     }
   }

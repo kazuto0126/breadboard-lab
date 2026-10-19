@@ -226,6 +226,14 @@ describe('logic diagram tools', () => {
     expect(failed(logicToBreadboard(newLabFile('x', 'MB102'), {}))).toBe('檔案裡還沒有邏輯圖；用 logic_set 寫入');
   }, 120_000);
 
+  it('powers every pin from its nearest rail, without rail-to-rail wires, even after turning ICs (sub-project 34)', async () => {
+    const { logicToBreadboard } = await import('../../src/mcp/tools');
+    const { bcdDiagram } = await import('../../src/logic/examples');
+    const { powerProblems } = await import('../fixtures/powerChecks');
+    const f = okFile(logicToBreadboard({ ...newLabFile('x', 'MB102'), logic: bcdDiagram() }, {}));
+    expect(powerProblems(f.circuit)).toEqual([]);
+  }, 120_000);
+
   it('checks a hand-wired board against the diagram by name', async () => {
     const { checkAgainstDiagram } = await import('../../src/mcp/tools');
     const { handWired, gateDiagram } = await import('../fixtures/handWired');

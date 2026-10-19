@@ -5,6 +5,7 @@ import { bcdDiagram } from '../../src/logic/examples';
 import { convertProblem } from '../../src/logic/synth';
 import { toBreadboard, type ConvertResult } from '../../src/logic/toBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
+import { powerProblems } from '../fixtures/powerChecks';
 
 const must = (r: { ok: boolean; diagram: LogicDiagram }) => {
   if (!r.ok) throw new Error('bad edit');
@@ -20,8 +21,11 @@ function wiredAsPlanned(r: Extract<ConvertResult, { ok: true }>) {
   const nets = analyzeCircuit(r.circuit).nets;
   const signalsOf = nets.map((n) => new Set(n.pins.map((p) => r.netOf[`${p.componentId}#${p.pinNumber}`]).filter(Boolean)));
   const merged = signalsOf.filter((s) => s.size > 1);
-  const split = Object.values(r.netOf).filter((sig, i, all) => all.indexOf(sig) === i).filter((sig) => signalsOf.filter((s) => s.has(sig)).length > 1);
-  return { merged: merged.map((s) => [...s]), split };
+  // 子專案 34：5V / GND 每條軌各自有符號，本來就會分成好幾塊；改用 powerProblems 檢查電源的接法。
+  const split = Object.values(r.netOf)
+    .filter((sig, i, all) => all.indexOf(sig) === i)
+    .filter((sig) => sig !== 'VCC' && sig !== 'GND' && signalsOf.filter((s) => s.has(sig)).length > 1);
+  return { merged: merged.map((s) => [...s]), split: [...split, ...powerProblems(r.circuit)] };
 }
 
 /** 74LS47 的腳號（依腳名）。 */

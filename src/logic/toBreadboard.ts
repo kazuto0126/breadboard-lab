@@ -1,6 +1,7 @@
 import { getLayout } from '../core/breadboard/registry';
 import { resolveFootprint } from '../core/circuit/footprint';
 import { getComponentDefinition } from '../core/circuit/library';
+import { connectPowerToNearestRails } from '../core/circuit/powerRails';
 import { validateCircuit } from '../core/circuit/validate';
 import { groupIdAt } from '../editor/analysis';
 import { board, comp, holeOn } from '../editor/builder';
@@ -341,27 +342,12 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   }
 
   // ---- 電源 ----
-  if (eic) {
-    // 接線柱只有一個孔，AI 佈線只能接一條線到它；改在每個插孔區上下的電源軌放 VCC / GND 符號（實際接線時從紅柱、黑柱拉到這些軌）。
-    const rails: Array<[string, 'vcc' | 'gnd', string]> = [
-      ['V1', 'vcc', 'P2+3'], ['G1', 'gnd', 'P3-3'],
-      ['V2', 'vcc', 'P3+4'], ['G2', 'gnd', 'P4-4'],
-      ['V3', 'vcc', 'P4+5'], ['G3', 'gnd', 'P5-5'],
-    ];
-    for (const [id, defId, at] of rails) {
-      components.push(comp(id, defId, holeOn(BOARD_ID, at, layout), { board: BOARD_ID }));
-      tie(`${id}#1`, defId === 'vcc' ? VCC : GND);
-    }
-  } else {
-    // 上下兩組電源軌都接上 +5 V 與 GND（實際接線時用跳線把上下的軌接通），每個元件就近取電。
-    components.push(comp('V1', 'vcc', 'T+3', { board: BOARD_ID }));
-    components.push(comp('G1', 'gnd', 'B-3', { board: BOARD_ID }));
-    components.push(comp('V2', 'vcc', 'B+4', { board: BOARD_ID }));
-    components.push(comp('G2', 'gnd', 'T-4', { board: BOARD_ID }));
-    tie('V1#1', VCC);
-    tie('G1#1', GND);
-    tie('V2#1', VCC);
-    tie('G2#1', GND);
+  // 子專案 34：先各放一個 5V / GND 符號，接好所有連線後再用 connectPowerToNearestRails 改成「每個要接電源的腳接最近的軌、
+  // 用到的軌各插一個符號、軌和軌之間不拉線」（EIC-1106 的接線柱只有一個孔，所以符號一樣放在電源軌上，實際接線時從紅柱、黑柱拉過來）。
+  const power: Array<[string, 'vcc' | 'gnd', string]> = eic ? [['V1', 'vcc', 'P2+3'], ['G1', 'gnd', 'P3-3']] : [['V1', 'vcc', 'T+3'], ['G1', 'gnd', 'B-3']];
+  for (const [id, defId, at] of power) {
+    components.push(comp(id, defId, eic ? holeOn(BOARD_ID, at, layout) : at, { board: BOARD_ID }));
+    tie(`${id}#1`, defId === 'vcc' ? VCC : GND);
   }
 
   // ---- 連線導線：每個訊號的終端依序兩兩相接（只告訴 AI 佈線哪些腳要連在一起） ----
@@ -404,7 +390,10 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
       wires.push({ id: `c${wires.length + 1}`, color: net === VCC ? '#d32f2f' : net === GND ? '#212121' : '#1565c0', source: 'manual', straight: true, start: a, end: b, path: [a, b] });
     }
   }
-  const circuit: Circuit = { ...base, wires };
+  const powered = connectPowerToNearestRails({ ...base, wires });
+  const circuit = powered.circuit;
+  for (const id of powered.removed) delete netOf[`${id}#1`];
+  for (const c of powered.added) tie(`${c.id}#1`, c.defId === 'vcc' ? VCC : GND);
 
   const errors = validateCircuit(circuit).filter((e) => e.severity === 'error' && !e.code.startsWith('WIRE'));
   if (errors.length > 0) return { ok: false, reason: `轉換失敗：${errors[0].message}（這是程式的錯，請回報）` };

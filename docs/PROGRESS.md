@@ -17,6 +17,8 @@
 - 子專案 33：給其他 AI 工具用的 MCP 與真值表題目工具（分支 `feat/mcp-other-tools`，規格 `docs/superpowers/specs/2026-10-19-mcp-other-tools-design.md`）：
   全部做完（打包檔、工作資料夾、`list_files`、四個題目工具、設定說明頁、說明選單連結、發布與 Email 檢查），開 PR。
   合併後執行 `npm run publish:site` 會一起發布 27–33 的網頁與 MCP 打包檔。還沒在真的 AI 工具上試（本機 Claude Code 命令列沒有登入），請使用者試一次。
+- 子專案 34：轉成麵包板時電源接最近的軌、軌和軌之間不拉線（分支 `feat/nearest-power-rails`，規格 `docs/superpowers/specs/2026-10-19-nearest-power-rails-design.md`）：
+  做完（PR #48）。
 
 ## 接下來（依優先順序）
 

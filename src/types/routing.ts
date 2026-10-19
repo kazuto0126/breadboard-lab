@@ -1,5 +1,5 @@
 import type { Wire } from './circuit';
-import type { Rotation } from './component';
+import type { ComponentInstance, Rotation } from './component';
 import type { GridPoint } from './geometry';
 
 /** 自動佈線的成本（子專案 7：直線跳線＋轉接排）。 */
@@ -65,6 +65,8 @@ export interface PlacementConfig {
   timeBudgetMs: number;
   /** 候選位置的協商輪數下限：實際上限是它和「IC 都不動」所需輪數的兩倍取大，佈不出來的位置很快放棄。 */
   candidateIterations: number;
+  /** 子專案 34：每個候選位置佈線前，電源腳改接最近的同極性軌（只有「轉成麵包板」打開）。 */
+  nearestPowerRail: boolean;
 }
 
 export interface RoutingConfig {
@@ -105,6 +107,8 @@ export interface RoutingResult {
   stats: { iterations: number; elapsedMs: number };
   /** 只有「AI 佈線（可移動 IC）」有：搬動了哪些 IC（沒有搬動時是空陣列）。 */
   moves?: IcMove[];
+  /** 子專案 34：打開 nearestPowerRail 時，補上 / 拿掉的 5V、GND 符號（套用結果時一起處理）。 */
+  powerSymbols?: { added: ComponentInstance[]; removed: string[] };
 }
 
 /** 需求文件第四章的佈線輸出格式（Wire 是它的超集）。 */
