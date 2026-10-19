@@ -15,6 +15,8 @@ const cases: Array<{ name: string; d: () => LogicDiagram; options: Partial<Conve
   { name: 'A 比較器（下拉電阻）', d: comparator, options: { pulls: true }, board: 'MB102', maxWires: 27 },
   { name: '多數決（下拉電阻）', d: majorityDiagram, options: { pulls: true }, board: 'MB102', maxWires: 28 },
   { name: 'B 解碼器', d: () => decoder(), options: {}, board: 'MB102' },
+  // 子專案 37：輸出端設成低態致動（LED 正極接 +5 V）。
+  { name: 'B 解碼器（低態致動 LED）', d: () => decoder(true), options: {}, board: 'MB102' },
   { name: 'C 編碼器', d: encoder, options: {}, maxWires: 73 },
   { name: 'BCD 範例', d: bcdDiagram, options: {}, maxWires: 60 },
 ];
