@@ -240,6 +240,8 @@ test('8 對 3 編碼器（實習七 C）：共用 OR 只用 2 片 74LS32，加�
   // 4 輸入的 OR 拆開時共用 G + H：8 個 2 輸入 OR，2 片 74LS32（以前 3 片）。
   await expect(dialog.getByTestId('convert-preview')).toContainText('74LS32 × 2');
   await expect(dialog.getByTestId('convert-preview')).toContainText('8 位元指撥開關 × 1（可能改用 4 位元 × 2');
+  // 自動選板：預覽不說一定放在 MB-102（這個電路最後是 EIC-1106）。
+  await expect(dialog.getByTestId('convert-preview')).toContainText('先試 MB-102，排不完時改用 EIC-1106');
   await dialog.getByRole('button', { name: '轉換' }).click();
 
   await expect(page.locator('g[data-component-id="U2"]')).toHaveCount(1, { timeout: 90_000 });

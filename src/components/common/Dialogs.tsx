@@ -368,7 +368,9 @@ function ToBreadboardDialog() {
               {/* 子專案 38：加上電阻、輸入超過 4 個時，轉換可能改用兩個 4 位元開關（預覽是預設的擺法）。 */}
               {preview.bom.switch === 'dipsw-8' && pulls && '（可能改用 4 位元 × 2，電阻才能都直接插進電源軌）'}
               、電阻 × {preview.bom.resistors}、LED × {preview.bom.leds}
-              {preview.bom.displays > 0 && `、7 段顯示器 × ${preview.bom.displays}（${display === 'cc' ? '共陰極' : '共陽極'}）`}；放在 {preview.bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}。
+              {preview.bom.displays > 0 && `、7 段顯示器 × ${preview.bom.displays}（${display === 'cc' ? '共陰極' : '共陽極'}）`}；
+              {/* 子專案 36 起自動選板會先試 MB-102 的每一種擺法，排不完才改用 EIC-1106，所以預覽不說一定放在 MB-102。 */}
+              {board === 'auto' && preview.bom.layout === 'MB102' ? '先試 MB-102，排不完時改用 EIC-1106' : `放在 ${preview.bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}`}。
             </>
           ) : (
             <span className="text-red-300">{preview.reason}</span>
