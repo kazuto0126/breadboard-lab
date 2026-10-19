@@ -87,11 +87,14 @@ GitHub Actions（`.github/workflows/ci.yml`）在每個 Pull Request 與 push �
 [`docs/PROGRESS.md`](docs/PROGRESS.md)。`.claude/settings.json` 設定了兩個 hook：對話開始時自動安裝相依套件、
 從 GitHub 同步並顯示進度；每次回覆結束或中斷時，把工作分支上還沒推送的修改存成 WIP commit 推上 GitHub。
 
-## 在 Claude Code 裡使用（MCP）
+## 給 AI 工具用（MCP）
 
-在這個專案資料夾裡開 Claude Code，專案根目錄的 `.mcp.json` 會啟動 MCP 伺服器 `breadboard-lab`
-（第一次會問要不要允許；也可以用 `/mcp` 查看狀態）。Claude 就能直接檢查、編輯、佈線、模擬電路檔，
-或把邏輯圖轉成麵包板並比對真值表。電路檔就是網頁「匯出 JSON」的格式，做完在網頁用「檔案 → 匯入 JSON」打開。
+MCP 伺服器 `breadboard-lab` 讓 AI 工具直接檢查、編輯、佈線、模擬電路檔，把邏輯圖轉成麵包板並比對真值表，也能寫入真值表題目、產生邏輯圖。
+電路檔就是網頁「匯出 JSON」的格式，做完在網頁用「檔案 → 匯入 JSON」打開。
+
+- **Cursor、VS Code（Copilot）、Gemini CLI、Claude Desktop 等**：從網站下載一個檔案（[設定說明](https://kazuto0126.github.io/breadboard-lab-site/mcp/)），
+  需要 Node.js 22 以上；設定裡用 `--folder` 指定放電路檔的工作資料夾。打包檔由 `npm run build:mcp` 產生（`dist-mcp/breadboard-lab-mcp.mjs`）。
+- **在這個專案資料夾裡開 Claude Code**：專案根目錄的 `.mcp.json` 直接用原始碼啟動（第一次會問要不要允許；也可以用 `/mcp` 查看狀態）。
 
 | 工具 | 做什麼 |
 |---|---|
@@ -102,9 +105,12 @@ GitHub Actions（`.github/workflows/ci.yml`）在每個 Pull Request 與 push �
 | `auto_route` / `simulate` | AI 標準佈線（可以搬動 IC）／模擬：哪些 LED 亮、7 段顯示器顯示什麼 |
 | `logic_set` / `logic_truth_table` | 寫入邏輯圖（沒給位置會自動排版）／真值表 |
 | `logic_to_breadboard` / `check_against_diagram` | 轉成麵包板 + 佈線 + 比對一次完成／依名稱和邏輯圖比對 |
+| `list_files` | 工作資料夾裡的電路檔 |
+| `task_set` / `task_show` | 寫入真值表題目（輸出可以是 7 段顯示器）／題目與化簡後的布林式 |
+| `task_to_diagram` / `task_check` | 從題目產生邏輯圖（四種形式）／和邏輯圖、麵包板比對 |
 
 例如：「用 74LS00 做一個 XOR，開關標 A、B，LED 標 X，接好後檢查並和邏輯圖比對」。
-工具只能讀寫專案資料夾裡的 `.json` 檔，不連網路。設計見 `docs/superpowers/specs/2026-10-17-mcp-server-design.md`。
+工具只能讀寫工作資料夾裡的 `.json` 檔，不連網路。設計見 `docs/superpowers/specs/2026-10-17-mcp-server-design.md`、`2026-10-19-mcp-other-tools-design.md`。
 
 ## 架構
 
@@ -178,12 +184,13 @@ docs/            設計規格與實作計畫
 | 30 | 輸入用按鈕：轉換時選按鈕、按鈕名稱、依名稱比對 | ✅ 完成 |
 | 31 | 題目產生邏輯圖的其他形式：和積、只用 NAND、只用 NOR，多個輸出共用項 | ✅ 完成 |
 | 32 | 7 段顯示器的加強：共陰極（74LS48）、小數點、每段直接控制、題目的輸出是顯示器 | ✅ 完成 |
+| 33 | 給其他 AI 工具用的 MCP（打包成一個檔案、設定說明頁）與真值表題目工具 | ✅ 完成 |
 | 34 | 轉成麵包板時 5V / GND 接最近的電源軌，軌和軌之間不拉線 | ✅ 完成 |
 
 ### 未開發的構想
 
 | 構想 | 說明 | 狀態 |
 |---|---|---|
-| 給其他 AI 工具用的接口 | Claude Desktop 等其他 AI 工具的 MCP（要打包或發布）；Claude Code 版已在子專案 23 完成（[評估與草案](docs/ideas/2026-10-16-mcp-interface.md)） | ⬜ 未開發 |
+| 用連結開啟電路 | 電路壓縮後放在網址裡，點開就看到（AI 做完給一個網址，不用手動匯入）（[評估](docs/ideas/2026-10-16-mcp-interface.md)） | ⬜ 未開發 |
 
 其他還沒做的項目（時序元件、輸入布林式畫邏輯圖、自訂方塊與匯流排、小問題…）整理在 [docs/ideas/backlog.md](docs/ideas/backlog.md)。

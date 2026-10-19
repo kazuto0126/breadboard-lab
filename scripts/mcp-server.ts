@@ -1,41 +1,45 @@
 /**
- * 規格（2026-10-17 mcp-server）：給 Claude Code 用的 MCP 伺服器（stdio）。
- * 啟動：node --import tsx scripts/mcp-server.ts（專案根目錄的 .mcp.json 已經設定好）。
- * 工具的邏輯在 src/mcp/tools.ts（純函式）；這裡只負責路徑檢查、讀檔、寫檔。
+ * 規格（2026-10-17 mcp-server）：Breadboard Lab 的 MCP 伺服器（stdio）。
+ * 原始碼版：node --import tsx scripts/mcp-server.ts（專案根目錄的 .mcp.json 已經設定好，給 Claude Code 用）。
+ * 子專案 33（規格 2026-10-19 mcp-other-tools）：也打包成一個檔案（npm run build:mcp → dist-mcp/breadboard-lab-mcp.mjs），
+ * 給 Cursor、VS Code、Gemini CLI、Claude Desktop 等用；--folder 指定工作資料夾（沒給就是目前資料夾）。
+ * 工具的邏輯在 src/mcp/（純函式）；這裡只負責路徑檢查、讀檔、寫檔。
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { basename, dirname, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { existsSync, writeFileSync } from 'node:fs';
+import { basename, relative, sep } from 'node:path';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { parseCircuitData, toCircuitFile } from '../src/editor/fileFormat';
-import { emptyDiagram } from '../src/logic/types';
+import { toCircuitFile } from '../src/editor/fileFormat';
+import * as taskTools from '../src/mcp/taskTools';
 import * as tools from '../src/mcp/tools';
-import { insideProject } from './mcp-paths';
+import { listCircuitFiles, loadLabFile } from './mcp-files';
+import { folderFromArgs, insideProject } from './mcp-paths';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+/** 版本號：打包時換成建置的日期（vite.mcp.config.ts），原始碼版是 1.0.0。 */
+const VERSION = process.env.BREADBOARD_LAB_MCP_VERSION ?? '1.0.0';
+if (process.argv.includes('--version')) {
+  console.log(VERSION);
+  process.exit(0);
+}
+
+const where0 = folderFromArgs(process.argv.slice(2), process.cwd());
+if (!where0.ok) {
+  console.error(where0.error);
+  process.exit(1);
+}
+/** 工作資料夾：只能讀寫這裡面的 .json 檔。 */
+const ROOT = where0.folder;
 const shown = (abs: string) => relative(ROOT, abs).split(sep).join('/');
 
 type Reply = { content: Array<{ type: 'text'; text: string }>; isError?: boolean };
 const reply = (text: string, isError = false): Reply => ({ content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) });
 
-function load(abs: string): tools.LabFile | string {
-  if (!existsSync(abs)) return `找不到 ${shown(abs)}；用 new_circuit 建立`;
-  let raw: unknown;
-  try {
-    raw = JSON.parse(readFileSync(abs, 'utf8'));
-  } catch {
-    return `${shown(abs)} 不是 JSON 檔`;
-  }
-  const parsed = parseCircuitData(raw);
-  if (!parsed.ok) return `${shown(abs)} 不是電路檔：${parsed.error}`;
-  return { name: parsed.name ?? basename(abs, '.json'), circuit: parsed.circuit, logic: parsed.logic ?? emptyDiagram() };
-}
+const load = (abs: string) => loadLabFile(abs, shown(abs));
 
+/** 子專案 33：邏輯圖沒有節點但有題目或便條時也要存（由 toCircuitFile 決定）。 */
 function save(abs: string, lab: tools.LabFile): void {
-  const logic = lab.logic.nodes.length > 0 ? lab.logic : undefined;
-  writeFileSync(abs, `${JSON.stringify(toCircuitFile(lab.circuit, lab.name, new Date(), undefined, logic), null, 2)}\n`, 'utf8');
+  writeFileSync(abs, `${JSON.stringify(toCircuitFile(lab.circuit, lab.name, new Date(), undefined, lab.logic), null, 2)}\n`, 'utf8');
 }
 
 /** 讀檔 → 執行工具 → 有新檔案時寫回。失敗時不寫檔。 */
@@ -54,19 +58,32 @@ function withFile(file: string, run: (lab: tools.LabFile) => tools.ToolResult): 
   }
 }
 
-const file = z.string().describe('電路檔的路徑（專案資料夾裡的 .json 檔，例如 circuits/xor.json）');
+const file = z.string().describe('電路檔的路徑（工作資料夾裡的 .json 檔，例如 circuits/xor.json）');
 const hole = (what: string) =>
   z.string().describe(`${what}：孔位名稱，寫法和網頁一樣，例如 F10、A3、T+10（上方 + 軌）、B-3（下方 − 軌）；EIC-1106 寫 1-F10、P2+12；有好幾塊板時加板子 ID，例如 b2:F10`);
 
 const server = new McpServer(
-  { name: 'breadboard-lab', version: '1.0.0' },
+  { name: 'breadboard-lab', version: VERSION },
   {
     instructions: [
       'Breadboard Lab：在 MB-102 / EIC-1106 麵包板上放 74LS IC、電阻、LED、指撥開關並接線，可以檢查、AI 佈線、模擬，也可以把邏輯圖轉成麵包板。',
+      `工作資料夾：${ROOT}；file 參數寫相對於它的路徑（例如 circuits/xor.json），list_files 列出裡面的電路檔。`,
       '電路檔就是網頁「匯出 JSON」的格式；做完在網頁用「檔案 → 匯入 JSON」打開。',
       '建議流程：new_circuit → list_parts（查元件名稱與腳位）→ place_part（IC 第 1 腳放在 F 列，跨過凹槽）→ add_wire → check_circuit → auto_route → simulate。',
       '從邏輯圖開始：logic_set → logic_truth_table → logic_to_breadboard（轉換、佈線、比對一次完成）。手接的麵包板用 set_part 標上和邏輯圖一樣的名稱，再用 check_against_diagram 比對。',
+      '從真值表題目開始：task_set → task_show → task_to_diagram → logic_to_breadboard → task_check。',
     ].join('\n'),
+  },
+);
+
+server.registerTool(
+  'list_files',
+  { title: '電路檔清單', description: '列出工作資料夾裡的電路檔（往下 3 層以內），每個寫出麵包板、元件數、有沒有邏輯圖與真值表題目。', inputSchema: {} },
+  async () => {
+    const { files, truncated } = listCircuitFiles(ROOT);
+    const more = truncated ? ['（資料夾裡的檔案太多，只看了一部分；請在設定裡用 --folder 指定放電路檔的資料夾）'] : [];
+    if (files.length === 0) return reply(['工作資料夾裡還沒有電路檔；用 new_circuit 建立', ...more].join('\n'));
+    return reply([`工作資料夾 ${ROOT} 裡的電路檔：`, ...files.map((f) => `- ${f.path}：${tools.describeLabFile(f.lab)}`), ...more].join('\n'));
   },
 );
 
@@ -248,6 +265,71 @@ server.registerTool(
     inputSchema: { file },
   },
   async (args) => withFile(args.file, (lab) => tools.checkAgainstDiagram(lab)),
+);
+
+// ---- 子專案 33：真值表題目 ----
+
+const output = z
+  .object({
+    name: z.string().describe('輸出名稱（英文字母開頭，最多 8 個字）'),
+    ones: z.array(z.number().int()).optional().describe('一般輸出：值是 1 的列號（從 0 開始；第一個輸入是最高位元）；其他列是 0'),
+    dont_care: z.array(z.number().int()).optional().describe('一般輸出：不在乎（X）的列號'),
+    display: z.boolean().optional().describe('true：這個輸出是 7 段顯示器（BCD，格子是 0–15）'),
+    values: z.array(z.union([z.number().int(), z.literal('X')])).optional().describe('7 段顯示器：每一列的數字（0–15 或 "X"），個數要等於列數'),
+  })
+  .describe('一個輸出');
+
+server.registerTool(
+  'task_set',
+  {
+    title: '寫入真值表題目',
+    description: [
+      '寫入（取代）電路檔裡的真值表題目，邏輯圖不動。三種用法選一種：',
+      'inputs + outputs 直接寫題目（輸入最多 6 個、輸出最多 8 個；每一列的輸入照二進位從全 0 數到全 1，第一個輸入是最高位元）；',
+      'from_diagram: true 用檔案裡邏輯圖的真值表建立；clear: true 刪除題目。',
+    ].join(''),
+    inputSchema: {
+      file,
+      inputs: z.array(z.string()).optional().describe('輸入名稱，第一個是最高位元，例如 ["A", "B", "C"]'),
+      outputs: z.array(output).optional().describe('每個輸出一個物件，例如 [{ "name": "X", "ones": [3, 5, 6, 7] }]'),
+      from_diagram: z.boolean().optional().describe('用檔案裡邏輯圖的真值表建立題目'),
+      clear: z.boolean().optional().describe('刪除題目'),
+    },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => taskTools.taskSet(lab, args)),
+);
+
+server.registerTool(
+  'task_show',
+  {
+    title: '看真值表題目',
+    description: '列出題目的真值表，以及每個輸出化簡後的布林式（7 段顯示器拆成 A–D 四個位元，A 是最低位元）。',
+    inputSchema: { file, form: z.enum(['sop', 'pos']).optional().describe('sop：積項和（預設）；pos：和積') },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => taskTools.taskShow(lab, args)),
+);
+
+server.registerTool(
+  'task_to_diagram',
+  {
+    title: '從題目產生邏輯圖',
+    description: '照題目化簡後畫出邏輯圖，取代檔案裡的邏輯圖（題目保留），並和題目比對。之後可以用 logic_to_breadboard 轉成麵包板。',
+    inputSchema: {
+      file,
+      form: z.enum(['sop', 'pos', 'nand', 'nor']).optional().describe('sop：積項和 AND–OR（預設）；pos：和積 OR–AND；nand：只用 NAND；nor：只用 NOR'),
+    },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => taskTools.taskToDiagram(lab, args)),
+);
+
+server.registerTool(
+  'task_check',
+  {
+    title: '和題目比對',
+    description: '拿題目和檔案裡的邏輯圖、麵包板比對（依名稱對應輸入與輸出，不在乎的格子不比），列出不一致的列或還不能比對的原因。',
+    inputSchema: { file },
+  },
+  async (args) => withFile(args.file, (lab) => taskTools.taskCheck(lab)),
 );
 
 await server.connect(new StdioServerTransport());

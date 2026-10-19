@@ -2,7 +2,8 @@
 
 - 日期：2026-10-16
 - 狀態：**第一版（給 Claude Code 用）已在子專案 23 完成**（`docs/superpowers/specs/2026-10-17-mcp-server-design.md`）；
-  Claude Desktop 等其他 AI 工具、用連結開啟電路仍是未開發項目（`backlog.md`）
+  **給其他 AI 工具用（打包成一個檔案、設定說明頁）與題目工具在子專案 33 完成**（`2026-10-19-mcp-other-tools-design.md`）；
+  用連結開啟電路、發布到 npm 仍是未開發項目（`backlog.md`）
 - 要做的話：照一般子專案的流程，先和使用者確認用途與第一版的工具，寫規格（`docs/superpowers/specs/`），再實作。
 
 ---

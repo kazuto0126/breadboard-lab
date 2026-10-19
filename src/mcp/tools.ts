@@ -49,8 +49,24 @@ export interface ToolResult {
   error?: true;
 }
 
-const fail = (text: string): ToolResult => ({ text, error: true });
+export const fail = (text: string): ToolResult => ({ text, error: true });
 const ROTATIONS: Rotation[] = [0, 90, 180, 270];
+
+/** 子專案 33：list_files 的一行說明（麵包板、元件數、有沒有邏輯圖與題目）。 */
+export function describeLabFile(f: LabFile): string {
+  const boards = f.circuit.boards.map((b) => (b.layoutId === 'EIC1106' ? 'EIC-1106' : 'MB-102'));
+  const kinds = [...new Set(boards)].map((name) => {
+    const n = boards.filter((b) => b === name).length;
+    return n > 1 ? `${name} × ${n}` : name;
+  });
+  const task = f.logic.task;
+  return [
+    kinds.join('、') || '沒有麵包板',
+    `元件 ${f.circuit.components.length} 個`,
+    f.logic.nodes.length > 0 ? '有邏輯圖' : '沒有邏輯圖',
+    task ? `有題目（${task.inputs.join(' ')} → ${task.outputs.join(' ')}）` : '沒有題目',
+  ].join('，');
+}
 
 export function newLabFile(name: string, layout: LayoutId): LabFile {
   return { name, circuit: { version: 1, boards: [{ id: 'b1', layoutId: layout, x: 0, y: 0, groupId: null }], components: [], wires: [] }, logic: emptyDiagram() };

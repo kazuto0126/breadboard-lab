@@ -19,7 +19,8 @@ npm run build
 npm run build:single # 單一 HTML 離線版 dist-single/breadboard-lab.html
 npm run e2e          # Playwright；雲端容器不能下載瀏覽器，要加 PLAYWRIGHT_CHROMIUM_EXECUTABLE=/opt/pw-browsers/chromium
 npm run demo         # 終端機 ASCII 預覽佈線前後
-npm run publish:site # 建置網站版與離線版，發布到公開 repo kazuto0126/breadboard-lab-site（GitHub Pages）
+npm run build:mcp    # MCP 伺服器打包成一個檔案 dist-mcp/breadboard-lab-mcp.mjs（給其他 AI 工具用，--folder 指定工作資料夾）
+npm run publish:site # 建置網站版、離線版與 MCP 打包檔，發布到公開 repo kazuto0126/breadboard-lab-site（GitHub Pages）
 ```
 
 推送前至少跑 `npm run typecheck && npm test`，改到畫面時再跑 e2e。CI（`.github/workflows/ci.yml`）在 PR 與 main 上跑同樣的檢查。
