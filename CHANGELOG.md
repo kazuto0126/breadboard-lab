@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## [未發布] — 子專案 35：輸入布林式產生題目與麵包板（網頁有改，合併後要發布）
+## 2026-10-19 — 子專案 35：輸入布林式產生題目與麵包板（PR #52，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-19-boolean-expressions-design.md`；實作計畫：`docs/superpowers/plans/2026-10-19-boolean-expressions.md`。
 
