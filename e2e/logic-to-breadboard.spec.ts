@@ -94,3 +94,34 @@ test('轉成麵包板時輸入用按鈕：每個輸入一顆、名稱在板上�
   await expect(page.getByTestId('diagram-check')).toContainText('8 種輸入組合，麵包板的模擬結果和真值表全部一致', { timeout: 60_000 });
   await expect(page.getByTestId('diagram-check')).toContainText('A → BTN1（按下 = 1）');
 });
+
+test('轉成麵包板：電源接最近的軌，軌和軌之間不拉線（子專案 34）', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  // BCD 範例轉成 EIC-1106 時，AI 佈線會把 IC 轉 180° 或換插孔區：電源還是要接搬好之後最近的軌。
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'BCD 顯示（7 段顯示器）' }).click();
+  await page.getByRole('button', { name: '轉成麵包板…' }).click();
+  await page.getByRole('dialog', { name: '轉成麵包板' }).getByRole('button', { name: '轉換' }).click();
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 120_000 });
+  await page.getByRole('tab', { name: /接線清單/ }).click();
+
+  const labels = await page.locator('[data-checklist-row] input[type="checkbox"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''));
+  expect(labels.length).toBeGreaterThan(0);
+  const rail = /^P(\d)([+-])\d+$/;
+  const hole = /^(\d)-([A-J])\d+$/;
+  for (const label of labels) {
+    const [from, to] = label.replace(' 已插好', '').split(' → ');
+    const ends = [from, to].map((s) => rail.exec(s));
+    expect(ends.every(Boolean), `${label} 兩端都在電源軌`).toBe(false);
+    const r = ends[0] ?? ends[1];
+    if (!r) continue;
+    const h = hole.exec(ends[0] ? to : from);
+    if (!h) continue;
+    // 第 k 區上半部（A–E）最近的軌是 P(k+1)，下半部（F–J）是 P(k+2)。
+    const nearest = Number(h[1]) + (h[2] <= 'E' ? 1 : 2);
+    expect(Number(r[1]), `${label} 不是最近的軌`).toBe(nearest);
+  }
+});

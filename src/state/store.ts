@@ -219,7 +219,8 @@ export interface AppActions {
   showRightTab(tab: RightTab): void;
   setShowCheck(show: boolean): void;
   runCheck(): void;
-  runAutoRoute(purpose: 'apply' | 'compare', options?: { moveIcs?: boolean }): void;
+  /** nearestPower：子專案 34，只有「轉成麵包板」打開（電源腳接搬好 IC 之後最近的軌）。 */
+  runAutoRoute(purpose: 'apply' | 'compare', options?: { moveIcs?: boolean; nearestPower?: boolean }): void;
   cancelRouting(): void;
   finishAnimation(): void;
   dismissResult(): void;
@@ -906,7 +907,7 @@ export const useStore = create<Store>()((set, get) => {
       }
       clearAnimationTimer();
       set({ routing: { startedAt: performance.now(), purpose, moveIcs }, animation: null, resultVisible: false, placing: null });
-      const job = startRouting(circuit, undefined, { moveIcs });
+      const job = startRouting(circuit, options.nearestPower ? { placement: { nearestPowerRail: true } } : undefined, { moveIcs });
       routingJob = job;
       job.promise
         .then((result) => {
@@ -1065,7 +1066,7 @@ export const useStore = create<Store>()((set, get) => {
       set({ workspace: 'breadboard', dialog: null });
       writeWorkspace('breadboard');
       get().fitToScreen();
-      get().runAutoRoute('apply', { moveIcs: true });
+      get().runAutoRoute('apply', { moveIcs: true, nearestPower: true });
       // 子專案 14：「自動」選了 MB-102 但 AI 佈線排不完時（例如只用 NAND，連線比較多），改用 EIC-1106 再轉一次。
       if (options.board === 'auto' && result.bom.layout === 'MB102') {
         const converted = result.circuit;
