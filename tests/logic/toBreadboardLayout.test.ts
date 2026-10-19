@@ -8,6 +8,7 @@ import { majorityDiagram } from '../../src/logic/examples';
 import { DEFAULT_LAYOUT, toBreadboard, type ConvertOptions, type LayoutVariant } from '../../src/logic/toBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 import type { Circuit } from '../../src/types/circuit';
+import { encoder } from '../fixtures/labCircuits';
 import { powerProblems } from '../fixtures/powerChecks';
 
 /** 子專案 36（規格 2026-10-20 conversion-placement）：轉換的擺法（間隔、LED 的擺法、LED 分兩邊）。 */
@@ -94,5 +95,49 @@ describe('layout variants for logic-to-breadboard (sub-project 36)', () => {
     const c = convert(majorityDiagram(), { gap: 1 }, { pulls: true });
     expect(at(c, 'R1', 2)).toBe('B-3');
     sound(majorityDiagram(), c);
+  });
+});
+
+describe('one row on the EIC-1106 (sub-project 38)', () => {
+  const eicRow = (d: LogicDiagram, layout: Partial<LayoutVariant>, options: Partial<ConvertOptions> = {}) => {
+    const r = toBreadboard(d, { switchTo: 'vcc', board: 'EIC1106', ...options }, { ...DEFAULT_LAYOUT, oneRow: true, ...layout });
+    if (!r.ok) throw new Error(r.reason);
+    return r.circuit;
+  };
+  const parts = (c: Circuit) => c.components.filter((x) => x.defId !== 'vcc' && x.defId !== 'gnd');
+
+  it('puts the switch, the ICs and the LEDs in area 2, pull-downs plugged into P4−', () => {
+    const d = encoder();
+    const c = eicRow(d, { gap: 3, leds: 'straddle' }, { pulls: true });
+    for (const x of parts(c)) expect(at(c, x.id, 1), x.id).toMatch(/^2-/);
+    const pulls = c.components.filter((x) => x.defId === 'resistor' && /^2-J/.test(at(c, x.id, 1)));
+    expect(pulls.length).toBeGreaterThanOrEqual(7);
+    for (const r of pulls) expect(at(c, r.id, 2)).toMatch(/^P4-/);
+    // 和 MB-102 一樣排成一排：開關 → IC → LED。
+    expect(col(at(c, 'SW1', 1))).toBeLessThan(col(at(c, 'U1', 1)));
+    expect(col(at(c, 'U2', 1))).toBeLessThan(col(at(c, 'D1', 1)));
+    sound(d, c);
+  });
+
+  it('plugs pull-ups into P3+ when the switches go to GND', () => {
+    const d = majorityDiagram();
+    const c = eicRow(d, { gap: 2 }, { pulls: true, switchTo: 'gnd' });
+    for (const x of parts(c)) expect(at(c, x.id, 1), x.id).toMatch(/^2-/);
+    const pulls = c.components.filter((x) => x.defId === 'resistor' && /^2-A/.test(at(c, x.id, 1)) && x.rotation === 270);
+    expect(pulls).toHaveLength(3);
+    for (const r of pulls) expect(at(c, r.id, 2)).toMatch(/^P3\+/);
+    sound(d, c);
+  });
+
+  it('every combination is wired as planned', () => {
+    for (const gap of [2, 3, 6])
+      for (const leds of ['pair', 'straddle'] as const)
+        for (const split of [false, true])
+          for (const pulls of [false, true])
+            for (const d of [majorityDiagram(), passThrough(4), encoder()]) sound(d, eicRow(d, { gap, leds, split }, { pulls }));
+  });
+
+  it('has no effect on the MB-102', () => {
+    expect(convert(majorityDiagram(), { oneRow: true })).toEqual(convert(majorityDiagram(), {}));
   });
 });

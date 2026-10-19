@@ -73,11 +73,13 @@ const LAST_COLUMN = 63;
  * 子專案 36（規格 2026-10-20 conversion-placement）：擺法。gap：區塊之間最多空幾欄；leds：輸出的電阻與 LED 怎麼擺
  * （pair：電阻在 A 列、LED 在 B 列，兩組一塊、第二組在下半部；straddle：電阻直立跨過凹槽、LED 在 I 列，每顆 2 欄）；
  * split：MB-102 上 4 顆以上的 LED 分兩邊（一半在開關左邊）。convertRoute 會試好幾種擺法挑佈線最好的。
+ * oneRow：子專案 38，只在 EIC-1106：全部排在第 2 區一排（和 MB-102 一樣），上下兩區與電源軌留給跨線。
  */
 export interface LayoutVariant {
   gap: number;
   leds: 'pair' | 'straddle';
   split: boolean;
+  oneRow?: true;
 }
 
 /** 預設擺法（子專案 36 以前的擺法）。 */
@@ -163,7 +165,9 @@ export function toBreadboard(d: LogicDiagram, options: ConvertOptions, variant: 
 
 function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, variant: LayoutVariant): ConvertResult {
   const eic = layout === 'EIC1106';
-  const hole = (name: string, area?: number) => holeOn(BOARD_ID, eic ? `${area}-${name}` : name, layout);
+  // 子專案 38：排成一排（MB-102，或 EIC-1106 的一排擺法）時，EIC-1106 上的東西全部放在第 2 區。
+  const inOneRow = !eic || variant.oneRow === true;
+  const hole = (name: string, area?: number) => holeOn(BOARD_ID, eic ? `${inOneRow ? 2 : area}-${name}` : name, layout);
   const { inputs, outputs: sinks } = sortedIo(d);
   const outputs = sinks.filter((n) => n.kind === 'OUTPUT');
   const displays = sinks.filter((n) => n.kind === 'DISPLAY');
@@ -197,7 +201,8 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   const pullDown = options.switchTo === 'vcc';
   const uprightPulls = options.pulls === true && options.inputs !== 'button';
   const flatPull = uprightPulls && inputs.length >= 6 ? 5 : -1;
-  const pullRail = pullDown ? (eic ? 'P3-' : 'B-') : eic ? 'P2+' : 'T+';
+  // EIC-1106 分區時開關在第 1 區（下面 P3、上面 P2）；一排時在第 2 區（下面 P4、上面 P3）。
+  const pullRail = pullDown ? (!eic ? 'B-' : inOneRow ? 'P4-' : 'P3-') : !eic ? 'T+' : inOneRow ? 'P3+' : 'P2+';
   const pullRow = pullDown ? 'J' : 'A';
 
   const useButtons = options.inputs === 'button';
@@ -351,7 +356,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
         // 子專案 36：電阻直立跨過凹槽（E → F），LED 在 I 列：陽極和電阻的下端同一排（不用接線）、陰極在右邊一排；每顆 2 欄，一顆接一顆。
         // （低態致動時相反：陰極和電阻同一排、陽極在右邊一排。）
         const half = Math.floor(units.length / 2);
-        const chunks = variant.split && !eic && units.length >= 4 ? [units.slice(0, half), units.slice(half)] : [units];
+        const chunks = variant.split && inOneRow && units.length >= 4 ? [units.slice(0, half), units.slice(half)] : [units];
         for (const chunk of chunks)
           ledBlocks.push({
             width: chunk.length * 2,
@@ -378,7 +383,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
         }
       }
       // 子專案 36：MB-102 上 4 顆以上的 LED 可以分兩邊，前一半放在開關左邊。
-      if (variant.split && !eic && units.length >= 4 && ledBlocks.length >= 2) {
+      if (variant.split && inOneRow && units.length >= 4 && ledBlocks.length >= 2) {
         const before = Math.floor(ledBlocks.length / 2);
         ledsBefore.push(...ledBlocks.slice(0, before));
         blocks[3].push(...ledBlocks.slice(before));
@@ -404,8 +409,8 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
         place: (x) => components.push(comp(shown.ds, dsDef, hole(`H${x}`, eic ? 3 : undefined), { board: BOARD_ID, props: { labels: [shown.node.name ?? ''] } as never })),
       });
   }
-  // 順序：開關、輸入的電阻（靠近開關）、IC、輸出的電阻與 LED。MB-102 時全部排在同一列。
-  if (eic) blocks[2].push(...icBlocks);
+  // 順序：開關、輸入的電阻（靠近開關）、IC、輸出的電阻與 LED。排成一排時（MB-102、EIC-1106 的一排擺法）全部排在同一列。
+  if (!inOneRow) blocks[2].push(...icBlocks);
   else {
     blocks[1] = [...ledsBefore, ...blocks[1], ...icBlocks, ...blocks[3]];
     blocks[3] = [];
@@ -437,7 +442,11 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
       return [...fp.pins.map((p) => p.point), ...fp.blocked].map((p) => `${p.x},${p.y}`);
     }),
   );
-  const power: Array<[string, 'vcc' | 'gnd', string]> = eic ? [['V1', 'vcc', 'P2+'], ['G1', 'gnd', 'P3-']] : [['V1', 'vcc', 'T+'], ['G1', 'gnd', 'B-']];
+  const power: Array<[string, 'vcc' | 'gnd', string]> = !eic
+    ? [['V1', 'vcc', 'T+'], ['G1', 'gnd', 'B-']]
+    : inOneRow
+      ? [['V1', 'vcc', 'P3+'], ['G1', 'gnd', 'P4-']]
+      : [['V1', 'vcc', 'P2+'], ['G1', 'gnd', 'P3-']];
   for (const [id, defId, rail] of power) {
     let at: GridPoint | null = null;
     for (let col = 3; col <= LAST_COLUMN && !at; col++) {
