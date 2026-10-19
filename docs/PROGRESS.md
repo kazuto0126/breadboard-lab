@@ -13,7 +13,8 @@
 
 ## 進行中
 
-- 子專案 34：轉成麵包板時電源接最近的軌、軌和軌之間不拉線（分支 `feat/nearest-power-rails`，規格 `docs/superpowers/specs/2026-10-19-nearest-power-rails-design.md`）：規格寫好，等使用者看過。
+- 子專案 34：轉成麵包板時電源接最近的軌、軌和軌之間不拉線（分支 `feat/nearest-power-rails`，規格 `docs/superpowers/specs/2026-10-19-nearest-power-rails-design.md`）：
+  做完，開 PR。子專案 33 的 PR #47 也還開著；兩個都會改 CHANGELOG / PROGRESS / README 最上面，後合併的那個要先同步 main。
 - 子專案 27–32：小功能（分支 `feat/small-features`，規格 `docs/superpowers/specs/2026-10-18-small-features-design.md`）：
   只用 NOR ✅、轉向加強 ✅、便條 ✅、輸入用按鈕 ✅、題目產生邏輯圖的其他形式 ✅、7 段顯示器加強 ✅（多位數測過佈線接不完，維持最多 2 個）。全部做完，準備開 PR。
 
