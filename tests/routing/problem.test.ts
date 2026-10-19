@@ -15,8 +15,8 @@ describe('mergeConfig', () => {
   });
 
   it('merges the IC placement settings', () => {
-    expect(mergeConfig().placement).toEqual({ candidatesPerIc: 3, maxPasses: 2, timeBudgetMs: 20000, candidateIterations: 30 });
-    expect(mergeConfig({ placement: { maxPasses: 1 } }).placement).toEqual({ candidatesPerIc: 3, maxPasses: 1, timeBudgetMs: 20000, candidateIterations: 30 });
+    expect(mergeConfig().placement).toEqual({ candidatesPerIc: 3, maxPasses: 2, timeBudgetMs: 20000, candidateIterations: 30, nearestPowerRail: false });
+    expect(mergeConfig({ placement: { maxPasses: 1 } }).placement).toEqual({ candidatesPerIc: 3, maxPasses: 1, timeBudgetMs: 20000, candidateIterations: 30, nearestPowerRail: false });
   });
 });
 

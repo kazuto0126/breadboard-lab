@@ -90,6 +90,22 @@ describe('connecting power pins to the nearest rails', () => {
     expect(r.circuit.wires.every((w) => (w.color === '#d32f2f' || w.color === '#212121') && w.straight === true)).toBe(true);
   });
 
+  it('connects pins joined inside a part (the display’s two common pins) to one rail only', () => {
+    // 共陽極顯示器的兩隻 CA 腳（3、8）在元件裡相通，一隻在上半部、一隻在下半部：只接一條線，兩條軌不會被元件連在一起。
+    const base = circuit([comp('DS1', '7seg-ca', 'H20'), comp('V1', 'vcc', 'T+3')]);
+    const index = indexCircuit(base);
+    const groups = [3, 8].map((n) => groupOfPoint(index, pinPoint(index, { componentId: 'DS1', pinNumber: n })!)!);
+    expect(new Set(groups.map((g) => g.endsWith('-top'))).size).toBe(2);
+    const board = getBoard('MB102', 'b1');
+    const freeIn = (g: string) => board.nodes.find((n) => n.groupId === g && !index.pinsAt.has(`b1:${n.x},${n.y}`) && !index.bodiesAt.has(`b1:${n.x},${n.y}`))!;
+    const a = freeIn(groups[1]);
+    const c = { ...base, wires: [straightWire('w1', [a.x, a.y], 'T+6')] };
+    const r = connectPowerToNearestRails(c);
+    const pairs = wireGroups(r.circuit);
+    expect(pairs.filter(([x, y]) => isRail(x) || isRail(y))).toHaveLength(1);
+    expect(symbolRails(r.circuit)).toHaveLength(1);
+  });
+
   it('leaves signal wires alone and changes nothing that is already nearest', () => {
     const signal = straightWire('sig', 'A12', 'A30');
     const c = circuit([comp('U1', '74LS00', 'F10'), comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3')], [straightWire('w1', 'E10', 'T+5'), straightWire('w2', 'F16', 'B-5'), signal]);

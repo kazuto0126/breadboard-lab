@@ -4,7 +4,7 @@ import type { Circuit, Wire } from '../../types/circuit';
 import type { ComponentInstance } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
 import { groupOfPoint, indexCircuit, pinPoint } from './circuitIndex';
-import { compareIds, extractNets, terminalGroupIds } from './nets';
+import { compareIds, extractNets, terminalClusters } from './nets';
 
 /**
  * 子專案 34（規格 2026-10-19 nearest-power-rails）：「轉成麵包板」的電源接法。
@@ -35,7 +35,7 @@ function holesByGroup(board: Breadboard): Map<string, BreadboardNode[]> {
   return out;
 }
 
-function nearestIn(board: Breadboard, holes: Map<string, BreadboardNode[]>, groupId: string, polarity: Polarity): string | null {
+function nearestIn(board: Breadboard, holes: Map<string, BreadboardNode[]>, groupId: string, polarity: Polarity): { id: string; distance: number } | null {
   const ys = (holes.get(groupId) ?? []).map((n) => n.y);
   if (ys.length === 0) return null;
   let best: { id: string; distance: number; y: number } | null = null;
@@ -47,12 +47,12 @@ function nearestIn(board: Breadboard, holes: Map<string, BreadboardNode[]>, grou
     const y = Math.min(...railYs);
     if (!best || distance < best.distance || (distance === best.distance && y < best.y)) best = { id, distance, y };
   }
-  return best?.id ?? null;
+  return best ? { id: best.id, distance: best.distance } : null;
 }
 
 /** 離這個群組最近（上下距離）的該極性電源軌；同樣近時取上面的。只看同一塊板。 */
 export function nearestRailGroup(board: Breadboard, groupId: string, polarity: Polarity): string | null {
-  return nearestIn(board, holesByGroup(board), groupId, polarity);
+  return nearestIn(board, holesByGroup(board), groupId, polarity)?.id ?? null;
 }
 
 export interface PowerRebind {
@@ -90,19 +90,24 @@ export function connectPowerToNearestRails(circuit: Circuit): PowerRebind {
   };
   const boardOfGroup = (groupId: string) => groupId.slice(0, groupId.indexOf(':'));
 
-  // 每個要接電源的群組 → 最近的軌。
+  // 每一簇要接電源的群組 → 最近的軌。元件裡相通的群組（例如顯示器的兩隻共同腳、按鈕跨凹槽的兩腳）算同一簇，
+  // 只從離軌最近的那個群組拉一條線，免得兩條軌經過元件連在一起。
   const links: Array<{ group: string; rail: string; polarity: Polarity }> = [];
-  const seen = new Set<string>();
   for (const net of nets) {
     const polarity: Polarity = net.kind === 'power' ? '+' : '-';
-    for (const group of terminalGroupIds(net, index)) {
-      const boardId = boardOfGroup(group);
-      const board = index.boards.get(boardId)!;
-      if (board.groups[group]?.kind === 'rail' || seen.has(`${polarity}${group}`)) continue;
-      const rail = nearestIn(board, holesOf(boardId), group, polarity);
-      if (!rail) continue;
-      seen.add(`${polarity}${group}`);
-      links.push({ group, rail, polarity });
+    for (const cluster of terminalClusters(net, index)) {
+      let best: { group: string; rail: string; distance: number } | null = null;
+      for (const group of cluster) {
+        const boardId = boardOfGroup(group);
+        const board = index.boards.get(boardId)!;
+        if (board.groups[group]?.kind === 'rail') {
+          best = null;
+          break;
+        }
+        const rail = nearestIn(board, holesOf(boardId), group, polarity);
+        if (rail && (!best || rail.distance < best.distance)) best = { group, rail: rail.id, distance: rail.distance };
+      }
+      if (best) links.push({ group: best.group, rail: best.rail, polarity });
     }
   }
 

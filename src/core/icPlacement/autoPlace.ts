@@ -2,6 +2,7 @@ import { buildLattice, type Lattice } from '../breadboard/lattice';
 import { indexCircuit } from '../circuit/circuitIndex';
 import { getComponentDefinition } from '../circuit/library';
 import { compareIds, extractNets } from '../circuit/nets';
+import { connectPowerToNearestRails } from '../circuit/powerRails';
 import { autoRoute } from '../routing/autoRoute';
 import { mergeConfig } from '../routing/config';
 import type { Circuit, Net } from '../../types/circuit';
@@ -35,7 +36,10 @@ export function autoPlaceAndRoute(circuit: Circuit, overrides?: DeepPartial<Rout
   const route = (moves: IcMove[], options?: DeepPartial<RoutingConfig>): RoutingResult | null => {
     const relocated = relocatedCircuit(circuit, nets, moves);
     if (moves.length > 0 && !samePinPartition(nets, extractNets(relocated))) return null;
-    return autoRoute(relocated, options);
+    if (!config.placement.nearestPowerRail) return autoRoute(relocated, options);
+    // 子專案 34：IC 搬好之後，電源腳改接那時最近的軌（補上 / 拿掉符號），結果帶回符號的變動。
+    const power = connectPowerToNearestRails(relocated);
+    return { ...autoRoute(power.circuit, options), powerSymbols: { added: power.added, removed: power.removed } };
   };
 
   let moves: IcMove[] = [];
