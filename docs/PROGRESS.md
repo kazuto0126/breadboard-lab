@@ -6,14 +6,14 @@
 ## 目前狀態
 
 - `main`：子專案 1–34 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式、新元件與 IC 腳位圖、EIC-1106 大型麵包板、AI 回答的孔位連結與導線解說、邏輯圖編輯器、邏輯圖轉成麵包板、只用 NAND 轉換與板上名稱、邏輯圖的小改善、輸出用 7 段顯示器、整次佈線的說明與問 AI、麵包板上的便條、轉換更簡潔與理想開關、便條拖曳、邏輯圖的常數與 IC 方塊、依名稱對照邏輯圖檢查麵包板、給 Claude Code 用的 MCP 伺服器、真值表題目、從題目產生邏輯圖、邏輯圖元件轉向、小功能 27–32、給其他 AI 工具用的 MCP 與題目工具、轉換時電源接最近的軌）；
-  接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#48 已合併（最後一批 2026-10-19）；backlog 裡的三個小問題（佈線說明過期、邏輯圖的線重疊、7 段顯示 15 全暗）也已修正。GitHub Actions CI 已設定。
+  接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#50 已合併（最後一批 2026-10-19）；backlog 裡的三個小問題（佈線說明過期、邏輯圖的線重疊、7 段顯示 15 全暗）也已修正。GitHub Actions CI 已設定。
 - 測試：main 上 843 個單元測試（含啟動 MCP 伺服器與打包檔的整合測試）、59 個端對端測試。本機整套平行跑時 `gives up quickly on places that cannot be routed`（限時 15 秒）可能超時，單獨跑與 CI 會過。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
-  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-19（PR #48 合併後，含子專案 27–34 的網頁部分；也放上 MCP 打包檔 `mcp/breadboard-lab-mcp.mjs` 與設定說明頁 `mcp/`）。
+  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-19（PR #50 合併後，含子專案 27–34 的網頁部分；也放上 MCP 打包檔 `mcp/breadboard-lab-mcp.mjs` 與設定說明頁 `mcp/`，說明頁寫了 12 個 AI 工具的設定）。
 
 ## 進行中
 
-- MCP 設定說明頁補上 7 個 AI 工具的設定（分支 `feat/mcp-guide-more-tools`）：做完，開 PR；合併後要發布網站。
+- 沒有進行中的子專案。
 - 待使用者確認：MCP 打包檔還沒在真的 AI 工具上試過（本機 Claude Code 命令列沒有登入，Codex 的模型設定不適用），請使用者在自己的工具上試一次。
 
 ## 接下來（依優先順序）
