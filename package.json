@@ -13,6 +13,7 @@
     "e2e": "playwright test",
     "demo": "tsx scripts/demo.ts",
     "mcp": "node --import tsx scripts/mcp-server.ts",
+    "build:mcp": "vite build --config vite.mcp.config.ts",
     "publish:site": "tsx scripts/publish-site.ts"
   },
   "devDependencies": {

@@ -3,7 +3,44 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## [未發布] — 子專案 27–32：小功能（網頁有改，合併後要發布）
+## [未發布] — 子專案 33：給其他 AI 工具用的 MCP 與真值表題目工具（網頁有改，合併後要發布）
+
+設計規格：`docs/superpowers/specs/2026-10-19-mcp-other-tools-design.md`；實作計畫：`docs/superpowers/plans/2026-10-19-mcp-other-tools.md`。
+
+### 新增
+
+- MCP 伺服器打包成一個檔案：`npm run build:mcp` → `dist-mcp/breadboard-lab-mcp.mjs`（約 1.1 MB，含 MCP SDK、zod、核心引擎與元件定義），
+  只要 Node.js 22 以上就能執行（Node.js 20 已在 2026-04 停止支援，CI 用 22 測打包檔），不用原始碼、不用 `npm install`；版本號是建置日期（`--version` 印出）。
+- 工作資料夾：啟動參數 `--folder <路徑>`（沒給就是目前資料夾），工具只能讀寫裡面的 `.json` 電路檔；伺服器說明寫出工作資料夾的完整路徑。
+- 新工具（共 19 個）：
+  - `list_files`：列出工作資料夾裡的電路檔（往下 3 層、略過 `node_modules` 與 `.` 開頭的資料夾、超過 2 MB 的檔案不讀、最多看 500 個 `.json` 檔，
+    沒看完時提醒用 `--folder` 指定資料夾），寫出麵包板、元件數、有沒有邏輯圖與題目。
+  - `task_set`：寫入真值表題目（輸入、輸出；一般輸出寫「1 的列」「不在乎的列」，7 段顯示器寫每一列的數字），或用邏輯圖的真值表建立、刪除題目。
+  - `task_show`：題目的真值表與化簡後的布林式（積項和或和積）。
+  - `task_to_diagram`：照題目產生邏輯圖（積項和、和積、只用 NAND、只用 NOR），並和題目比對。
+  - `task_check`：拿題目和邏輯圖、麵包板比對，列出不一致的列（最多 10 列）或還不能比對的原因。
+- 網站上的設定說明頁 `mcp/`（`public/mcp/index.html`）：下載、Cursor、VS Code（Copilot）、Gemini CLI、Claude Desktop、Claude Code 的設定
+  （Windows / macOS 切換、複製按鈕；2026-10-19 照官方文件查證）、第一次可以怎麼問、結果怎麼看、更新與常見問題。
+- 網頁「說明」選單多一項「給 AI 工具用（MCP）」，打開網站上的設定說明頁。
+- `npm run publish:site` 也發布打包檔與說明頁；發布前檢查兩個檔案裡沒有作者的 Email（這個 repo 的 commit 作者 / 提交者 Email 與 git config），有就停止。
+
+### 修正
+
+- MCP 存檔時，邏輯圖沒有元件但有題目（或便條）的檔案會把題目丟掉；改成和網頁一樣保留。
+
+### 改變
+
+- 錯誤訊息「只能讀寫專案資料夾裡的檔案」改成「只能讀寫工作資料夾裡的檔案」。原始碼版（`.mcp.json`、`npm run mcp`）照常可用，工作資料夾就是啟動時的資料夾（專案根目錄）。
+
+### 測試
+
+- 工作資料夾的參數（含空白的路徑、相對路徑、不存在）、電路檔清單的過濾、只有題目的檔案存檔後題目還在；四個題目工具的成功與每一種錯誤；
+  伺服器的 19 個工具與題目流程（寫題目 → 產生邏輯圖 → 轉成麵包板 → 比對全部一致）。
+- 打包檔：複製到原始碼資料夾以外、名稱有空白、沒有 `node_modules` 的暫存資料夾，用 MCP SDK 的用戶端連線跑完題目流程；`--version`；資料夾不存在時結束並說明。
+- 說明頁：繁體中文、下載連結、每個工具、每段設定都是合法的 JSON、不載入外部資源；Email 檢查；端對端：說明選單打開設定說明頁。
+- 沒有在真的 AI 工具上試：本機 Claude Code 命令列沒有登入，Codex 命令列的模型設定不適用，留給使用者試。
+
+## [未發布] — 子專案 27–32：小功能（PR #46 已合併，網頁還沒發布）
 
 設計規格：`docs/superpowers/specs/2026-10-18-small-features-design.md`。
 

@@ -10,6 +10,9 @@ import { logicDirty, useLogic } from '../../state/logic';
 import { openConvert } from '../Logic/LogicPanel';
 import { deriveMode, isComparisonFresh, isDirty, useStore, type Mode } from '../../state/store';
 
+/** 子專案 33：網站上的 MCP 設定說明頁（離線版也連到網站）。 */
+const MCP_GUIDE_URL = 'https://kazuto0126.github.io/breadboard-lab-site/mcp/';
+
 type Item = { label: string; shortcut?: string; onClick: () => void; disabled?: boolean; checked?: boolean } | 'separator' | { heading: string };
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -234,6 +237,7 @@ export function Toolbar() {
       [
         { label: '操作說明與快捷鍵', shortcut: '?', onClick: run(() => store.openDialog('help')) },
         { label: 'Gemini API 金鑰設定…', onClick: run(() => store.openDialog('ai-key')) },
+        { label: '給 AI 工具用（MCP）', onClick: run(() => window.open(MCP_GUIDE_URL, '_blank', 'noopener')) },
       ],
     ],
   ];

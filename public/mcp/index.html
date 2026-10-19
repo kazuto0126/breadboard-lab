@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Breadboard Lab：給 AI 工具用（MCP）</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --line: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --code: #020617;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.7 system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.7rem; line-height: 1.3; margin: 0 0 8px; }
+  h2 { font-size: 1.25rem; margin: 40px 0 8px; padding-top: 16px; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 24px 0 6px; color: var(--accent); }
+  a { color: var(--accent); }
+  p, li { color: var(--text); }
+  .lead { color: var(--muted); margin-top: 0; }
+  .muted { color: var(--muted); font-size: 0.92rem; }
+  code { background: var(--code); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 0.92em; overflow-wrap: anywhere; }
+  .block { position: relative; margin: 8px 0 12px; }
+  pre {
+    margin: 0;
+    background: var(--code);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 30px 14px 12px;
+    overflow-x: auto;
+    font: 14px/1.5 ui-monospace, "Cascadia Code", Consolas, Menlo, monospace;
+    color: #e0f2fe;
+  }
+  pre::before { position: absolute; top: 6px; left: 14px; font: 12px system-ui, sans-serif; color: var(--muted); }
+  pre.win::before { content: "Windows"; }
+  pre.mac::before { content: "macOS"; }
+  .copy {
+    position: absolute; top: 6px; right: 8px;
+    background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    font-size: 12px; padding: 2px 10px; cursor: pointer; min-height: 28px;
+  }
+  .copy:hover { border-color: var(--accent); }
+  body.os-win .mac, body.os-mac .win { display: none; }
+  .os { display: inline-flex; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 4px; margin: 4px 0 12px; }
+  .os button { background: transparent; color: var(--text); border: 0; border-radius: 6px; padding: 6px 14px; cursor: pointer; font-size: 0.95rem; min-height: 36px; }
+  .os button[aria-pressed="true"] { background: #0284c7; color: #fff; }
+  .download {
+    display: inline-block; background: #0369a1; color: #fff; text-decoration: none; border-radius: 8px;
+    padding: 10px 18px; font-weight: 600; margin: 4px 0;
+  }
+  .download:hover { background: #0284c7; }
+  .note { border-left: 3px solid var(--warn); background: #422006; padding: 8px 12px; border-radius: 0 6px 6px 0; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  th, td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .tools td:first-child { white-space: nowrap; }
+</style>
+</head>
+<body>
+<main>
+<h1>給 AI 工具用（MCP）</h1>
+<p class="lead">讓 Cursor、VS Code 的 Copilot、Gemini CLI、Claude Desktop、Claude Code 等支援 MCP 的 AI 工具，直接幫你放元件、接線、檢查、AI 佈線、模擬，
+也可以出真值表題目、畫邏輯圖、轉成麵包板並比對。結果存成 <code>.json</code> 檔，在 <a href="../">Breadboard Lab 網頁</a>用「檔案 → 匯入 JSON」打開。</p>
+<p class="muted">適合會寫程式、電腦上已經有 Node.js 的人。只用網頁的話不需要這一頁。</p>
+
+<h2>1. 需要什麼</h2>
+<ul>
+  <li><strong>Node.js 22 以上</strong>（<a href="https://nodejs.org/">nodejs.org</a>，選 LTS 版本）。打開終端機（Windows 是「命令提示字元」或 PowerShell）輸入
+    <code>node --version</code>，看到 <code>v22</code> 以上的數字就可以。</li>
+  <li>一個支援 MCP 的 AI 工具（下面第 3 節）。</li>
+</ul>
+
+<h2>2. 下載並放好</h2>
+<p><a class="download" href="breadboard-lab-mcp.mjs" download>下載 breadboard-lab-mcp.mjs</a></p>
+<ol>
+  <li>把檔案放在固定的位置，例如 Windows 的 <code>C:\tools\</code>、macOS 的 <code>~/tools/</code>（之後不要再搬，設定裡寫的是這個位置）。</li>
+  <li>建一個放電路檔的資料夾（<strong>工作資料夾</strong>），例如 Windows 的 <code>C:\circuits</code>、macOS 的 <code>~/circuits</code>。
+    AI 只能讀寫這個資料夾（和裡面的子資料夾）的 <code>.json</code> 電路檔，不會碰到別的檔案。</li>
+  <li>設定裡用 <code>--folder</code> 告訴它工作資料夾在哪裡。路徑請寫完整的路徑。</li>
+</ol>
+
+<h2>3. 在 AI 工具裡設定</h2>
+<p>選你的電腦：</p>
+<div class="os" role="group" aria-label="作業系統">
+  <button type="button" data-os="win" aria-pressed="false">Windows</button>
+  <button type="button" data-os="mac" aria-pressed="false">macOS</button>
+</div>
+<p class="muted">下面的路徑是例子（檔案在 <code>C:\tools</code> 或 <code>/Users/你的帳號/tools</code>、工作資料夾是 <code>C:\circuits</code> 或 <code>/Users/你的帳號/circuits</code>），請換成你自己的。
+JSON 裡 Windows 的 <code>\</code> 要寫兩個（<code>\\</code>）。設定好之後<strong>把 AI 工具完全關掉再打開</strong>。各工具的設定方式在 2026-10-19 照官方文件查證過。</p>
+
+<h3>Cursor</h3>
+<p>設定檔：所有專案都能用的 <code>~/.cursor/mcp.json</code>（Windows 是 <code>%USERPROFILE%\.cursor\mcp.json</code>），或只給一個專案用的 <code>.cursor/mcp.json</code>。
+（<a href="https://cursor.com/docs/context/mcp">Cursor 文件</a>）</p>
+<div class="block"><pre class="json win">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["C:\\tools\\breadboard-lab-mcp.mjs", "--folder", "C:\\circuits"]
+    }
+  }
+}</pre></div>
+<div class="block"><pre class="json mac">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"]
+    }
+  }
+}</pre></div>
+
+<h3>VS Code（Copilot 的 agent 模式）</h3>
+<p>在專案裡建 <code>.vscode/mcp.json</code>；要所有專案都能用，從命令選擇區執行「MCP: Open User Configuration」，貼上同樣的內容（注意最外層是 <code>servers</code>）。
+在 Copilot Chat 切到 Agent 模式就能用；執行「MCP: List Servers」可以看狀態與輸出。（<a href="https://code.visualstudio.com/docs/copilot/customization/mcp-servers">VS Code 文件</a>）</p>
+<div class="block"><pre class="json win">{
+  "servers": {
+    "breadboard-lab": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["C:\\tools\\breadboard-lab-mcp.mjs", "--folder", "C:\\circuits"]
+    }
+  }
+}</pre></div>
+<div class="block"><pre class="json mac">{
+  "servers": {
+    "breadboard-lab": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"]
+    }
+  }
+}</pre></div>
+
+<h3>Gemini CLI</h3>
+<p>設定檔：所有資料夾都能用的 <code>~/.gemini/settings.json</code>（Windows 是 <code>%USERPROFILE%\.gemini\settings.json</code>），或只給一個資料夾用的 <code>.gemini/settings.json</code>。
+檔案裡已經有別的設定時，把 <code>mcpServers</code> 加進去就好。在 Gemini CLI 裡輸入 <code>/mcp</code> 看有沒有連上。
+（<a href="https://github.com/google-gemini/gemini-cli/blob/main/docs/tools/mcp-server.md">Gemini CLI 文件</a>）</p>
+<div class="block"><pre class="json win">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["C:\\tools\\breadboard-lab-mcp.mjs", "--folder", "C:\\circuits"]
+    }
+  }
+}</pre></div>
+<div class="block"><pre class="json mac">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"]
+    }
+  }
+}</pre></div>
+
+<h3>Claude Desktop</h3>
+<p>從 Claude 的選單打開「Settings…」→「Developer」→「Edit Config」，會打開 <code>claude_desktop_config.json</code>
+（Windows：<code>%APPDATA%\Claude\claude_desktop_config.json</code>；macOS：<code>~/Library/Application Support/Claude/claude_desktop_config.json</code>）。
+存檔後把 Claude Desktop 完全結束再打開。（<a href="https://modelcontextprotocol.io/docs/develop/connect-local-servers">設定說明</a>）</p>
+<div class="block"><pre class="json win">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["C:\\tools\\breadboard-lab-mcp.mjs", "--folder", "C:\\circuits"]
+    }
+  }
+}</pre></div>
+<div class="block"><pre class="json mac">{
+  "mcpServers": {
+    "breadboard-lab": {
+      "command": "node",
+      "args": ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/你的帳號/circuits"]
+    }
+  }
+}</pre></div>
+
+<h3>Claude Code</h3>
+<p>在終端機執行一次（<code>--scope user</code> 是所有專案都能用），再用 <code>claude mcp list</code> 看有沒有連上。（<a href="https://code.claude.com/docs/en/mcp">Claude Code 文件</a>）</p>
+<div class="block"><pre class="cmd win">claude mcp add --scope user breadboard-lab -- node C:\tools\breadboard-lab-mcp.mjs --folder C:\circuits</pre></div>
+<div class="block"><pre class="cmd mac">claude mcp add --scope user breadboard-lab -- node ~/tools/breadboard-lab-mcp.mjs --folder ~/circuits</pre></div>
+
+<h2>4. 第一次可以怎麼問</h2>
+<ul>
+  <li>「出一題 3 個輸入 A、B、C 的多數決題目，產生邏輯圖，轉成麵包板，再和題目比對，存成 majority.json。」</li>
+  <li>「在 xor.json 用 74LS00 做一個 XOR：放好 IC、開關和 LED，接線、檢查，再跑 AI 佈線。」</li>
+  <li>「題目是 W X Y Z 四個輸入，顯示器 S1 顯示 WXYZ 加 1（9 之後是 0，10–15 不在乎），只用 NAND 畫邏輯圖。」</li>
+  <li>「列出工作資料夾裡的電路檔，檢查 lab3.json 哪裡接錯，告訴我怎麼改。」</li>
+</ul>
+
+<h2>5. 結果怎麼看</h2>
+<p>AI 改的是工作資料夾裡的 <code>.json</code> 檔。打開 <a href="../">Breadboard Lab 網頁</a>，用「檔案 → 匯入 JSON」選那個檔案，就能看到麵包板、邏輯圖與題目。</p>
+
+<h2>6. 有哪些工具</h2>
+<table class="tools">
+  <tr><th>工具</th><th>做什麼</th></tr>
+  <tr><td><code>list_files</code>、<code>new_circuit</code>、<code>circuit_summary</code></td><td>列出電路檔、建立新檔、看摘要</td></tr>
+  <tr><td><code>list_parts</code>、<code>place_part</code>、<code>add_wire</code>、<code>set_part</code>、<code>remove</code></td><td>查元件、放元件、接線、改設定與名稱、刪除</td></tr>
+  <tr><td><code>check_circuit</code>、<code>auto_route</code>、<code>simulate</code></td><td>檢查、AI 標準佈線、邏輯模擬</td></tr>
+  <tr><td><code>logic_set</code>、<code>logic_truth_table</code>、<code>logic_to_breadboard</code>、<code>check_against_diagram</code></td><td>寫入邏輯圖、真值表、轉成麵包板、依名稱比對</td></tr>
+  <tr><td><code>task_set</code>、<code>task_show</code>、<code>task_to_diagram</code>、<code>task_check</code></td><td>真值表題目：寫入、化簡、產生邏輯圖、和邏輯圖與麵包板比對</td></tr>
+</table>
+
+<h2>7. 更新</h2>
+<p>重新下載 <code>breadboard-lab-mcp.mjs</code> 蓋掉舊的檔案，再把 AI 工具完全關掉重開。看目前的版本：</p>
+<div class="block"><pre class="cmd win">node C:\tools\breadboard-lab-mcp.mjs --version</pre></div>
+<div class="block"><pre class="cmd mac">node ~/tools/breadboard-lab-mcp.mjs --version</pre></div>
+<p class="muted">版本號是建置的日期（例如 2026.10.19）。</p>
+
+<h2>8. 常見問題</h2>
+<h3>AI 工具說找不到 node</h3>
+<p>先在終端機確認 <code>node --version</code> 有結果。macOS 上用 nvm 等工具裝的 Node.js，圖形介面的 App 可能找不到；把設定裡的 <code>"node"</code>
+換成完整路徑（終端機輸入 <code>which node</code> 查到的路徑；Windows 用 <code>where node</code>）。</p>
+<h3>工具沒有出現</h3>
+<p>確認 JSON 沒有寫錯（逗號、引號、Windows 路徑的 <code>\\</code>），再把 AI 工具完全關掉重開。也可以直接在終端機執行設定裡的指令（加上 <code>--folder</code>），
+看有沒有錯誤訊息；沒有錯誤時它會停在那裡等 AI 工具連線，按 Ctrl+C 結束。</p>
+<div class="note">「找不到工作資料夾」：<code>--folder</code> 寫的資料夾不存在，先建好資料夾或改成正確的路徑。</div>
+<h3>檔案存到哪裡</h3>
+<p>都在 <code>--folder</code> 指定的工作資料夾。AI 回覆裡的路徑是相對於工作資料夾的路徑；問它「列出工作資料夾裡的電路檔」就會用 <code>list_files</code> 列出來。</p>
+</main>
+<script>
+  // 依目前的電腦先選好 Windows 或 macOS；每段設定加「複製」按鈕。
+  (function () {
+    var buttons = document.querySelectorAll('.os button');
+    function choose(os) {
+      document.body.classList.remove('os-win', 'os-mac');
+      document.body.classList.add('os-' + os);
+      buttons.forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-os') === os)); });
+    }
+    buttons.forEach(function (b) { b.addEventListener('click', function () { choose(b.getAttribute('data-os')); }); });
+    choose(/Mac/i.test(navigator.userAgent) ? 'mac' : 'win');
+    document.querySelectorAll('.block').forEach(function (block) {
+      var pre = block.querySelector('pre');
+      // 另一種電腦的設定整塊（含複製按鈕）一起藏起來。
+      ['win', 'mac'].forEach(function (os) { if (pre.classList.contains(os)) block.classList.add(os); });
+      var copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'copy';
+      copy.textContent = '複製';
+      copy.addEventListener('click', function () {
+        if (!navigator.clipboard) return;
+        navigator.clipboard.writeText(pre.textContent).then(function () {
+          copy.textContent = '已複製';
+          setTimeout(function () { copy.textContent = '複製'; }, 1500);
+        });
+      });
+      block.appendChild(copy);
+    });
+  })();
+</script>
+</body>
+</html>
