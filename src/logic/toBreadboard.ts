@@ -69,8 +69,19 @@ const GND = 'GND';
 const BOARD_ID = 'b1';
 const RESISTOR_SPAN = 3;
 const LAST_COLUMN = 63;
-/** 元件之間最多空幾欄。 */
-const MAX_GAP = 6;
+/**
+ * 子專案 36（規格 2026-10-20 conversion-placement）：擺法。gap：區塊之間最多空幾欄；leds：輸出的電阻與 LED 怎麼擺
+ * （pair：電阻在 A 列、LED 在 B 列，兩組一塊、第二組在下半部；straddle：電阻直立跨過凹槽、LED 在 I 列，每顆 2 欄）；
+ * split：MB-102 上 4 顆以上的 LED 分兩邊（一半在開關左邊）。convertRoute 會試好幾種擺法挑佈線最好的。
+ */
+export interface LayoutVariant {
+  gap: number;
+  leds: 'pair' | 'straddle';
+  split: boolean;
+}
+
+/** 預設擺法（子專案 36 以前的擺法）。 */
+export const DEFAULT_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: false };
 
 /** 一個預定的連接點：元件的某隻腳，或接線柱的孔。 */
 type Terminal = { pin: string } | { point: GridPoint };
@@ -130,7 +141,7 @@ function displayInverters(d: LogicDiagram, options: ConvertOptions): Unit[] {
 }
 
 /** 規格（2026-10-13 logic-to-breadboard）第 4、5 節。 */
-export function toBreadboard(d: LogicDiagram, options: ConvertOptions): ConvertResult {
+export function toBreadboard(d: LogicDiagram, options: ConvertOptions, variant: LayoutVariant = DEFAULT_LAYOUT): ConvertResult {
   const problem = convertProblem(d);
   if (problem) return { ok: false, reason: problem };
   // 有 7 段顯示器時 MB-102 的線排不完（規格 2026-10-13 seven-seg 第 6 節），自動選板直接用 EIC-1106。
@@ -138,7 +149,7 @@ export function toBreadboard(d: LogicDiagram, options: ConvertOptions): ConvertR
   const layouts: LayoutId[] = options.board !== 'auto' ? [options.board] : hasDisplay ? ['EIC1106'] : ['MB102', 'EIC1106'];
   for (const layout of layouts) {
     try {
-      return build(d, options, layout);
+      return build(d, options, layout, variant);
     } catch (err) {
       if (!(err instanceof NoRoom)) throw err;
     }
@@ -148,7 +159,7 @@ export function toBreadboard(d: LogicDiagram, options: ConvertOptions): ConvertR
   return { ok: false, reason: `零件太多，一塊 EIC-1106 放不下（需要 ${chips} 片 IC）` };
 }
 
-function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): ConvertResult {
+function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, variant: LayoutVariant): ConvertResult {
   const eic = layout === 'EIC1106';
   const hole = (name: string, area?: number) => holeOn(BOARD_ID, eic ? `${area}-${name}` : name, layout);
   const { inputs, outputs: sinks } = sortedIo(d);
@@ -170,6 +181,8 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   const blocks: Record<number, Block[]> = { 1: [], 2: [], 3: [] };
   const icArea = eic ? 2 : 1;
   const icBlocks: Block[] = [];
+  /** MB-102 上 LED 分兩邊時，放在開關左邊的那一半。 */
+  const ledsBefore: Block[] = [];
 
   // ---- 子專案 36：上 / 下拉電阻直立，一端插在開關那一排、另一端直接插進電源軌（不用另外拉線） ----
   // 開關接 +5 V 時是下拉：從 J 列往下插進 − 軌；接 GND 時是上拉：從 A 列往上插進 + 軌。電源軌每 6 欄少一個孔，
@@ -323,21 +336,45 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     const list = twoLeads.filter((t) => t.group === group);
     const area = list[0].area;
     if (group === 'led') {
-      // 輸出的電阻緊鄰 LED：電阻在 A 列 x～x+3，LED 在 B 列、陽極在 x+3（和電阻的另一腳同一排，不用接線）、陰極在 x+4。
-      // 兩組一塊：第二組放在下半部（電阻 J 列、LED I 列）。
-      for (let i = 0; i < list.length; i += 4) {
-        const units = [list.slice(i, i + 2), list.slice(i + 2, i + 4)].filter((u) => u.length === 2);
-        blocks[eic ? area : 3].push({
-          width: RESISTOR_SPAN + 2,
-          place: (x) =>
-            units.forEach(([res, led], j) => {
-              const [rRow, dRow] = j === 0 ? ['A', 'B'] : ['J', 'I'];
-              const at = (row: string, col: number) => hole(`${row}${col}`, eic ? area : undefined);
-              components.push(comp(res.id, res.defId, at(rRow, x), { board: BOARD_ID, props: res.props as never, span: res.span }));
-              components.push(comp(led.id, led.defId, at(dRow, x + res.span), { board: BOARD_ID, props: led.props as never }));
-            }),
-        });
+      const at = (row: string, col: number) => hole(`${row}${col}`, eic ? area : undefined);
+      const units: Array<[TwoLead, TwoLead]> = [];
+      for (let i = 0; i < list.length; i += 2) units.push([list[i], list[i + 1]]);
+      const ledBlocks: Block[] = [];
+      if (variant.leds === 'straddle') {
+        // 子專案 36：電阻直立跨過凹槽（E → F），LED 在 I 列：陽極和電阻的下端同一排（不用接線）、陰極在右邊一排；每顆 2 欄，一顆接一顆。
+        const half = Math.floor(units.length / 2);
+        const chunks = variant.split && !eic && units.length >= 4 ? [units.slice(0, half), units.slice(half)] : [units];
+        for (const chunk of chunks)
+          ledBlocks.push({
+            width: chunk.length * 2,
+            place: (x) =>
+              chunk.forEach(([res, led], j) => {
+                components.push(comp(res.id, res.defId, at('E', x + 2 * j), { board: BOARD_ID, rotation: 90, props: res.props as never, span: 3 }));
+                components.push(comp(led.id, led.defId, at('I', x + 2 * j), { board: BOARD_ID, props: led.props as never }));
+              }),
+          });
+      } else {
+        // 輸出的電阻緊鄰 LED：電阻在 A 列 x～x+3，LED 在 B 列、陽極在 x+3（和電阻的另一腳同一排，不用接線）、陰極在 x+4。
+        // 兩組一塊：第二組放在下半部（電阻 J 列、LED I 列）。
+        for (let i = 0; i < units.length; i += 2) {
+          const pair = units.slice(i, i + 2);
+          ledBlocks.push({
+            width: RESISTOR_SPAN + 2,
+            place: (x) =>
+              pair.forEach(([res, led], j) => {
+                const [rRow, dRow] = j === 0 ? ['A', 'B'] : ['J', 'I'];
+                components.push(comp(res.id, res.defId, at(rRow, x), { board: BOARD_ID, props: res.props as never, span: res.span }));
+                components.push(comp(led.id, led.defId, at(dRow, x + res.span), { board: BOARD_ID, props: led.props as never }));
+              }),
+          });
+        }
       }
+      // 子專案 36：MB-102 上 4 顆以上的 LED 可以分兩邊，前一半放在開關左邊。
+      if (variant.split && !eic && units.length >= 4 && ledBlocks.length >= 2) {
+        const before = Math.floor(ledBlocks.length / 2);
+        ledsBefore.push(...ledBlocks.slice(0, before));
+        blocks[3].push(...ledBlocks.slice(before));
+      } else blocks[eic ? area : 3].push(...ledBlocks);
       continue;
     }
     // 兩個一組：第一個放 A 列、第二個放 J 列（同一段欄），各自用不同的導通群組。
@@ -362,7 +399,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
   // 順序：開關、輸入的電阻（靠近開關）、IC、輸出的電阻與 LED。MB-102 時全部排在同一列。
   if (eic) blocks[2].push(...icBlocks);
   else {
-    blocks[1] = [...blocks[1], ...icBlocks, ...blocks[3]];
+    blocks[1] = [...ledsBefore, ...blocks[1], ...icBlocks, ...blocks[3]];
     blocks[3] = [];
   }
   for (const area of [1, 2, 3]) {
@@ -371,7 +408,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId): Conv
     const used = list.reduce((sum, b) => sum + b.width, 0);
     const free = LAST_COLUMN - 1 - used; // 第 2–63 欄
     if (free < list.length + 1) throw new NoRoom();
-    const gap = Math.min(MAX_GAP, Math.floor(free / (list.length + 1)));
+    const gap = Math.min(variant.gap, Math.floor(free / (list.length + 1)));
     let x = 2 + gap;
     for (const b of list) {
       for (let i = 0; i < 6 && b.align && !b.align(x); i++) x++;
