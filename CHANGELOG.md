@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-10-20 — 子專案 36、37：轉成麵包板的擺放改善與低態致動 LED
+## 2026-10-19 — 子專案 36、37：轉成麵包板的擺放改善與低態致動 LED（PR #54，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-20-conversion-placement-design.md`；實作計畫：`docs/superpowers/plans/2026-10-20-conversion-placement.md`。
 出處：使用者給的三張理想麵包板（A 一位元比較器、B 3 對 8 線解碼器（低態致動）、C 8 對 3 線編碼器）。照圖重建後，同樣的零件位置我們的佈線和圖一樣，
