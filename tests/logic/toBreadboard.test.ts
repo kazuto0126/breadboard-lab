@@ -77,10 +77,11 @@ describe('toBreadboard', () => {
   });
 
   it('moves to the EIC-1106 when the parts do not fit an MB-102', () => {
-    const d = andChain(24);
+    // 子專案 36：直立的下拉電阻比較省位置，24 個 AND 已經放得進 MB-102，所以用 28 個。
+    const d = andChain(28);
     const r = ok(toBreadboard(d, { switchTo: 'vcc', board: 'auto', pulls: true }));
     expect(r.bom.layout).toBe('EIC1106');
-    expect(r.bom.ics).toEqual({ '74LS08': 6 });
+    expect(r.bom.ics).toEqual({ '74LS08': 7 });
     expect(validateCircuit(r.circuit).filter((e) => e.severity === 'error' && !e.code.startsWith('WIRE'))).toEqual([]);
     expect(wiredAsPlanned(r)).toEqual({ merged: [], split: [] });
     expect(toBreadboard(d, { switchTo: 'vcc', board: 'MB102', pulls: true })).toEqual({ ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' });

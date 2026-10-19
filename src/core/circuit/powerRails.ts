@@ -121,6 +121,17 @@ export function connectPowerToNearestRails(circuit: Circuit): PowerRebind {
 
   // 符號：用到的軌各留（或補）一個，沒用到的拿掉。
   const usedRails = new Map(links.map((l) => [l.rail, l.polarity]));
+  // 子專案 36：直接插在電源軌上的元件腳（例如直立的上 / 下拉電阻）：那條軌也要有符號。
+  for (const net of nets) {
+    const polarity: Polarity = net.kind === 'power' ? '+' : '-';
+    for (const ref of net.pins) {
+      const owner = circuit.components.find((c) => c.id === ref.componentId);
+      if (!owner || owner.defId === 'vcc' || owner.defId === 'gnd') continue;
+      const p = pinPoint(index, ref);
+      const g = p ? groupOfPoint(index, p) : null;
+      if (g && index.boards.get(boardOfGroup(g))?.groups[g]?.kind === 'rail') usedRails.set(g, polarity);
+    }
+  }
   const symbolRail = (c: ComponentInstance) => {
     const p = pinPoint(index, { componentId: c.id, pinNumber: 1 });
     return p ? groupOfPoint(index, p) : null;
