@@ -1,7 +1,7 @@
 # 給其他 AI 工具用的 MCP 與真值表題目工具（子專案 33）設計規格
 
 - 日期：2026-10-19
-- 狀態：等使用者看過
+- 狀態：已完成（使用者 2026-10-19 看過規格說「可以」；實作時的決定記在 CHANGELOG 與 PR 描述）
 - 出處：`docs/ideas/backlog.md`「給其他 AI 工具用的接口」；評估在 `docs/ideas/2026-10-16-mcp-interface.md`；
   第一版（只給 Claude Code 用）是子專案 23（`2026-10-17-mcp-server-design.md`）。
 
