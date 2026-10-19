@@ -29,6 +29,7 @@
     "scripts",
     "vite.config.ts",
     "vite.mcp.config.ts",
+    "vitest.bench.config.ts",
     "vitest.config.ts"
   ],
   "exclude": [
