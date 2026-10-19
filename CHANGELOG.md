@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## [未發布] — 子專案 34：轉成麵包板時電源接最近的軌（網頁有改，合併後要發布）
+## 2026-10-19 — 子專案 34：轉成麵包板時電源接最近的軌（PR #48，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-19-nearest-power-rails-design.md`；實作計畫：`docs/superpowers/plans/2026-10-19-nearest-power-rails.md`。
 
@@ -25,7 +25,7 @@
   用到的軌有符號且沒有閒置的符號、和邏輯圖比對全部一致；其中三個再用可移動 IC 佈線後仍然成立。原本轉換測試的「照計畫接線」也一起檢查電源。
 - 選項關閉時，使用者自己用跳線接在一起的兩條軌仍然相通；MCP：BCD 範例轉換後電源都接最近的軌；端對端：BCD 範例轉換後，接線清單沒有軌對軌的線、電源都接最近的軌。
 
-## [未發布] — 子專案 33：給其他 AI 工具用的 MCP 與真值表題目工具（網頁有改，合併後要發布）
+## 2026-10-19 — 子專案 33：給其他 AI 工具用的 MCP 與真值表題目工具（PR #47，已發布到線上版，含 MCP 打包檔與設定說明頁）
 
 設計規格：`docs/superpowers/specs/2026-10-19-mcp-other-tools-design.md`；實作計畫：`docs/superpowers/plans/2026-10-19-mcp-other-tools.md`。
 
@@ -62,7 +62,7 @@
 - 說明頁：繁體中文、下載連結、每個工具、每段設定都是合法的 JSON、不載入外部資源；Email 檢查；端對端：說明選單打開設定說明頁。
 - 沒有在真的 AI 工具上試：本機 Claude Code 命令列沒有登入，Codex 命令列的模型設定不適用，留給使用者試。
 
-## [未發布] — 子專案 27–32：小功能（PR #46 已合併，網頁還沒發布）
+## 2026-10-19 — 子專案 27–32：小功能（PR #46，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-18-small-features-design.md`。
 

@@ -1,29 +1,25 @@
 # 專案進度
 
 > 每個 Claude Code 對話開始時會自動顯示這份檔案（`.claude/hooks/session-start.sh`）。
-> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-17
+> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-19
 
 ## 目前狀態
 
-- `main`：子專案 1–26 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式、新元件與 IC 腳位圖、EIC-1106 大型麵包板、AI 回答的孔位連結與導線解說、邏輯圖編輯器、邏輯圖轉成麵包板、只用 NAND 轉換與板上名稱、邏輯圖的小改善、輸出用 7 段顯示器、整次佈線的說明與問 AI、麵包板上的便條、轉換更簡潔與理想開關、便條拖曳、邏輯圖的常數與 IC 方塊、依名稱對照邏輯圖檢查麵包板、給 Claude Code 用的 MCP 伺服器、真值表題目、從題目產生邏輯圖、邏輯圖元件轉向）；
-  接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#44 已合併（最後一批 2026-10-17）；backlog 裡的三個小問題（佈線說明過期、邏輯圖的線重疊、7 段顯示 15 全暗）也已修正。GitHub Actions CI 已設定。
-- 測試：main 上 728 個單元測試（含啟動 MCP 伺服器的整合測試）、50 個端對端測試；`feat/small-features` 上 790 個單元測試、57 個端對端測試。本機整套平行跑時 `gives up quickly on places that cannot be routed`（限時 15 秒）可能超時，單獨跑與 CI 會過。
+- `main`：子專案 1–34 完成（核心引擎、Web App、多麵包板 Board Group、74LS 邏輯模擬、AI 解說、直線導線、新的自動佈線標準、可以移動 IC 的佈線模式、新元件與 IC 腳位圖、EIC-1106 大型麵包板、AI 回答的孔位連結與導線解說、邏輯圖編輯器、邏輯圖轉成麵包板、只用 NAND 轉換與板上名稱、邏輯圖的小改善、輸出用 7 段顯示器、整次佈線的說明與問 AI、麵包板上的便條、轉換更簡潔與理想開關、便條拖曳、邏輯圖的常數與 IC 方塊、依名稱對照邏輯圖檢查麵包板、給 Claude Code 用的 MCP 伺服器、真值表題目、從題目產生邏輯圖、邏輯圖元件轉向、小功能 27–32、給其他 AI 工具用的 MCP 與題目工具、轉換時電源接最近的軌）；
+  接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#48 已合併（最後一批 2026-10-19）；backlog 裡的三個小問題（佈線說明過期、邏輯圖的線重疊、7 段顯示 15 全暗）也已修正。GitHub Actions CI 已設定。
+- 測試：main 上 843 個單元測試（含啟動 MCP 伺服器與打包檔的整合測試）、59 個端對端測試。本機整套平行跑時 `gives up quickly on places that cannot be routed`（限時 15 秒）可能超時，單獨跑與 CI 會過。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
-  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-17（PR #44 合併後，含子專案 6–26 的網頁部分與三個小問題修正）。
+  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-19（PR #48 合併後，含子專案 27–34 的網頁部分；也放上 MCP 打包檔 `mcp/breadboard-lab-mcp.mjs` 與設定說明頁 `mcp/`）。
 
 ## 進行中
 
-- 子專案 27–32（小功能）已在 PR #46 合併（2026-10-19），**線上版還沒發布**；下一次發布會一起帶上。
-- 子專案 33：給其他 AI 工具用的 MCP 與真值表題目工具（分支 `feat/mcp-other-tools`，規格 `docs/superpowers/specs/2026-10-19-mcp-other-tools-design.md`）：
-  全部做完（打包檔、工作資料夾、`list_files`、四個題目工具、設定說明頁、說明選單連結、發布與 Email 檢查），開 PR。
-  合併後執行 `npm run publish:site` 會一起發布 27–33 的網頁與 MCP 打包檔。還沒在真的 AI 工具上試（本機 Claude Code 命令列沒有登入），請使用者試一次。
-- 子專案 34：轉成麵包板時電源接最近的軌、軌和軌之間不拉線（分支 `feat/nearest-power-rails`，規格 `docs/superpowers/specs/2026-10-19-nearest-power-rails-design.md`）：
-  做完（PR #48）。
+- 沒有進行中的子專案。
+- 待使用者確認：MCP 打包檔還沒在真的 AI 工具上試過（本機 Claude Code 命令列沒有登入，Codex 的模型設定不適用），請使用者在自己的工具上試一次。
 
 ## 接下來（依優先順序）
 
 1. 使用者 2026-10-13 列的需求都做完了（「老師提供金鑰」決定不做）；下一步先和使用者討論。
-2. MCP：給 Claude Code 用的版本是子專案 23；其他 AI 工具（Claude Desktop 等）與用連結開啟電路列在 `docs/ideas/backlog.md`。
+2. MCP：子專案 23（Claude Code）與 33（其他 AI 工具，網站下載）已完成；發布到 npm、Claude Desktop 安裝包、用連結開啟電路列在 `docs/ideas/backlog.md`。
 3. 其他未開發項目與已知小問題：`docs/ideas/backlog.md`。
 
 ## 注意事項
