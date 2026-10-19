@@ -77,7 +77,7 @@
 ## 5. 打包與發布
 
 - `npm run build:mcp`：把 `scripts/mcp-server.ts` 和它用到的所有東西（MCP SDK、zod、核心引擎、元件定義 JSON）
-  打包成 `dist-mcp/breadboard-lab-mcp.mjs`（ES module，目標 Node.js 20 以上）。用專案已有的 Vite（不新增建置工具）。
+  打包成 `dist-mcp/breadboard-lab-mcp.mjs`（ES module，目標 Node.js 22 以上；實作時從 20 改成 22：20 已在 2026-04 停止支援，CI 用 22 測）。用專案已有的 Vite（不新增建置工具）。
   檔頭註解寫出名稱、網站網址、建置的 commit 與日期。
 - 伺服器的版本號用建置的日期（例如 `2026.10.19`），原始碼版維持 `1.0.0`。`node breadboard-lab-mcp.mjs --version` 印出版本。
 - `npm run publish:site` 多做四件事：
@@ -93,7 +93,7 @@
 一頁繁體中文的靜態網頁（和網站同樣的深色風格，手機也能看），內容：
 
 1. 這是什麼：讓 AI 工具幫你放元件、接線、檢查、佈線、模擬、畫邏輯圖、出真值表題目；結果存成網頁能匯入的 `.json` 檔。
-2. 需要：Node.js 20 以上（附官網連結與檢查版本的指令 `node --version`）。
+2. 需要：Node.js 22 以上（附官網連結與檢查版本的指令 `node --version`）。
 3. 下載 `breadboard-lab-mcp.mjs`，放在固定的位置（例如 `C:\tools\` 或 `~/tools/`），再準備一個放電路檔的資料夾。
 4. 每個 AI 工具一段照著貼的設定，Windows 與 macOS 的路徑各一個例子：
    Cursor、VS Code（Copilot 的 agent 模式）、Gemini CLI、Claude Desktop、Claude Code。

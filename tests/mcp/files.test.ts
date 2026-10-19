@@ -24,7 +24,22 @@ describe('circuit files in the working folder (sub-project 33)', () => {
     put('.hidden/y.json', circuit('y'));
     put('a/b/c/ok.json', circuit('ok'));
     put('a/b/c/d/deep.json', circuit('deep'));
-    expect(listCircuitFiles(tmp).map((f) => f.path)).toEqual(['a.json', 'a/b/c/ok.json']);
+    expect(listCircuitFiles(tmp).files.map((f) => f.path)).toEqual(['a.json', 'a/b/c/ok.json']);
+    expect(listCircuitFiles(tmp).truncated).toBe(false);
+  });
+
+  it('does not read huge files and stops after looking at too many JSON files', () => {
+    const big = mkdtempSync(join(tmpdir(), 'bl-big-'));
+    try {
+      const huge = { ...circuit('huge'), padding: 'x'.repeat(2_100_000) };
+      writeFileSync(join(big, 'huge.json'), JSON.stringify(huge));
+      expect(listCircuitFiles(big)).toEqual({ files: [], truncated: false });
+      for (let i = 0; i < 510; i++) writeFileSync(join(big, `n${String(i).padStart(3, '0')}.json`), '{}');
+      writeFileSync(join(big, 'z.json'), JSON.stringify(circuit('z')));
+      expect(listCircuitFiles(big)).toEqual({ files: [], truncated: true });
+    } finally {
+      rmSync(big, { recursive: true, force: true });
+    }
   });
 
   it('describes a file: board, parts, diagram and task', () => {

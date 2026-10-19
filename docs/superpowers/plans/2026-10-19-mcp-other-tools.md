@@ -15,7 +15,7 @@
 
 - 只能讀寫工作資料夾（含子資料夾）裡的 `.json` 檔；只能蓋掉電路檔（沿用 `insideProject` 的規則與訊息）。
 - 現有 14 個工具的名稱與參數不變；`.mcp.json`、`npm run mcp` 照常可用（原始碼版版本號 `1.0.0`）。
-- 打包檔目標 Node.js 20 以上；不新增建置工具，不新增 npm 依賴。
+- 打包檔目標 Node.js 22 以上（原本寫 20，見 ledger 的 Ruling）；不新增建置工具，不新增 npm 依賴。
 - 網站 repo 只放建好的檔案；打包檔與說明頁裡出現作者 Email（`git log` 的作者 / 提交者 Email、`git config user.email`）就停止發布。
 - 回覆、說明頁、註解用繁體中文；commit message 英文。
 - `src/mcp/` 的檔案不能用 Node API（`tsconfig.json` 的規則：工具是純函式）。

@@ -80,9 +80,10 @@ server.registerTool(
   'list_files',
   { title: '電路檔清單', description: '列出工作資料夾裡的電路檔（往下 3 層以內），每個寫出麵包板、元件數、有沒有邏輯圖與真值表題目。', inputSchema: {} },
   async () => {
-    const files = listCircuitFiles(ROOT);
-    if (files.length === 0) return reply('工作資料夾裡還沒有電路檔；用 new_circuit 建立');
-    return reply([`工作資料夾 ${ROOT} 裡的電路檔：`, ...files.map((f) => `- ${f.path}：${tools.describeLabFile(f.lab)}`)].join('\n'));
+    const { files, truncated } = listCircuitFiles(ROOT);
+    const more = truncated ? ['（資料夾裡的檔案太多，只看了一部分；請在設定裡用 --folder 指定放電路檔的資料夾）'] : [];
+    if (files.length === 0) return reply(['工作資料夾裡還沒有電路檔；用 new_circuit 建立', ...more].join('\n'));
+    return reply([`工作資料夾 ${ROOT} 裡的電路檔：`, ...files.map((f) => `- ${f.path}：${tools.describeLabFile(f.lab)}`), ...more].join('\n'));
   },
 );
 

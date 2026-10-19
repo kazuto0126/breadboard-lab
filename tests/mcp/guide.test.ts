@@ -11,6 +11,9 @@ describe('the MCP setup guide page', () => {
     for (const name of ['Cursor', 'VS Code', 'Gemini CLI', 'Claude Desktop', 'Claude Code']) expect(html).toContain(name);
     expect(html).toContain('--folder');
     expect(html).toContain('node --version');
+    // Node.js 20 已經停止支援（2026-04），CI 用 22 測打包檔。
+    expect(html).toContain('Node.js 22 以上');
+    expect(html).not.toContain('Node.js 20');
     expect(html).toContain('匯入 JSON');
   });
 
