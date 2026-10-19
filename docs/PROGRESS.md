@@ -13,7 +13,7 @@
 
 ## 進行中
 
-- 沒有進行中的子專案。
+- 子專案 35：輸入布林式產生題目與麵包板（分支 `feat/boolean-expressions`，規格 `docs/superpowers/specs/2026-10-19-boolean-expressions-design.md`）：做完，開 PR；合併後要發布網站。
 - 待使用者確認：MCP 打包檔還沒在真的 AI 工具上試過（本機 Claude Code 命令列沒有登入，Codex 的模型設定不適用），請使用者在自己的工具上試一次。
 
 ## 接下來（依優先順序）

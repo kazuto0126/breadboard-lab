@@ -17,6 +17,8 @@ describe('the MCP setup guide page', () => {
     expect(html).toContain('Node.js 22 以上');
     expect(html).not.toContain('Node.js 20');
     expect(html).toContain('匯入 JSON');
+    // 子專案 35：第一次可以怎麼問，有一個從布林式開始的例子。
+    expect(html).toContain('布林式');
   });
 
   it('has settings that are valid JSON, for both Windows and macOS', () => {
