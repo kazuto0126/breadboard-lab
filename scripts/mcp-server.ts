@@ -11,6 +11,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { toCircuitFile } from '../src/editor/fileFormat';
+import * as taskTools from '../src/mcp/taskTools';
 import * as tools from '../src/mcp/tools';
 import { listCircuitFiles, loadLabFile } from './mcp-files';
 import { folderFromArgs, insideProject } from './mcp-paths';
@@ -63,6 +64,7 @@ const server = new McpServer(
       '電路檔就是網頁「匯出 JSON」的格式；做完在網頁用「檔案 → 匯入 JSON」打開。',
       '建議流程：new_circuit → list_parts（查元件名稱與腳位）→ place_part（IC 第 1 腳放在 F 列，跨過凹槽）→ add_wire → check_circuit → auto_route → simulate。',
       '從邏輯圖開始：logic_set → logic_truth_table → logic_to_breadboard（轉換、佈線、比對一次完成）。手接的麵包板用 set_part 標上和邏輯圖一樣的名稱，再用 check_against_diagram 比對。',
+      '從真值表題目開始：task_set → task_show → task_to_diagram → logic_to_breadboard → task_check。',
     ].join('\n'),
   },
 );
@@ -255,6 +257,71 @@ server.registerTool(
     inputSchema: { file },
   },
   async (args) => withFile(args.file, (lab) => tools.checkAgainstDiagram(lab)),
+);
+
+// ---- 子專案 33：真值表題目 ----
+
+const output = z
+  .object({
+    name: z.string().describe('輸出名稱（英文字母開頭，最多 8 個字）'),
+    ones: z.array(z.number().int()).optional().describe('一般輸出：值是 1 的列號（從 0 開始；第一個輸入是最高位元）；其他列是 0'),
+    dont_care: z.array(z.number().int()).optional().describe('一般輸出：不在乎（X）的列號'),
+    display: z.boolean().optional().describe('true：這個輸出是 7 段顯示器（BCD，格子是 0–15）'),
+    values: z.array(z.union([z.number().int(), z.literal('X')])).optional().describe('7 段顯示器：每一列的數字（0–15 或 "X"），個數要等於列數'),
+  })
+  .describe('一個輸出');
+
+server.registerTool(
+  'task_set',
+  {
+    title: '寫入真值表題目',
+    description: [
+      '寫入（取代）電路檔裡的真值表題目，邏輯圖不動。三種用法選一種：',
+      'inputs + outputs 直接寫題目（輸入最多 6 個、輸出最多 8 個；每一列的輸入照二進位從全 0 數到全 1，第一個輸入是最高位元）；',
+      'from_diagram: true 用檔案裡邏輯圖的真值表建立；clear: true 刪除題目。',
+    ].join(''),
+    inputSchema: {
+      file,
+      inputs: z.array(z.string()).optional().describe('輸入名稱，第一個是最高位元，例如 ["A", "B", "C"]'),
+      outputs: z.array(output).optional().describe('每個輸出一個物件，例如 [{ "name": "X", "ones": [3, 5, 6, 7] }]'),
+      from_diagram: z.boolean().optional().describe('用檔案裡邏輯圖的真值表建立題目'),
+      clear: z.boolean().optional().describe('刪除題目'),
+    },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => taskTools.taskSet(lab, args)),
+);
+
+server.registerTool(
+  'task_show',
+  {
+    title: '看真值表題目',
+    description: '列出題目的真值表，以及每個輸出化簡後的布林式（7 段顯示器拆成 A–D 四個位元，A 是最低位元）。',
+    inputSchema: { file, form: z.enum(['sop', 'pos']).optional().describe('sop：積項和（預設）；pos：和積') },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => taskTools.taskShow(lab, args)),
+);
+
+server.registerTool(
+  'task_to_diagram',
+  {
+    title: '從題目產生邏輯圖',
+    description: '照題目化簡後畫出邏輯圖，取代檔案裡的邏輯圖（題目保留），並和題目比對。之後可以用 logic_to_breadboard 轉成麵包板。',
+    inputSchema: {
+      file,
+      form: z.enum(['sop', 'pos', 'nand', 'nor']).optional().describe('sop：積項和 AND–OR（預設）；pos：和積 OR–AND；nand：只用 NAND；nor：只用 NOR'),
+    },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => taskTools.taskToDiagram(lab, args)),
+);
+
+server.registerTool(
+  'task_check',
+  {
+    title: '和題目比對',
+    description: '拿題目和檔案裡的邏輯圖、麵包板比對（依名稱對應輸入與輸出，不在乎的格子不比），列出不一致的列或還不能比對的原因。',
+    inputSchema: { file },
+  },
+  async (args) => withFile(args.file, (lab) => taskTools.taskCheck(lab)),
 );
 
 await server.connect(new StdioServerTransport());
