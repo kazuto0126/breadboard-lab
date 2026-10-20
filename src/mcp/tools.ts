@@ -2,6 +2,7 @@ import { getBoard } from '../core/breadboard/registry';
 import { parseHoleName } from '../core/breadboard/naming';
 import { resolveFootprint } from '../core/circuit/footprint';
 import { getComponentDefinition } from '../core/circuit/library';
+import { extractNets } from '../core/circuit/nets';
 import { validateCircuit } from '../core/circuit/validate';
 import { analyzeCircuit, holeLabel, parseHoleLabel } from '../editor/analysis';
 import { addWire as addWireCommand, labelSlots, makeInstance, removeItems, setLabel, updateComponentProps } from '../editor/commands';
@@ -19,7 +20,7 @@ import { darkReasonText, whyDark } from '../core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle } from '../core/simulation/simulate';
 import { routingSummaryText, summarizeRouting } from '../editor/explain/routing';
 import { checkDiagram } from '../logic/check';
-import { convertAndRoute } from '../logic/convertRoute';
+import { convertAndRoute, type ConvertRouted } from '../logic/convertRoute';
 import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
 import { truthTable } from '../logic/evaluate';
 import { parseLogicDiagram } from '../logic/file';
@@ -439,9 +440,19 @@ export function logicToBreadboard(
   // 子專案 36：和網頁一樣，試好幾種擺法挑佈線最好的（自動選板時 MB-102 都排不完才用 EIC-1106）；電源接最近的軌（子專案 34）。
   const converted = convertAndRoute(f.logic, options);
   if (!converted.ok) return fail(converted.reason);
+  return convertedReply(f, options, converted);
+}
+
+/**
+ * logic_to_breadboard 的回覆與要寫入的檔案（測試時可以給假的佈線結果）。
+ * 子專案 39（規格 2026-10-20 wiring-rules）：佈線沒有完成時不寫入檔案：預定的連線是元件腳之間的直線，常常是斜的、會交叉，
+ * 不符合接線規則；改成說明哪幾個 Net 沒接好（接在哪些腳）。
+ */
+export function convertedReply(f: LabFile, options: { display: 'ca' | 'cc' }, converted: Extract<ConvertRouted, { ok: true }>): ToolResult {
   const { result: r, routed, tried } = converted;
   const notes = [`試了 ${tried} 種擺法，用佈線最好的一種。`];
-  const circuit = routed.status === 'success' ? applyRouting(r.circuit, routed) : r.circuit;
+  const done = routed.status === 'success';
+  const circuit = done ? applyRouting(r.circuit, routed) : r.circuit;
   const bom = r.bom;
   const parts = [
     ...Object.entries(bom.ics).map(([id, n]) => `${id} × ${n}`),
@@ -454,8 +465,18 @@ export function logicToBreadboard(
     `轉成麵包板（${bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}）：${parts.join('、')}。`,
     ...notes,
     ...routingSummaryText(summarizeRouting(circuit, { beforeScore: analyzeCircuit(r.circuit).routing, result: routed })),
-    ...(routed.status === 'success' ? [] : ['佈線沒有完成：存下來的是還沒佈線的麵包板（手動接線版），可以用 auto_route 再試。']),
-    `比對：${diagramCheckText(f.logic, circuit)}`,
   ];
+  if (!done) {
+    const nets = new Map(extractNets(r.circuit).map((n) => [n.id, n]));
+    const pins = (netId: string) =>
+      (nets.get(netId)?.pins ?? []).map((p) => `${p.componentId} 第 ${p.pinNumber} 腳`).join('、') || '找不到接在哪些腳';
+    const missing = routed.failedNets.map((n) => `${n.netId}（${pins(n.netId)}）`).join('；');
+    lines.push(
+      `佈線沒有完成，沒有寫入檔案：還沒接好的連線不能用斜的或交叉的線代替（每條線只能水平或垂直、不能交叉、不能跨過 IC）。沒接好的是 ${missing}。`,
+      '可以改用 board: "EIC1106"、加上 / 下拉電阻或只用一種閘再轉一次。',
+    );
+    return { text: lines.join('\n') };
+  }
+  lines.push(`比對：${diagramCheckText(f.logic, circuit)}`);
   return { text: lines.join('\n'), file: { ...f, circuit } };
 }

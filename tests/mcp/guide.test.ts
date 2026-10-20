@@ -19,6 +19,8 @@ describe('the MCP setup guide page', () => {
     expect(html).toContain('匯入 JSON');
     // 子專案 35：第一次可以怎麼問，有一個從布林式開始的例子。
     expect(html).toContain('布林式');
+    // 子專案 39：接線規則。
+    for (const rule of ['只能水平或垂直', '分成兩條', '不能交叉', '跨過 IC']) expect(html).toContain(rule);
   });
 
   it('has settings that are valid JSON, for both Windows and macOS', () => {

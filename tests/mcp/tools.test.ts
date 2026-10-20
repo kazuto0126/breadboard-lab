@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { checkPlacement } from '../../src/editor/placement';
-import { addWire, checkCircuit, circuitSummary, listParts, newLabFile, parseHole, placePart, remove, setPart, type LabFile, type ToolResult } from '../../src/mcp/tools';
+import { addWire, checkCircuit, circuitSummary, convertedReply, listParts, newLabFile, parseHole, placePart, remove, setPart, type LabFile, type ToolResult } from '../../src/mcp/tools';
+import { majorityDiagram } from '../../src/logic/examples';
+import { toBreadboard } from '../../src/logic/toBreadboard';
+import type { RoutingResult } from '../../src/types/routing';
 import { emptyDiagram } from '../../src/logic/types';
 import { board, circuit } from '../fixtures/build';
 
@@ -96,6 +99,27 @@ describe('editing', () => {
     f = okFile(addWire(f, { from: 'C30', to: 'C40' }));
     expect(failed(addWire(f, { from: 'A35', to: 'E35' }))).toBe('不能接 A35 → E35：導線不能和導線 w2 交叉（在 C35）');
     expect(failed(addWire(f, { from: 'D12', to: 'H12' }))).toBe('不能接 D12 → H12：導線不能跨過元件（例如 IC）或經過其他導線的端點（經過 E12）');
+  });
+
+  // 子專案 39：佈線沒有完成時，預定的連線是元件腳之間的直線（常常是斜的、會交叉），不寫入檔案。
+  it('does not save a converted board whose routing did not finish', () => {
+    const lab = { ...newLabFile('x', 'MB102'), logic: majorityDiagram() };
+    const r = toBreadboard(lab.logic, { switchTo: 'vcc', board: 'MB102' });
+    if (!r.ok) throw new Error(r.reason);
+    const routed: RoutingResult = {
+      status: 'partial',
+      message: 'No valid routing solution.',
+      wires: [],
+      failedNets: [{ netId: 'NET_9', reason: 'ITERATION_LIMIT', detail: 'NET_9 在 150 輪協商後仍無法避開其他導線' }],
+      metrics: { wireCount: 0, totalLength: 0, bends: 0, crossings: 0, overlaps: 0, shortJogs: 0 },
+      score: 0,
+      stats: { iterations: 150, elapsedMs: 0 },
+      moves: [],
+    };
+    const out = convertedReply(lab, { display: 'ca' }, { ok: true, result: r, routed, tried: 3 });
+    expect(out.file).toBeUndefined();
+    expect(out.text).toContain('佈線沒有完成，沒有寫入檔案');
+    expect(out.text).toMatch(/NET_9（.+腳.+）/);
   });
 
   it('sets names, values, colours and switch states, and removes things', () => {

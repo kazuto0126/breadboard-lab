@@ -69,7 +69,7 @@ export function wire(id: string, ...points: Where[]): Wire {
   return { id, color: '#888888', source: 'manual', start: pts[0], end: pts[pts.length - 1], path };
 }
 
-/** 兩孔之間的一條直線導線（可以斜）。 */
+/** 兩孔之間的一條直線導線（測試可以做出斜的線，用來檢查子專案 39 的規則；實際接線只能水平或垂直）。 */
 export function straightWire(id: string, from: Where, to: Where): Wire {
   const start = toPoint(from);
   const end = toPoint(to);

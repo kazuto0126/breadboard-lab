@@ -120,7 +120,7 @@ function whyText(circuit: Circuit, index: CircuitIndex, chainIds: Set<string>, a
   if (pairs.length === 0) return '兩端不在同一列、也不在同一欄，一條直線接不到，所以經過轉接排轉彎。';
   const name = ([p, q]: [GridPoint, GridPoint]) => `${holeLabel(circuit, p)} → ${holeLabel(circuit, q)}`;
   const ok = pairs.find(([p, q]) => straightWireProblem(without, p, q) === null);
-  if (ok) return `其實也可以一條線直接接（例如 ${name(ok)}）。AI 標準佈線為了少和別的線交叉、讓出位置給其他連線，選了經過轉接排的走法。`;
+  if (ok) return `其實也可以一條線直接接（例如 ${name(ok)}）。AI 標準佈線為了不和別的線交叉、讓出位置給其他連線，選了經過轉接排的走法。`;
   const problem = straightWireProblem(without, pairs[0][0], pairs[0][1])!;
   return `兩端雖然可以排成一直線（例如 ${name(pairs[0])}），但中間${problemText(circuit, index, problem)}，所以改走轉接排。`;
 }
