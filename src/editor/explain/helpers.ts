@@ -168,7 +168,7 @@ export interface WirePlan {
   wires: Array<[GridPoint, GridPoint]>;
 }
 
-/** 這裡從上一條線的端點 `at` 出發的建議線（只用來檢查下一條線會不會和它衝突）。 */
+/** 建議的第一條線（還沒真的接上；放進電路裡，用來檢查第二條線會不會和它衝突）。 */
 const suggested = (a: GridPoint, b: GridPoint): Wire => ({ id: '__suggested__', color: '', source: 'manual', straight: true, start: a, end: b, path: [a, b] });
 
 /**
