@@ -498,23 +498,27 @@ describe('simulation mode', () => {
 describe('straight manual wires', () => {
   it('refuses a wire over an IC with a warning, and moves a wire end with undo', () => {
     s().loadCircuit(circuit([comp('U1', '74LS00', 'F10')]), null);
-    s().addWire(hole('D8'), hole('H14'));
+    s().addWire(hole('D12'), hole('H12'));
     expect(s().circuit.wires).toEqual([]);
-    expect(s().toasts.at(-1)).toMatchObject({ kind: 'warning', message: expect.stringContaining('直線不能經過元件') });
-
+    expect(s().toasts.at(-1)).toMatchObject({ kind: 'warning', message: expect.stringContaining('導線不能跨過元件（例如 IC）') });
+    // 子專案 39：斜線也不行。
     s().addWire(hole('A20'), hole('C24'));
-    expect(s().circuit.wires[0]).toMatchObject({ id: 'w1', straight: true, end: hole('C24') });
-    s().moveWireEnd('w1', 'end', hole('E30'));
-    expect(s().circuit.wires[0]).toMatchObject({ end: hole('E30'), path: [hole('A20'), hole('E30')] });
+    expect(s().circuit.wires).toEqual([]);
+    expect(s().toasts.at(-1)).toMatchObject({ kind: 'warning', message: expect.stringContaining('導線只能水平或垂直') });
+
+    s().addWire(hole('A20'), hole('A24'));
+    expect(s().circuit.wires[0]).toMatchObject({ id: 'w1', straight: true, end: hole('A24') });
+    s().moveWireEnd('w1', 'end', hole('A30'));
+    expect(s().circuit.wires[0]).toMatchObject({ end: hole('A30'), path: [hole('A20'), hole('A30')] });
     expect(s().history.past.at(-1)?.label).toBe('移動導線 w1 的端點');
     const before = s().history.past.length;
-    s().moveWireEnd('w1', 'end', hole('E30'));
+    s().moveWireEnd('w1', 'end', hole('A30'));
     expect(s().history.past.length).toBe(before);
     s().moveWireEnd('w1', 'end', hole('F10'));
-    expect(s().circuit.wires[0].end).toEqual(hole('E30'));
+    expect(s().circuit.wires[0].end).toEqual(hole('A30'));
     expect(s().toasts.at(-1)?.message).toContain('元件腳');
     s().undo();
-    expect(s().circuit.wires[0].end).toEqual(hole('C24'));
+    expect(s().circuit.wires[0].end).toEqual(hole('A24'));
   });
 });
 

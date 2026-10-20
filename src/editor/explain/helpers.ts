@@ -3,7 +3,7 @@ import { getBoard, getLayout } from '../../core/breadboard/registry';
 import { resolveFootprint } from '../../core/circuit/footprint';
 import { getComponentDefinition } from '../../core/circuit/library';
 import type { RailLabel } from '../../types/board';
-import type { Circuit, PinRef } from '../../types/circuit';
+import type { Circuit, PinRef, Wire } from '../../types/circuit';
 import type { ComponentDefinition, ComponentInstance, PinDefinition, PinRole } from '../../types/component';
 import type { GridPoint } from '../../types/geometry';
 import { analyzeCircuit, groupIdAt, holeLabel, occupancyOf } from '../analysis';
@@ -160,25 +160,59 @@ export function railHole(circuit: Circuit, boardId: string, rail: Rail, x: numbe
 }
 
 export interface WirePlan {
+  /** 那一排的空孔（第一條線的起點）。 */
   from: GridPoint;
+  /** 軌上的孔（最後一條線的終點）。 */
   to: GridPoint;
-  path: GridPoint[];
+  /** 要接的線（每條是兩端）：一條直線接得到時一條；要轉彎時兩條，中間經過一排空的孔。 */
+  wires: Array<[GridPoint, GridPoint]>;
 }
 
+/** 這裡從上一條線的端點 `at` 出發的建議線（只用來檢查下一條線會不會和它衝突）。 */
+const suggested = (a: GridPoint, b: GridPoint): Wire => ({ id: '__suggested__', color: '', source: 'manual', straight: true, start: a, end: b, path: [a, b] });
+
 /**
- * 從 point 那一排的空孔拉一條直線到軌上的空孔：靠近軌的孔先試、軌上 x 近的先試，直線不能經過障礙（手動接線的規則）。
- * 找不到時回傳 null。
+ * 從 point 那一排的空孔拉線到軌上的空孔：靠近軌的孔先試、軌上 x 近的先試，線要符合手動接線的規則。
+ * 子專案 39（規格 2026-10-20 wiring-rules）：線只能水平或垂直、不能交叉、不能跨過 IC。一條直線接不到時（例如中間隔著 IC），
+ * 先橫著接到旁邊一排空的孔（左右 4 欄內），再從那一排直的接到軌，挑總長最短的。找不到時回傳 null。
  */
 export function wireToRail(circuit: Circuit, point: GridPoint, rail: Rail, exclude: GridPoint[] = []): WirePlan | null {
   const holes = freeHolesInGroup(circuit, point);
   const railY = railsNear(circuit, point.boardId, rail.endsWith('+') ? '+' : '-', point.y).find((r) => r.rail === rail)?.y ?? 0;
   const ordered = railY < point.y ? holes : [...holes].reverse();
+  const toRail = (c: Circuit, from: GridPoint) =>
+    railHoles(c, from.boardId, rail, from.x, exclude)
+      .slice(0, 8)
+      .find((to) => !straightWireProblem(c, from, to)) ?? null;
   for (const from of ordered) {
-    for (const to of railHoles(circuit, point.boardId, rail, from.x, exclude).slice(0, 8)) {
-      if (!straightWireProblem(circuit, from, to)) return { from, to, path: [from, to] };
+    const to = toRail(circuit, from);
+    if (to) return { from, to, wires: [[from, to]] };
+  }
+  let best: WirePlan | null = null;
+  let bestLength = Infinity;
+  for (const from of ordered) {
+    for (const dx of [-1, 1, -2, 2, -3, 3, -4, 4]) {
+      const mid = { boardId: from.boardId, x: from.x + dx, y: from.y };
+      if (!groupIdAt(circuit, mid) || !groupIsEmpty(circuit, mid) || straightWireProblem(circuit, from, mid)) continue;
+      const withFirst: Circuit = { ...circuit, wires: [...circuit.wires, suggested(from, mid)] };
+      for (const via of freeHolesInGroup(withFirst, mid)) {
+        const to = toRail(withFirst, via);
+        const length = Math.abs(dx) + (to ? Math.abs(to.y - via.y) + Math.abs(to.x - via.x) : 0);
+        if (to && length < bestLength) {
+          best = { from, to, wires: [[from, mid], [via, to]] };
+          bestLength = length;
+        }
+      }
     }
   }
-  return null;
+  return best;
+}
+
+/** 子專案 39：WirePlan 的那一步怎麼說（一條線，或轉彎的兩條線）；fromText 是「從」後面的說法（英文開頭時前面加空白），lead / tail 接在前後。 */
+export function wirePlanStep(plan: WirePlan, fromText: string, railText: string, lead = '', tail = ''): ExplainStep {
+  if (plan.wires.length === 1) return step(`${lead}從${fromText}的空孔 {0}，拉一條線到${railText} {1}${tail}。`, plan.from, plan.to);
+  const [[a, b], [c, d]] = plan.wires;
+  return step(`${lead}從${fromText}的空孔 {0} 拉一條線到旁邊空的一排 {1}，再從那一排的 {2} 拉一條線到${railText} {3}${tail}。`, a, b, c, d);
 }
 
 export function step(text: string, ...holes: GridPoint[]): ExplainStep {

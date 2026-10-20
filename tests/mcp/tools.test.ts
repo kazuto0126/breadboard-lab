@@ -91,6 +91,11 @@ describe('editing', () => {
     expect(failed(addWire(f, { from: 'F5', to: 'F20' }))).toMatch(/^不能接 F5 → F20：/);
     expect(failed(addWire(f, { from: 'A10', to: 'A10' }))).toBe('不能接 A10 → A10：起點和終點是同一個孔');
     expect(failed(addWire(f, { from: 'A3', to: 'Q9' }))).toBe('孔位 Q9 不存在');
+    // 子專案 39：斜線、交叉、跨過 IC 都不能接。
+    expect(failed(addWire(f, { from: 'A3', to: 'D7' }))).toBe('不能接 A3 → D7：導線只能水平或垂直，不能斜著拉；要轉彎請分成兩條線（轉角接在同一排相通的孔）');
+    f = okFile(addWire(f, { from: 'C30', to: 'C40' }));
+    expect(failed(addWire(f, { from: 'A35', to: 'E35' }))).toBe('不能接 A35 → E35：導線不能和導線 w2 交叉（在 C35）');
+    expect(failed(addWire(f, { from: 'D12', to: 'H12' }))).toBe('不能接 D12 → H12：導線不能跨過元件（例如 IC）或經過其他導線的端點（經過 E12）');
   });
 
   it('sets names, values, colours and switch states, and removes things', () => {
