@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-10-20 — 子專案 39：接線規則（不斜、不交叉、轉彎分兩條、不跨過 IC）
+## 2026-10-20 — 子專案 39：接線規則（不斜、不交叉、轉彎分兩條、不跨過 IC）（PR #57，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-20-wiring-rules-design.md`；實作計畫：`docs/superpowers/plans/2026-10-20-wiring-rules.md`。
 使用者 2026-10-20 補充的規則，和以前的規則衝突時以新規則為準，MCP 也照這個規則。
@@ -43,7 +43,7 @@
 - MCP：伺服器說明與工具說明寫上規則；佈線沒完成時不寫入檔案；設定說明頁有規則。
 - 端對端：手動拉斜線、交叉、跨過 IC 都不會建立；第三十四章驗收流程的兩條斜線改成直線。
 
-## 2026-10-19 — 子專案 38：轉換時共用 2 輸入閘、EIC-1106 一排擺法、兩個 4 位元開關
+## 2026-10-19 — 子專案 38：轉換時共用 2 輸入閘、EIC-1106 一排擺法、兩個 4 位元開關（PR #56，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-19-shared-gates-one-row-design.md`；實作計畫：`docs/superpowers/plans/2026-10-19-shared-gates-one-row.md`。
 出處：使用者給了兩個實習七 C（8 對 3 線編碼器）的檔案：我們轉換的（EIC-1106、3 片 74LS32、73 條線）和別的 AI 做的
