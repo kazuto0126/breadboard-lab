@@ -8,8 +8,9 @@ const codes = (c: Circuit) => validateCircuit(c).map((e) => e.code);
 /** VCC → R1 → LED → GND，接線乾淨。 */
 function ledCircuit(): Circuit {
   return circuit(
-    [comp('V1', 'vcc', 'T+5'), comp('G1', 'gnd', 'B-5'), comp('R1', 'resistor', 'C20'), comp('D1', 'led', 'C30')],
-    [wire('w1', 'T+21', [21, 3], 'A20'), wire('w2', 'B24', 'B30'), wire('w3', 'E31', 'B-31')],
+    // 子專案 39：每條線都是水平或垂直的直線（以前 w1 在一條線裡轉彎）。
+    [comp('V1', 'vcc', 'T+5'), comp('G1', 'gnd', 'B-5'), comp('R1', 'resistor', 'C21'), comp('D1', 'led', 'C30')],
+    [wire('w1', 'T+21', 'A21'), wire('w2', 'B25', 'B30'), wire('w3', 'E31', 'B-31')],
   );
 }
 

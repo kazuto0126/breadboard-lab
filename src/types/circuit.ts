@@ -61,6 +61,10 @@ export type CircuitErrorCode =
   | 'WIRE_PATH_INVALID'
   | 'WIRE_THROUGH_OBSTACLE'
   | 'WIRE_OVERLAP'
+  /** 子專案 39：斜的導線、在一條線裡轉彎的路徑導線、兩條線交叉。 */
+  | 'WIRE_DIAGONAL'
+  | 'WIRE_BENT'
+  | 'WIRE_CROSSING'
   | 'SHORT_CIRCUIT'
   | 'IC_PIN_SHORT'
   | 'IC_POWER_MISSING'
