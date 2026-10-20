@@ -27,8 +27,20 @@ export const LAYOUT_VARIANTS: Record<LayoutId, LayoutVariant[]> = {
     { gap: 3, leds: 'straddle', split: false },
     { gap: 3, leds: 'straddle', split: true },
     { gap: 2, leds: 'pair', split: true },
+    // 子專案 38：加上電阻、輸入超過 4 個時開關拆成兩個 4 位元（其他時候和上面的擺法一樣，不會重複試）。
+    { gap: 2, leds: 'pair', split: false, splitSwitches: true },
   ],
-  EIC1106: [DEFAULT_LAYOUT, { gap: 4, leds: 'straddle', split: false }, { gap: 3, leds: 'straddle', split: false }, { gap: 2, leds: 'pair', split: false }],
+  // 子專案 38：一排擺法（全部在第 2 區，上下兩區留給跨線）與兩個 4 位元開關；2026-10-19 量測：編碼器 73 → 62 條線，加上下拉電阻 81 → 58 條。
+  EIC1106: [
+    DEFAULT_LAYOUT,
+    { gap: 3, leds: 'straddle', split: false, oneRow: true },
+    { gap: 2, leds: 'pair', split: false, oneRow: true },
+    { gap: 2, leds: 'pair', split: false, oneRow: true, splitSwitches: true },
+    { gap: 3, leds: 'straddle', split: false, oneRow: true, splitSwitches: true },
+    { gap: 4, leds: 'straddle', split: false },
+    { gap: 3, leds: 'straddle', split: false },
+    { gap: 2, leds: 'pair', split: false },
+  ],
 };
 
 /** 總時間預設 40 秒：每塊板先用短時間試每一種擺法（每種最多 4 秒），剩下的時間給最好的兩種。 */
@@ -76,7 +88,8 @@ export function convertAndRoute(d: LogicDiagram, options: ConvertOptions, budget
     const ranked: Array<{ result: ConvertSuccess; routed: RoutingResult }> = [];
     for (const result of candidates) {
       tried++;
-      ranked.push({ result, routed: route(result.circuit, { placement: { ...power, timeBudgetMs: quickMs, maxPasses: 1 } }) });
+      // 子專案 38：佈線器本身也限時（排不完的擺法它會一直重排到自己的上限 5 秒，MB-102 上的大電路每種要 3–5 秒）。
+      ranked.push({ result, routed: route(result.circuit, { timeBudgetMs: quickMs, placement: { ...power, timeBudgetMs: quickMs, maxPasses: 1 } }) });
     }
     // 好的排前面（同分時保持試的順序）。
     ranked.sort((a, b) => (isBetterRouting(a.routed, b.routed) ? -1 : isBetterRouting(b.routed, a.routed) ? 1 : 0));

@@ -1,12 +1,12 @@
 import { getComponentDefinition } from '../core/circuit/library';
 import { checkDiagram } from './check';
 import { sortedIo, MAX_TABLE_INPUTS } from './evaluate';
-import { isGate, signalOf, type LogicDiagram } from './types';
+import { isGate, signalOf, type LogicDiagram, type LogicNode } from './types';
 
 /** 拆開後的單元：每個都能放進 74LS 的一組閘。 */
 export type UnitKind = 'AND2' | 'AND3' | 'AND4' | 'OR2' | 'NOT' | 'NAND2' | 'NOR2' | 'XOR2';
 
-/** 訊號名稱：來源節點的 id（輸入端或閘），或拆開時的中間訊號 `${閘 id}~${k}`。 */
+/** 訊號名稱：來源節點的 id（輸入端或閘），或拆開時的中間訊號 `${閘 id}~${k}`、共用的 2 輸入 OR `shared~${k}`（子專案 38）。 */
 export interface Unit {
   kind: UnitKind;
   inputs: string[];
@@ -55,14 +55,23 @@ export function drivers(d: LogicDiagram): Map<string, string> {
   );
 }
 
-/** 規格第 3 節的拆法：OR / NOR 用 2 輸入 OR 串起來，NAND 前面先用 AND，最後一級才反相。 */
+/**
+ * 規格第 3 節的拆法：OR / NOR 用 2 輸入 OR 串起來，NAND 前面先用 AND，最後一級才反相。
+ * 子專案 38：好幾個 OR / NOR 都用到同一對訊號時，那一對只做一個 2 輸入 OR（見 shareOrPairs）；沒有可以共用的時候拆法和以前一樣。
+ */
 export function decompose(d: LogicDiagram): Unit[] {
   const driver = drivers(d);
-  const units: Unit[] = [];
-  for (const node of d.nodes) {
-    if (!isGate(node.kind)) continue;
-    const n = node.kind === 'NOT' ? 1 : node.kind === 'XOR' ? 2 : (node.inputs ?? 2);
-    const xs = Array.from({ length: n }, (_, i) => driver.get(`${node.id}#${i}`) ?? '');
+  const gates = d.nodes.filter((node) => isGate(node.kind));
+  const lists = new Map(
+    gates.map((node) => {
+      const n = node.kind === 'NOT' ? 1 : node.kind === 'XOR' ? 2 : (node.inputs ?? 2);
+      return [node.id, Array.from({ length: n }, (_, i) => driver.get(`${node.id}#${i}`) ?? '')];
+    }),
+  );
+  const units: Unit[] = shareOrPairs(gates, lists);
+  for (const node of gates) {
+    const xs = lists.get(node.id)!;
+    const n = xs.length;
     let k = 0;
     const temp = () => `${node.id}~${++k}`;
     /** 用 2 輸入的 OR 把 xs 併成一個訊號，最後一級輸出到 out。 */
@@ -106,6 +115,64 @@ export function decompose(d: LogicDiagram): Unit[] {
     }
   }
   return units;
+}
+
+/**
+ * 子專案 38（規格 2026-10-19 shared-gates-one-row）：3、4 輸入的 OR（與 NOR 前面的 OR）裡，出現在最多閘的一對訊號只做一個 2 輸入 OR，
+ * 那些閘的輸入換成它的輸出（已經有一個 2 輸入 OR 剛好是那一對時直接用它）；一直做到沒有一對出現在 2 個以上的閘。
+ * 例如 X = E + F + G + H、Y = C + D + G + H：G + H 只做一次，9 個 2 輸入 OR 變 8 個（2 片 74LS32）。
+ * 共用的一對一定是那個閘自己的輸入，所以不會產生迴圈。會改 lists（每個閘拆開前的輸入），回傳新增的 2 輸入 OR。
+ */
+function shareOrPairs(gates: LogicNode[], lists: Map<string, string[]>): Unit[] {
+  const shared: Unit[] = [];
+  // 可以換掉一對的閘：3 個以上輸入的 OR 與 NOR（NOR 的最後一級要兩個輸入）。2 輸入的 NOR 不動（換掉就要多一個反相器）。
+  const reducible = (node: LogicNode) => (node.kind === 'OR' || node.kind === 'NOR') && lists.get(node.id)!.length >= 3;
+  const SEP = '\u0000';
+  for (;;) {
+    const count = new Map<string, number>();
+    const provider = new Map<string, string>();
+    for (const node of gates) {
+      const list = lists.get(node.id)!;
+      if (node.kind === 'OR' && list.length === 2 && list[0] !== list[1]) {
+        // 一模一樣的 2 輸入 OR 只算一個（各自保留，不互相取代）。
+        const key = [...list].sort().join(SEP);
+        if (!provider.has(key)) {
+          provider.set(key, node.id);
+          count.set(key, (count.get(key) ?? 0) + 1);
+        }
+        continue;
+      }
+      if (!reducible(node)) continue;
+      const uniq = [...new Set(list)];
+      for (let i = 0; i < uniq.length; i++)
+        for (let j = i + 1; j < uniq.length; j++) {
+          const key = [uniq[i], uniq[j]].sort().join(SEP);
+          count.set(key, (count.get(key) ?? 0) + 1);
+        }
+    }
+    // 出現最多次的一對（至少 2 次）；一樣多時取先遇到的。
+    let best: string | null = null;
+    let most = 1;
+    for (const [key, c] of count)
+      if (c > most) {
+        best = key;
+        most = c;
+      }
+    if (!best) return shared;
+    const [a, b] = best.split(SEP);
+    const signal = provider.get(best) ?? `shared~${shared.length + 1}`;
+    if (!provider.has(best)) shared.push({ kind: 'OR2', inputs: [a, b], output: signal });
+    for (const node of gates) {
+      if (!reducible(node)) continue;
+      const list = lists.get(node.id)!;
+      const ia = list.indexOf(a);
+      const ib = list.indexOf(b);
+      if (ia < 0 || ib < 0) continue;
+      const next = list.filter((_, i) => i !== ia && i !== ib);
+      next.splice(Math.min(ia, ib), 0, signal);
+      lists.set(node.id, next);
+    }
+  }
 }
 
 /** 依序算出每個訊號的值（測試用；拆開後的單元已經是拓撲順序以外的順序時，重複算到不再改變）。 */

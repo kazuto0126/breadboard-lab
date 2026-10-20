@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { autoPlaceAndRoute } from '../../src/core/icPlacement/autoPlace';
 import { applyRouting } from '../../src/core/routing/apply';
 import { convertAndRoute } from '../../src/logic/convertRoute';
 import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
@@ -81,6 +82,22 @@ describe('converting with a layout search (sub-project 36)', () => {
     // 差很多（像編碼器）：直接換 EIC-1106，把時間留給它（在 EIC-1106 上排最好的兩種）。
     expect(run(3)).toEqual({ layout: 'EIC1106', polished: 2 });
   });
+
+  it('limits the router itself during quick tries, not only the IC moves (sub-project 38)', () => {
+    // 排不完的擺法佈線器會一直重排到它自己的時間上限（預設 5 秒），快速試要連它一起限時。
+    const quick: Array<number | undefined> = [];
+    const route = (c: Parameters<typeof autoPlaceAndRoute>[0], config?: DeepPartial<RoutingConfig>) => {
+      if (config?.placement?.maxPasses === 1) {
+        expect(config.timeBudgetMs).toBe(config.placement.timeBudgetMs);
+        quick.push(config.timeBudgetMs);
+      }
+      return autoPlaceAndRoute(c, { ...config, placement: { ...config?.placement, timeBudgetMs: 1, maxPasses: 0 } });
+    };
+    const r = convertAndRoute(majorityDiagram(), { switchTo: 'vcc', board: 'MB102' }, { totalMs: 4000 }, route);
+    expect(r.ok).toBe(true);
+    expect(quick.length).toBeGreaterThan(1);
+    expect(quick.every((ms) => ms !== undefined && ms <= 4000)).toBe(true);
+  }, 60_000);
 
   it('explains when no layout fits', () => {
     expect(convertAndRoute(andChain(28), { switchTo: 'vcc', board: 'MB102', pulls: true })).toEqual({ ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' });

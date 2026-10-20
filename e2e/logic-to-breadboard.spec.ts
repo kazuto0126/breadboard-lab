@@ -201,3 +201,55 @@ test('低態致動的輸出端：屬性面板切換後燈號 0 時亮，轉成�
   for (const k of [0, 1]) await page.locator(`g[data-component-id="SW1"] [data-switch="${k}"]`).click();
   await expect.poll(lit).toBe(0);
 });
+
+test('8 對 3 編碼器（實習七 C）：共用 OR 只用 2 片 74LS32，加上下拉電阻時用兩個 4 位元開關，比對全部一致（子專案 38）', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  // 使用者的實習七 C 邏輯圖：X = E + F + G + H、Y = C + D + G + H、Z = B + D + F + H（4 輸入 OR，A 沒有用到）。
+  // 7 個輸入超過題目的上限（6 個），所以用匯入 JSON。
+  const names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const feed: Record<string, string[]> = { g1: ['E', 'F', 'G', 'H'], g2: ['C', 'D', 'G', 'H'], g3: ['B', 'D', 'F', 'H'] };
+  const logic = {
+    version: 1,
+    nodes: [
+      ...names.map((name, k) => ({ id: `i${k + 1}`, kind: 'INPUT', x: 9, y: 9 + k, name, value: 0 })),
+      { id: 'g1', kind: 'OR', x: 20, y: 5, inputs: 4 },
+      { id: 'g2', kind: 'OR', x: 20, y: 11, inputs: 4 },
+      { id: 'g3', kind: 'OR', x: 21, y: 18, inputs: 4 },
+      { id: 'o1', kind: 'OUTPUT', x: 26, y: 7, name: 'X' },
+      { id: 'o2', kind: 'OUTPUT', x: 27, y: 13, name: 'Y' },
+      { id: 'o3', kind: 'OUTPUT', x: 27, y: 20, name: 'Z' },
+    ],
+    wires: [
+      ...Object.entries(feed).flatMap(([g, ins]) => ins.map((n, pin) => ({ id: `${g}-${pin}`, from: `i${names.indexOf(n) + 1}`, to: { node: g, pin } }))),
+      ...[1, 2, 3].map((k) => ({ id: `out${k}`, from: `g${k}`, to: { node: `o${k}`, pin: 0 } })),
+    ],
+  };
+  const file = { format: 'breadboard-lab/circuit', version: 1, name: '實習七C', circuit: { version: 1, boards: [{ id: 'b1', layoutId: 'MB102', x: 0, y: 0, groupId: null }], components: [], wires: [] }, logic };
+  await page.getByRole('button', { name: '檔案', exact: true }).click();
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('menuitem', { name: '匯入 JSON… Import' }).click()]);
+  await chooser.setFiles({ name: '實習七C.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
+  await page.getByTestId('view-switch').getByRole('button', { name: '邏輯圖' }).click();
+  await expect(page.locator('[data-logic-node]')).toHaveCount(14);
+
+  await page.getByRole('button', { name: '轉成麵包板…' }).click();
+  const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
+  await dialog.getByText('加上 / 下拉電阻（實際接線建議勾）').click();
+  // 4 輸入的 OR 拆開時共用 G + H：8 個 2 輸入 OR，2 片 74LS32（以前 3 片）。
+  await expect(dialog.getByTestId('convert-preview')).toContainText('74LS32 × 2');
+  await expect(dialog.getByTestId('convert-preview')).toContainText('8 位元指撥開關 × 1（可能改用 4 位元 × 2');
+  // 自動選板：預覽不說一定放在 MB-102（這個電路最後是 EIC-1106）。
+  await expect(dialog.getByTestId('convert-preview')).toContainText('先試 MB-102，排不完時改用 EIC-1106');
+  await dialog.getByRole('button', { name: '轉換' }).click();
+
+  await expect(page.locator('g[data-component-id="U2"]')).toHaveCount(1, { timeout: 90_000 });
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 90_000 });
+  await expect(page.locator('g[data-component-id="U3"]')).toHaveCount(0);
+  // 加上下拉電阻時開關拆成兩個 4 位元，電阻都直接插進電源軌。
+  await expect(page.locator('g[data-component-id="SW2"]')).toHaveCount(1);
+  expect(Number(await page.getByTestId('wire-count').textContent())).toBeLessThanOrEqual(62);
+  await page.getByRole('tab', { name: /檢查/ }).click();
+  await expect(page.getByTestId('diagram-check')).toContainText('256 種輸入組合，麵包板的模擬結果和真值表全部一致', { timeout: 60_000 });
+});
