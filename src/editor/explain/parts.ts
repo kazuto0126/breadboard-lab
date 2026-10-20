@@ -7,7 +7,7 @@ import { straightWireProblem } from '../manualWire';
 import { checkPlacement } from '../placement';
 import { ISSUE_TEXT } from './generic';
 import {
-  chooseRail, explanation, freeHolesInGroup, groupIsEmpty, pinAt, pinCountInGroup, pinLabel, pinOfRole, RAIL_TEXT, railHole, samePoint, step, wireToRail,
+  chooseRail, explanation, freeHolesInGroup, groupIsEmpty, pinAt, pinCountInGroup, pinLabel, pinOfRole, RAIL_TEXT, railHole, samePoint, step, wirePlanStep, wireToRail,
 } from './helpers';
 import type { ExplainStep, Explanation } from './types';
 
@@ -100,16 +100,23 @@ export function explainLedNoResistor(circuit: Circuit, issue: CircuitError): Exp
       const end = inCathodeRow(w.start) ? w.start : w.end;
       const other = end === w.start ? w.end : w.start;
       const without: Circuit = { ...withResistor, wires: withResistor.wires.filter((x) => x.id !== w.id) };
-      // 改插的孔：直線拉到另一端不能經過障礙（手動接線的規則）。
-      const target = freeHolesInGroup(without, spot.far)
+      // 改插的孔：直線拉到另一端要符合手動接線的規則。
+      const targets = freeHolesInGroup(without, spot.far)
         .filter((p) => !used.some((u) => samePoint(u, p)))
-        .sort((a, b) => distance(a, other) - distance(b, other) || a.y - b.y || a.x - b.x)
-        .find((p) => !straightWireProblem(without, p, other));
-      if (!target) return fallback;
-      used.push(target);
-      steps.push(step(`把 ${w.id} 插在 {0} 的那一端拔起來，改插到 {1}。`, end, target));
+        .sort((a, b) => distance(a, other) - distance(b, other) || a.y - b.y || a.x - b.x);
+      const target = targets.find((p) => !straightWireProblem(without, p, other));
+      // 子專案 39：只改插一端會變成斜線（或交叉）時，另一端也換到同一排（同一條軌）對齊的空孔，整條換成直的。
+      const moved: [GridPoint, GridPoint] | null = target
+        ? [target, other]
+        : targets
+            .flatMap((p) => freeHolesInGroup(without, other).filter((q) => q.x === p.x || q.y === p.y).map((q): [GridPoint, GridPoint] => [p, q]))
+            .find(([p, q]) => !straightWireProblem(without, p, q)) ?? null;
+      if (!moved) return fallback;
+      used.push(moved[0]);
+      if (samePoint(moved[1], other)) steps.push(step(`把 ${w.id} 插在 {0} 的那一端拔起來，改插到 {1}。`, end, moved[0]));
+      else steps.push(step(`把 ${w.id} 拔起來，改成從 {0} 接到 {1}。`, moved[0], moved[1]));
       removeWireIds.push(w.id);
-      wires.push([target, other]);
+      wires.push(moved);
     }
     return explanation(why, steps, wires, removeWireIds);
   }
@@ -123,6 +130,6 @@ export function explainLedNoResistor(circuit: Circuit, issue: CircuitError): Exp
     const at = railHole(withResistor, spot.far.boardId, rail, 0, [plan.to]);
     if (at) steps.push(step(`先從元件庫放一個 GND 到${RAIL_TEXT[rail]}，例如 {0}。`, at));
   }
-  steps.push(step(`從電阻另一腳那一排的空孔 {0}，拉一條線到${RAIL_TEXT[rail]} {1}。`, plan.from, plan.to));
-  return explanation(why, steps, [plan.path]);
+  steps.push(wirePlanStep(plan, '電阻另一腳那一排', RAIL_TEXT[rail]));
+  return explanation(why, steps, plan.wires.map(([a, b]) => [a, b]));
 }

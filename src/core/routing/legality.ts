@@ -9,7 +9,8 @@ import type { LegalityViolation } from '../../types/routing';
 
 /**
  * 獨立於佈線器的檢查（規格 2026-10-10 routing-standard 第 3 節）：任何一項不通過，autoRoute 就不能輸出那個 Net 的線。
- * 每條線是水平或垂直的直線；兩端插在這個 Net 的終端排或空的五孔排（轉接排）；一孔一線；不經過元件腳、本體、線端；不重疊；連接關係不變。
+ * 每條線是水平或垂直的直線；兩端插在這個 Net 的終端排或空的五孔排（轉接排）；一孔一線；不經過元件腳、本體、線端；不重疊；
+ * 子專案 39：不交叉；連接關係不變。
  */
 export function checkRoutingLegality(circuit: Circuit, wires: Wire[]): LegalityViolation[] {
   const index = indexCircuit(circuit);
@@ -61,10 +62,10 @@ export function checkRoutingLegality(circuit: Circuit, wires: Wire[]): LegalityV
     if (obstacle) out.push({ code: 'THROUGH_OBSTACLE', wireIds: [w.id], netIds, detail: nodeIdOf(obstacle) });
   }
   const netOfWire = new Map(wires.map((w) => [w.id, w.netId]));
-  for (const o of analyzeWireInteractions(wires, lattice).overlaps) {
-    const netIds = [...new Set(o.wireIds.map((id) => netOfWire.get(id)).filter((n): n is string => n !== undefined))].sort(compareIds);
-    out.push({ code: 'OVERLAP', wireIds: [...o.wireIds], netIds, detail: o.nodeId });
-  }
+  const netsOf = (ids: readonly string[]) => [...new Set(ids.map((id) => netOfWire.get(id)).filter((n): n is string => n !== undefined))].sort(compareIds);
+  const interactions = analyzeWireInteractions(wires, lattice);
+  for (const o of interactions.overlaps) out.push({ code: 'OVERLAP', wireIds: [...o.wireIds], netIds: netsOf(o.wireIds), detail: o.nodeId });
+  for (const x of interactions.crossings) out.push({ code: 'CROSSING', wireIds: [...x.wireIds], netIds: netsOf(x.wireIds), detail: x.nodeId });
   for (const netId of mismatchedNets(index, reference, wires)) {
     out.push({
       code: 'NET_MISMATCH',

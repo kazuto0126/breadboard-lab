@@ -40,6 +40,12 @@ describe('checkRoutingLegality (straight wires)', () => {
     expect(codes([auto('a1', 'B10', 'B20'), auto('a2', 'A20', 'J20')])).toContain('THROUGH_OBSTACLE');
   });
 
+  // 子專案 39（規格 2026-10-20 wiring-rules）：交叉也不行。
+  it('flags crossing wires', () => {
+    expect(codes([auto('a1', 'B10', 'B30'), auto('a2', 'A20', 'J20', 'NET_3')])).toContain('CROSSING');
+    expect(codes([auto('a1', 'B10', 'B30')])).not.toContain('CROSSING');
+  });
+
   it('flags overlapping wires', () => {
     expect(codes([auto('a1', 'B10', 'B30'), auto('a2', 'B12', 'B40')])).toContain('OVERLAP');
   });

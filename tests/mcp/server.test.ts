@@ -39,6 +39,18 @@ describe('the MCP server', () => {
     );
   });
 
+  // 子專案 39（規格 2026-10-20 wiring-rules）：其他 AI 工具看得到接線規則。
+  it('tells AI tools the wiring rules', async () => {
+    const rules = ['只能水平或垂直', '分成兩條', '不能交叉', '跨過 IC'];
+    const instructions = client.getInstructions() ?? '';
+    for (const r of rules) expect(instructions).toContain(r);
+    const { tools } = await client.listTools();
+    const describe = (name: string) => tools.find((t) => t.name === name)?.description ?? '';
+    for (const r of rules) expect(describe('add_wire')).toContain(r);
+    expect(describe('auto_route')).toContain('不交叉');
+    expect(describe('check_circuit')).toContain('交叉');
+  });
+
   it('creates a circuit file, edits it and reads it back', async () => {
     expect(await call('new_circuit', { file })).toEqual({ text: expect.stringContaining('建立了 tests/.tmp-mcp/xor.json'), isError: false });
     expect(existsSync(join(root, file))).toBe(true);

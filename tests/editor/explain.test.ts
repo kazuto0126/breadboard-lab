@@ -76,6 +76,11 @@ const withWire = (c: Circuit, path: Circuit['wires'][number]['path']): Circuit =
   ...c,
   wires: [...c.wires, straightWire('sug', path[0], path[path.length - 1])],
 });
+/** 子專案 39：建議的線全部接上（要轉彎時是兩條）。 */
+const withWires = (c: Circuit, paths: Circuit['wires'][number]['path'][]): Circuit => ({
+  ...c,
+  wires: [...c.wires, ...paths.map((p, k) => straightWire(`sug${k}`, p[0], p[p.length - 1]))],
+});
 
 describe('explanations: power', () => {
   it('suggests straight wires that do not pass over anything', () => {
@@ -108,9 +113,16 @@ describe('explanations: power', () => {
     ]);
   });
 
-  it('uses the other + rail when only that one has power', () => {
+  it('uses the other + rail when only that one has power, turning with two wires around the IC', () => {
+    // 子專案 39：線只能水平或垂直、不能跨過 IC：先橫著接到旁邊空的一排，再直的接到下方的軌。
     const c = circuit([comp('U1', '74LS00', 'F10'), comp('V1', 'vcc', 'B+3'), comp('G1', 'gnd', 'B-3')], [gndWire()]);
-    expect(texts(c, issueOf(c, 'IC_POWER_MISSING', 'E10'))).toEqual(['從 U1 第 14 腳（VCC）那一排的空孔 C10，拉一條線到下方的 + 電源軌 B+6。']);
+    const issue = issueOf(c, 'IC_POWER_MISSING', 'E10');
+    expect(texts(c, issue)).toEqual(['從 U1 第 14 腳（VCC）那一排的空孔 D10 拉一條線到旁邊空的一排 D9，再從那一排的 E9 拉一條線到下方的 + 電源軌 B+9。']);
+    const e = explainIssue(c, issue);
+    expect(e.wires).toHaveLength(2);
+    const fixed = withWires(c, e.wires);
+    expect(validateCircuit(fixed).filter((x) => x.severity === 'error')).toEqual([]);
+    expect(validateCircuit(fixed).some((x) => x.code === 'IC_POWER_MISSING' && x.points[0].x === 10 && x.points[0].y === hole('E10').y)).toBe(false);
   });
 
   it('says so when the pin row has no free hole', () => {
@@ -136,10 +148,11 @@ describe('explanations: power', () => {
     const issue = issueOf(c, 'INPUT_FLOATING', 'F10');
     const e = explainIssue(c, issue);
     expect(texts(c, issue)).toEqual([
-      '如果這隻腳要用：從 H10 拉線到開關，或其他閘的輸出腳所在的那一排。',
-      '如果用不到：從 U1 第 1 腳（1A）那一排的空孔 H10，拉一條線到上方的 + 電源軌 T+6，讓它固定是 HIGH。',
+      '如果這隻腳要用：從 G10 拉線到開關，或其他閘的輸出腳所在的那一排。',
+      '如果用不到：從 U1 第 1 腳（1A）那一排的空孔 G10 拉一條線到旁邊空的一排 G9，再從那一排的 F9 拉一條線到上方的 + 電源軌 T+9，讓它固定是 HIGH。',
     ]);
-    const fixed = withWire(c, e.wires[0]);
+    const fixed = withWires(c, e.wires);
+    expect(validateCircuit(fixed).filter((x) => x.severity === 'error')).toEqual([]);
     expect(validateCircuit(fixed).some((x) => x.code === 'INPUT_FLOATING' && x.points[0].x === 10 && x.points[0].y === hole('F10').y)).toBe(false);
   });
 });
@@ -185,7 +198,8 @@ describe('explanations: parts', () => {
     const e = explainIssue(c, issueOf(c, 'LED_NO_RESISTOR'));
     expect(e.steps.map((s) => plainText(c, s))).toEqual([
       '電阻（元件庫的 220Ω）一腳插在 LED 陰極那一排的 F41，另一腳插在 F45。',
-      '把 k1 插在 J41 的那一端拔起來，改插到 J45。',
+      // 子專案 39：只改插一端會變成斜線，所以整條換成直的。
+      '把 k1 拔起來，改成從 J45 接到 B-45。',
     ]);
     expect(e.removeWireIds).toEqual(['k1']);
     const path = e.wires[0];

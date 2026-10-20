@@ -136,7 +136,7 @@ export function toggleSwitch(circuit: Circuit, id: string, index: number): Circu
   return updateComponentProps(circuit, id, { switchStates });
 }
 
-/** 手動接線：兩孔之間的一條直線導線（可以斜）。 */
+/** 手動接線：兩孔之間的一條直線導線（子專案 39 起只能水平或垂直，由 straightWireProblem 把關）。 */
 export function addWire(circuit: Circuit, start: GridPoint, end: GridPoint, color: string): { circuit: Circuit; id: string } {
   const id = nextWireId(circuit);
   const a = { boardId: start.boardId, x: start.x, y: start.y };

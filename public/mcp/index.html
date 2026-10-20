@@ -373,6 +373,8 @@ args = ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/
   <tr><td><code>logic_set</code>、<code>logic_truth_table</code>、<code>logic_to_breadboard</code>、<code>check_against_diagram</code></td><td>寫入邏輯圖、真值表、轉成麵包板、依名稱比對</td></tr>
   <tr><td><code>task_set</code>、<code>task_show</code>、<code>task_to_diagram</code>、<code>task_check</code></td><td>真值表題目：寫入、化簡、產生邏輯圖、和邏輯圖與麵包板比對</td></tr>
 </table>
+<p><strong>接線規則</strong>：每條導線只能水平或垂直，不能斜；要轉彎就分成兩條線（轉角接在同一排相通的孔）；兩條線不能重疊，也不能交叉；
+線不能跨過 IC（上下、左右都不行）。AI 工具用 <code>add_wire</code> 接不合規則的線會被拒絕並說明原因；<code>auto_route</code> 與 <code>logic_to_breadboard</code> 接出來的線都符合這些規則。</p>
 
 <h2>7. 更新</h2>
 <p>重新下載 <code>breadboard-lab-mcp.mjs</code> 蓋掉舊的檔案，再把 AI 工具完全關掉重開。看目前的版本：</p>

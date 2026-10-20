@@ -10,7 +10,7 @@ export interface RoutingWeights {
   wire: number;
   /** 每用一個新的轉接排。 */
   via: number;
-  /** 每次交叉。 */
+  /** 每次交叉。子專案 39 起交叉不准（協商時和重疊一樣當衝突排開），佈線不再用這個權重；保留欄位讓舊的設定與 API 不變。 */
   crossing: number;
   /** 經過別的 Net 的終端空孔（保留給它們接線）。 */
   congestion: number;
@@ -119,7 +119,8 @@ export interface RoutingPath {
   path: GridPoint[];
 }
 
-export type LegalityCode = 'PATH_INVALID' | 'ENDPOINT_INVALID' | 'THROUGH_OBSTACLE' | 'OVERLAP' | 'NET_MISMATCH';
+/** CROSSING：子專案 39，兩條線十字交叉。 */
+export type LegalityCode = 'PATH_INVALID' | 'ENDPOINT_INVALID' | 'THROUGH_OBSTACLE' | 'OVERLAP' | 'CROSSING' | 'NET_MISMATCH';
 
 export interface LegalityViolation {
   code: LegalityCode;

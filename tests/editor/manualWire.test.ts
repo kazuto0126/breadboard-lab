@@ -20,9 +20,25 @@ describe('isFreeHole', () => {
 describe('straightWireProblem', () => {
   const base = () => circuit([comp('U1', '74LS00', 'F10'), comp('R1', 'resistor', 'A30')], [straightWire('w1', 'C40', 'C45')]);
 
-  it('accepts a clear straight or diagonal wire, also into a hole that already has a wire', () => {
-    expect(straightWireProblem(base(), hole('A1'), hole('E5'))).toBeNull();
+  it('accepts a clear horizontal or vertical wire, also into a hole that already has a wire', () => {
+    expect(straightWireProblem(base(), hole('A1'), hole('A5'))).toBeNull();
+    expect(straightWireProblem(base(), hole('A1'), hole('E1'))).toBeNull();
     expect(straightWireProblem(base(), hole('A40'), hole('C40'))).toBeNull();
+  });
+
+  // 子專案 39（規格 2026-10-20 wiring-rules）：只能水平或垂直；轉彎要分成兩條。
+  it('refuses a diagonal wire, also across two boards in a group', () => {
+    expect(straightWireProblem(base(), hole('A1'), hole('E5'))).toEqual({ kind: 'diagonal' });
+    const group = circuit([], [], [board('b1'), board('b2', 0, 20)]);
+    expect(straightWireProblem(group, holeOn('b1', 'J5'), holeOn('b2', 'A8'))).toEqual({ kind: 'diagonal' });
+    expect(straightWireProblem(group, holeOn('b1', 'J5'), holeOn('b2', 'A5'))).toBeNull();
+  });
+
+  // 子專案 39：兩條線不能十字交叉。
+  it('refuses crossing another wire', () => {
+    expect(straightWireProblem(base(), hole('A42'), hole('E42'))).toEqual({ kind: 'crossing', wireId: 'w1', point: hole('C42') });
+    // 接在別條線的端點那一排（不是中段）不算交叉。
+    expect(straightWireProblem(base(), hole('A46'), hole('E46'))).toBeNull();
   });
 
   it('refuses ends on pins, bodies, non-holes, the same hole and another group', () => {
@@ -35,7 +51,9 @@ describe('straightWireProblem', () => {
   });
 
   it('refuses passing over an IC, a wire end, or overlapping a wire', () => {
-    expect(straightWireProblem(base(), hole('D8'), hole('H14'))?.kind).toBe('obstacle');
+    // 子專案 39：直的、橫的都不能跨過 IC。
+    expect(straightWireProblem(base(), hole('D12'), hole('H12'))).toEqual({ kind: 'obstacle', point: hole('E12') });
+    expect(straightWireProblem(base(), hole('E5'), hole('E20'))).toEqual({ kind: 'obstacle', point: hole('E10') });
     expect(straightWireProblem(base(), hole('A40'), hole('E40'))).toEqual({ kind: 'obstacle', point: hole('C40') });
     expect(straightWireProblem(base(), hole('C42'), hole('C48'))).toEqual({ kind: 'overlap', wireId: 'w1' });
   });
@@ -50,7 +68,9 @@ describe('straightWireProblem', () => {
 
   it('explains every problem in Chinese', () => {
     const c = base();
-    expect(straightProblemText(c, { kind: 'obstacle', point: hole('E12') })).toBe('直線不能經過元件或其他導線的端點（經過 E12）');
+    expect(straightProblemText(c, { kind: 'obstacle', point: hole('E12') })).toBe('導線不能跨過元件（例如 IC）或經過其他導線的端點（經過 E12）');
+    expect(straightProblemText(c, { kind: 'diagonal' })).toBe('導線只能水平或垂直，不能斜著拉；要轉彎請分成兩條線（轉角接在同一排相通的孔）');
+    expect(straightProblemText(c, { kind: 'crossing', wireId: 'w1', point: hole('C42') })).toBe('導線不能和導線 w1 交叉（在 C42）');
     expect(straightProblemText(c, { kind: 'overlap', wireId: 'w1' })).toBe('直線不能和導線 w1 重疊');
     expect(straightProblemText(c, { kind: 'covered', wireId: 'w1', point: hole('C42') })).toBe('C42 上面有導線 w1 經過，不能接在這裡');
     expect(straightProblemText(c, { kind: 'pin', point: hole('F10') })).toBe('導線不能接在元件腳或被元件蓋住的孔（F10）');

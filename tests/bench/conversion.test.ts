@@ -32,8 +32,10 @@ describe('logic-to-breadboard measurements', () => {
       const ms = Math.round(performance.now() - started);
       if (!r.ok) throw new Error(r.reason);
       const { metrics } = r.routed;
-      console.log(`MEASURE ${c.name}: ${r.result.bom.layout} ${r.routed.status} ${metrics.wireCount} 條線、總長 ${metrics.totalLength}、試了 ${r.tried} 種擺法、${ms} ms`);
+      console.log(`MEASURE ${c.name}: ${r.result.bom.layout} ${r.routed.status} ${metrics.wireCount} 條線、總長 ${metrics.totalLength}、交叉 ${metrics.crossings}、試了 ${r.tried} 種擺法、${ms} ms`);
       expect(r.routed.status).toBe('success');
+      // 子專案 39：不能有交叉。
+      expect(metrics.crossings).toBe(0);
       if (c.board) expect(r.result.bom.layout).toBe(c.board);
       if (c.maxWires) expect(metrics.wireCount).toBeLessThanOrEqual(c.maxWires);
       if (c.ics) expect(r.result.bom.ics).toEqual(c.ics);

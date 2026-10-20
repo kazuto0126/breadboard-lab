@@ -3,7 +3,7 @@ import { nodeIdOf } from '../../src/core/breadboard/naming';
 import { DEFAULT_ROUTING_CONFIG } from '../../src/core/routing/config';
 import { buildRoutingProblem, toIndex, toPoint, type RoutingProblem } from '../../src/core/routing/problem';
 import { findRoute, lineBetween, wireCost, type SearchParams } from '../../src/core/routing/straightSearch';
-import { StraightState } from '../../src/core/routing/straightState';
+import { StraightState, type PlacedWire } from '../../src/core/routing/straightState';
 import { circuit, comp, hole, wire } from '../fixtures/build';
 
 const hard: SearchParams = { weights: DEFAULT_ROUTING_CONFIG.weights, overlap: { kind: 'hard' } };
@@ -16,6 +16,38 @@ const id = (name: string) => nodeIdOf(hole(name));
 /** 兩顆 LED：D1 陽極 C10、D2 陽極 C30，使用者用一條線接起來 → NET_1 有兩簇（第 10、30 欄上半）。 */
 const twoLeds = () => buildRoutingProblem(circuit([comp('D1', 'led', 'C10'), comp('D2', 'led', 'C30')], [wire('u1', 'A10', 'A30')]), DEFAULT_ROUTING_CONFIG);
 const netOf = (p: RoutingProblem, netId = 'NET_1') => p.nets.find((n) => n.netId === netId)!;
+
+/** 一條垂直線：從 top 到 bottom（同一欄），中間經過的格子都算。 */
+const vertical = (p: RoutingProblem, id: string, netId: string, top: string, bottom: string): PlacedWire => {
+  const line = lineBetween(p, at(p, top), at(p, bottom));
+  return { id, netId, a: line.a, b: line.b, o: line.o, cells: line.cells };
+};
+
+// 子專案 39（規格 2026-10-20 wiring-rules）：線不能十字交叉。
+describe('crossings are not allowed', () => {
+  it('finds no route in strict mode when every way crosses another wire', () => {
+    const p = twoLeds();
+    const net = netOf(p);
+    const state = new StraightState(p);
+    // 第 20 欄從 A 到 J 擋著一條別的 Net 的直線：上半部從第 10 欄到第 30 欄一定要橫過它。
+    state.addWire(vertical(p, 'x', 'OTHER', 'A20', 'J20'));
+    expect(findRoute(p, state, net, new Set(net.clusters[0]), new Set(net.clusters[1]), hard)).toBeNull();
+    // 協商時可以先交叉（之後當成衝突排開）。
+    const negotiate: SearchParams = { weights: W, overlap: { kind: 'negotiate', overlapBase: 1, presentFactor: 1 } };
+    expect(findRoute(p, state, net, new Set(net.clusters[0]), new Set(net.clusters[1]), negotiate)).not.toBeNull();
+  });
+
+  it('counts a crossing as a conflict between both nets', () => {
+    const p = twoLeds();
+    const state = new StraightState(p);
+    state.addWire(vertical(p, 'x', 'A', 'A20', 'J20'));
+    const row = lineBetween(p, at(p, 'B15'), at(p, 'B25'));
+    state.addWire({ id: 'y', netId: 'B', a: row.a, b: row.b, o: row.o, cells: row.cells });
+    const conflicts = state.conflicts();
+    expect(conflicts).toContainEqual({ kind: 'cross', cell: at(p, 'B20') });
+    expect([...state.netsIn(conflicts)].sort()).toEqual(['A', 'B']);
+  });
+});
 
 describe('straight-wire search', () => {
   it('connects two strips in the same row band with one horizontal wire', () => {

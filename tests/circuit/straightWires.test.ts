@@ -81,13 +81,27 @@ describe('straight wire geometry', () => {
 const codes = (c: ReturnType<typeof circuit>) => validateCircuit(c).map((e) => e.code);
 
 describe('checking straight wires', () => {
-  it('flags a straight wire that passes over an IC or another wire end, but not a crossing', () => {
+  it('flags a straight wire that passes over an IC (up-down or along a row) or another wire end', () => {
     const ic = comp('U1', '74LS00', 'F10');
-    expect(codes(circuit([ic], [straightWire('s1', 'D8', 'H14')]))).toContain('WIRE_THROUGH_OBSTACLE');
+    expect(codes(circuit([ic], [straightWire('s1', 'D12', 'H12')]))).toContain('WIRE_THROUGH_OBSTACLE');
+    expect(codes(circuit([ic], [straightWire('s1', 'E5', 'E20')]))).toContain('WIRE_THROUGH_OBSTACLE');
     expect(codes(circuit([], [straightWire('s1', 'A10', 'A20'), straightWire('s2', 'C15', 'A15')]))).toContain('WIRE_THROUGH_OBSTACLE');
-    const crossing = codes(circuit([], [straightWire('s1', 'B12', 'D14'), straightWire('s2', 'D12', 'B14')]));
-    expect(crossing).not.toContain('WIRE_OVERLAP');
-    expect(crossing).not.toContain('WIRE_THROUGH_OBSTACLE');
+  });
+
+  // 子專案 39（規格 2026-10-20 wiring-rules）：斜線、一條線裡轉彎、交叉都是錯誤。
+  it('flags diagonal wires, wires that turn, and crossings as errors', () => {
+    const diagonal = validateCircuit(circuit([], [straightWire('s1', 'B12', 'D14')]));
+    expect(diagonal.find((e) => e.code === 'WIRE_DIAGONAL')).toMatchObject({ severity: 'error', wireIds: ['s1'], message: '導線 s1 是斜的：導線只能水平或垂直，要轉彎請分成兩條' });
+    const bent = validateCircuit(circuit([], [wire('p1', 'A10', 'C12')]));
+    expect(bent.find((e) => e.code === 'WIRE_BENT')).toMatchObject({ severity: 'error', wireIds: ['p1'], message: '導線 p1 在一條線裡轉彎：要轉彎請分成兩條直線' });
+    const crossing = validateCircuit(circuit([], [straightWire('s1', 'C10', 'C14'), straightWire('s2', 'A12', 'E12')]));
+    expect(crossing.find((e) => e.code === 'WIRE_CROSSING')).toMatchObject({ severity: 'error', wireIds: ['s1', 's2'], points: [hole('C12')], message: '導線 s1 與 s2 交叉（在 C12）' });
+    expect(crossing.map((e) => e.code)).not.toContain('WIRE_OVERLAP');
+  });
+
+  it('accepts horizontal and vertical wires that do not cross, also an old path wire that does not turn', () => {
+    const ok = codes(circuit([], [straightWire('s1', 'A10', 'A20'), straightWire('s2', 'C10', 'C20'), straightWire('s3', 'A25', 'E25'), wire('p1', 'J30', 'J40')]));
+    for (const code of ['WIRE_DIAGONAL', 'WIRE_BENT', 'WIRE_CROSSING']) expect(ok).not.toContain(code);
   });
 
   it('flags collinear overlaps', () => {

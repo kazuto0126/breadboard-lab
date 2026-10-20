@@ -2,7 +2,7 @@ import type { Circuit, CircuitError } from '../../types/circuit';
 import type { GridPoint } from '../../types/geometry';
 import { ISSUE_TEXT } from './generic';
 import {
-  chooseRail, explanation, freeHolesInGroup, pinAt, pinLabel, postHole, RAIL_TEXT, railHole, step, wireToRail,
+  chooseRail, explanation, freeHolesInGroup, pinAt, pinLabel, postHole, RAIL_TEXT, railHole, step, wirePlanStep, wireToRail,
   type PinHit, type Rail,
 } from './helpers';
 import type { ExplainStep, Explanation } from './types';
@@ -40,8 +40,8 @@ function connectToRail(circuit: Circuit, hit: PinHit, polarity: '+' | '-', lead 
     steps.push(step(`${lead}${RAIL_TEXT[rail]}已經沒有空孔，請先移開軌上的導線。`));
     return { steps, wires: [], from: null };
   }
-  steps.push(step(`${lead}從 ${pinLabel(hit)}那一排的空孔 {0}，拉一條線到${RAIL_TEXT[rail]} {1}${tail}。`, plan.from, plan.to));
-  return { steps, wires: [plan.path], from: plan.from };
+  steps.push(wirePlanStep(plan, ` ${pinLabel(hit)}那一排`, RAIL_TEXT[rail], lead, tail));
+  return { steps, wires: plan.wires.map(([a, b]) => [a, b]), from: plan.from };
 }
 
 export function explainPowerMissing(circuit: Circuit, issue: CircuitError): Explanation {
