@@ -1,7 +1,7 @@
 # 專案進度
 
 > 每個 Claude Code 對話開始時會自動顯示這份檔案（`.claude/hooks/session-start.sh`）。
-> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-19
+> 每次推送前更新：做完的事寫進 `CHANGELOG.md`，這裡只留「現在」與「接下來」。最後更新：2026-10-20
 
 ## 目前狀態
 
@@ -13,7 +13,8 @@
 
 ## 進行中
 
-- 子專案 38：轉換時共用 2 輸入閘、EIC-1106 一排擺法、兩個 4 位元開關（分支 `feat/encoder-optimization`，規格 `docs/superpowers/specs/2026-10-19-shared-gates-one-row-design.md`）：已實作，PR 等使用者看過後合併；合併後執行 `npm run publish:site` 發布。
+- 子專案 38：轉換時共用 2 輸入閘、EIC-1106 一排擺法、兩個 4 位元開關（分支 `feat/encoder-optimization`，規格 `docs/superpowers/specs/2026-10-19-shared-gates-one-row-design.md`）：已實作，PR #56 等使用者看過後合併；合併後執行 `npm run publish:site` 發布。
+- 子專案 39：接線規則（不斜、不交叉、轉彎分兩條、不跨過 IC；手動接線、MCP、AI 佈線、檢查都照這個規則；分支 `feat/wiring-rules`，建在 38 上面，規格 `docs/superpowers/specs/2026-10-20-wiring-rules-design.md`）：已實作，PR 等 #56 合併後再合併。
 - 待使用者確認：MCP 打包檔還沒在真的 AI 工具上試過（本機 Claude Code 命令列沒有登入，Codex 的模型設定不適用），請使用者在自己的工具上試一次。
 
 ## 接下來（依優先順序）

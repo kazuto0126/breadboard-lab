@@ -68,8 +68,9 @@ test('第三十四章驗收流程：放置、接線、檢查、AI 標準佈線�
   ]);
 
   // 7. 手動接線。
-  await drawWire(page, 'T+6', 'A10'); // VCC → U1 第 14 腳
-  await drawWire(page, 'B-15', 'J16'); // GND → U1 第 7 腳
+  // 子專案 39：線只能水平或垂直（以前這兩條是斜的）。
+  await drawWire(page, 'T+10', 'A10'); // VCC → U1 第 14 腳
+  await drawWire(page, 'B-16', 'J16'); // GND → U1 第 7 腳
   await drawWire(page, 'J10', 'B-10'); // 第 1 腳接地
   await drawWire(page, 'J11', 'B-11'); // 第 2 腳接地
   await drawWire(page, 'H12', 'H31'); // 1Y → 電阻

@@ -37,16 +37,23 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('g[data-component-id="U1"]')).toHaveCount(1);
 });
 
-test('手動拉線是兩孔之間的直線（可以斜），經過 IC 的線不會建立', async ({ page }) => {
-  await drag(page, await hole(page, 'A30'), await hole(page, 'E34'));
+test('手動拉線只能水平或垂直；斜的、交叉的、跨過 IC 的線不會建立（子專案 39）', async ({ page }) => {
+  await drag(page, await hole(page, 'A30'), await hole(page, 'A34'));
   await expect(page.getByTestId('wire-count')).toHaveText('1');
   const c = await saved(page);
-  expect(c.wires[0]).toMatchObject({ straight: true, start: { x: 30, y: 4 }, end: { x: 34, y: 8 } });
+  expect(c.wires[0]).toMatchObject({ straight: true, start: { x: 30, y: 4 }, end: { x: 34, y: 4 } });
   expect(c.wires[0].path).toHaveLength(2);
 
-  await drag(page, await hole(page, 'D8'), await hole(page, 'H14'));
+  // 斜的線
+  await drag(page, await hole(page, 'A40'), await hole(page, 'E44'));
+  await expect(page.locator('[data-toast="warning"]').last()).toContainText('導線只能水平或垂直');
+  // 和 A30–A34 十字交叉
+  await drag(page, await hole(page, 'T+33'), await hole(page, 'C33'));
+  await expect(page.locator('[data-toast="warning"]').last()).toContainText('交叉');
+  // 從上到下跨過 IC
+  await drag(page, await hole(page, 'D12'), await hole(page, 'H12'));
+  await expect(page.locator('[data-toast="warning"]').last()).toContainText('不能跨過元件（例如 IC）');
   await expect(page.getByTestId('wire-count')).toHaveText('1');
-  await expect(page.locator('[data-toast="warning"]').last()).toContainText('直線不能經過元件');
 });
 
 test('選取導線後拖曳端點改接到別的孔，可以復原', async ({ page }) => {
@@ -54,9 +61,9 @@ test('選取導線後拖曳端點改接到別的孔，可以復原', async ({ pa
   await expect(page.getByTestId('wire-count')).toHaveText('1');
   const handle = page.locator('[data-wire-handle="end"]');
   await expect(handle).toHaveCount(1);
-  await drag(page, await centerOf(page, '[data-wire-handle="end"]'), await hole(page, 'D38'));
+  await drag(page, await centerOf(page, '[data-wire-handle="end"]'), await hole(page, 'A38'));
   let c = await saved(page);
-  expect(c.wires[0]).toMatchObject({ straight: true, start: { x: 30, y: 4 }, end: { x: 38, y: 7 } });
+  expect(c.wires[0]).toMatchObject({ straight: true, start: { x: 30, y: 4 }, end: { x: 38, y: 4 } });
   await page.keyboard.press('Control+z');
   c = await saved(page);
   expect(c.wires[0].end).toEqual({ boardId: 'b1', x: 35, y: 4 });
