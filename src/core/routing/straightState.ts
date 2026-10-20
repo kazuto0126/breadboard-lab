@@ -10,11 +10,15 @@ export interface PlacedWire {
   cells: number[];
 }
 
-/** end：一個孔插了兩個以上的線端；pass：線經過有線端的孔；line：同一格同方向有兩條線（共線重疊）；via：兩個 Net 用同一排轉接。 */
+/**
+ * end：一個孔插了兩個以上的線端；pass：線經過有線端的孔；line：同一格同方向有兩條線（共線重疊）；via：兩個 Net 用同一排轉接；
+ * cross：子專案 39，同一格一橫一直兩條線（十字交叉）。
+ */
 export type Conflict =
   | { kind: 'end'; cell: number }
   | { kind: 'pass'; cell: number }
   | { kind: 'line'; cell: number; o: 0 | 1 }
+  | { kind: 'cross'; cell: number }
   | { kind: 'via'; group: string };
 
 /** 協商佈線時已放的直線導線、每個資源的使用者，以及歷史擁擠成本。 */
@@ -101,6 +105,7 @@ export class StraightState {
       if (this.ends[c].length > 1) out.push({ kind: 'end', cell: c });
       if (this.ends[c].length > 0 && this.lines[c * 2].length + this.lines[c * 2 + 1].length > 0) out.push({ kind: 'pass', cell: c });
       for (const o of [0, 1] as const) if (this.lines[c * 2 + o].length > 1) out.push({ kind: 'line', cell: c, o });
+      if (this.lines[c * 2].length > 0 && this.lines[c * 2 + 1].length > 0) out.push({ kind: 'cross', cell: c });
     }
     for (const [group, m] of [...this.viaUse].sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0))) {
       if (m.size > 1) out.push({ kind: 'via', group });
@@ -115,6 +120,7 @@ export class StraightState {
       if (x.kind === 'end') add(this.ends[x.cell]);
       else if (x.kind === 'pass') add([...this.ends[x.cell], ...this.lines[x.cell * 2], ...this.lines[x.cell * 2 + 1]]);
       else if (x.kind === 'line') add(this.lines[x.cell * 2 + x.o]);
+      else if (x.kind === 'cross') add([...this.lines[x.cell * 2], ...this.lines[x.cell * 2 + 1]]);
       else for (const id of this.viaUse.get(x.group)?.keys() ?? []) nets.add(id);
     }
     return nets;
@@ -124,6 +130,11 @@ export class StraightState {
     for (const x of conflicts) {
       if (x.kind === 'end' || x.kind === 'pass') this.histEnd[x.cell] += increment;
       else if (x.kind === 'line') this.histLine[x.cell * 2 + x.o] += increment;
+      else if (x.kind === 'cross') {
+        // 交叉的那一格兩個方向都變貴，下一輪兩條線都會想繞開。
+        this.histLine[x.cell * 2] += increment;
+        this.histLine[x.cell * 2 + 1] += increment;
+      }
       else this.histVia.set(x.group, (this.histVia.get(x.group) ?? 0) + increment);
     }
   }

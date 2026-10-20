@@ -19,6 +19,8 @@ describe.each([
     expect(r.failedNets).toEqual([]);
     expect(r.status).toBe('success');
     expect(r.metrics.overlaps).toBe(0);
+    // 子專案 39：不能有交叉。
+    expect(r.metrics.crossings).toBe(0);
     expect(checkRoutingLegality(c, r.wires)).toEqual([]);
     expect(withoutTiming(autoRoute(c))).toEqual(withoutTiming(r));
   });

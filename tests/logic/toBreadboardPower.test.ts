@@ -36,7 +36,8 @@ describe('power in converted breadboards', () => {
   for (const [name, d, options] of [cases[0], cases[2], cases[4]]) {
     it(`${name}: still holds after IC-moving routing`, () => {
       const r = convert(d, options);
-      const routed = autoPlaceAndRoute(r.circuit, { placement: { nearestPowerRail: true, timeBudgetMs: 6000 } });
+      // 子專案 39：不准交叉後佈線比較難，整套平行跑時 6 秒不夠（單獨跑約 3 秒）。這裡測的是電源接法，不是速度。
+      const routed = autoPlaceAndRoute(r.circuit, { placement: { nearestPowerRail: true, timeBudgetMs: 20_000 } });
       expect(routed.status).toBe('success');
       const applied = applyRouting(r.circuit, routed);
       expect(powerProblems(applied)).toEqual([]);

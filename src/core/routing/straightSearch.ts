@@ -47,10 +47,15 @@ function endCost(state: StraightState, cell: number, params: SearchParams): numb
   return conflictCost(params, users, state.histEnd[cell]);
 }
 
-/** 線從 cell 上方經過（方向 o）：別條線的端點、同方向的線是衝突；垂直的線是交叉；別的 Net 的終端空孔加擁擠成本。 */
+/**
+ * 線從 cell 上方經過（方向 o）：別條線的端點、同方向的線是衝突；垂直的線是交叉；別的 Net 的終端空孔加擁擠成本。
+ * 子專案 39（規格 2026-10-20 wiring-rules）：交叉不准：嚴格模式不能交叉；協商時先算很貴的成本，之後當成衝突排開。
+ */
 function passCost(problem: RoutingProblem, state: StraightState, netId: string, cell: number, o: 0 | 1, params: SearchParams): number {
+  const crossing = state.lines[cell * 2 + (1 - o)].length;
+  if (crossing > 0 && params.overlap.kind === 'hard') return Infinity;
   let cost = conflictCost(params, state.ends[cell].length + state.lines[cell * 2 + o].length, state.histLine[cell * 2 + o]);
-  cost += params.weights.crossing * state.lines[cell * 2 + (1 - o)].length;
+  if (crossing > 0) cost += conflictCost(params, crossing, state.histLine[cell * 2 + (1 - o)]);
   const g = problem.groupAt[cell];
   if (problem.terminalHole[cell] && !(g && state.owns(netId, g))) cost += params.weights.congestion;
   return cost;
