@@ -22,7 +22,7 @@ import { routingSummaryText, summarizeRouting } from '../editor/explain/routing'
 import { checkDiagram } from '../logic/check';
 import { convertAndRoute, type ConvertRouted } from '../logic/convertRoute';
 import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
-import { truthTable } from '../logic/evaluate';
+import { truthTable } from '../logic/evaluate';
 import { diagramFormulas } from '../logic/formula';
 import { parseLogicDiagram } from '../logic/file';
 import { valueOfSegments } from '../logic/sevenSeg';
