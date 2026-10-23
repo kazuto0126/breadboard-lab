@@ -25,6 +25,18 @@ export interface OutputFormula {
 
 class ThroughBlock extends Error {}
 
+/** 照圖寫出來超過這麼多個字母就不列（同一個閘接到很多地方時，展開後可能非常長）。 */
+export const MAX_FORMULA_LETTERS = 200;
+
+/** 展開後有幾個字母（共用的部分記下來，不會真的展開）。 */
+function letterCount(e: Formula, memo: Map<Formula, number>): number {
+  const known = memo.get(e);
+  if (known !== undefined) return known;
+  const n = e.kind === 'not' ? letterCount(e.arg, memo) : e.kind === 'and' || e.kind === 'or' || e.kind === 'xor' ? e.args.reduce((sum, a) => sum + letterCount(a, memo), 0) : 1;
+  memo.set(e, n);
+  return n;
+}
+
 /** 優先順序：OR < XOR < AND < 反相、字母、常數。 */
 const level = (e: Formula) => (e.kind === 'or' ? 1 : e.kind === 'xor' ? 2 : e.kind === 'and' ? 3 : 4);
 
@@ -61,7 +73,15 @@ function reader(d: LogicDiagram) {
     const w = driver.get(`${node.id}#${i}`);
     return w ? source(w.from, w.fromPin) : { kind: 'missing' };
   };
+  // 同一個訊號只建一次（共用的閘是同一個物件，算長度時不用展開）。
+  const memo = new Map<string, Formula>();
   const source = (id: string, fromPin?: number): Formula => {
+    const key = signalOf(id, fromPin);
+    let f = memo.get(key);
+    if (!f) memo.set(key, (f = build(id, fromPin)));
+    return f;
+  };
+  const build = (id: string, fromPin?: number): Formula => {
     const node = byId.get(id);
     if (!node) return { kind: 'missing' };
     if (node.kind === 'INPUT') return { kind: 'var', name: node.name ?? node.id };
@@ -109,13 +129,16 @@ export function diagramFormulas(d: LogicDiagram): { outputs: OutputFormula[]; di
   }
   const dot = needsDot(inputs.map((n) => n.name ?? n.id));
   const read = reader(d);
+  const counted = new Map<Formula, number>();
   const table = truthTable(d);
   return {
     displays,
     outputs: outputs.map((n): OutputFormula => {
       const f: OutputFormula = { ...base(n), read: null, simplified: null };
       try {
-        f.read = exprText(read(n), dot);
+        const e = read(n);
+        if (letterCount(e, counted) > MAX_FORMULA_LETTERS) f.readProblem = `照圖寫出來超過 ${MAX_FORMULA_LETTERS} 個字母，太長不列出`;
+        else f.read = exprText(e, dot);
       } catch (err) {
         if (!(err instanceof ThroughBlock)) throw err;
         f.readProblem = `經過 IC 方塊 ${err.message}，照圖寫不出布林式`;

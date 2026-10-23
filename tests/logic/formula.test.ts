@@ -110,6 +110,24 @@ describe('reading the formula off the drawing', () => {
     expect(f.readProblem).toMatch('IC 方塊');
   });
 
+  it('stops when the formula gets too long', () => {
+    // 每一層都把上一層接兩次：照圖寫會變成 2^30 個字母。
+    const nodes: LogicNode[] = [input('A')];
+    const wires: LogicWire[] = [];
+    let prev = 'A';
+    for (let i = 0; i < 30; i++) {
+      nodes.push(gate(`g${i}`, 'AND', 2));
+      wires.push(w(prev, `g${i}`, 0), w(prev, `g${i}`, 1));
+      prev = `g${i}`;
+    }
+    nodes.push(output('X'));
+    wires.push(w(prev, 'X'));
+    const f = only(diagram(nodes, wires));
+    expect(f.read).toBeNull();
+    expect(f.readProblem).toMatch('太長');
+    expect(f.simplified).toBe('A');
+  });
+
   it('gives up on a loop', () => {
     const d = diagram([input('A'), gate('g', 'OR', 2), output('X')], [w('A', 'g', 0), w('g', 'g', 1), w('g', 'X')]);
     const f = only(d);
