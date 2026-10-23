@@ -9,12 +9,11 @@
   接線清單、單一 HTML 離線版、平板觸控也已合併。PR #7–#59 已合併（最後一批 2026-10-23）；backlog 裡的三個小問題（佈線說明過期、邏輯圖的線重疊、7 段顯示 15 全暗）也已修正。GitHub Actions CI 已設定。
 - 測試：main 上 921 個單元測試（含啟動 MCP 伺服器與打包檔的整合測試）、64 個端對端測試；「轉成麵包板」的量測另外用 `npm run bench:convert` 跑（比較慢，不在 CI）。本機整套平行跑時 `gives up quickly on places that cannot be routed`（限時 15 秒）可能超時，單獨跑與 CI 會過。
 - 線上版：https://kazuto0126.github.io/breadboard-lab-site/ （公開 repo `kazuto0126/breadboard-lab-site` 只放建好的網頁檔；
-  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-23（PR #59 合併後，含子專案 27–40 的網頁部分；也放上 MCP 打包檔 `mcp/breadboard-lab-mcp.mjs` 與設定說明頁 `mcp/`，說明頁寫了 12 個 AI 工具的設定）。
+  原始碼 repo 維持私人，因為 commit 紀錄裡有作者的 Email）。`main` 更新後執行 `npm run publish:site` 發布；最近一次發布是 2026-10-23（PR #59 合併後，含子專案 27–40 的網頁部分；也放上 MCP 打包檔 `mcp/breadboard-lab-mcp.mjs` 與設定說明頁 `mcp/`，說明頁寫了 12 個 AI 工具的設定；使用者 2026-10-23 在自己的 AI 工具上試過，可以正常使用）。
 
 ## 進行中
 
 - 沒有進行中的子專案。
-- 待使用者確認：MCP 打包檔還沒在真的 AI 工具上試過（本機 Claude Code 命令列沒有登入，Codex 的模型設定不適用），請使用者在自己的工具上試一次。
 
 ## 接下來（依優先順序）
 
