@@ -29,6 +29,8 @@ export interface LogicState {
   tab: LogicTab;
   /** 子專案 29：正在直接編輯文字的便條。 */
   editingNote: string | null;
+  /** 子專案 40：輸出端下面顯示布林式（不存檔、不進 Undo）。 */
+  showFormulas: boolean;
   load(d: LogicDiagram): void;
   markSaved(): void;
   apply(r: EditResult, label: string, selection?: LogicSelection): boolean;
@@ -53,6 +55,7 @@ export interface LogicState {
   setCanvasSize(width: number, height: number): void;
   fit(): void;
   setTab(tab: LogicTab): void;
+  setShowFormulas(on: boolean): void;
   /** 子專案 29：便條（格子座標）；新增後選取並開始編輯。 */
   addNoteAt(x: number, y: number): void;
   addNoteAtCenter(): void;
@@ -66,10 +69,10 @@ export interface LogicState {
   deleteNote(id: string): void;
 }
 
-export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote'> {
+export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote' | 'showFormulas'> {
   const restored = typeof window !== 'undefined' ? persistence.loadAutosave()?.logic : undefined;
   const diagram = restored ?? emptyDiagram();
-  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null };
+  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null, showFormulas: false };
 }
 
 /** 規格第 1、2 節：邏輯圖自己的狀態與 Undo（不進主 store 的 Undo）。 */
@@ -187,6 +190,9 @@ export const useLogic = create<LogicState>((set, get) => ({
   },
   setTab(tab) {
     set({ tab });
+  },
+  setShowFormulas(on) {
+    set({ showFormulas: on });
   },
   addNoteAt(x, y) {
     const r = addLogicNote(get().diagram, x, y);

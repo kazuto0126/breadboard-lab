@@ -8,6 +8,7 @@ import { boxOf } from '../../logic/shapes';
 import { canRotate, GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
 import { convertProblem } from '../../logic/synth';
+import { diagramFormulas, type OutputFormula } from '../../logic/formula';
 import { useStore } from '../../state/store';
 import { LogicNoteInspector } from './LogicNoteInspector';
 import { TaskTab } from './TaskTab';
@@ -212,6 +213,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
             ))}
           </div>
         )}
+        {node.kind === 'OUTPUT' && <OutputFormulas diagram={diagram} node={node} />}
         {node.kind === 'BLOCK' && <BlockValues diagram={diagram} node={node} />}
         {node.kind === 'DISPLAY' && <DisplayValue diagram={diagram} node={node} />}
         {node.kind === 'INPUT' && (
@@ -344,6 +346,60 @@ function BlockValues({ diagram, node }: { diagram: LogicDiagram; node: LogicNode
   );
 }
 
+/** 子專案 40：一個輸出的兩種布林式（照圖寫出來、化簡後）。 */
+function FormulaLines({ f }: { f: OutputFormula }) {
+  return (
+    <div data-formula={f.name} className="space-y-0.5 font-mono text-sm">
+      <div data-read={f.read ?? ''} className={f.read === null ? 'text-xs text-slate-400' : 'text-slate-100'}>
+        <span className="text-amber-300">{f.name}</span> = {f.read ?? f.readProblem}
+      </div>
+      <div data-simplified={f.simplified ?? ''} className={f.simplified === null ? 'text-xs text-slate-400' : 'text-emerald-200'}>
+        <span className="font-sans text-xs text-slate-400">化簡：</span>
+        {f.simplified ?? f.simplifiedProblem}
+      </div>
+    </div>
+  );
+}
+
+/** 子專案 40（規格 2026-10-23 diagram-formulas）：真值表分頁下面的「布林式」區。 */
+function Formulas({ diagram }: { diagram: LogicDiagram }) {
+  const formulas = useMemo(() => diagramFormulas(diagram), [diagram]);
+  const show = useLogic((s) => s.showFormulas);
+  if (formulas.outputs.length === 0 && !formulas.displays) return null;
+  return (
+    <div data-testid="formulas" className="mt-3 rounded border border-slate-700 bg-slate-900/60 px-3 py-2 text-xs leading-5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold text-slate-200">布林式</span>
+        <label className="flex cursor-pointer items-center gap-1 text-slate-300">
+          <input type="checkbox" checked={show} onChange={(e) => useLogic.getState().setShowFormulas(e.target.checked)} />
+          在圖上顯示
+        </label>
+      </div>
+      <div className="mt-1 space-y-2">
+        {formulas.outputs.map((f) => (
+          <FormulaLines key={f.id} f={f} />
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] text-slate-400">
+        第一行照著閘寫出來（不化簡），第二行是從真值表化簡的結果。寫法和「輸入布林式」一樣：' 是反相、連寫是 AND、+ 是 OR、⊕ 是 XOR。
+        {formulas.displays && ' 7 段顯示器不列布林式。'}
+      </p>
+    </div>
+  );
+}
+
+/** 子專案 40：選取輸出端時列出它的布林式。 */
+function OutputFormulas({ diagram, node }: { diagram: LogicDiagram; node: LogicNode }) {
+  const f = useMemo(() => diagramFormulas(diagram).outputs.find((o) => o.id === node.id), [diagram, node.id]);
+  if (!f) return null;
+  return (
+    <div data-testid="output-formula" className="space-y-1">
+      <div className="text-slate-400">布林式</div>
+      <FormulaLines f={f} />
+    </div>
+  );
+}
+
 function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
   const table = useMemo(() => truthTable(diagram), [diagram]);
   if (!table.ok) {
@@ -353,7 +409,12 @@ function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
         : table.reason === 'too-many'
           ? '輸入超過 8 個，真值表太長（256 列以上），請用模擬檢查'
           : '先放輸入端和輸出端';
-    return <p className="p-3 text-sm text-slate-300">{text}</p>;
+    return (
+      <div className="p-3">
+        <p className="text-sm text-slate-300">{text}</p>
+        {table.reason !== 'loop' && <Formulas diagram={diagram} />}
+      </div>
+    );
   }
   const { inputs, outputs } = sortedIo(diagram);
   const current = inputs.map((n) => (n.value ?? 0) as 0 | 1).join('');
@@ -403,6 +464,7 @@ function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
         </tbody>
       </table>
       <p className="mt-2 text-xs text-slate-400">標亮的是目前開關的組合；點一列可以把開關設成那個組合。</p>
+      <Formulas diagram={diagram} />
     </div>
   );
 }

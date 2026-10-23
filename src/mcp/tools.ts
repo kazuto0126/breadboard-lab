@@ -22,7 +22,8 @@ import { routingSummaryText, summarizeRouting } from '../editor/explain/routing'
 import { checkDiagram } from '../logic/check';
 import { convertAndRoute, type ConvertRouted } from '../logic/convertRoute';
 import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
-import { truthTable } from '../logic/evaluate';
+import { truthTable } from '../logic/evaluate';
+import { diagramFormulas } from '../logic/formula';
 import { parseLogicDiagram } from '../logic/file';
 import { valueOfSegments } from '../logic/sevenSeg';
 import { overlaps } from '../logic/shapes';
@@ -406,6 +407,15 @@ export function logicTruthTable(f: LabFile): ToolResult {
   }
   const cell = (v: string | number) => (v === 'X' ? '?' : String(v));
   const lines = [`${t.inputs.join(' ')} | ${t.outputs.join(' ')}`, ...t.rows.map((r) => `${r.in.join(' ')} | ${r.out.map(cell).join(' ')}`)];
+  // 子專案 40：每個輸出照圖寫出來與化簡後的布林式（和網頁真值表分頁一樣）。
+  const formulas = diagramFormulas(f.logic).outputs;
+  if (formulas.length > 0) {
+    lines.push('', '布林式：');
+    for (const o of formulas) {
+      lines.push(o.read === null ? `- ${o.name}：${o.readProblem}` : `- ${o.name} = ${o.read}（照圖寫出來）`);
+      lines.push(o.simplified === null ? `  化簡：${o.simplifiedProblem}` : `  化簡：${o.name} = ${o.simplified}`);
+    }
+  }
   const issues = checkDiagram(f.logic);
   if (issues.length > 0) lines.push('', '檢查：', ...issues.map((i) => `- ${i.message}`));
   return { text: lines.join('\n') };
