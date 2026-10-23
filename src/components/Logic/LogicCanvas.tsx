@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
 import { canPlace, connect, moveNodes, nodesInRect } from '../../logic/edit';
 import { evaluate, lampLit, type Bit } from '../../logic/evaluate';
+import { diagramFormulas } from '../../logic/formula';
 import { bodyRect, inputPins, nodeSize, outputPin, outputPins, type GridXY } from '../../logic/shapes';
 import { canRotate, isGate, isSink, signalOf, type LogicNode } from '../../logic/types';
 import { BlockBody, ConstantBody } from './BlockBody';
@@ -105,6 +106,8 @@ export function LogicCanvas() {
   const driver = useMemo(() => new Map(diagram.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)])), [diagram]);
   const placingChip = useLogic((s) => s.placingChip);
   const placingTurn = useLogic((s) => s.placingTurn);
+  const showFormulas = useLogic((s) => s.showFormulas);
+  const formulas = useMemo(() => (showFormulas ? diagramFormulas(diagram).outputs : []), [diagram, showFormulas]);
 
   useEffect(() => {
     const svg = svgRef.current;
@@ -399,6 +402,18 @@ export function LogicCanvas() {
                 />
               ))}
             </g>
+          );
+        })}
+
+        {/* 子專案 40：輸出端下面的布林式（字不跟著元件轉向） */}
+        {formulas.map((f) => {
+          const node = view.nodes.find((n) => n.id === f.id);
+          if (!node) return null;
+          const r = bodyRect(node);
+          return (
+            <text key={f.id} data-logic-formula={f.id} x={r.x0 * C} y={(r.y1 + 0.55) * C} fontSize={0.5 * C} fontFamily="ui-monospace, monospace" fill="#1e293b" dominantBaseline="central" pointerEvents="none">
+              {f.name} = {f.read ?? '（寫不出來）'}
+            </text>
           );
         })}
 

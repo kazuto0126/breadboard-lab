@@ -236,7 +236,7 @@ server.registerTool(
 
 server.registerTool(
   'logic_truth_table',
-  { title: '真值表', description: '電路檔裡邏輯圖的真值表（輸入依名稱排序，第一個是最高位元）與檢查結果。', inputSchema: { file } },
+  { title: '真值表', description: '電路檔裡邏輯圖的真值表（輸入依名稱排序，第一個是最高位元）、每個輸出的布林式（照圖寫出來與化簡後）與檢查結果。', inputSchema: { file } },
   async (args) => withFile(args.file, (lab) => tools.logicTruthTable(lab)),
 );
 

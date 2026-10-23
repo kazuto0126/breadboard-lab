@@ -241,6 +241,10 @@ describe('logic diagram tools', () => {
     expect(text).toContain('A B | X');
     expect(text).toContain('0 1 | 1');
     expect(text).toContain('1 1 | 0');
+    // 子專案 40：每個輸出的布林式。
+    expect(text).toContain('布林式：');
+    expect(text).toContain('- X = A ⊕ B（照圖寫出來）');
+    expect(text).toContain("  化簡：X = A'B + AB'");
     expect(failed(logicTruthTable(newLabFile('x', 'MB102')))).toBe('檔案裡還沒有邏輯圖；用 logic_set 寫入');
   });
 
