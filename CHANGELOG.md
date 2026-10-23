@@ -3,6 +3,10 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## 2026-10-23 — MCP 打包檔試用結果
+
+- 使用者在自己的 AI 工具上試過網站下載的 MCP 打包檔（`mcp/breadboard-lab-mcp.mjs`），可以正常使用；PROGRESS 拿掉「待使用者確認」。
+
 ## 2026-10-23 — 子專案 40：在自己畫的邏輯圖上顯示布林式（PR #59，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-23-diagram-formulas-design.md`；實作計畫：`docs/superpowers/plans/2026-10-23-diagram-formulas.md`。
