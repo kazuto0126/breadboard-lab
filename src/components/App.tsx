@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { openFromLocationHash } from '../state/fileActions';
 import { startAutosave, useStore } from '../state/store';
 import { BreadboardCanvas } from './Breadboard/BreadboardCanvas';
 import { CompareView } from './Compare/CompareView';
@@ -16,6 +17,13 @@ import { useShortcuts } from './useShortcuts';
 export function App() {
   useShortcuts();
   useEffect(() => startAutosave(), []);
+  // 子專案 43：用連結開啟電路（打開網頁時，以及網址的 # 改變時）。
+  useEffect(() => {
+    const open = () => void openFromLocationHash();
+    open();
+    window.addEventListener('hashchange', open);
+    return () => window.removeEventListener('hashchange', open);
+  }, []);
   const view = useStore((s) => s.view);
   const drawer = useStore((s) => s.drawer);
   const workspace = useStore((s) => s.workspace);

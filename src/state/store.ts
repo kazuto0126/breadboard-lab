@@ -31,7 +31,7 @@ import {
   setLabel,
   updateComponentProps,
 } from '../editor/commands';
-import { emptyCircuit, parseCircuitText } from '../editor/fileFormat';
+import { emptyCircuit, parseCircuitText, type ParseResult } from '../editor/fileFormat';
 import { LOGIC_EXAMPLES } from '../logic/examples';
 import { convertProblem } from '../logic/synth';
 import type { ConvertOptions } from '../logic/toBreadboard';
@@ -76,7 +76,7 @@ export interface PlacingTool {
 
 export type Mode = 'manual' | 'auto' | 'compare';
 export type RightTab = 'inspect' | 'nets' | 'check' | 'checklist';
-export type Dialog = 'open' | 'save-as' | 'confirm-new' | 'help' | 'ai-key' | 'to-breadboard' | null;
+export type Dialog = 'open' | 'save-as' | 'confirm-new' | 'confirm-link' | 'help' | 'ai-key' | 'to-breadboard' | null;
 /** 窄螢幕（寬度 < 1024 px，例如直放的平板）時，左右面板改成可以開關的抽屜。 */
 export type Drawer = 'library' | 'info' | null;
 
@@ -156,6 +156,8 @@ export interface AppState {
   simulation: SimulationRun | null;
   /** 接線清單的勾選進度（不進 Undo；隨自動儲存與專案存檔保存）。 */
   checklist: ChecklistState;
+  /** 子專案 43：連結裡的電路（有未儲存的修改，等使用者確認）。 */
+  pendingShare: ParseOk | null;
 }
 
 export interface AppActions {
@@ -245,6 +247,9 @@ export interface AppActions {
   openProject(name: string): void;
   deleteProject(name: string): void;
   importJson(text: string): void;
+  /** 子專案 43：開啟連結裡的電路檔；有未儲存的修改時先問（confirm-link）。 */
+  openShared(text: string): void;
+  confirmShared(): void;
   openDialog(dialog: Dialog): void;
   /** 打開某個抽屜；再按一次同一個（或傳 null）就關閉。寬螢幕時兩側面板一直顯示，不受影響。 */
   toggleDrawer(drawer: Drawer): void;
@@ -468,11 +473,18 @@ export function initialState(): AppState {
     toasts: [],
     storageWarned: false,
     simulation: null,
+    pendingShare: null,
     checklist: restored?.checklist ?? {},
   };
 }
 
+/** 讀得出來的電路檔。 */
+type ParseOk = Extract<ParseResult, { ok: true }>;
+
 export const useStore = create<Store>()((set, get) => {
+  /** 子專案 43：開啟連結裡的電路（和匯入 JSON 一樣取代目前的電路）。 */
+  const openParsed = (r: ParseOk) => get().loadCircuit(r.circuit, r.name, `已從連結開啟${r.name ? `「${r.name}」` : '電路'}`, r.checklist, r.logic);
+
   /** 記錄一個可 Undo 的動作。 */
   const commit = (label: string, next: Circuit, extra: Partial<AppState> = {}) => {
     const s = get();
@@ -1169,7 +1181,26 @@ export const useStore = create<Store>()((set, get) => {
     },
 
     closeDialog() {
-      set({ dialog: null });
+      set({ dialog: null, pendingShare: null });
+    },
+
+    openShared(text) {
+      const result = parseCircuitText(text);
+      if (!result.ok) {
+        get().toast('error', `連結裡的電路讀不出來：${result.error}`);
+        return;
+      }
+      if (isDirty(get()) || logicDirty()) {
+        set({ pendingShare: result, dialog: 'confirm-link' });
+        return;
+      }
+      openParsed(result);
+    },
+
+    confirmShared() {
+      const pending = get().pendingShare;
+      set({ pendingShare: null, dialog: null });
+      if (pending) openParsed(pending);
     },
 
     toast(kind, message) {

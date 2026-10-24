@@ -130,6 +130,27 @@ function ConfirmNewDialog() {
   );
 }
 
+/** 子專案 43：連結裡的電路要取代有未儲存修改的電路時先問。 */
+function ConfirmLinkDialog() {
+  const store = useStore.getState();
+  const name = useStore((s) => s.pendingShare?.name);
+  return (
+    <Modal title="開啟連結裡的電路？" onClose={() => store.closeDialog()}>
+      <p className="text-sm text-slate-300">
+        連結裡是{name ? `「${name}」` : '一個電路'}。目前的電路有尚未儲存的修改；開啟連結後，Undo 無法回到目前的電路。
+      </p>
+      <div className="mt-4 flex justify-end gap-2">
+        <button type="button" className={`${button} bg-slate-700 hover:bg-slate-600`} onClick={() => store.closeDialog()}>
+          取消
+        </button>
+        <button type="button" className={`${button} bg-red-700 text-white hover:bg-red-600`} onClick={() => store.confirmShared()}>
+          不儲存，開啟連結
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 function AiKeyDialog() {
   const store = useStore.getState();
   const stored = useAi((s) => s.key);
@@ -400,6 +421,8 @@ export function Dialogs() {
       return <SaveAsDialog />;
     case 'confirm-new':
       return <ConfirmNewDialog />;
+    case 'confirm-link':
+      return <ConfirmLinkDialog />;
     case 'help':
       return <HelpDialog />;
     case 'ai-key':

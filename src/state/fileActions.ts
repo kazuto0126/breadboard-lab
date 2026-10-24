@@ -1,4 +1,5 @@
 import { serializeCircuitFile } from '../editor/fileFormat';
+import { linkBase, linkLengthNote, LONG_LINK, makeShareLink, readShareHash } from '../editor/shareLink';
 import { boardFrames, worldBounds } from '../editor/geometry';
 import { buildSvgExport, downloadBlob, downloadText, safeFilename, svgToPng } from '../render/exportImage';
 import { useLogic } from './logic';
@@ -43,6 +44,31 @@ export async function exportPng(): Promise<void> {
   } catch (err) {
     useStore.getState().toast('error', `PNG 匯出失敗：${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+/** 子專案 43：目前的電路（麵包板＋邏輯圖）做成連結，複製到剪貼簿。 */
+export async function copyShareLink(): Promise<void> {
+  const s = useStore.getState();
+  const link = await makeShareLink(linkBase(window.location.href), serializeCircuitFile(s.circuit, s.projectName ?? baseName(), undefined, useLogic.getState().diagram));
+  try {
+    await navigator.clipboard.writeText(link);
+  } catch {
+    s.toast('error', '不能複製到剪貼簿（瀏覽器不允許）；請改用「匯出 JSON」');
+    return;
+  }
+  s.toast(link.length > LONG_LINK ? 'warning' : 'success', `已複製連結。${linkLengthNote(link)}`);
+}
+
+/** 子專案 43：網址有 #c= 時開啟裡面的電路，處理完把 # 拿掉（重新整理時不會再開一次）。 */
+export async function openFromLocationHash(): Promise<void> {
+  const hash = window.location.hash;
+  if (!hash.startsWith('#c=')) return;
+  // 先拿掉再解開：同時被叫兩次（開發模式的 StrictMode）時只開一次。
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+  const r = await readShareHash(hash);
+  if (r.kind === 'none') return;
+  if (r.kind === 'error') useStore.getState().toast('error', r.reason);
+  else useStore.getState().openShared(r.text);
 }
 
 /** 開啟選檔視窗並匯入 JSON。 */
