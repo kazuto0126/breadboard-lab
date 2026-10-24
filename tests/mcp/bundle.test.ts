@@ -26,7 +26,8 @@ beforeAll(async () => {
   execFileSync(process.execPath, [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build', '--config', 'vite.mcp.config.ts', '--logLevel', 'error'], { cwd: root, stdio: 'pipe' });
   copyFileSync(join(root, 'dist-mcp', 'breadboard-lab-mcp.mjs'), bundle);
   mkdirSync(work);
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [bundle, '--folder', work], cwd: tmpdir() }));
+  // 子專案 42：用 2 個佈線執行緒（測打包版的執行緒，又不要多佔其他限時測試的核心）。
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [bundle, '--folder', work], cwd: tmpdir(), env: { ...process.env, BREADBOARD_LAB_MCP_THREADS: '2' } as Record<string, string> }));
 }, 120_000);
 
 afterAll(async () => {
@@ -63,6 +64,11 @@ describe('the bundled MCP server', () => {
     expect((await call('task_to_diagram', { file: 'maj.json' })).text).toContain('邏輯圖和題目全部一致');
     expect((await call('task_check', { file: 'maj.json' })).text).toContain('邏輯圖：8 種輸入組合，邏輯圖和題目全部一致');
     expect((await call('list_files', {})).text).toContain('- maj.json：MB-102，元件 0 個，有邏輯圖，有題目（A B C → X）');
+    // 子專案 42：轉成麵包板用好幾個佈線執行緒（打包版的執行緒載入整個檔案，不能干擾和 AI 工具溝通的 stdout）。
+    const converted = await call('logic_to_breadboard', { file: 'maj.json' });
+    expect(converted).toMatchObject({ isError: false });
+    expect(converted.text).toContain('已存到 maj.json');
+    expect((await call('task_check', { file: 'maj.json' })).text).toContain('麵包板：8 種輸入組合');
     expect(await call('circuit_summary', { file: '../x.json' })).toMatchObject({ isError: true, text: expect.stringContaining('只能讀寫工作資料夾裡的檔案') });
   }, 60_000);
 });
