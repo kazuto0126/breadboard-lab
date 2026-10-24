@@ -1,3 +1,4 @@
+import { BLOCK_PINS } from './blocks';
 import { addNode, connect, nextNodeId, renameNode, setInputCount } from './edit';
 import { emptyDiagram, type LogicDiagram, type NodeKind } from './types';
 
@@ -70,8 +71,50 @@ export function adderBlockDiagram(): LogicDiagram {
   return d;
 }
 
+/** 子專案 46：74LS90 十進位計數器接 7 段顯示器：時脈接 CKA、QA 接 CKB（數 0–9），QA–QD 接顯示器的 A–D。 */
+export function decadeCounterDiagram(): LogicDiagram {
+  const IN = BLOCK_PINS['74LS90'].inputs;
+  const OUT = BLOCK_PINS['74LS90'].outputs;
+  let d = emptyDiagram();
+  d = must(addNode(d, 'CLOCK', 0, 2)); // c1
+  d = must(addNode(d, 'BLOCK', 8, 0, '74LS90')); // b1
+  d = must(addNode(d, 'DISPLAY', 20, 0)); // d1 S1
+  d = must(connect(d, 'c1', { node: 'b1', pin: IN.indexOf('CKA') }));
+  d = must(connect(d, 'b1', { node: 'b1', pin: IN.indexOf('CKB') }, OUT.indexOf('QA')));
+  (['QA', 'QB', 'QC', 'QD'] as const).forEach((q, k) => {
+    d = must(connect(d, 'b1', { node: 'd1', pin: k }, OUT.indexOf(q)));
+  });
+  return d;
+}
+
+/** 子專案 46：兩顆 74LS76 做 3 位元漣波計數器（J = K = 1，每一級的 Q 接下一級的 CLK，下降緣觸發）。 */
+export function rippleCounterDiagram(): LogicDiagram {
+  const IN = BLOCK_PINS['74LS76'].inputs;
+  const OUT = BLOCK_PINS['74LS76'].outputs;
+  let d = emptyDiagram();
+  d = must(addNode(d, 'CLOCK', 0, 1)); // c1
+  d = must(addNode(d, 'HIGH', 0, 6)); // k1
+  d = must(addNode(d, 'BLOCK', 8, 0, '74LS76')); // b1：Q0、Q1
+  d = must(addNode(d, 'BLOCK', 8, 13, '74LS76')); // b2：Q2
+  for (const [name, y] of [['Q0', 1], ['Q1', 4], ['Q2', 14]] as const) {
+    const id = nextNodeId(d, 'OUTPUT');
+    d = must(renameNode(must(addNode(d, 'OUTPUT', 22, y)), id, name));
+  }
+  for (const [node, pins] of [['b1', ['1J', '1K', '2J', '2K']], ['b2', ['1J', '1K']]] as const)
+    for (const pin of pins) d = must(connect(d, 'k1', { node, pin: IN.indexOf(pin) }));
+  d = must(connect(d, 'c1', { node: 'b1', pin: IN.indexOf('1CLK') }));
+  d = must(connect(d, 'b1', { node: 'b1', pin: IN.indexOf('2CLK') }, OUT.indexOf('1Q')));
+  d = must(connect(d, 'b1', { node: 'b2', pin: IN.indexOf('1CLK') }, OUT.indexOf('2Q')));
+  d = must(connect(d, 'b1', { node: 'o1', pin: 0 }, OUT.indexOf('1Q')));
+  d = must(connect(d, 'b1', { node: 'o2', pin: 0 }, OUT.indexOf('2Q')));
+  d = must(connect(d, 'b2', { node: 'o3', pin: 0 }, OUT.indexOf('1Q')));
+  return d;
+}
+
 export const LOGIC_EXAMPLES = [
   { id: 'majority', name: '多數決電路（圖 2-5）', description: 'X = AB + AC + BC：三個輸入有兩個以上是 1 時 X = 1', build: majorityDiagram },
   { id: 'bcd', name: 'BCD 顯示（7 段顯示器）', description: 'W X Y Z 四個開關當成 BCD 數字（W 是最高位元），7 段顯示器顯示 0–9', build: bcdDiagram },
   { id: 'adder-block', name: '2 位元加法器（74LS83 方塊）', description: '用 74LS83 方塊把 A2A1 與 B2B1 相加，結果 S3S2S1；用不到的腳接 GND', build: adderBlockDiagram },
+  { id: 'decade-counter', name: '十進位計數器（74LS90 + 7 段顯示器）', description: '每按一次時脈加 1，顯示 0–9；QA 接 CKB 才會數到 9', build: decadeCounterDiagram },
+  { id: 'ripple-counter', name: '3 位元漣波計數器（74LS76 JK 正反器）', description: 'J = K = 1，每一級的 Q 接下一級的時脈（下降緣），Q2 Q1 Q0 數 0–7', build: rippleCounterDiagram },
 ];

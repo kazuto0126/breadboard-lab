@@ -443,6 +443,8 @@ function OutputFormulas({ diagram, node }: { diagram: LogicDiagram; node: LogicN
 function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
   const pulses = useLogic((l) => l.pulses);
   const table = useMemo(() => sequenceTable(diagram, pulses), [diagram, pulses]);
+  /** 顯示器的欄（數字）用另一個顏色。 */
+  const kinds = useMemo(() => sortedIo(diagram).outputs.map((o) => o.kind === 'DISPLAY'), [diagram]);
   if (!table.ok) {
     const text =
       table.reason === 'loop'
@@ -484,7 +486,7 @@ function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
             <tr key={r.pulse} data-pulse={r.pulse}>
               <td className="px-1 py-0.5 text-slate-400">{r.pulse}</td>
               {r.out.map((b, i) => (
-                <td key={i} className={`px-1 py-0.5 font-bold ${b === 0 || b === 1 || b === 'X' ? bitTone(b) : 'text-amber-300'} ${i === 0 ? 'border-l border-slate-700' : ''}`}>
+                <td key={i} className={`px-1 py-0.5 font-bold ${outTone(b, kinds[i])} ${i === 0 ? 'border-l border-slate-700' : ''}`}>
                   {bitText(b)}
                 </td>
               ))}

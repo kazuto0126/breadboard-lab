@@ -172,3 +172,17 @@ describe('clock nodes in files and edits', () => {
     expect(diagramFormulas(d).outputs[0]).toMatchObject({ read: null, simplified: null, simplifiedProblem: '時序電路不化簡（看時序表）' });
   });
 });
+
+describe('sequential examples', () => {
+  it('the decade counter shows 0 to 9 and the ripple counter counts 0 to 7', async () => {
+    const { decadeCounterDiagram, rippleCounterDiagram, LOGIC_EXAMPLES } = await import('../../src/logic/examples');
+    const dec = sequenceTable(decadeCounterDiagram(), 10);
+    if (!dec.ok) throw new Error(dec.reason);
+    expect(dec.rows.map((r) => r.out[0])).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0]);
+    const rip = sequenceTable(rippleCounterDiagram(), 8);
+    if (!rip.ok) throw new Error(rip.reason);
+    expect(rip.outputs).toEqual(['Q0', 'Q1', 'Q2']);
+    expect(rip.rows.map((r) => [...r.out].reverse().join(''))).toEqual(['000', '001', '010', '011', '100', '101', '110', '111', '000']);
+    for (const ex of LOGIC_EXAMPLES) expect(checkDiagram(ex.build()).filter((i) => i.severity === 'error'), ex.id).toEqual([]);
+  });
+});
