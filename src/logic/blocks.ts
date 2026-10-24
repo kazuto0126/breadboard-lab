@@ -7,6 +7,39 @@ export const BLOCK_PINS: Record<BlockChip, { inputs: string[]; outputs: string[]
   '74LS153': { inputs: ['1C0', '1C1', '1C2', '1C3', '2C0', '2C1', '2C2', '2C3', 'A', 'B', '/1G', '/2G'], outputs: ['1Y', '2Y'] },
   '74LS138': { inputs: ['A', 'B', 'C', 'G1', '/G2A', '/G2B'], outputs: ['/Y0', '/Y1', '/Y2', '/Y3', '/Y4', '/Y5', '/Y6', '/Y7'] },
   '74LS85': { inputs: ['A0', 'A1', 'A2', 'A3', 'B0', 'B1', 'B2', 'B3', 'IA<B', 'IA=B', 'IA>B'], outputs: ['OA<B', 'OA=B', 'OA>B'] },
+  // 子專案 46（規格 2026-10-24 sequential-logic）：時序 IC。
+  '74LS74': { inputs: ['1D', '1CLK', '1/PRE', '1/CLR', '2D', '2CLK', '2/PRE', '2/CLR'], outputs: ['1Q', '1/Q', '2Q', '2/Q'] },
+  '74LS76': { inputs: ['1J', '1CLK', '1K', '1/PRE', '1/CLR', '2J', '2CLK', '2K', '2/PRE', '2/CLR'], outputs: ['1Q', '1/Q', '2Q', '2/Q'] },
+  '74LS90': { inputs: ['CKA', 'CKB', 'R0(1)', 'R0(2)', 'R9(1)', 'R9(2)'], outputs: ['QA', 'QB', 'QC', 'QD'] },
+  '74LS93': { inputs: ['CKA', 'CKB', 'R0(1)', 'R0(2)'], outputs: ['QA', 'QB', 'QC', 'QD'] },
+  '74LS161': { inputs: ['CLK', '/CLR', '/LOAD', 'ENP', 'ENT', 'A', 'B', 'C', 'D'], outputs: ['QA', 'QB', 'QC', 'QD', 'RCO'] },
+  '74LS193': { inputs: ['UP', 'DOWN', 'CLR', '/LOAD', 'A', 'B', 'C', 'D'], outputs: ['QA', 'QB', 'QC', 'QD', '/CO', '/BO'] },
+};
+
+/**
+ * 子專案 46：時序 IC 的輸入可以不接，用這裡的值（轉成麵包板時接到 +5 V / GND）：清除、預設、載入不用；資料接 0；時脈接 +5 V。
+ * 組合邏輯的 IC 沒有這張表（每隻輸入都要接）。
+ */
+export const BLOCK_DEFAULTS: Partial<Record<BlockChip, Record<string, 0 | 1>>> = {
+  '74LS74': { '1D': 0, '1CLK': 1, '1/PRE': 1, '1/CLR': 1, '2D': 0, '2CLK': 1, '2/PRE': 1, '2/CLR': 1 },
+  '74LS76': { '1J': 0, '1CLK': 1, '1K': 0, '1/PRE': 1, '1/CLR': 1, '2J': 0, '2CLK': 1, '2K': 0, '2/PRE': 1, '2/CLR': 1 },
+  '74LS90': { CKA: 1, CKB: 1, 'R0(1)': 0, 'R0(2)': 0, 'R9(1)': 0, 'R9(2)': 0 },
+  '74LS93': { CKA: 1, CKB: 1, 'R0(1)': 0, 'R0(2)': 0 },
+  '74LS161': { CLK: 1, '/CLR': 1, '/LOAD': 1, ENP: 1, ENT: 1, A: 0, B: 0, C: 0, D: 0 },
+  '74LS193': { UP: 1, DOWN: 1, CLR: 0, '/LOAD': 1, A: 0, B: 0, C: 0, D: 0 },
+};
+
+/** 子專案 46：時序 IC（有狀態、看時脈邊緣）。 */
+export const isSequentialChip = (chip: BlockChip | undefined): boolean => chip !== undefined && chip in BLOCK_DEFAULTS;
+
+/** 子專案 46：時序 IC 的時脈腳（時序表、檢查用）。 */
+export const CLOCK_PINS: Partial<Record<BlockChip, string[]>> = {
+  '74LS74': ['1CLK', '2CLK'],
+  '74LS76': ['1CLK', '2CLK'],
+  '74LS90': ['CKA', 'CKB'],
+  '74LS93': ['CKA', 'CKB'],
+  '74LS161': ['CLK'],
+  '74LS193': ['UP', 'DOWN'],
 };
 
 export const BLOCK_CHIPS = Object.keys(BLOCK_PINS) as BlockChip[];
@@ -18,6 +51,12 @@ export const BLOCK_NAMES: Record<BlockChip, string> = {
   '74LS153': '雙 4 選 1 多工器',
   '74LS138': '3 對 8 解碼器',
   '74LS85': '4 位元比較器',
+  '74LS74': '雙 D 型正反器',
+  '74LS76': '雙 JK 正反器',
+  '74LS90': '十進位計數器',
+  '74LS93': '4 位元二進位計數器',
+  '74LS161': '4 位元同步計數器',
+  '74LS193': '上 / 下數計數器',
 };
 
 export const isBlockChip = (v: unknown): v is BlockChip => typeof v === 'string' && v in BLOCK_PINS;

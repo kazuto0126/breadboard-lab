@@ -12,7 +12,8 @@ const ok = (r: { ok: boolean; diagram: LogicDiagram }) => {
 
 describe('IC blocks and constants: data and shapes', () => {
   it('lists the pins of every chip in a tidy order', () => {
-    expect(BLOCK_CHIPS).toEqual(['74LS83', '74LS151', '74LS153', '74LS138', '74LS85']);
+    // 子專案 46：後面 6 顆是時序 IC。
+    expect(BLOCK_CHIPS).toEqual(['74LS83', '74LS151', '74LS153', '74LS138', '74LS85', '74LS74', '74LS76', '74LS90', '74LS93', '74LS161', '74LS193']);
     expect(BLOCK_PINS['74LS83']).toEqual({ inputs: ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'C0'], outputs: ['S1', 'S2', 'S3', 'S4', 'C4'] });
     expect(BLOCK_PINS['74LS138'].outputs).toEqual(['/Y0', '/Y1', '/Y2', '/Y3', '/Y4', '/Y5', '/Y6', '/Y7']);
   });
@@ -210,5 +211,21 @@ describe('the 74LS83 block example', () => {
       const sum = a1 + 2 * a2 + b1 + 2 * b2;
       expect(row.out).toEqual([sum & 1, (sum >> 1) & 1, (sum >> 2) & 1]);
     }
+  });
+});
+
+describe('sequential block pins (sub-project 46)', () => {
+  it('use the pin names of the real chips, and every optional input has a value', async () => {
+    const { BLOCK_DEFAULTS, CLOCK_PINS, isSequentialChip } = await import('../../src/logic/blocks');
+    const { getComponentDefinition } = await import('../../src/core/circuit/library');
+    for (const chip of BLOCK_CHIPS) {
+      const def = getComponentDefinition(chip)!;
+      const names = new Set(def.pins.map((p) => p.name));
+      for (const pin of [...BLOCK_PINS[chip].inputs, ...BLOCK_PINS[chip].outputs]) expect(names.has(pin), `${chip} ${pin}`).toBe(true);
+      if (!isSequentialChip(chip)) continue;
+      expect(Object.keys(BLOCK_DEFAULTS[chip]!).sort(), chip).toEqual([...BLOCK_PINS[chip].inputs].sort());
+      for (const clk of CLOCK_PINS[chip]!) expect(BLOCK_PINS[chip].inputs, chip).toContain(clk);
+    }
+    expect(isSequentialChip('74LS83')).toBe(false);
   });
 });

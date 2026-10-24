@@ -6,7 +6,7 @@ import { canRotate, isGate, isSink, type BlockChip, type GateKind, type LogicDia
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
 
 const fail = (diagram: LogicDiagram, reason: string): EditResult => ({ ok: false, diagram, reason });
-const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b' };
+const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b', CLOCK: 'c' };
 const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
 const OUTPUT_NAMES = ['X', 'Y', 'Z', 'W', 'V', 'U', 'T', 'S', 'R', 'Q', 'P'];
 const INPUT_NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -48,12 +48,16 @@ export interface Turn {
 export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, chip?: BlockChip, turn: Turn = {}): EditResult {
   const id = nextNodeId(d, kind);
   if (kind === 'BLOCK' && !isBlockChip(chip)) return fail(d, '要指定哪一顆 IC');
+  // 子專案 46：一張圖只能有一個時脈（時序表一次看一個時脈）。
+  if (kind === 'CLOCK' && d.nodes.some((n) => n.kind === 'CLOCK')) return fail(d, '一張圖只能有一個時脈');
   const plain: LogicNode =
     kind === 'BLOCK'
       ? { id, kind, x, y, chip }
       : kind === 'HIGH' || kind === 'LOW'
         ? { id, kind, x, y }
-        : kind === 'INPUT'
+        : kind === 'CLOCK'
+          ? { id, kind, x, y, name: 'CLK', value: 0 }
+          : kind === 'INPUT'
       ? { id, kind, x, y, name: defaultName(d, 'INPUT'), value: 0 }
       : kind === 'OUTPUT' || kind === 'DISPLAY'
         ? { id, kind, x, y, name: defaultName(d, kind) }

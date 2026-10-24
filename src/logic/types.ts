@@ -5,8 +5,10 @@ import type { TruthTask } from './task';
 export type GateKind = 'AND' | 'OR' | 'NOT' | 'NAND' | 'NOR' | 'XOR';
 /** DISPLAY：7 段顯示器（子專案 16），4 個輸入腳 A、B、C、D，沒有輸出腳。 */
 /** 子專案 21：HIGH / LOW 是常數 1 / 0（5V、GND），BLOCK 是 IC 方塊。 */
-export type NodeKind = GateKind | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK';
-export type BlockChip = '74LS83' | '74LS151' | '74LS153' | '74LS138' | '74LS85';
+/** 子專案 46：CLOCK 是時脈（一個輸出，「一個脈衝」送出 0 → 1 → 0）。 */
+export type NodeKind = GateKind | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK';
+/** 子專案 46：74LS74 起是時序 IC（正反器、計數器）。 */
+export type BlockChip = '74LS83' | '74LS151' | '74LS153' | '74LS138' | '74LS85' | '74LS74' | '74LS76' | '74LS90' | '74LS93' | '74LS161' | '74LS193';
 
 export const GATE_KINDS: GateKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR'];
 
@@ -74,8 +76,8 @@ export function emptyDiagram(): LogicDiagram {
 
 export const isGate = (kind: NodeKind): kind is GateKind => (GATE_KINDS as string[]).includes(kind);
 
-/** 沒有輸入腳、只當線的來源：輸入端、5V、GND。 */
-export const isSource = (kind: NodeKind): boolean => kind === 'INPUT' || kind === 'HIGH' || kind === 'LOW';
+/** 沒有輸入腳、只當線的來源：輸入端、5V、GND、時脈。 */
+export const isSource = (kind: NodeKind): boolean => kind === 'INPUT' || kind === 'HIGH' || kind === 'LOW' || kind === 'CLOCK';
 
 /** 訊號名稱：方塊第 k 個輸出（k > 0）是 `${id}.${k}`，其他都是節點 id。 */
 export const signalOf = (from: string, fromPin?: number): string => (fromPin ? `${from}.${fromPin}` : from);
