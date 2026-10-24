@@ -61,6 +61,15 @@ export function GateBody({ node, value, inputs, selected }: { node: LogicNode; v
 
 /** 元件庫的小圖示。 */
 export function PartIcon({ kind }: { kind: NodeKind }) {
+  // 子專案 46：時脈（方波）。
+  if (kind === 'CLOCK') {
+    return (
+      <svg viewBox="0 0 40 24" className="h-6 w-10" aria-hidden>
+        <path d="M4 17h6V7h8v10h8V7h6" fill="none" stroke="#7c3aed" strokeWidth={1.8} strokeLinejoin="round" />
+        <line x1={32} y1={12} x2={38} y2={12} stroke="#7c3aed" strokeWidth={1.5} />
+      </svg>
+    );
+  }
   if (kind === 'HIGH' || kind === 'LOW') {
     const high = kind === 'HIGH';
     return (

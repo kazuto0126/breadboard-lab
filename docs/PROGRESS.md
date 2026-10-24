@@ -14,7 +14,7 @@
 ## 進行中
 
 - 子專案 45：兩個 4 位元開關依 IC 分組（分支 `feat/switch-groups`）：已實作，PR 等使用者看過後合併；合併後執行 `npm run publish:site` 發布。
-- 下一個：邏輯圖的時序元件（使用者 2026-10-24 選了「1 和 3」的 1，較大，要先寫規格）。
+- 子專案 46：邏輯圖的時序元件（分支 `feat/sequential-logic`，建在 45 上面，規格 `docs/superpowers/specs/2026-10-24-sequential-logic-design.md`）：已實作，PR 等 #70 合併後再合併；合併後執行 `npm run publish:site` 發布。
 
 ## 接下來（依優先順序）
 

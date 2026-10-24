@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
 import { removeNodes, removeWire, renameNode, setActiveLow, setConstant, setDisplayMode, setFlip, setGateKind, setInputCount, setRotation } from '../../logic/edit';
-import { BLOCK_PINS } from '../../logic/blocks';
-import { evaluate, segmentToken, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
+import { BLOCK_DEFAULTS, BLOCK_PINS, isSequentialChip } from '../../logic/blocks';
+import { evaluate, isSequential, PULSE_CHOICES, segmentToken, sequenceTable, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
 import { boxOf } from '../../logic/shapes';
 import { canRotate, GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
@@ -105,7 +105,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     const node = diagram.nodes.find((n) => n.id === selection.id);
     if (!node) return null;
     return (
-      <Section title={isGate(node.kind) ? '邏輯閘' : node.kind === 'INPUT' ? '輸入端' : node.kind === 'DISPLAY' ? '7 段顯示器' : node.kind === 'BLOCK' ? 'IC 方塊' : node.kind === 'HIGH' || node.kind === 'LOW' ? '常數' : '輸出端'}>
+      <Section title={isGate(node.kind) ? '邏輯閘' : node.kind === 'INPUT' ? '輸入端' : node.kind === 'DISPLAY' ? '7 段顯示器' : node.kind === 'BLOCK' ? (isSequentialChip(node.chip) ? '正反器 / 計數器' : 'IC 方塊') : node.kind === 'HIGH' || node.kind === 'LOW' ? '常數' : node.kind === 'CLOCK' ? '時脈' : '輸出端'}>
         <div className="flex items-center justify-between">
           <div className="text-base font-semibold text-slate-50">{node.name ?? (node.kind === 'BLOCK' ? `${node.id}（${node.chip}）` : node.id)}</div>
           <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.apply({ ok: true, diagram: removeNodes(diagram, [node.id]) }, `刪除 ${node.id}`, null)}>
@@ -183,7 +183,8 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
             <p className="mt-1 text-xs text-slate-400">選取後按 R 順時針轉 90°、按 M 鏡射；放置前也可以先按 R / M。</p>
           </div>
         )}
-        {(node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'DISPLAY') && <NameEditor node={node} />}
+        {(node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'DISPLAY' || node.kind === 'CLOCK') && <NameEditor node={node} />}
+        {node.kind === 'CLOCK' && <SeqControls note="點「送一個脈衝」或畫布上時脈的按鈕：送出 0 → 1 → 0（上升緣、下降緣各一次）。" />}
         {node.kind === 'OUTPUT' && (
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -273,7 +274,8 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
 
 /** 規格（2026-10-13 seven-seg）第 5 節：顯示器目前的值與 D C B A 四條線。 */
 function DisplayValue({ diagram, node }: { diagram: LogicDiagram; node: LogicNode }) {
-  const values = useMemo(() => evaluate(diagram), [diagram]);
+  const seq = useLogic((l) => l.seq);
+  const values = useMemo(() => evaluate(diagram, {}, seq), [diagram, seq]);
   const s = useLogic.getState();
   // 子專案 32：BCD（A–D 與 DP）或每段直接控制（a–g、dp）。
   const modes = (
@@ -327,9 +329,39 @@ function DisplayValue({ diagram, node }: { diagram: LogicDiagram; node: LogicNod
   );
 }
 
+/** 子專案 46：送一個脈衝、重設（正反器、計數器回到 0）。 */
+function SeqControls({ note }: { note?: string }) {
+  const hasClock = useLogic((l) => l.diagram.nodes.some((n) => n.kind === 'CLOCK'));
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap gap-1">
+        <button type="button" disabled={!hasClock} className={`${btn} bg-violet-700 text-white hover:bg-violet-600`} onClick={() => useLogic.getState().pulse()}>
+          送一個脈衝
+        </button>
+        <button type="button" className={`${btn} bg-slate-800 text-slate-200 hover:bg-slate-700`} onClick={() => useLogic.getState().resetSeq()}>
+          重設（正反器、計數器回到 0）
+        </button>
+      </div>
+      {note && <p className="text-xs text-slate-400">{note}</p>}
+    </div>
+  );
+}
+
+/** 子專案 46：時序方塊沒接的腳（用預設的值）。 */
+function unconnectedDefaults(diagram: LogicDiagram, node: LogicNode): string {
+  if (!node.chip) return '';
+  const names = BLOCK_PINS[node.chip].inputs;
+  const wired = new Set(diagram.wires.filter((w) => w.to.node === node.id).map((w) => names[w.to.pin]));
+  return Object.entries(BLOCK_DEFAULTS[node.chip] ?? {})
+    .filter(([name]) => !wired.has(name))
+    .map(([name, v]) => `${name} = ${v}`)
+    .join('、');
+}
+
 /** 子專案 21：方塊每個輸出腳目前的值。 */
 function BlockValues({ diagram, node }: { diagram: LogicDiagram; node: LogicNode }) {
-  const values = useMemo(() => evaluate(diagram), [diagram]);
+  const seq = useLogic((l) => l.seq);
+  const values = useMemo(() => evaluate(diagram, {}, seq), [diagram, seq]);
   if (!node.chip) return null;
   return (
     <div className="text-xs text-slate-300" data-testid="block-values">
@@ -341,7 +373,14 @@ function BlockValues({ diagram, node }: { diagram: LogicDiagram; node: LogicNode
           </span>
         ))}
       </div>
-      <p className="mt-1 text-slate-400">要在真值表看結果，把輸出接到輸出端或 7 段顯示器。</p>
+      {isSequentialChip(node.chip) ? (
+        <div className="mt-2 space-y-1">
+          <SeqControls />
+          <p className="text-slate-400">沒接的腳：{unconnectedDefaults(diagram, node) || '沒有'}（轉成麵包板時接到 +5 V 或 GND）。</p>
+        </div>
+      ) : (
+        <p className="mt-1 text-slate-400">要在真值表看結果，把輸出接到輸出端或 7 段顯示器。</p>
+      )}
     </div>
   );
 }
@@ -400,8 +439,72 @@ function OutputFormulas({ diagram, node }: { diagram: LogicDiagram; node: LogicN
   );
 }
 
+/** 子專案 46（規格 2026-10-24 sequential-logic 第 4 節）：時序電路的時序表（從重設開始，第 0 到第 n 次脈衝）。 */
+function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
+  const pulses = useLogic((l) => l.pulses);
+  const table = useMemo(() => sequenceTable(diagram, pulses), [diagram, pulses]);
+  /** 顯示器的欄（數字）用另一個顏色。 */
+  const kinds = useMemo(() => sortedIo(diagram).outputs.map((o) => o.kind === 'DISPLAY'), [diagram]);
+  if (!table.ok) {
+    const text =
+      table.reason === 'loop'
+        ? `邏輯圖有迴圈（${(table.loop ?? []).join('、')}），閘的輸出不能再接回前面（要經過正反器或計數器）`
+        : table.reason === 'no-clock'
+          ? '放一個時脈（元件庫的「時脈」），接到正反器或計數器的 CLK，就會列出每次脈衝後的輸出'
+          : '先放輸出端或 7 段顯示器';
+    return (
+      <div className="space-y-2 p-3">
+        <p className="text-sm text-slate-300">{text}</p>
+        <SeqControls />
+      </div>
+    );
+  }
+  return (
+    <div className="p-3">
+      <div className="mb-2 flex items-center gap-2 text-xs text-slate-300">
+        <span>列到第</span>
+        {PULSE_CHOICES.map((n) => (
+          <button key={n} type="button" aria-pressed={pulses === n} onClick={() => useLogic.getState().setPulses(n)} className={`${btn} ${pulses === n ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
+            {n}
+          </button>
+        ))}
+        <span>次脈衝</span>
+      </div>
+      <table data-testid="sequence-table" className="w-full border-collapse text-center font-mono text-sm">
+        <thead>
+          <tr className="text-slate-300">
+            <th className="border-b border-slate-700 px-1 py-1 font-sans text-xs">{table.clock} 第幾次</th>
+            {table.outputs.map((n, i) => (
+              <th key={n} className={`border-b border-slate-700 px-1 py-1 text-amber-300 ${i === 0 ? 'border-l' : ''}`}>
+                {n}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((r) => (
+            <tr key={r.pulse} data-pulse={r.pulse}>
+              <td className="px-1 py-0.5 text-slate-400">{r.pulse}</td>
+              {r.out.map((b, i) => (
+                <td key={i} className={`px-1 py-0.5 font-bold ${outTone(b, kinds[i])} ${i === 0 ? 'border-l border-slate-700' : ''}`}>
+                  {bitText(b)}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="mt-2 text-xs text-slate-400">從重設（正反器、計數器都是 0）開始，其他輸入用目前開關的值；第 0 列是還沒有脈衝時。</p>
+      <div className="mt-2">
+        <SeqControls />
+      </div>
+    </div>
+  );
+}
+
 function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
   const table = useMemo(() => truthTable(diagram), [diagram]);
+  if (!table.ok && table.reason === 'sequential') return <SequenceTab diagram={diagram} />;
   if (!table.ok) {
     const text =
       table.reason === 'loop'
@@ -505,6 +608,8 @@ export function LogicPanel() {
   const tab = useLogic((s) => s.tab);
   const open = useStore((s) => s.drawer === 'info');
   const problems = useMemo(() => checkDiagram(diagram), [diagram]);
+  // 子專案 46：時序電路的「真值表」分頁改名為「時序表」。
+  const sequentialTab = useMemo(() => isSequential(diagram), [diagram]);
   return (
     <aside
       aria-label="邏輯圖資訊"
@@ -520,7 +625,7 @@ export function LogicPanel() {
             onClick={() => useLogic.getState().setTab(id)}
             className={`flex-1 whitespace-nowrap px-2 py-2 text-sm ${tab === id ? 'border-b-2 border-sky-500 text-slate-50' : 'text-slate-400 hover:text-slate-200'}`}
           >
-            {label}
+            {id === 'table' && sequentialTab ? '時序表' : label}
             {id === 'check' && problems.length > 0 && (
               <span className={`ml-1.5 rounded-full px-1.5 text-[10px] ${problems.some((p) => p.severity === 'error') ? 'bg-red-600 text-white' : 'bg-amber-500 text-black'}`}>{problems.length}</span>
             )}

@@ -1,5 +1,5 @@
 import { topoOrder } from './evaluate';
-import { BLOCK_PINS } from './blocks';
+import { BLOCK_DEFAULTS, BLOCK_PINS } from './blocks';
 import { inputCountOf } from './shapes';
 import { isGate, isSink, type LogicDiagram, type LogicNode } from './types';
 
@@ -17,6 +17,7 @@ export function nodeLabel(node: LogicNode): string {
   if (node.kind === 'HIGH') return `5V ${node.id}`;
   if (node.kind === 'LOW') return `GND ${node.id}`;
   if (node.kind === 'BLOCK') return `方塊 ${node.id}（${node.chip}）`;
+  if (node.kind === 'CLOCK') return `時脈 ${node.name}`;
   return `${node.id}（${node.kind}）`;
 }
 
@@ -24,7 +25,7 @@ export function nodeLabel(node: LogicNode): string {
 export function checkDiagram(d: LogicDiagram): LogicIssue[] {
   const issues: LogicIssue[] = [];
   const loop = topoOrder(d).loop;
-  if (loop) issues.push({ code: 'LOGIC_LOOP', severity: 'error', message: `${loop.join('、')} 形成迴圈：邏輯圖只能畫組合邏輯（輸出不能再接回前面）`, nodeIds: loop });
+  if (loop) issues.push({ code: 'LOGIC_LOOP', severity: 'error', message: `${loop.join('、')} 形成迴圈：閘的輸出不能再接回前面（要經過正反器或計數器才可以）`, nodeIds: loop });
   if (d.nodes.some((n) => isGate(n.kind))) {
     if (!d.nodes.some((n) => n.kind === 'INPUT')) issues.push({ code: 'LOGIC_NO_IO', severity: 'warning', message: '邏輯圖還沒有輸入端', nodeIds: [] });
     if (!d.nodes.some((n) => isSink(n.kind))) issues.push({ code: 'LOGIC_NO_IO', severity: 'warning', message: '邏輯圖還沒有輸出端', nodeIds: [] });
@@ -49,13 +50,15 @@ export function checkDiagram(d: LogicDiagram): LogicIssue[] {
       }
       continue;
     }
-    if (node.kind === 'HIGH' || node.kind === 'LOW') {
+    if (node.kind === 'HIGH' || node.kind === 'LOW' || node.kind === 'CLOCK') {
       if (!used.has(node.id)) issues.push({ code: 'LOGIC_UNUSED', severity: 'warning', message: `${nodeLabel(node)} 沒有接到任何地方`, nodeIds: [node.id] });
       continue;
     }
     if (node.kind === 'BLOCK' && node.chip) {
+      // 子專案 46：時序 IC 的輸入可以不接（用 BLOCK_DEFAULTS 的值）。
+      const optional = BLOCK_DEFAULTS[node.chip] ?? {};
       BLOCK_PINS[node.chip].inputs.forEach((name, pin) => {
-        if (!driven.has(`${node.id}#${pin}`))
+        if (!driven.has(`${node.id}#${pin}`) && !(name in optional))
           issues.push({ code: 'LOGIC_INPUT_OPEN', severity: 'warning', message: `${nodeLabel(node)}的 ${name} 腳沒有接線，值不確定`, nodeIds: [node.id] });
       });
       if (!used.has(node.id)) issues.push({ code: 'LOGIC_UNUSED', severity: 'warning', message: `${nodeLabel(node)}的輸出沒有接到任何地方`, nodeIds: [node.id] });

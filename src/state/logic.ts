@@ -5,6 +5,7 @@ import { addLogicNote, moveLogicNote, removeLogicNote, setLogicNoteColor, setLog
 import type { NoteColor } from '../types/circuit';
 import { addNode, copyNodes, flipNodes, pasteNodes, removeNodes, removeWire, rotateNodes, setInputValue, type EditResult, type LogicClipboard, type Turn } from '../logic/edit';
 import { boxOf } from '../logic/shapes';
+import { evaluate, type SeqState } from '../logic/evaluate';
 import { emptyDiagram, type LogicDiagram, type NodeKind, type BlockChip, type Rotation } from '../logic/types';
 import * as persistence from './persistence';
 
@@ -31,6 +32,10 @@ export interface LogicState {
   editingNote: string | null;
   /** 子專案 40：輸出端下面顯示布林式（不存檔、不進 Undo）。 */
   showFormulas: boolean;
+  /** 子專案 46：時序方塊目前的狀態（正反器的 Q、計數值）；不存檔、不進 Undo。 */
+  seq: SeqState;
+  /** 子專案 46：時序表列到第幾次脈衝。 */
+  pulses: number;
   load(d: LogicDiagram): void;
   markSaved(): void;
   apply(r: EditResult, label: string, selection?: LogicSelection): boolean;
@@ -56,6 +61,11 @@ export interface LogicState {
   fit(): void;
   setTab(tab: LogicTab): void;
   setShowFormulas(on: boolean): void;
+  /** 子專案 46：送一個脈衝（時脈 0 → 1 → 0）。沒有時脈時什麼都不做。 */
+  pulse(): void;
+  /** 子專案 46：時序方塊全部回到上電狀態（0）。 */
+  resetSeq(): void;
+  setPulses(n: number): void;
   /** 子專案 29：便條（格子座標）；新增後選取並開始編輯。 */
   addNoteAt(x: number, y: number): void;
   addNoteAtCenter(): void;
@@ -69,18 +79,21 @@ export interface LogicState {
   deleteNote(id: string): void;
 }
 
-export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote' | 'showFormulas'> {
+export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote' | 'showFormulas' | 'seq' | 'pulses'> {
   const restored = typeof window !== 'undefined' ? persistence.loadAutosave()?.logic : undefined;
   const diagram = restored ?? emptyDiagram();
-  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null, showFormulas: false };
+  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null, showFormulas: false, seq: evaluate(diagram).seq, pulses: 16 };
 }
+
+/** 子專案 46：圖或輸入改了之後，時序方塊從目前的狀態重算到穩定（新的方塊從上電狀態開始）。 */
+const settled = (d: LogicDiagram, seq: SeqState): SeqState => evaluate(d, {}, seq).seq;
 
 /** 規格第 1、2 節：邏輯圖自己的狀態與 Undo（不進主 store 的 Undo）。 */
 export const useLogic = create<LogicState>((set, get) => ({
   ...initialLogicState(),
 
   load(d) {
-    set({ diagram: d, saved: d, history: emptyHistory(), selection: null, placing: null, editingNote: null });
+    set({ diagram: d, saved: d, history: emptyHistory(), selection: null, placing: null, editingNote: null, seq: evaluate(d).seq });
     get().fit();
   },
   markSaved() {
@@ -89,16 +102,16 @@ export const useLogic = create<LogicState>((set, get) => ({
   apply(r, label, selection) {
     if (!r.ok) return false;
     if (r.diagram === get().diagram) return true;
-    set({ history: record(get().history, get().diagram, label), diagram: r.diagram, ...(selection !== undefined ? { selection } : {}) });
+    set({ history: record(get().history, get().diagram, label), diagram: r.diagram, seq: settled(r.diagram, get().seq), ...(selection !== undefined ? { selection } : {}) });
     return true;
   },
   undo() {
     const step = undo(get().history, get().diagram);
-    if (step) set({ history: step.history, diagram: step.state, selection: null });
+    if (step) set({ history: step.history, diagram: step.state, selection: null, seq: settled(step.state, get().seq) });
   },
   redo() {
     const step = redo(get().history, get().diagram);
-    if (step) set({ history: step.history, diagram: step.state, selection: null });
+    if (step) set({ history: step.history, diagram: step.state, selection: null, seq: settled(step.state, get().seq) });
   },
   select(selection) {
     set({ selection });
@@ -164,12 +177,27 @@ export const useLogic = create<LogicState>((set, get) => ({
   },
   toggleInput(id) {
     const node = get().diagram.nodes.find((n) => n.id === id);
-    if (node?.kind === 'INPUT') set({ diagram: setInputValue(get().diagram, id, node.value === 1 ? 0 : 1) });
+    if (node?.kind !== 'INPUT') return;
+    const d = setInputValue(get().diagram, id, node.value === 1 ? 0 : 1);
+    set({ diagram: d, seq: settled(d, get().seq) });
   },
   setInputs(values) {
     let d = get().diagram;
     for (const [id, v] of Object.entries(values)) d = setInputValue(d, id, v);
-    set({ diagram: d });
+    set({ diagram: d, seq: settled(d, get().seq) });
+  },
+  pulse() {
+    const d = get().diagram;
+    const clock = d.nodes.find((n) => n.kind === 'CLOCK');
+    if (!clock) return;
+    const up = evaluate(d, { [clock.id]: 1 }, get().seq).seq;
+    set({ seq: evaluate(d, { [clock.id]: 0 }, up).seq });
+  },
+  resetSeq() {
+    set({ seq: evaluate(get().diagram).seq });
+  },
+  setPulses(n) {
+    set({ pulses: n });
   },
   setViewport(viewport) {
     set({ viewport });

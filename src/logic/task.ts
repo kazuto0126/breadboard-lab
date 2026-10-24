@@ -1,4 +1,4 @@
-import { displayValue, evaluate, sortedIo, topoOrder, truthTable } from './evaluate';
+import { displayValue, evaluate, sortedIo, topoOrder, truthTable, isSequential } from './evaluate';
 import { isSink, type LogicDiagram } from './types';
 
 /** 規格（2026-10-17 truth-table-task）第 2 節：真值表題目的一格：輸出端是 0 / 1，顯示器（子專案 32）是 0–15；X 是不在乎。 */
@@ -184,6 +184,8 @@ export function compareDiagramToTask(d: LogicDiagram, task: TruthTask): TaskComp
   if (d.nodes.length === 0) return { kind: 'none' };
   const loop = topoOrder(d).loop;
   if (loop) return { kind: 'issues', issues: [`邏輯圖有迴圈（${loop.join('、')}），不能和題目比對`] };
+  // 子專案 46：時序電路的輸出和以前的輸入有關，不能和真值表題目比對。
+  if (isSequential(d)) return { kind: 'issues', issues: ['邏輯圖有正反器、計數器或時脈（時序電路），不能和真值表題目比對；請看「時序表」'] };
   const inputs = new Map(d.nodes.filter((n) => n.kind === 'INPUT').map((n) => [n.name ?? n.id, n]));
   const sinks = new Map(d.nodes.filter((n) => isSink(n.kind)).map((n) => [n.name ?? n.id, n]));
   const issues: string[] = [];
@@ -220,7 +222,7 @@ export function compareDiagramToTask(d: LogicDiagram, task: TruthTask): TaskComp
 /** 規格第 1 節：用目前邏輯圖的真值表建立題目（老師畫好答案就能產生題目）。 */
 export function taskFromDiagram(d: LogicDiagram): TaskResult {
   const table = truthTable(d);
-  if (!table.ok) return { ok: false, reason: table.reason === 'loop' ? `邏輯圖有迴圈（${(table.loop ?? []).join('、')}），不能算真值表` : table.reason === 'too-many' ? `輸入最多 ${MAX_TASK_INPUTS} 個（${1 << MAX_TASK_INPUTS} 列）` : '先在邏輯圖放輸入端和輸出端' };
+  if (!table.ok) return { ok: false, reason: table.reason === 'sequential' ? '時序電路（有正反器、計數器或時脈）沒有真值表，不能建立題目' : table.reason === 'loop' ? `邏輯圖有迴圈（${(table.loop ?? []).join('、')}），不能算真值表` : table.reason === 'too-many' ? `輸入最多 ${MAX_TASK_INPUTS} 個（${1 << MAX_TASK_INPUTS} 列）` : '先在邏輯圖放輸入端和輸出端' };
   const sinks = sortedIo(d).outputs;
   // 子專案 32：BCD 顯示器可以當題目的輸出（格子是 0–15）；每段直接控制、用到小數點的不行。
   const segments = sinks.find((o) => o.kind === 'DISPLAY' && o.segments);

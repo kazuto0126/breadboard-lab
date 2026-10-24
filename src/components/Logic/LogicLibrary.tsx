@@ -1,4 +1,4 @@
-import { BLOCK_CHIPS, BLOCK_NAMES } from '../../logic/blocks';
+import { BLOCK_CHIPS, BLOCK_NAMES, isSequentialChip } from '../../logic/blocks';
 import { LOGIC_EXAMPLES } from '../../logic/examples';
 import type { NodeKind } from '../../logic/types';
 import { useLogic } from '../../state/logic';
@@ -18,6 +18,13 @@ const PARTS: Array<[NodeKind, string, string]> = [
   ['HIGH', '5V', '常數 1，接到要固定是 1 的腳'],
   ['LOW', 'GND', '常數 0，接到要固定是 0 的腳（例如 /G）'],
   ['DISPLAY', '7 段顯示器', 'A–D 四條線當成 BCD 數字，顯示 0–9'],
+  ['CLOCK', '時脈', '點「脈衝」送出 0 → 1 → 0，接到正反器、計數器的 CLK'],
+];
+
+/** 子專案 46：IC 方塊分成組合邏輯與時序（正反器、計數器）兩區。 */
+const BLOCK_GROUPS: Array<[string, typeof BLOCK_CHIPS]> = [
+  ['IC 方塊', BLOCK_CHIPS.filter((c) => !isSequentialChip(c))],
+  ['正反器與計數器', BLOCK_CHIPS.filter((c) => isSequentialChip(c))],
 ];
 
 /** 規格第 5 節：邏輯圖時的元件庫（邏輯閘、輸入端、輸出端）。 */
@@ -57,9 +64,11 @@ export function LogicLibrary() {
             </button>
           ))}
         </div>
-        <div className="mt-3 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">IC 方塊</div>
+        {BLOCK_GROUPS.map(([title, chips]) => (
+        <div key={title}>
+        <div className="mt-3 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">{title}</div>
         <div className="mt-1 grid grid-cols-1 gap-1.5">
-          {BLOCK_CHIPS.map((chip) => (
+          {chips.map((chip) => (
             <button
               key={chip}
               type="button"
@@ -81,6 +90,8 @@ export function LogicLibrary() {
             </button>
           ))}
         </div>
+        </div>
+        ))}
         <LogicNoteCard />
         <p className="mt-3 px-1 text-[11px] leading-5 text-slate-400">
           點一下元件再點畫布放下（Esc 取消）。從一個腳拖到另一個腳連線；點輸入端的開關切換 0 / 1。

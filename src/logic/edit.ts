@@ -1,4 +1,4 @@
-import { isBlockChip } from './blocks';
+import { isBlockChip, isSequentialChip } from './blocks';
 import { dropLogicNoteTargets } from './notes';
 import { boxOf, inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
 import { canRotate, isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
@@ -6,7 +6,7 @@ import { canRotate, isGate, isSink, type BlockChip, type GateKind, type LogicDia
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
 
 const fail = (diagram: LogicDiagram, reason: string): EditResult => ({ ok: false, diagram, reason });
-const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b' };
+const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b', CLOCK: 'c' };
 const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
 const OUTPUT_NAMES = ['X', 'Y', 'Z', 'W', 'V', 'U', 'T', 'S', 'R', 'Q', 'P'];
 const INPUT_NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -48,12 +48,16 @@ export interface Turn {
 export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, chip?: BlockChip, turn: Turn = {}): EditResult {
   const id = nextNodeId(d, kind);
   if (kind === 'BLOCK' && !isBlockChip(chip)) return fail(d, '要指定哪一顆 IC');
+  // 子專案 46：一張圖只能有一個時脈（時序表一次看一個時脈）。
+  if (kind === 'CLOCK' && d.nodes.some((n) => n.kind === 'CLOCK')) return fail(d, '一張圖只能有一個時脈');
   const plain: LogicNode =
     kind === 'BLOCK'
       ? { id, kind, x, y, chip }
       : kind === 'HIGH' || kind === 'LOW'
         ? { id, kind, x, y }
-        : kind === 'INPUT'
+        : kind === 'CLOCK'
+          ? { id, kind, x, y, name: 'CLK', value: 0 }
+          : kind === 'INPUT'
       ? { id, kind, x, y, name: defaultName(d, 'INPUT'), value: 0 }
       : kind === 'OUTPUT' || kind === 'DISPLAY'
         ? { id, kind, x, y, name: defaultName(d, kind) }
@@ -95,7 +99,9 @@ export function connect(d: LogicDiagram, from: string, to: { node: string; pin: 
   if (source.kind === 'DISPLAY') return fail(d, '顯示器沒有可以接出去的腳');
   if (!Number.isInteger(fromPin) || fromPin < 0 || fromPin >= outputCountOf(source)) return fail(d, '沒有這個輸出腳');
   if (target.kind === 'INPUT') return fail(d, '輸入端沒有可以接進來的腳');
-  if (source.id === target.id) return fail(d, '不能把自己的輸出接回自己的輸入');
+  if (target.kind === 'CLOCK') return fail(d, '時脈沒有可以接進來的腳');
+  // 子專案 46：正反器、計數器可以把自己的輸出接回自己的輸入（例如 74LS93 的 QA 接 CKB）。
+  if (source.id === target.id && !(target.kind === 'BLOCK' && isSequentialChip(target.chip))) return fail(d, '不能把自己的輸出接回自己的輸入');
   if (!Number.isInteger(to.pin) || to.pin < 0 || to.pin >= inputCountOf(target)) return fail(d, '沒有這個輸入腳');
   const kept = d.wires.filter((w) => !(w.to.node === to.node && w.to.pin === to.pin));
   if (kept.length !== d.wires.length && d.wires.some((w) => w.to.node === to.node && w.to.pin === to.pin && w.from === from && (w.fromPin ?? 0) === fromPin)) return { ok: true, diagram: d };

@@ -88,6 +88,8 @@ function reader(d: LogicDiagram) {
     if (node.kind === 'HIGH') return { kind: 'const', value: 1 };
     if (node.kind === 'LOW') return { kind: 'const', value: 0 };
     if (node.kind === 'BLOCK') throw new ThroughBlock(`${node.chip ?? 'IC'}（${signalOf(id, fromPin)}）`);
+    // 子專案 46：時脈當成一個變數（照圖寫出來時看得到它接到哪裡）。
+    if (node.kind === 'CLOCK') return { kind: 'var', name: node.name ?? node.id };
     if (!isGate(node.kind)) return { kind: 'missing' };
     const args = Array.from({ length: inputCountOf(node) }, (_, i) => pin(node, i));
     switch (node.kind) {
@@ -144,7 +146,7 @@ export function diagramFormulas(d: LogicDiagram): { outputs: OutputFormula[]; di
         f.readProblem = `經過 IC 方塊 ${err.message}，照圖寫不出布林式`;
       }
       if (!table.ok) {
-        f.simplifiedProblem = table.reason === 'too-many' ? '輸入超過 8 個，真值表太長，不化簡' : '算不出真值表';
+        f.simplifiedProblem = table.reason === 'too-many' ? '輸入超過 8 個，真值表太長，不化簡' : table.reason === 'sequential' ? '時序電路不化簡（看時序表）' : '算不出真值表';
         return f;
       }
       const k = sinks.indexOf(n);

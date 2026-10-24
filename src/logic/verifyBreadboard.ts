@@ -1,13 +1,15 @@
 import { getComponentDefinition } from '../core/circuit/library';
 import { whyDark } from '../core/simulation/darkDisplay';
-import { compileSimulation, initialSimState, settle, type SimCircuit } from '../core/simulation/simulate';
+import { compileSimulation, initialSimState, settle, type SimCircuit, type SimResult } from '../core/simulation/simulate';
 import type { Circuit } from '../types/circuit';
-import { segmentToken, sortedIo, truthTable } from './evaluate';
+import { segmentToken, sequenceTable, sortedIo, truthTable } from './evaluate';
 import { valueOfSegments } from './sevenSeg';
 import type { LogicDiagram } from './types';
 
 export interface VerifyResult {
   rows: number;
+  /** 子專案 46：時序電路的比對：每種輸入組合送幾個脈衝（rows 是組合數）。 */
+  pulses?: number;
   /** expected / actual：每個輸出欄一格（輸出端 0 / 1 / ?，顯示器是十進位數字或 ?；麵包板上的顯示器不是因為輸入 15 而全暗時是「暗」）。 */
   mismatches: Array<{ inputs: string; expected: string[]; actual: string[] }>;
 }
@@ -43,6 +45,8 @@ export interface Bindings {
   leds: Record<string, string>;
   /** 顯示器 id → 7 段顯示器元件 id。 */
   displays: Record<string, string>;
+  /** 子專案 46：時序電路的時脈元件 id。 */
+  clock?: string;
 }
 
 /** 子專案 30：按鈕對應的這一列要不要按住。 */
@@ -103,31 +107,89 @@ export function activeLowLeds(sim: SimCircuit): Set<string> {
  * 逐列撥好開關、模擬、讀 LED 與顯示器，和期望值比較（`verifyRows` 與題目的比對共用）。
  * 子專案 37：LED 讀成訊號的值：陽極接 +5 V 的 LED 亮 = 0，其他 LED 亮 = 1。
  */
-export function verifyExpected(circuit: Circuit, bindings: Bindings, outputs: Array<{ id: string; display: boolean; segments?: boolean }>, rows: ExpectedRow[]): VerifyResult {
+export function verifyExpected(circuit: Circuit, bindings: Bindings, outputs: VerifyOutput[], rows: ExpectedRow[]): VerifyResult {
   const mismatches: VerifyResult['mismatches'] = [];
   for (const row of rows) {
     const sim = compileSimulation(withSwitches(circuit, bindings.inputs, row.in));
     const result = settle(sim, initialSimState(sim), { pressed: pressedFor(bindings.inputs, row.in), clocks: {} }).result;
-    const lit = new Set(result.litLeds);
-    const low = activeLowLeds(sim);
-    const actual = outputs.map((o) => {
-      if (!o.display) {
-        const led = bindings.leds[o.id] ?? '';
-        return lit.has(led) !== low.has(led) ? '1' : '0';
-      }
-      const id = bindings.displays[o.id] ?? '';
-      const shown = result.litSegments[id] ?? [];
-      // 子專案 32：每段直接控制的顯示器寫亮的段；BCD 顯示器的小數點寫成「5.」。
-      if (o.segments) return segmentToken(shown);
-      const segments = shown.filter((s) => s !== 'dp');
-      const dot = shown.includes('dp') ? '.' : '';
-      if (segments.length === 0) return whyDark(sim, result, id)?.kind === 'fifteen' ? `15${dot}` : '暗';
-      const v = valueOfSegments(segments);
-      return v === null ? '?' : `${v}${dot}`;
-    });
+    const actual = readOutputs(sim, result, bindings, outputs);
     if (row.out.some((e, k) => e !== 'X' && e !== actual[k])) mismatches.push({ inputs: row.in.join(''), expected: row.out, actual });
   }
   return { rows: rows.length, mismatches };
+}
+
+/** 要讀的輸出：輸出端讀 LED，顯示器讀亮的段。 */
+export type VerifyOutput = { id: string; display: boolean; segments?: boolean };
+
+/** 讀 LED 與顯示器，寫成和真值表 / 時序表一樣的格子。 */
+function readOutputs(sim: SimCircuit, result: SimResult, bindings: Bindings, outputs: VerifyOutput[]): string[] {
+  const lit = new Set(result.litLeds);
+  const low = activeLowLeds(sim);
+  return outputs.map((o) => {
+    if (!o.display) {
+      const led = bindings.leds[o.id] ?? '';
+      return lit.has(led) !== low.has(led) ? '1' : '0';
+    }
+    const id = bindings.displays[o.id] ?? '';
+    const shown = result.litSegments[id] ?? [];
+    // 子專案 32：每段直接控制的顯示器寫亮的段；BCD 顯示器的小數點寫成「5.」。
+    if (o.segments) return segmentToken(shown);
+    const segments = shown.filter((s) => s !== 'dp');
+    const dot = shown.includes('dp') ? '.' : '';
+    if (segments.length === 0) return whyDark(sim, result, id)?.kind === 'fifteen' ? `15${dot}` : '暗';
+    const v = valueOfSegments(segments);
+    return v === null ? '?' : `${v}${dot}`;
+  });
+}
+
+/** 子專案 46：比對時每種輸入組合送幾個脈衝。 */
+export const VERIFY_PULSES = 16;
+
+/** 子專案 46：時序電路比對的輸入組合：4 個以內每一種都試，超過時試 16 種固定的組合（全 0、全 1 與其他）。 */
+export function sequenceCombos(count: number): Array<Array<0 | 1>> {
+  const toBits = (r: number) => Array.from({ length: count }, (_, i) => ((r >> (count - 1 - i)) & 1) as 0 | 1);
+  if (count <= 4) return Array.from({ length: 1 << count }, (_, r) => toBits(r));
+  const picks = new Set<number>([0, (1 << count) - 1]);
+  for (let k = 1; picks.size < 16; k++) picks.add((k * 2654435761) % (1 << count));
+  return [...picks].map(toBits);
+}
+
+/**
+ * 子專案 46（規格 2026-10-24 sequential-logic 第 5 節）：時序電路的比對。每種輸入組合都從重設開始（麵包板的模擬也從全部 0 開始），
+ * 送 VERIFY_PULSES 個脈衝，每一步（第 0 次到最後一次）比較每個輸出端、顯示器。不一致的那一列寫成「輸入 第 k 次」。
+ */
+export function verifySequence(d: LogicDiagram, circuit: Circuit, bindings: Bindings, pulses = VERIFY_PULSES): VerifyResult {
+  const { inputs, outputs: sinks } = sortedIo(d);
+  const outputs = sinks.map((o) => ({ id: o.id, display: o.kind === 'DISPLAY', segments: !!o.segments }));
+  const clock = bindings.clock ?? '';
+  const combos = sequenceCombos(inputs.length);
+  const mismatches: VerifyResult['mismatches'] = [];
+  for (const bits of combos) {
+    const table = sequenceTable(d, pulses, Object.fromEntries(inputs.map((n, i) => [n.id, bits[i]])));
+    if (!table.ok) return { rows: 0, pulses, mismatches: [] };
+    const sim = compileSimulation(withSwitches(circuit, bindings.inputs, bits));
+    const pressed = pressedFor(bindings.inputs, bits);
+    let state = initialSimState(sim);
+    const step = (level: 0 | 1) => {
+      const r = settle(sim, state, { pressed, clocks: { [clock]: level } });
+      state = r.state;
+      return r.result;
+    };
+    let result = step(0);
+    for (const row of table.rows) {
+      if (row.pulse > 0) {
+        step(1);
+        result = step(0);
+      }
+      const expected = row.out.map((b) => (b === 'X' ? '?' : String(b)));
+      const actual = readOutputs(sim, result, bindings, outputs);
+      if (expected.some((e, k) => e !== actual[k])) {
+        mismatches.push({ inputs: `${bits.join('') || '（沒有其他輸入）'} 第 ${row.pulse} 次脈衝`, expected, actual });
+        break;
+      }
+    }
+  }
+  return { rows: combos.length, pulses, mismatches };
 }
 
 /**
@@ -148,6 +210,8 @@ export function verifyBreadboard(d: LogicDiagram, circuit: Circuit, switchTo: 'v
 
 /** 結果的白話說明（最多列 5 列）。 */
 export function verifyText(r: VerifyResult, outputs: string[]): string {
+  // 子專案 46：時序電路。
+  if (r.pulses !== undefined && r.mismatches.length === 0) return `${r.rows} 種輸入組合各送 ${r.pulses} 個脈衝，麵包板的模擬結果和時序表全部一致`;
   if (r.mismatches.length === 0) return `${r.rows} 種輸入組合，麵包板的模擬結果和真值表全部一致`;
   const pair = (bits: string[]) => outputs.map((name, i) => `${name} = ${bits[i] ?? '?'}`).join('、');
   const list = r.mismatches
