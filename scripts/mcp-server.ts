@@ -293,7 +293,7 @@ server.registerTool(
         .enum(['each', 'shared'])
         .optional()
         .describe('7 段顯示器的電阻：each 每段一顆 220 Ω（亮度一致，最多 1 個顯示器）或 shared 共同腳共用一顆 100 Ω（線比較少，最多 2 個；亮的段越多越暗）。沒給時 1 個顯示器 each、2 個 shared'),
-      pulls: z.boolean().optional().describe('加上 / 下拉電阻（預設不加）'),
+      pulls: z.boolean().optional().describe('加上 / 下拉電阻（預設加上；電阻直立插在開關那一排、另一端插進電源軌）'),
     },
   },
   async ({ file: f, ...args }) =>

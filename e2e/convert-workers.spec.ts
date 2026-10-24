@@ -35,7 +35,7 @@ test('轉成麵包板：同時用好幾個 Worker，按取消後全部停下來�
   const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
   // 只用 NAND：比較慢（MB-102 排不完再換 EIC-1106），按取消時一定還在算。
   await dialog.getByLabel(/只用 NAND/).check();
-  await dialog.getByText('加上 / 下拉電阻（實際接線建議勾）').click();
+  await dialog.getByLabel(/加上 \/ 下拉電阻/).check();
   await dialog.getByRole('button', { name: '轉換' }).click();
 
   await expect(page.getByText('轉成麵包板：試好幾種擺法…')).toBeVisible();

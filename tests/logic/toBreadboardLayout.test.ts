@@ -177,9 +177,9 @@ describe('two 4-bit switches when pull resistors are on (sub-project 38)', () =>
     sound(d, r.circuit);
   });
 
-  it('keeps one switch without pull resistors, with four inputs or fewer, or with buttons', () => {
+  it('keeps one switch with four inputs or fewer, or with buttons (sub-project 47: without pull resistors the split is tried too)', () => {
     const d = encoder();
-    expect(build(d, 'EIC1106', { splitSwitches: true }).circuit).toEqual(build(d, 'EIC1106', {}).circuit);
+    expect(build(d, 'EIC1106', { splitSwitches: true }).bom).toMatchObject({ switch: 'dipsw-4', switches: 2 });
     expect(build(majorityDiagram(), 'MB102', { splitSwitches: true }, { pulls: true }).circuit).toEqual(build(majorityDiagram(), 'MB102', {}, { pulls: true }).circuit);
     // 按鈕（8 顆按鈕和 8 顆電阻排不進一排，用分區的擺法）。
     const buttons = (layout: Partial<LayoutVariant>) => toBreadboard(d, { switchTo: 'vcc', board: 'EIC1106', pulls: true, inputs: 'button' }, { ...DEFAULT_LAYOUT, ...layout });
@@ -211,5 +211,60 @@ describe('grouping two switches by IC (sub-project 45)', () => {
     const [one, two] = splitByIc(inputs, order);
     expect(one.map((n) => n.name)).toEqual(['C', 'D', 'F', 'H']);
     expect(two.map((n) => n.name)).toEqual(['A', 'B', 'E', 'G']);
+  });
+});
+
+describe('conversion improvements (sub-project 47)', () => {
+  /** n 個輸入接 n 個輸出端，中間各經過一個 NOT（讓 IC 用到輸入）。 */
+  function inverters(n: number): LogicDiagram {
+    let d = emptyDiagram();
+    for (let i = 0; i < n; i++) d = must(addNode(d, 'INPUT', 0, i * 3));
+    for (let i = 0; i < n; i++) d = must(addNode(d, 'NOT', 6, i * 3));
+    for (let i = 0; i < n; i++) d = must(addNode(d, 'OUTPUT', 12, i * 3));
+    for (let i = 0; i < n; i++) {
+      d = must(connect(d, `i${i + 1}`, { node: `g${i + 1}`, pin: 0 }));
+      d = must(connect(d, `g${i + 1}`, { node: `o${i + 1}`, pin: 0 }));
+    }
+    return d;
+  }
+  const pullResistors = (c: Circuit) => c.components.filter((x) => x.defId === 'resistor' && x.props.resistance !== 220);
+
+  it('puts every pull resistor in its switch column: six or more inputs use two 4-bit switches', () => {
+    for (const n of [6, 7, 8]) {
+      for (const board of ['MB102', 'EIC1106'] as const) {
+        const r = toBreadboard(inverters(n), { switchTo: 'vcc', board, pulls: true }, DEFAULT_LAYOUT);
+        if (!r.ok) throw new Error(r.reason);
+        const switches = r.circuit.components.filter((x) => x.defId.startsWith('dipsw'));
+        expect(switches.map((x) => x.defId), `${n} ${board}`).toEqual(['dipsw-4', 'dipsw-4']);
+        // 每顆下拉電阻都直立（一端在開關那一排，另一端插進電源軌）。
+        for (const res of pullResistors(r.circuit)) expect(res.rotation, `${n} ${board} ${res.id}`).toBe(90);
+      }
+    }
+  });
+
+  it('also tries two 4-bit switches without pull resistors', () => {
+    const r = toBreadboard(inverters(6), { switchTo: 'vcc', board: 'EIC1106' }, { ...DEFAULT_LAYOUT, splitSwitches: true });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.circuit.components.filter((x) => x.defId.startsWith('dipsw')).map((x) => x.defId)).toEqual(['dipsw-4', 'dipsw-4']);
+    sound(inverters(6), r.circuit);
+  });
+
+  it('keeps at least two free columns between neighbouring ICs in every layout', async () => {
+    const { LAYOUT_VARIANTS } = await import('../../src/logic/convertRoute');
+    const { getComponentDefinition } = await import('../../src/core/circuit/library');
+    for (const d of [encoder(), inverters(8), majorityDiagram()])
+      for (const [board, variants] of Object.entries(LAYOUT_VARIANTS))
+        for (const variant of variants) {
+          const r = toBreadboard(d, { switchTo: 'vcc', board: board as 'MB102' | 'EIC1106', pulls: true }, variant);
+          if (!r.ok) continue;
+          const ics = r.circuit.components
+            .filter((x) => getComponentDefinition(x.defId)?.category === 'ic')
+            .map((x) => ({ id: x.id, y: x.anchor.y, x0: x.anchor.x, x1: x.anchor.x + getComponentDefinition(x.defId)!.pins.length / 2 - 1 }))
+            .sort((a, b) => a.y - b.y || a.x0 - b.x0);
+          for (let k = 1; k < ics.length; k++) {
+            if (ics[k].y !== ics[k - 1].y) continue;
+            expect(ics[k].x0 - ics[k - 1].x1 - 1, `${board} ${JSON.stringify(variant)} ${ics[k - 1].id} → ${ics[k].id}`).toBeGreaterThanOrEqual(2);
+          }
+        }
   });
 });

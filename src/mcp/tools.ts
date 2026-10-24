@@ -484,7 +484,7 @@ export type LogicToBreadboardArgs = {
 };
 
 const convertOptionsOf = (args: LogicToBreadboardArgs): ConvertOptions & { display: 'ca' | 'cc' } =>
-  ({ switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false, inputs: args.inputs ?? 'switch', display: args.display ?? 'ca', ...(args.display_resistors ? { displayResistors: args.display_resistors } : {}) }) as const;
+  ({ switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? true, inputs: args.inputs ?? 'switch', display: args.display ?? 'ca', ...(args.display_resistors ? { displayResistors: args.display_resistors } : {}) }) as const;
 
 export function logicToBreadboard(f: LabFile, args: LogicToBreadboardArgs): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);

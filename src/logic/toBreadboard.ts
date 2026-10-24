@@ -126,7 +126,12 @@ interface Block {
   place: (x: number) => void;
   /** 子專案 36：這一欄可以放嗎（例如直立的電阻要插進電源軌的孔）；放不行時往右挪，最多 5 欄。 */
   align?: (x: number) => boolean;
+  /** 子專案 47：IC（兩顆相鄰的 IC 之間至少空 IC_GAP 欄）。 */
+  ic?: true;
 }
+
+/** 子專案 47：相鄰的兩顆 IC 之間至少空幾欄（使用者 2026-10-25：「IC 與 IC 不要並聯，至少空兩行」）。 */
+const IC_GAP = 2;
 
 /** 拆好的單元；只用 NAND / NOR 時再換成那一種 2 輸入閘（輸出端接的訊號一定保留）。 */
 function unitsFor(d: LogicDiagram, options: ConvertOptions) {
@@ -240,7 +245,8 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   const pullDown = options.switchTo === 'vcc';
   const uprightPulls = options.pulls === true && options.inputs !== 'button';
   // 子專案 38：拆成兩個 4 位元開關時，每個開關各自挪到有孔的地方，不用平放的電阻。
-  const splitSwitches = variant.splitSwitches === true && uprightPulls && inputs.length > 4;
+  // 子專案 47：不加電阻時也試；加上電阻、6 個以上輸入時一定拆（電阻都插在開關那一排，不平放）。
+  const splitSwitches = inputs.length > 4 && (variant.splitSwitches === true || (uprightPulls && inputs.length >= 6));
   const flatPull = uprightPulls && inputs.length >= 6 && !splitSwitches ? 5 : -1;
   /** 每個開關接的輸入（依名稱排序）；拆開時依「哪顆 IC 先用到」分組（子專案 45），開關比較靠近用到它的 IC。 */
   const switches = splitSwitches ? splitByIc(inputs, icOrderOf(d, plans, chips)) : [inputs];
@@ -309,7 +315,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   blocks[1].push(...switchBlocks.filter((b) => !laterSwitches.includes(b)));
 
   for (const plan of plans) {
-    icBlocks.push({ width: 7, place: (x) => components.push(comp(plan.id, plan.defId, hole(`F${x}`, icArea), { board: BOARD_ID })) });
+    icBlocks.push({ ic: true, width: 7, place: (x) => components.push(comp(plan.id, plan.defId, hole(`F${x}`, icArea), { board: BOARD_ID })) });
     const def = getComponentDefinition(plan.defId)!;
     for (const p of def.pins) {
       if (p.role === 'power') tie(`${plan.id}#${p.number}`, VCC);
@@ -329,7 +335,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     const chip = node.chip!;
     const ic = `U${plans.length + k + 1}`;
     const def = getComponentDefinition(chip)!;
-    icBlocks.push({ width: def.pins.length / 2, place: (x) => components.push(comp(ic, chip, hole(`F${x}`, icArea), { board: BOARD_ID })) });
+    icBlocks.push({ ic: true, width: def.pins.length / 2, place: (x) => components.push(comp(ic, chip, hole(`F${x}`, icArea), { board: BOARD_ID })) });
     const numberOf = (name: string) => def.pins.find((p) => p.name === name)!.number;
     for (const p of def.pins) {
       if (p.role === 'power') tie(`${ic}#${p.number}`, VCC);
@@ -356,7 +362,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   const displayParts: Array<{ node: (typeof displays)[number]; ic: string | null; ds: string }> = displays.map((node, k) => ({ node, ic: node.segments ? null : `U${++nextIc}`, ds: `DS${k + 1}` }));
   for (const { node, ic } of displayParts) {
     if (!ic) continue;
-    icBlocks.push({ width: 8, place: (x) => components.push(comp(ic, decoder, hole(`F${x}`, icArea), { board: BOARD_ID })) });
+    icBlocks.push({ ic: true, width: 8, place: (x) => components.push(comp(ic, decoder, hole(`F${x}`, icArea), { board: BOARD_ID })) });
     ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
     for (const name of ['VCC', '/LT', '/BI/RBO', '/RBI']) pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, VCC));
     pinNo(decoder, 'GND').forEach((p) => tie(`${ic}#${p}`, GND));
@@ -500,10 +506,15 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     if (free < list.length + 1) throw new NoRoom();
     const gap = Math.min(variant.gap, Math.floor(free / (list.length + 1)));
     let x = 2 + gap;
+    let lastIcEnd = -Infinity;
     for (const b of list) {
+      if (b.ic) x = Math.max(x, lastIcEnd + IC_GAP + 1);
       for (let i = 0; i < 6 && b.align && !b.align(x); i++) x++;
       if (b.align && !b.align(x)) throw new NoRoom();
+      // 子專案 47：IC 之間空出來的欄可能把後面的零件推出板子：放之前先檢查。
+      if (x + b.width - 1 > LAST_COLUMN) throw new NoRoom();
       b.place(x);
+      if (b.ic) lastIcEnd = x + b.width - 1;
       x += b.width + gap;
     }
     if (x - gap > LAST_COLUMN + 1) throw new NoRoom();

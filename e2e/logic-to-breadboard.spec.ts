@@ -61,7 +61,7 @@ test('只用 NAND 轉換：只有 74LS00、比對一致、板上標出 A、B、C
   await expect(page.locator('[data-label="A"]')).toHaveCount(0);
 });
 
-test('預設不加上 / 下拉電阻，勾選後零件清單多出輸入電阻', async ({ page }) => {
+test('預設加上 / 下拉電阻（子專案 47），取消後零件清單少了輸入電阻', async ({ page }) => {
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
   await page.reload();
@@ -70,9 +70,10 @@ test('預設不加上 / 下拉電阻，勾選後零件清單多出輸入電阻',
   await page.getByRole('button', { name: '轉成麵包板…' }).click();
   const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
   const preview = dialog.getByTestId('convert-preview');
-  await expect(preview).toContainText('電阻 × 1');
-  await dialog.getByLabel(/加上 \/ 下拉電阻/).check();
+  await expect(dialog.getByLabel(/加上 \/ 下拉電阻/)).toBeChecked();
   await expect(preview).toContainText('電阻 × 4');
+  await dialog.getByLabel(/加上 \/ 下拉電阻/).uncheck();
+  await expect(preview).toContainText('電阻 × 1');
 });
 
 test('轉成麵包板時輸入用按鈕：每個輸入一顆、名稱在板上，依名稱比對全部一致（子專案 30）', async ({ page }) => {
@@ -136,7 +137,7 @@ test('轉成麵包板：在背景試好幾種擺法，下拉電阻直立插進�
   await page.getByRole('menuitem', { name: '多數決電路（圖 2-5）' }).click();
   await page.getByRole('button', { name: '轉成麵包板…' }).click();
   const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
-  await dialog.getByText('加上 / 下拉電阻（實際接線建議勾）').click();
+  await dialog.getByLabel(/加上 \/ 下拉電阻/).check();
   await dialog.getByRole('button', { name: '轉換' }).click();
 
   // 算的時候顯示在試擺法；算完放上麵包板並佈好線。
@@ -236,7 +237,7 @@ test('8 對 3 編碼器（實習七 C）：共用 OR 只用 2 片 74LS32，加�
 
   await page.getByRole('button', { name: '轉成麵包板…' }).click();
   const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
-  await dialog.getByText('加上 / 下拉電阻（實際接線建議勾）').click();
+  await dialog.getByLabel(/加上 \/ 下拉電阻/).check();
   // 4 輸入的 OR 拆開時共用 G + H：8 個 2 輸入 OR，2 片 74LS32（以前 3 片）。
   await expect(dialog.getByTestId('convert-preview')).toContainText('74LS32 × 2');
   await expect(dialog.getByTestId('convert-preview')).toContainText('8 位元指撥開關 × 1（可能改用 4 位元 × 2');
