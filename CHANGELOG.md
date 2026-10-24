@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-10-24 — 子專案 42：MCP 轉換也同時跑好幾種擺法
+## 2026-10-24 — 子專案 42：MCP 轉換也同時跑好幾種擺法（PR #64，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-24-mcp-parallel-design.md`；實作計畫：`docs/superpowers/plans/2026-10-24-mcp-parallel.md`。
 使用者 2026-10-24 要 MCP 也和網頁一樣同時算。
