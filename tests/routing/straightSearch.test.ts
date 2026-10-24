@@ -25,12 +25,16 @@ const vertical = (p: RoutingProblem, id: string, netId: string, top: string, bot
 
 // 子專案 39（規格 2026-10-20 wiring-rules）：線不能十字交叉。
 describe('crossings are not allowed', () => {
-  it('finds no route in strict mode when every way crosses another wire', () => {
+  it('finds no route in strict mode when every way crosses another wire (except over an empty rail)', () => {
     const p = twoLeds();
     const net = netOf(p);
     const state = new StraightState(p);
     // 第 20 欄從 A 到 J 擋著一條別的 Net 的直線：上半部從第 10 欄到第 30 欄一定要橫過它。
     state.addWire(vertical(p, 'x', 'OTHER', 'A20', 'J20'));
+    // 子專案 47：空的電源軌可以當轉接排：從上面的軌繞過去（兩條直的線）。
+    const viaRail = findRoute(p, state, net, new Set(net.clusters[0]), new Set(net.clusters[1]), hard);
+    expect(viaRail?.wires.some((w) => [w.a, w.b].some((cell) => p.railGroups.has(p.groupAt[cell] ?? '')))).toBe(true);
+    for (const g of p.railGroups) p.pinGroups.add(g);
     expect(findRoute(p, state, net, new Set(net.clusters[0]), new Set(net.clusters[1]), hard)).toBeNull();
     // 協商時可以先交叉（之後當成衝突排開）。
     const negotiate: SearchParams = { weights: W, overlap: { kind: 'negotiate', overlapBase: 1, presentFactor: 1 } };

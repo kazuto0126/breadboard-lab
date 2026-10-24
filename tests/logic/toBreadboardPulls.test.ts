@@ -84,13 +84,14 @@ describe('upright pull resistors (sub-project 36)', () => {
     sound(majorityDiagram(), up.circuit);
   });
 
-  it('uses a flat resistor only for the input that lands on a column without a rail hole (8 inputs)', () => {
+  // 子專案 47：8 個輸入時拆成兩個 4 位元開關，每個各自挪到電源軌有孔的地方：8 顆都直立（以前有 1 顆碰到沒有孔的欄、只好平放）。
+  it('plugs all 8 pull resistors straight into the rail with two 4-bit switches', () => {
     const d = passThrough(8);
     const r = convert(d, { board: 'EIC1106' });
     const ps = pulls(r.circuit);
     expect(ps).toHaveLength(8);
     const upright = ps.filter(([, b]) => /^P3-/.test(b));
-    expect(upright).toHaveLength(7);
+    expect(upright).toHaveLength(8);
     sound(d, r.circuit);
   });
 });

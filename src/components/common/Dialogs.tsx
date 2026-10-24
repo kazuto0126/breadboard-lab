@@ -275,7 +275,8 @@ function ToBreadboardDialog() {
   const [switchTo, setSwitchTo] = useState<ConvertOptions['switchTo']>('vcc');
   const [board, setBoard] = useState<ConvertOptions['board']>('auto');
   const [gates, setGates] = useState<NonNullable<ConvertOptions['gates']>>('direct');
-  const [pulls, setPulls] = useState(false);
+  // 子專案 47：預設加上 / 下拉電阻（使用者 2026-10-25），可以取消。
+  const [pulls, setPulls] = useState(true);
   const [inputs, setInputs] = useState<NonNullable<ConvertOptions['inputs']>>('switch');
   const [display, setDisplay] = useState<NonNullable<ConvertOptions['display']>>('ca');
   const hasDisplay = diagram.nodes.some((n) => n.kind === 'DISPLAY');

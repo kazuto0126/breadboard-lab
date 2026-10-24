@@ -26,7 +26,7 @@ test('兩個 7 段顯示器：對話框預設共用一顆電阻，選每段一�
   await page.getByRole('button', { name: '轉成麵包板…' }).click();
   const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
   await expect(dialog.getByLabel(/共用一顆電阻/)).toBeChecked();
-  await expect(dialog.getByTestId('convert-preview')).toContainText('電阻 × 2');
+  await expect(dialog.getByTestId('convert-preview')).toContainText('電阻 × 10');
   await dialog.getByLabel(/每段一顆電阻/).check();
   await expect(dialog.getByTestId('convert-preview')).toContainText('每段一顆電阻時 7 段顯示器最多 1 個');
   await expect(dialog.getByRole('button', { name: '轉換' })).toBeDisabled();

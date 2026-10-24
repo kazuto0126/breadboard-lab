@@ -44,8 +44,8 @@ export function checkRoutingLegality(circuit: Circuit, wires: Wire[]): LegalityV
       const node = nodeAt(index, end);
       const id = nodeIdOf(end);
       const g = node?.groupId ?? null;
-      // 自己的終端排，或空的五孔排（轉接排；空的電源軌不算）。
-      const groupOk = g !== null && allowed !== undefined && (allowed.has(g) || (groupInfo(index, g)?.kind !== 'rail' && !pinGroups.has(g)));
+      // 自己的終端排，或空的五孔排（轉接排）；子專案 47：沒有元件腳的電源軌也可以（有電源符號的軌有腳，不行）。
+      const groupOk = g !== null && allowed !== undefined && (allowed.has(g) || !pinGroups.has(g));
       const ok =
         node !== undefined &&
         node.kind === 'hole' &&

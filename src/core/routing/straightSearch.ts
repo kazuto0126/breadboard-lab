@@ -61,16 +61,20 @@ function passCost(problem: RoutingProblem, state: StraightState, netId: string, 
   return cost;
 }
 
-/** 線端可以插在 group 嗎：自己的排（終端排、用過的轉接排），或空的五孔排（新的轉接排）。 */
+/**
+ * 線端可以插在 group 嗎：自己的排（終端排、用過的轉接排），或空的五孔排（新的轉接排）。
+ * 子專案 47：沒有接電源、沒有元件腳的電源軌也可以當轉接排（整條相通，等於一條長的訊號通道）；有電源的軌是電源 Net 的終端排，別的 Net 不能用。
+ */
 function groupUse(problem: RoutingProblem, state: StraightState, netId: string, group: string): 'own' | 'via' | null {
   if (state.owns(netId, group)) return 'own';
-  if (problem.railGroups.has(group) || problem.pinGroups.has(group)) return null;
+  if (problem.pinGroups.has(group)) return null;
   const owner = problem.groupOwner.get(group);
   return owner === undefined || owner === netId ? 'via' : null;
 }
 
-function viaCost(state: StraightState, netId: string, group: string, params: SearchParams): number {
-  return params.weights.via + conflictCost(params, state.viaOthers(netId, group), state.histVia.get(group) ?? 0);
+function viaCost(problem: RoutingProblem, state: StraightState, netId: string, group: string, params: SearchParams): number {
+  const rail = problem.railGroups.has(group) ? params.weights.rail : 0;
+  return params.weights.via + rail + conflictCost(params, state.viaOthers(netId, group), state.histVia.get(group) ?? 0);
 }
 
 const DX = [1, 0, -1, 0];
@@ -133,7 +137,7 @@ export function findRoute(
           const use = groupUse(problem, state, net.netId, gq);
           if (use) {
             let cost = acc + params.weights.distance * len + endCost(state, q, params);
-            if (use === 'via') cost += viaCost(state, net.netId, gq, params);
+            if (use === 'via') cost += viaCost(problem, state, net.netId, gq, params);
             relax(q * 2, cost, s);
           }
         }
@@ -162,6 +166,6 @@ export function wireCost(problem: RoutingProblem, state: StraightState, net: Rou
   let cost = endCost(state, line.a, params) + params.weights.wire + params.weights.distance * (line.cells.length + 1) + endCost(state, line.b, params);
   for (const c of line.cells) cost += passCost(problem, state, net.netId, c, line.o, params);
   const g = problem.groupAt[line.b];
-  if (g && groupUse(problem, state, net.netId, g) === 'via') cost += viaCost(state, net.netId, g, params);
+  if (g && groupUse(problem, state, net.netId, g) === 'via') cost += viaCost(problem, state, net.netId, g, params);
   return cost;
 }

@@ -141,6 +141,16 @@ server.registerTool(
 );
 
 server.registerTool(
+  'rename_circuit',
+  {
+    title: '改電路名稱',
+    description: '改電路檔裡的名稱（網頁左上角顯示的名稱，最多 60 個字；不改檔名）。',
+    inputSchema: { file, name: z.string().describe('新的電路名稱') },
+  },
+  async (args) => withFile(args.file, (lab) => tools.renameCircuit(lab, { name: args.name })),
+);
+
+server.registerTool(
   'share_link',
   {
     title: '分享連結',
@@ -293,7 +303,7 @@ server.registerTool(
         .enum(['each', 'shared'])
         .optional()
         .describe('7 段顯示器的電阻：each 每段一顆 220 Ω（亮度一致，最多 1 個顯示器）或 shared 共同腳共用一顆 100 Ω（線比較少，最多 2 個；亮的段越多越暗）。沒給時 1 個顯示器 each、2 個 shared'),
-      pulls: z.boolean().optional().describe('加上 / 下拉電阻（預設不加）'),
+      pulls: z.boolean().optional().describe('加上 / 下拉電阻（預設加上；電阻直立插在開關那一排、另一端插進電源軌）'),
     },
   },
   async ({ file: f, ...args }) =>

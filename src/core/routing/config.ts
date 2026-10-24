@@ -3,7 +3,7 @@ import type { DeepPartial, RoutingConfig } from '../../types/routing';
 /** 起始值；Task 14 會用固定測試電路校準。 */
 export const DEFAULT_ROUTING_CONFIG: RoutingConfig = {
   // 子專案 7 校準：經過別的 Net 終端空孔的成本 20 會讓線為了避開它繞好幾個轉接排，2 就夠保留空孔；協商輪數 60 → 150（計數器範例需要約 70 輪）。
-  weights: { distance: 1, wire: 6, via: 3, crossing: 1000, congestion: 2 },
+  weights: { distance: 1, wire: 6, via: 3, crossing: 1000, congestion: 2, rail: 200 },
   negotiation: {
     overlapBase: 50,
     presentFactor: 0.5,
