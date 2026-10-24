@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-10-25 — 子專案 47：轉換與佈線的改善（下拉電阻預設、IC 間距、4 位元開關、空的電源軌、電路名稱）
+## 2026-10-25 — 子專案 47：轉換與佈線的改善（下拉電阻預設、IC 間距、4 位元開關、空的電源軌、電路名稱）（PR #73，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-25-convert-improvements-design.md`；實作計畫：`docs/superpowers/plans/2026-10-25-convert-improvements.md`。
 使用者 2026-10-25 的要求；問過之後：下拉電阻「預設加上、可以取消」，電源軌是「沒用到的軌當訊號通道」，重新命名是「左上角的電路名稱」。
