@@ -43,4 +43,4 @@
 ### Task 3: 量測與文件
 
 - [x] `npm run bench:convert` 前後比較；網頁端對端在同一台電腦和 main 比較
-- [ ] CHANGELOG、PROGRESS、backlog、README
+- [x] CHANGELOG、PROGRESS、backlog、README；e2e：取消時所有 Worker 都停下來

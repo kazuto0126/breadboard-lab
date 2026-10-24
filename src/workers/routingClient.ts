@@ -109,7 +109,14 @@ export function startConversion(diagram: LogicDiagram, options: ConvertOptions):
         }
       }
     };
-    await Promise.all(Array.from({ length: Math.min(lanes, jobs.length) }, lane));
+    try {
+      await Promise.all(Array.from({ length: Math.min(lanes, jobs.length) }, lane));
+    } catch (err) {
+      // 其中一件失敗：其他還在跑的也停下來（不留在背景算）。
+      cancelled = true;
+      for (const job of running) job.cancel();
+      throw err;
+    }
     return results;
   };
   let rejectCancel: ((e: Error) => void) | null = null;
