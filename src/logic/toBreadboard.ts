@@ -13,7 +13,7 @@ import type { ComponentInstance } from '../types/component';
 import type { GridPoint } from '../types/geometry';
 import { SEGMENT_NAMES, sortedIo } from './evaluate';
 import { toNandUnits, toNorUnits } from './nandOnly';
-import { BLOCK_PINS } from './blocks';
+import { BLOCK_DEFAULTS, BLOCK_PINS } from './blocks';
 import { assignIcs, convertProblem, displayResistorsOf, decompose, drivers, gateSlots, type IcPlan, type Unit } from './synth';
 import { isSink, signalOf, type LogicDiagram, type LogicNode } from './types';
 
@@ -251,6 +251,13 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   const pullRail = pullDown ? (!eic ? 'B-' : inOneRow ? 'P4-' : 'P3-') : !eic ? 'T+' : inOneRow ? 'P3+' : 'P2+';
   const pullRow = pullDown ? 'J' : 'A';
 
+  // 子專案 46：時脈換成麵包板的時脈元件（理想方波；實際接線時接到實驗箱的脈波產生器或 555），放在開關前面。
+  const clockNode = d.nodes.find((n) => n.kind === 'CLOCK');
+  if (clockNode) {
+    blocks[1].push({ width: 2, place: (x) => components.push(comp('CLK1', 'clock', hole(`C${x}`, 1), { board: BOARD_ID })) });
+    tie('CLK1#1', clockNode.id);
+  }
+
   const useButtons = options.inputs === 'button';
   const buttonIds = inputs.map((_, k) => `BTN${k + 1}`);
   if (useButtons) {
@@ -328,7 +335,12 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
       if (p.role === 'power') tie(`${ic}#${p.number}`, VCC);
       if (p.role === 'ground') tie(`${ic}#${p.number}`, GND);
     }
-    BLOCK_PINS[chip].inputs.forEach((name, i) => tie(`${ic}#${numberOf(name)}`, driver.get(`${node.id}#${i}`)!));
+    // 子專案 46：時序 IC 沒接的輸入接到 +5 V / GND（BLOCK_DEFAULTS，例如 /CLR 接 +5 V 不用）。
+    const defaults = BLOCK_DEFAULTS[chip] ?? {};
+    BLOCK_PINS[chip].inputs.forEach((name, i) => {
+      const signal = driver.get(`${node.id}#${i}`) ?? (name in defaults ? (defaults[name] === 1 ? VCC : GND) : undefined);
+      if (signal) tie(`${ic}#${numberOf(name)}`, signal);
+    });
     BLOCK_PINS[chip].outputs.forEach((name, i) => tie(`${ic}#${numberOf(name)}`, signalOf(node.id, i)));
   });
 

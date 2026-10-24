@@ -1,10 +1,10 @@
 import { getComponentDefinition } from '../core/circuit/library';
 import { analyzeCircuit } from '../editor/analysis';
 import type { Circuit } from '../types/circuit';
-import { sortedIo, truthTable } from './evaluate';
+import { isSequential, sequenceTable, sortedIo, truthTable } from './evaluate';
 import { rowBits, type TruthTask } from './task';
 import type { LogicDiagram } from './types';
-import { verifyExpected, verifyRows, type Bindings, type VerifyResult } from './verifyBreadboard';
+import { verifyExpected, verifyRows, verifySequence, type Bindings, type VerifyResult } from './verifyBreadboard';
 
 /** 規格（2026-10-17 diagram-check）第 3 節：「檢查」分頁那張卡要顯示什麼。 */
 export type DiagramCheck =
@@ -126,6 +126,7 @@ function mappingText(io: NamedIo, b: Bindings): string {
 /** 規格第 3 節。 */
 export function checkAgainstDiagram(d: LogicDiagram, circuit: Circuit): DiagramCheck {
   if (circuit.components.length === 0) return { kind: 'none' };
+  if (isSequential(d)) return checkSequence(d, circuit);
   const table = truthTable(d);
   if (!table.ok || table.inputs.length === 0 || table.outputs.length === 0) return { kind: 'none' };
   const { bindings, issues, matched } = bindByLabels(d, circuit);
@@ -134,6 +135,25 @@ export function checkAgainstDiagram(d: LogicDiagram, circuit: Circuit): DiagramC
   if (table.rows.some((r) => r.out.includes('X'))) all.push('邏輯圖有些輸出不確定（還有沒接好的腳），先把邏輯圖接好');
   if (all.length > 0) return { kind: 'incomplete', issues: all };
   return { kind: 'done', bindings, result: verifyRows(d, circuit, bindings), inputs: table.inputs, outputs: table.outputs, mapping: mappingText(ioOfDiagram(d), bindings) };
+}
+
+/**
+ * 子專案 46（規格 2026-10-24 sequential-logic 第 5 節）：時序電路依名稱對應開關、LED、顯示器，時脈對應到麵包板上唯一的時脈元件，
+ * 每種輸入組合從重設開始送脈衝比對（verifySequence）。
+ */
+function checkSequence(d: LogicDiagram, circuit: Circuit): DiagramCheck {
+  const table = sequenceTable(d, 1);
+  if (!table.ok) return { kind: 'none' };
+  const { bindings, issues, matched } = bindByLabels(d, circuit);
+  if (matched === 0) return { kind: 'hint' };
+  const all = [...issues];
+  const clocks = circuit.components.filter((c) => getComponentDefinition(c.defId)?.category === 'clock');
+  if (clocks.length === 0) all.push('麵包板上沒有時脈元件（邏輯圖的時脈要接到時脈元件）');
+  else if (clocks.length > 1) all.push(`麵包板上有好幾個時脈元件（${clocks.map((c) => c.id).join('、')}），比對時只能有一個`);
+  if (all.length > 0) return { kind: 'incomplete', issues: all };
+  const withClock: Bindings = { ...bindings, clock: clocks[0].id };
+  const io = ioOfDiagram(d);
+  return { kind: 'done', bindings: withClock, result: verifySequence(d, circuit, withClock), inputs: io.inputs.map((n) => n.name), outputs: io.outputs.map((n) => n.name), mapping: mappingText(io, withClock) };
 }
 
 /**

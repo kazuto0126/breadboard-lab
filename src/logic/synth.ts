@@ -39,7 +39,8 @@ export function convertProblem(d: LogicDiagram, options: { displayResistors?: 'e
   const issues = checkDiagram(d);
   if (issues.some((i) => i.code === 'LOGIC_LOOP')) return '邏輯圖有迴圈，不能轉成麵包板';
   const { inputs, outputs } = sortedIo(d);
-  if (inputs.length === 0 || outputs.length === 0) return '邏輯圖要有輸入端和輸出端才能轉';
+  // 子專案 46：只有時脈、沒有輸入端的計數器也可以轉。
+  if ((inputs.length === 0 && !d.nodes.some((n) => n.kind === 'CLOCK')) || outputs.length === 0) return '邏輯圖要有輸入端和輸出端才能轉';
   const displayCount = d.nodes.filter((n) => n.kind === 'DISPLAY').length;
   if (displayCount > MAX_DISPLAYS) return `7 段顯示器最多 ${MAX_DISPLAYS} 個（零件太多，佈線接不完）`;
   if (displayCount > 1 && displayResistorsOf(d, options.displayResistors) === 'each') return '每段一顆電阻時 7 段顯示器最多 1 個；兩個請選「共用一顆電阻」';
