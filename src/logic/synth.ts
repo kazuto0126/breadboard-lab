@@ -26,16 +26,23 @@ export const IC_FOR: Record<UnitKind, string> = {
 };
 const ORDER = Object.keys(IC_FOR) as UnitKind[];
 
-/** 7 段顯示器最多幾個（規格 2026-10-13 seven-seg 第 6 節）。 */
+/** 7 段顯示器最多幾個（規格 2026-10-13 seven-seg 第 6 節）；子專案 44：每段一顆電阻時只有 1 個（2 個排不完）。 */
 export const MAX_DISPLAYS = 2;
 
+/** 子專案 44（規格 2026-10-24 display-resistors）：沒指定時 1 個顯示器每段一顆電阻、2 個以上共用一顆。 */
+export function displayResistorsOf(d: LogicDiagram, chosen?: 'each' | 'shared'): 'each' | 'shared' {
+  return chosen ?? (d.nodes.filter((n) => n.kind === 'DISPLAY').length >= 2 ? 'shared' : 'each');
+}
+
 /** 規格第 6 節：不能轉的原因；可以轉時回傳 null。 */
-export function convertProblem(d: LogicDiagram): string | null {
+export function convertProblem(d: LogicDiagram, options: { displayResistors?: 'each' | 'shared' } = {}): string | null {
   const issues = checkDiagram(d);
   if (issues.some((i) => i.code === 'LOGIC_LOOP')) return '邏輯圖有迴圈，不能轉成麵包板';
   const { inputs, outputs } = sortedIo(d);
   if (inputs.length === 0 || outputs.length === 0) return '邏輯圖要有輸入端和輸出端才能轉';
-  if (d.nodes.filter((n) => n.kind === 'DISPLAY').length > MAX_DISPLAYS) return `7 段顯示器最多 ${MAX_DISPLAYS} 個（零件太多，佈線接不完）`;
+  const displayCount = d.nodes.filter((n) => n.kind === 'DISPLAY').length;
+  if (displayCount > MAX_DISPLAYS) return `7 段顯示器最多 ${MAX_DISPLAYS} 個（零件太多，佈線接不完）`;
+  if (displayCount > 1 && displayResistorsOf(d, options.displayResistors) === 'each') return '每段一顆電阻時 7 段顯示器最多 1 個；兩個請選「共用一顆電阻」';
   if (inputs.length > MAX_TABLE_INPUTS) return `輸入端最多 ${MAX_TABLE_INPUTS} 個（指撥開關最多 8 位元）`;
   if (issues.some((i) => i.code === 'LOGIC_INPUT_OPEN' || i.code === 'LOGIC_OUTPUT_OPEN')) return '還有沒接好的腳（到「檢查」分頁看是哪些），請先接好';
   return null;

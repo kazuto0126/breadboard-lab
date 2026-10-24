@@ -1076,7 +1076,7 @@ export const useStore = create<Store>()((set, get) => {
     convertLogic(options) {
       if (guardEdit()) return;
       const diagram = useLogic.getState().diagram;
-      const problem = convertProblem(diagram);
+      const problem = convertProblem(diagram, options);
       if (problem) {
         get().toast('error', problem);
         return;

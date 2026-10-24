@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GEMINI_MODEL } from '../../ai/gemini';
 import { switchText, toBreadboard, type ConvertOptions } from '../../logic/toBreadboard';
+import { displayResistorsOf } from '../../logic/synth';
 import { useAi } from '../../state/ai';
 import { useLogic } from '../../state/logic';
 import { listProjects, storageAvailable, type ProjectSummary } from '../../state/persistence';
@@ -278,7 +279,9 @@ function ToBreadboardDialog() {
   const [inputs, setInputs] = useState<NonNullable<ConvertOptions['inputs']>>('switch');
   const [display, setDisplay] = useState<NonNullable<ConvertOptions['display']>>('ca');
   const hasDisplay = diagram.nodes.some((n) => n.kind === 'DISPLAY');
-  const preview = toBreadboard(diagram, { switchTo, board, gates, pulls, inputs, display });
+  // 子專案 44：7 段顯示器的電阻（1 個顯示器預設每段一顆、2 個預設共用一顆）。
+  const [displayResistors, setDisplayResistors] = useState<NonNullable<ConvertOptions['displayResistors']>>(() => displayResistorsOf(diagram));
+  const preview = toBreadboard(diagram, { switchTo, board, gates, pulls, inputs, display, displayResistors });
   const radio = (checked: boolean) => `flex cursor-pointer items-start gap-2 rounded border px-3 py-2 ${checked ? 'border-sky-500 bg-sky-950/40' : 'border-slate-700 hover:bg-slate-800'}`;
   return (
     <Modal title="轉成麵包板" onClose={() => store.closeDialog()} width="w-[520px]">
@@ -312,6 +315,25 @@ function ToBreadboardDialog() {
             ).map(([id, label, hint]) => (
               <label key={id} className={radio(display === id)}>
                 <input type="radio" name="display" className="mt-1" checked={display === id} onChange={() => setDisplay(id)} />
+                <span>
+                  <span className="block text-slate-100">{label}</span>
+                  <span className="block text-xs text-slate-400">{hint}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        )}
+        {hasDisplay && (
+          <fieldset className="space-y-1.5">
+            <legend className="mb-1 font-semibold text-slate-100">7 段顯示器的電阻</legend>
+            {(
+              [
+                ['each', '每段一顆電阻（220 Ω）', '每一段亮度一樣（課本的接法）；最多 1 個顯示器。'],
+                ['shared', '共用一顆電阻（100 Ω，接在共同腳）', '線比較少，最多 2 個顯示器；亮的段越多每段越暗（例如 1 比 8 亮）。'],
+              ] as const
+            ).map(([id, label, hint]) => (
+              <label key={id} className={radio(displayResistors === id)}>
+                <input type="radio" name="display-resistors" className="mt-1" checked={displayResistors === id} onChange={() => setDisplayResistors(id)} />
                 <span>
                   <span className="block text-slate-100">{label}</span>
                   <span className="block text-xs text-slate-400">{hint}</span>
@@ -404,7 +426,7 @@ function ToBreadboardDialog() {
         <button type="button" className={`${button} bg-slate-700 hover:bg-slate-600`} onClick={() => store.closeDialog()}>
           取消
         </button>
-        <button type="button" disabled={!preview.ok} className={`${button} bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50`} onClick={() => store.convertLogic({ switchTo, board, gates, pulls, inputs, display })}>
+        <button type="button" disabled={!preview.ok} className={`${button} bg-emerald-600 text-white hover:bg-emerald-500 disabled:opacity-50`} onClick={() => store.convertLogic({ switchTo, board, gates, pulls, inputs, display, displayResistors })}>
           轉換
         </button>
       </div>

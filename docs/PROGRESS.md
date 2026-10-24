@@ -13,7 +13,7 @@
 
 ## 進行中
 
-- 沒有進行中的子專案。
+- 子專案 44：7 段顯示器的電阻接法（每段一顆／共用一顆；分支 `feat/more-displays`，規格 `docs/superpowers/specs/2026-10-24-display-resistors-design.md`）：已實作，PR 等使用者看過後合併；合併後執行 `npm run publish:site` 發布。
 
 ## 接下來（依優先順序）
 

@@ -314,3 +314,17 @@ describe('share_link (sub-project 43)', () => {
     expect(parsed.logic?.nodes).toEqual(f.logic.nodes);
   });
 });
+
+describe('display resistors in logic_to_breadboard (sub-project 44)', () => {
+  it('explains that one resistor per segment allows only one display', async () => {
+    const { logicToBreadboard } = await import('../../src/mcp/tools');
+    const nodes = [
+      ...['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((name, k) => ({ id: `i${k + 1}`, kind: 'INPUT' as const, x: 0, y: k, name })),
+      { id: 'd1', kind: 'DISPLAY' as const, x: 10, y: 0 },
+      { id: 'd2', kind: 'DISPLAY' as const, x: 10, y: 8 },
+    ];
+    const wires = [0, 1].flatMap((k) => [0, 1, 2, 3].map((p) => ({ id: `w${k}${p}`, from: `i${k * 4 + p + 1}`, to: { node: `d${k + 1}`, pin: p } })));
+    const f: LabFile = { ...newLabFile('x', 'EIC1106'), logic: { version: 1, nodes, wires } };
+    expect(failed(logicToBreadboard(f, { display_resistors: 'each' }))).toBe('每段一顆電阻時 7 段顯示器最多 1 個；兩個請選「共用一顆電阻」');
+  });
+});

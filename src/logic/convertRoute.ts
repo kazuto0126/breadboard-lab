@@ -67,7 +67,7 @@ export interface RouteJob {
  * 拿到這一批的結果再往下走。parallel：同時能跑幾件（網頁用好幾個 Worker；MCP 一次一件），只影響時間怎麼分，每件分到的時間和一次一件時一樣。
  */
 export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: { totalMs?: number } = {}, parallel = 1): Generator<RouteJob[], ConvertRouted, RoutingResult[]> {
-  const problem = convertProblem(d);
+  const problem = convertProblem(d, options);
   if (problem) return { ok: false, reason: problem };
   const total = budget.totalMs ?? TOTAL_MS;
   const started = performance.now();
