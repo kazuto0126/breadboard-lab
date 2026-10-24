@@ -27,12 +27,18 @@ describe('checkRoutingLegality (straight wires)', () => {
     expect(codes([auto('a1', 'A10', 'E10')])).toContain('PATH_INVALID');
   });
 
-  it('flags endpoints on pins, in a foreign group, on a free rail, shared, or without a net', () => {
+  it('flags endpoints on pins, in a foreign group, shared, or without a net', () => {
     expect(codes([auto('a1', 'C10', 'C30')])).toContain('ENDPOINT_INVALID');
     expect(codes([auto('a1', 'B10', 'B50')])).toContain('ENDPOINT_INVALID');
-    expect(codes([auto('a1', 'A10', 'T+10'), auto('a2', 'T+30', 'A30')])).toContain('ENDPOINT_INVALID');
     expect(codes([auto('a1', 'B10', 'B30'), auto('a2', 'B10', 'B20')])).toContain('ENDPOINT_INVALID');
     expect(codes([{ ...auto('a1', 'B10', 'B30'), netId: undefined }])).toContain('ENDPOINT_INVALID');
+  });
+
+  // 子專案 47（規格 2026-10-25 convert-improvements 第 4 節）：沒有接電源、沒有元件腳的電源軌可以當訊號通道；有電源符號的軌不行。
+  it('accepts a signal through an empty rail, but not through a rail with a power symbol', () => {
+    expect(codes([auto('a1', 'A10', 'T+10'), auto('a2', 'T+30', 'A30')])).toEqual([]);
+    const powered = circuit([...base.components, comp('V1', 'vcc', 'T+3')], base.wires);
+    expect(checkRoutingLegality(powered, [auto('a1', 'A10', 'T+10'), auto('a2', 'T+30', 'A30')]).map((v) => v.code)).toContain('ENDPOINT_INVALID');
   });
 
   it('flags wires that pass over a pin or another wire end', () => {

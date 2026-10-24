@@ -14,6 +14,8 @@ export interface RoutingWeights {
   crossing: number;
   /** 經過別的 Net 的終端空孔（保留給它們接線）。 */
   congestion: number;
+  /** 子專案 47：用一條空的電源軌當轉接排（多一條線，只在別的路很擠或走不通時才用）。 */
+  rail: number;
 }
 
 export interface NegotiationConfig {

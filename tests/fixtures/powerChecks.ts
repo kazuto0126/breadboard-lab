@@ -14,9 +14,14 @@ export function powerProblems(c: Circuit): string[] {
   const polarity = (g: string) => (g.endsWith('+') ? '+' : '-') as '+' | '-';
   const problems: string[] = [];
   const used = new Set<string>();
+  // 子專案 47：沒有符號、沒有元件腳的軌是訊號通道（佈線借來接訊號），不算電源的接法。
+  const powered = new Set(
+    c.components.flatMap((x) => (index.placedById.get(x.id)?.footprint.pins ?? []).map((p) => groupOfPoint(index, p.point)).filter((g): g is string => g !== null && isRail(g))),
+  );
   for (const w of c.wires) {
     const a = groupOfPoint(index, w.start)!;
     const b = groupOfPoint(index, w.end)!;
+    if ((isRail(a) && !powered.has(a)) || (isRail(b) && !powered.has(b))) continue;
     if (isRail(a) && isRail(b)) problems.push(`${w.id}: ${a} → ${b} 兩端都在電源軌`);
     else if (isRail(a) || isRail(b)) {
       const [rail, group] = isRail(a) ? [a, b] : [b, a];
