@@ -90,6 +90,43 @@ const MODES: Array<[Mode, string, string]> = [
   ['compare', 'COMPARE', '比較模式：左右對照手動接線與 AI 標準佈線'],
 ];
 
+/** 子專案 47：左上角的電路名稱，點一下就能改（Enter 確定、Esc 取消）。 */
+function ProjectName({ name, changed }: { name: string | null; changed: boolean }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  if (draft !== null)
+    return (
+      <input
+        aria-label="電路名稱"
+        autoFocus
+        value={draft}
+        maxLength={60}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          useStore.getState().renameProject(draft);
+          setDraft(null);
+        }}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Escape') setDraft(null);
+        }}
+        className="w-[180px] rounded border border-sky-500 bg-slate-950 px-1 text-[11px] text-slate-100 focus:outline-none"
+      />
+    );
+  return (
+    <button
+      type="button"
+      data-testid="project-name"
+      className="block max-w-[180px] truncate text-left text-[11px] text-slate-400 hover:text-slate-200"
+      title="點一下改名稱"
+      onClick={() => setDraft(name ?? '')}
+    >
+      {name ?? '未命名電路'}
+      {changed && <span className="text-amber-400"> •</span>}
+    </button>
+  );
+}
+
 /** 頂部選單列：Logo、檔案 / 編輯 / 電路 / 自動佈線 / 檢視 / 說明、模式切換與主要按鈕。 */
 export function Toolbar() {
   const [open, setOpen] = useState<string | null>(null);
@@ -268,10 +305,7 @@ export function Toolbar() {
         <img src={logoUrl} alt="" className="h-6 w-6" />
         <div className="hidden leading-tight sm:block">
           <div className="text-sm font-bold text-slate-50">Breadboard Lab</div>
-          <div className="max-w-[180px] truncate text-[11px] text-slate-400" title={projectName ?? '未命名電路'}>
-            {projectName ?? '未命名電路'}
-            {(dirty || logicChanged) && <span className="text-amber-400"> •</span>}
-          </div>
+          <ProjectName name={projectName} changed={dirty || logicChanged} />
         </div>
       </div>
       <nav className="flex items-center">

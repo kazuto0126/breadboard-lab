@@ -244,6 +244,8 @@ export interface AppActions {
   /** names：每個開關對應的輸入名稱（復原步驟的名稱用；沒給時用邏輯圖節點的名稱）。 */
   applyDiagramRow(inputs: SwitchBinding[], bits: Array<0 | 1>, names?: string[]): void;
   saveProject(name?: string): void;
+  /** 子專案 47：改左上角的電路名稱（不動瀏覽器裡已經存過的檔案；下次儲存用新的名稱）。 */
+  renameProject(name: string): void;
   openProject(name: string): void;
   deleteProject(name: string): void;
   importJson(text: string): void;
@@ -1131,6 +1133,21 @@ export const useStore = create<Store>()((set, get) => {
       get().loadCircuit(emptyCircuit(), ex.name, `已載入範例「${ex.name}」：${ex.description}`, undefined, ex.build());
       set({ workspace: 'logic' });
       writeWorkspace('logic');
+    },
+
+    renameProject(name) {
+      const next = name.trim();
+      if (!next) {
+        get().toast('error', '名稱不能是空的');
+        return;
+      }
+      if (next.length > 60) {
+        get().toast('error', '名稱最多 60 個字');
+        return;
+      }
+      if (next === get().projectName) return;
+      set({ projectName: next });
+      get().toast('success', `電路名稱改成「${next}」`);
     },
 
     saveProject(name) {

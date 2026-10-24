@@ -97,6 +97,14 @@ function pinsText(circuit: Circuit, instance: ComponentInstance): string {
 
 // ---------- 讀取與檢查 ----------
 
+/** 子專案 47（規格 2026-10-25 convert-improvements 第 5 節）：改電路檔裡的名稱（網頁左上角顯示的名稱；不改檔名）。 */
+export function renameCircuit(f: LabFile, args: { name: string }): ToolResult {
+  const name = args.name.trim();
+  if (!name) return fail('名稱不能是空的');
+  if (name.length > 60) return fail('名稱最多 60 個字');
+  return { text: `電路名稱改成「${name}」（原本是「${f.name}」）。`, file: { ...f, name } };
+}
+
 /** 子專案 43（規格 2026-10-24 share-link）：電路檔做成連結，使用者點開就在網頁上看到（不用匯入）。 */
 export async function shareLink(f: LabFile): Promise<ToolResult> {
   const link = await makeShareLink(SITE_URL, serializeCircuitFile(f.circuit, f.name, undefined, f.logic));

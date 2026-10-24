@@ -141,6 +141,16 @@ server.registerTool(
 );
 
 server.registerTool(
+  'rename_circuit',
+  {
+    title: '改電路名稱',
+    description: '改電路檔裡的名稱（網頁左上角顯示的名稱，最多 60 個字；不改檔名）。',
+    inputSchema: { file, name: z.string().describe('新的電路名稱') },
+  },
+  async (args) => withFile(args.file, (lab) => tools.renameCircuit(lab, { name: args.name })),
+);
+
+server.registerTool(
   'share_link',
   {
     title: '分享連結',

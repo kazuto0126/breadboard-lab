@@ -359,3 +359,13 @@ describe('sequential circuits in the MCP tools (sub-project 46)', () => {
     expect(logicTruthTable(noClock).text).toContain('沒有時脈');
   });
 });
+
+describe('rename_circuit (sub-project 47)', () => {
+  it('changes the circuit name, and refuses empty or too long names', async () => {
+    const { renameCircuit } = await import('../../src/mcp/tools');
+    const f = newLabFile('舊名稱', 'MB102');
+    expect(okFile(renameCircuit(f, { name: ' 新名稱 ' })).name).toBe('新名稱');
+    expect(failed(renameCircuit(f, { name: '  ' }))).toBe('名稱不能是空的');
+    expect(failed(renameCircuit(f, { name: 'x'.repeat(61) }))).toBe('名稱最多 60 個字');
+  });
+});

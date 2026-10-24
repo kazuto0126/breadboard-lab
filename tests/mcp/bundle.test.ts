@@ -56,8 +56,8 @@ describe('the bundled MCP server', () => {
     expect(r.stderr).toContain('找不到工作資料夾');
   });
 
-  it('works in the working folder: 20 tools, the task flow, and nothing outside', async () => {
-    expect((await client.listTools()).tools).toHaveLength(20);
+  it('works in the working folder: 21 tools, the task flow, and nothing outside', async () => {
+    expect((await client.listTools()).tools).toHaveLength(21);
     expect(await call('new_circuit', { file: 'maj.json' })).toMatchObject({ isError: false });
     expect(existsSync(join(work, 'maj.json'))).toBe(true);
     expect(await call('task_set', { file: 'maj.json', inputs: ['A', 'B', 'C'], outputs: [{ name: 'X', ones: [3, 5, 6, 7] }] })).toMatchObject({ isError: false });
