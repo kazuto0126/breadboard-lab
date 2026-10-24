@@ -27,7 +27,7 @@ export function outputCountOf(node: LogicNode): number {
 /** 規格 2.1 的表。 */
 export function nodeSize(node: LogicNode): { w: number; h: number } {
   if (node.kind === 'BLOCK') return { w: BLOCK_WIDTH, h: Math.max(inputCountOf(node), outputCountOf(node)) + 1 };
-  if (node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'HIGH' || node.kind === 'LOW') return { w: 2, h: 1 };
+  if (node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'HIGH' || node.kind === 'LOW' || node.kind === 'CLOCK') return { w: 2, h: 1 };
   if (node.kind === 'DISPLAY') return { w: 4, h: node.segments ? 8 : 5 };
   if (node.kind === 'NOT') return { w: 3, h: 1 };
   return { w: 4, h: inputCountOf(node) === 4 ? 5 : 3 };

@@ -145,3 +145,30 @@ describe('the sequence table', () => {
     expect(sequenceTable(diagram([block('u', '74LS74'), output('Q')], []), 4)).toMatchObject({ ok: false, reason: 'no-clock' });
   });
 });
+
+describe('clock nodes in files and edits', () => {
+  it('reads a clock from a file, keeps it at 0, and allows only one', async () => {
+    const { parseLogicDiagram } = await import('../../src/logic/file');
+    const r = parseLogicDiagram({ version: 1, nodes: [{ id: 'c1', kind: 'CLOCK', x: 0, y: 0, name: 'CLK', value: 1 }], wires: [] });
+    if (!r.ok) throw new Error('parse failed');
+    expect(r.diagram.nodes[0]).toEqual({ id: 'c1', kind: 'CLOCK', x: 0, y: 0, name: 'CLK', value: 0 });
+    const two = parseLogicDiagram({ version: 1, nodes: [{ id: 'c1', kind: 'CLOCK', x: 0, y: 0, name: 'CLK' }, { id: 'c2', kind: 'CLOCK', x: 0, y: 4, name: 'CLK2' }], wires: [] });
+    expect(two).toMatchObject({ ok: false, error: '一張圖只能有一個時脈' });
+    const { addNode } = await import('../../src/logic/edit');
+    const one = addNode({ version: 1, nodes: [], wires: [] }, 'CLOCK', 0, 0);
+    if (!one.ok) throw new Error(one.reason);
+    expect(one.diagram.nodes[0]).toMatchObject({ kind: 'CLOCK', name: 'CLK', value: 0 });
+    expect(addNode(one.diagram, 'CLOCK', 0, 4)).toMatchObject({ ok: false, reason: '一張圖只能有一個時脈' });
+  });
+
+  it('does not compare a sequential circuit with a truth-table task, and formulas say why', async () => {
+    const { compareDiagramToTask, createTask, taskFromDiagram } = await import('../../src/logic/task');
+    const { diagramFormulas } = await import('../../src/logic/formula');
+    const d = diagram([clock(), block('u', '74LS74'), output('Q')], [w('clk', 'u', await pinOf('74LS74', '1CLK')), w('u', 'Q', 0, await outOf('74LS74', '1Q'))]);
+    const made = createTask(['A'], ['Q']);
+    if (!made.ok) throw new Error(made.reason);
+    expect(compareDiagramToTask(d, made.task)).toMatchObject({ kind: 'issues', issues: [expect.stringContaining('時序電路')] });
+    expect(taskFromDiagram(d)).toMatchObject({ ok: false, reason: expect.stringContaining('時序電路') });
+    expect(diagramFormulas(d).outputs[0]).toMatchObject({ read: null, simplified: null, simplifiedProblem: '時序電路不化簡（看時序表）' });
+  });
+});

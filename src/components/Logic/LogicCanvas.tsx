@@ -68,6 +68,32 @@ function InputTerminal({ node, selected }: { node: LogicNode; selected: boolean 
   );
 }
 
+/** 子專案 46：時脈：名稱與「脈衝」按鈕（點一下送出 0 → 1 → 0）。 */
+function ClockTerminal({ node, selected }: { node: LogicNode; selected: boolean }) {
+  return (
+    <g>
+      <rect x={-0.9 * C} y={-0.45 * C} width={2.3 * C} height={0.9 * C} rx={4} fill="#ffffff" stroke={selected ? '#0284c7' : '#7c3aed'} strokeWidth={selected ? 2.4 : 1.6} />
+      <text x={-0.4 * C} y={0} transform={upright(node, -0.4 * C, 0)} fontSize={0.42 * C} fontWeight={700} fill="#4c1d95" textAnchor="middle" dominantBaseline="central">
+        {node.name}
+      </text>
+      <g
+        data-logic-pulse={node.id}
+        style={{ cursor: 'pointer' }}
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          e.stopPropagation();
+          useLogic.getState().pulse();
+        }}
+      >
+        <title>送一個脈衝（0 → 1 → 0）</title>
+        <rect x={0.1 * C} y={-0.32 * C} width={1.1 * C} height={0.64 * C} rx={0.15 * C} fill="#ede9fe" stroke="#7c3aed" strokeWidth={1.5} />
+        <path d={`M${0.22 * C} ${0.14 * C}h${0.2 * C}v${-0.28 * C}h${0.3 * C}v${0.28 * C}h${0.2 * C}`} fill="none" stroke="#6d28d9" strokeWidth={1.6} />
+      </g>
+      <line x1={1.4 * C} y1={0} x2={2 * C} y2={0} stroke="#7c3aed" strokeWidth={2} />
+    </g>
+  );
+}
+
 /** 輸出端：燈號（1 / 0 / ?）與名稱。 */
 function OutputTerminal({ node, value, selected }: { node: LogicNode; value: Bit | undefined; selected: boolean }) {
   const text = value === 1 ? '1' : value === 0 ? '0' : '?';
@@ -101,7 +127,9 @@ export function LogicCanvas() {
   const fitted = useRef(false);
   const touches = useRef(new Map<number, GridXY>());
 
-  const values = useMemo(() => evaluate(diagram), [diagram]);
+  // 子專案 46：時序方塊用目前的狀態算（狀態在 store 裡，輸入改變時更新）。
+  const seq = useLogic((s) => s.seq);
+  const values = useMemo(() => evaluate(diagram, {}, seq), [diagram, seq]);
   const valueOf = (id: string): Bit | undefined => (values.loop ? undefined : values.nodes.get(id));
   const driver = useMemo(() => new Map(diagram.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)])), [diagram]);
   const placingChip = useLogic((s) => s.placingChip);
@@ -341,9 +369,9 @@ export function LogicCanvas() {
                 })()
               ) : (
                 <rect
-                  x={0.3 * C - (node.kind === 'INPUT' ? 1.2 * C : 0)}
+                  x={0.3 * C - (node.kind === 'INPUT' || node.kind === 'CLOCK' ? 1.2 * C : 0)}
                   y={-0.5 * C}
-                  width={(w - 0.6) * C + (node.kind === 'INPUT' ? 1.2 * C : 0) + (isSink(node.kind) ? 0.7 * C : 0)}
+                  width={(w - 0.6) * C + (node.kind === 'INPUT' || node.kind === 'CLOCK' ? 1.2 * C : 0) + (isSink(node.kind) ? 0.7 * C : 0)}
                   height={h * C}
                   transform={turnTransform(node)}
                   fill="transparent"
@@ -352,7 +380,7 @@ export function LogicCanvas() {
                 />
               )}
               <g pointerEvents="none">
-                {node.kind === 'INPUT' ? null : node.kind === 'BLOCK' ? (
+                {node.kind === 'INPUT' || node.kind === 'CLOCK' ? null : node.kind === 'BLOCK' ? (
                   <BlockBody node={node} inputs={ins} outputs={outputPins(node).map((_, k) => valueOf(signalOf(node.id, k)))} selected={sel} />
                 ) : node.kind === 'HIGH' || node.kind === 'LOW' ? (
                   <g transform={turnTransform(node)}>
@@ -373,6 +401,11 @@ export function LogicCanvas() {
               {node.kind === 'INPUT' && (
                 <g transform={turnTransform(node)} onPointerDown={(e) => onNodeDown(e, node)}>
                   <InputTerminal node={node} selected={sel} />
+                </g>
+              )}
+              {node.kind === 'CLOCK' && (
+                <g transform={turnTransform(node)} onPointerDown={(e) => onNodeDown(e, node)}>
+                  <ClockTerminal node={node} selected={sel} />
                 </g>
               )}
               {/* 腳（拖曳連線的起點與終點） */}
@@ -442,7 +475,7 @@ export function LogicCanvas() {
               <DisplayBody node={ghost} />
             ) : (
               <g transform={turnTransform(ghost)}>
-                {ghost.kind === 'INPUT' ? <InputTerminal node={ghost} selected={false} /> : ghost.kind === 'HIGH' || ghost.kind === 'LOW' ? <ConstantBody node={ghost} /> : ghost.kind === 'OUTPUT' ? <OutputTerminal node={ghost} value={undefined} selected={false} /> : <GateBody node={ghost} />}
+                {ghost.kind === 'INPUT' ? <InputTerminal node={ghost} selected={false} /> : ghost.kind === 'CLOCK' ? <ClockTerminal node={ghost} selected={false} /> : ghost.kind === 'HIGH' || ghost.kind === 'LOW' ? <ConstantBody node={ghost} /> : ghost.kind === 'OUTPUT' ? <OutputTerminal node={ghost} value={undefined} selected={false} /> : <GateBody node={ghost} />}
               </g>
             )}
             {!ghostOk &&

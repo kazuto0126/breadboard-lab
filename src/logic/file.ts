@@ -4,7 +4,7 @@ import { parseLogicNotes } from './notes';
 import { parseTask } from './task';
 import { canRotate, isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
-const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT', 'DISPLAY', 'HIGH', 'LOW', 'BLOCK'];
+const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT', 'DISPLAY', 'HIGH', 'LOW', 'BLOCK', 'CLOCK'];
 const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -33,6 +33,8 @@ function parseNode(raw: unknown, i: number): LogicNode {
     if (typeof n.name !== 'string' || !NAME_RULE.test(n.name)) fail(`元件 ${node.id} 的名稱 ${String(n.name)} 不合法`);
     node.name = n.name as string;
     if (node.kind === 'INPUT') node.value = n.value === 1 ? 1 : 0;
+    // 子專案 46：時脈存檔時一定是 0（脈衝送完就回到 0）。
+    if (node.kind === 'CLOCK') node.value = 0;
   }
   // 子專案 26：轉向（0 不寫）；子專案 28：鏡射（不鏡射不寫）。
   if (n.rotation !== undefined && n.rotation !== 0) {
@@ -91,6 +93,7 @@ export function parseLogicDiagram(raw: unknown): { ok: true; diagram: LogicDiagr
       }
     }
     nodes.forEach((a, i) => nodes.slice(i + 1).forEach((b) => overlaps(a, b) && fail(`元件 ${a.id} 和 ${b.id} 重疊`)));
+    if (nodes.filter((n) => n.kind === 'CLOCK').length > 1) fail('一張圖只能有一個時脈');
     const wires = (r.wires as unknown[]).map((w, i) => parseWire(w, i, byId));
     const ids = new Set<string>();
     const pins = new Set<string>();
