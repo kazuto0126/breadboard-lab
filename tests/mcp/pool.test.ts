@@ -15,6 +15,12 @@ describe('the routing pool', () => {
     expect(poolSize(2)).toBe(1);
     expect(poolSize(3)).toBe(2);
     expect(poolSize(16)).toBe(4);
+    // 環境變數指定（測試時減少負擔）；不是 1 以上的整數就照核心數。
+    expect(poolSize(16, '1')).toBe(1);
+    expect(poolSize(16, '2')).toBe(2);
+    expect(poolSize(16, '9')).toBe(4);
+    expect(poolSize(16, 'x')).toBe(4);
+    expect(poolSize(16, '0')).toBe(4);
   });
 
   it('routes a batch on several threads with the same results as the main thread', async () => {

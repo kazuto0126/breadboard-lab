@@ -26,7 +26,8 @@ beforeAll(async () => {
   execFileSync(process.execPath, [join(root, 'node_modules', 'vite', 'bin', 'vite.js'), 'build', '--config', 'vite.mcp.config.ts', '--logLevel', 'error'], { cwd: root, stdio: 'pipe' });
   copyFileSync(join(root, 'dist-mcp', 'breadboard-lab-mcp.mjs'), bundle);
   mkdirSync(work);
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [bundle, '--folder', work], cwd: tmpdir() }));
+  // 子專案 42：用 2 個佈線執行緒（測打包版的執行緒，又不要多佔其他限時測試的核心）。
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [bundle, '--folder', work], cwd: tmpdir(), env: { ...process.env, BREADBOARD_LAB_MCP_THREADS: '2' } as Record<string, string> }));
 }, 120_000);
 
 afterAll(async () => {

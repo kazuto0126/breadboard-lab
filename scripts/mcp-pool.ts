@@ -28,8 +28,13 @@ if (!isMainThread && (workerData as { role?: string } | null)?.role === ROLE && 
   });
 }
 
-/** 同時用幾個執行緒（保留一個核心給伺服器，最多 4 個）；1 代表不用執行緒，一次一件。 */
-export function poolSize(cores = availableParallelism()): number {
+/**
+ * 同時用幾個執行緒（保留一個核心給伺服器，最多 4 個）；1 代表不用執行緒，一次一件。
+ * 環境變數 BREADBOARD_LAB_MCP_THREADS 可以指定（測試時減少負擔；1 是不用執行緒）。
+ */
+export function poolSize(cores = availableParallelism(), env = process.env.BREADBOARD_LAB_MCP_THREADS): number {
+  const wanted = Number(env);
+  if (Number.isInteger(wanted) && wanted >= 1) return Math.min(4, wanted);
   return Math.max(1, Math.min(4, cores - 1));
 }
 

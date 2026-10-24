@@ -14,6 +14,7 @@ MCP 的 `logic_to_breadboard` 和網頁一樣，同時試好幾種擺法；結�
 
 - **佈線執行緒**（`scripts/mcp-pool.ts`）：用 Node 的 worker_threads，執行緒數是核心數 − 1、最多 4 個；只有 1 個時不用執行緒（照舊一次一件）。
   執行緒第一次轉換時才建立，之後留著給下一次（閒著時不會讓伺服器關不掉）；執行緒意外結束時下一次重新建立。
+  環境變數 `BREADBOARD_LAB_MCP_THREADS` 可以指定執行緒數（我加的，給測試減少負擔用）。
 - **執行緒載入的程式**：就是 `mcp-pool.ts` 所在的模組。原始碼版是 `scripts/mcp-pool.ts`（繼承 `--import tsx`）；
   打包版只有一個檔案，執行緒載入整個 `breadboard-lab-mcp.mjs`，所以伺服器只在主執行緒連上 AI 工具（stdio），
   執行緒的輸出也不轉到伺服器的 stdout（那是和 AI 工具溝通用的）。

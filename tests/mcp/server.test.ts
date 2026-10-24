@@ -19,7 +19,8 @@ async function call(name: string, args: Record<string, unknown>): Promise<{ text
 beforeAll(async () => {
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: ['--import', 'tsx', 'scripts/mcp-server.ts'], cwd: root }));
+  // 子專案 42：一次一件（和其他限時的轉換測試同時跑時不要多佔核心；執行緒由 pool.test 與 bundle.test 測）。
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: ['--import', 'tsx', 'scripts/mcp-server.ts'], cwd: root, env: { ...process.env, BREADBOARD_LAB_MCP_THREADS: '1' } as Record<string, string> }));
 }, 60_000);
 
 afterAll(async () => {
