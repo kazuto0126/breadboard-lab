@@ -89,7 +89,7 @@ const server = new McpServer(
     instructions: [
       'Breadboard Lab：在 MB-102 / EIC-1106 麵包板上放 74LS IC、電阻、LED、指撥開關並接線，可以檢查、AI 佈線、模擬，也可以把邏輯圖轉成麵包板。',
       `工作資料夾：${ROOT}；file 參數寫相對於它的路徑（例如 circuits/xor.json），list_files 列出裡面的電路檔。`,
-      '電路檔就是網頁「匯出 JSON」的格式；做完在網頁用「檔案 → 匯入 JSON」打開。',
+      '電路檔就是網頁「匯出 JSON」的格式；做完用 share_link 給使用者一個連結（點開就在網頁上看到），或請使用者在網頁用「檔案 → 匯入 JSON」打開。',
       '接線規則（一定要遵守）：每條導線只能水平或垂直的直線，不能斜；要轉彎就分成兩條線（轉角接在同一排相通的五孔排）；兩條線不能重疊，也不能交叉；線不能跨過 IC（上下、左右都不行）或經過元件腳、別條線的端點。add_wire 會拒絕不合規則的線；auto_route 與 logic_to_breadboard 接出來的線都符合這些規則。',
       '建議流程：new_circuit → list_parts（查元件名稱與腳位）→ place_part（IC 第 1 腳放在 F 列，跨過凹槽）→ add_wire → check_circuit → auto_route → simulate。',
       '從邏輯圖開始：logic_set → logic_truth_table → logic_to_breadboard（轉換、佈線、比對一次完成）。手接的麵包板用 set_part 標上和邏輯圖一樣的名稱，再用 check_against_diagram 比對。',
@@ -137,6 +137,16 @@ server.registerTool(
   'circuit_summary',
   { title: '電路摘要', description: '列出元件與每一隻腳所在的孔、導線、連在一起的腳（Net）、沒接的腳。', inputSchema: { file } },
   async (args) => withFile(args.file, (lab) => tools.circuitSummary(lab)),
+);
+
+server.registerTool(
+  'share_link',
+  {
+    title: '分享連結',
+    description: '把電路檔（麵包板、邏輯圖、題目）做成網址，使用者點開就在網頁上看到這個電路，不用匯入檔案。做完電路後給使用者這個連結。',
+    inputSchema: { file },
+  },
+  async (args) => withFileAsync(args.file, (lab) => tools.shareLink(lab)),
 );
 
 server.registerTool(

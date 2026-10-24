@@ -7,6 +7,8 @@ import { validateCircuit } from '../core/circuit/validate';
 import { analyzeCircuit, holeLabel, parseHoleLabel } from '../editor/analysis';
 import { addWire as addWireCommand, labelSlots, makeInstance, removeItems, setLabel, updateComponentProps } from '../editor/commands';
 import { circuitBrief } from '../editor/explain/brief';
+import { serializeCircuitFile } from '../editor/fileFormat';
+import { linkLengthNote, makeShareLink, SITE_URL } from '../editor/shareLink';
 import { plainText } from '../editor/explain/helpers';
 import { explainIssue } from '../editor/explain/index';
 import { nextComponentId } from '../editor/ids';
@@ -94,6 +96,12 @@ function pinsText(circuit: Circuit, instance: ComponentInstance): string {
 }
 
 // ---------- 讀取與檢查 ----------
+
+/** 子專案 43（規格 2026-10-24 share-link）：電路檔做成連結，使用者點開就在網頁上看到（不用匯入）。 */
+export async function shareLink(f: LabFile): Promise<ToolResult> {
+  const link = await makeShareLink(SITE_URL, serializeCircuitFile(f.circuit, f.name, undefined, f.logic));
+  return { text: [`把這個連結給使用者，點開就在網頁上看到這個電路（麵包板、邏輯圖、題目）：`, link, linkLengthNote(link)].join('\n') };
+}
 
 export function circuitSummary(f: LabFile): ToolResult {
   return { text: circuitBrief(f.circuit) };

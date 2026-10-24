@@ -13,7 +13,7 @@
 
 ## 進行中
 
-- 沒有進行中的子專案。
+- 子專案 43：用連結開啟電路（網頁「複製連結」、MCP `share_link`；分支 `feat/share-link`，規格 `docs/superpowers/specs/2026-10-24-share-link-design.md`）：已實作，PR 等使用者看過後合併；合併後執行 `npm run publish:site` 發布。
 
 ## 接下來（依優先順序）
 

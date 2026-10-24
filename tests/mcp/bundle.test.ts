@@ -56,8 +56,8 @@ describe('the bundled MCP server', () => {
     expect(r.stderr).toContain('找不到工作資料夾');
   });
 
-  it('works in the working folder: 19 tools, the task flow, and nothing outside', async () => {
-    expect((await client.listTools()).tools).toHaveLength(19);
+  it('works in the working folder: 20 tools, the task flow, and nothing outside', async () => {
+    expect((await client.listTools()).tools).toHaveLength(20);
     expect(await call('new_circuit', { file: 'maj.json' })).toMatchObject({ isError: false });
     expect(existsSync(join(work, 'maj.json'))).toBe(true);
     expect(await call('task_set', { file: 'maj.json', inputs: ['A', 'B', 'C'], outputs: [{ name: 'X', ones: [3, 5, 6, 7] }] })).toMatchObject({ isError: false });
@@ -69,6 +69,8 @@ describe('the bundled MCP server', () => {
     expect(converted).toMatchObject({ isError: false });
     expect(converted.text).toContain('已存到 maj.json');
     expect((await call('task_check', { file: 'maj.json' })).text).toContain('麵包板：8 種輸入組合');
+    // 子專案 43：給使用者一個連結。
+    expect((await call('share_link', { file: 'maj.json' })).text).toMatch(/https:\/\/kazuto0126\.github\.io\/breadboard-lab-site\/#c=[A-Za-z0-9_-]+/);
     expect(await call('circuit_summary', { file: '../x.json' })).toMatchObject({ isError: true, text: expect.stringContaining('只能讀寫工作資料夾裡的檔案') });
   }, 60_000);
 });

@@ -60,7 +60,7 @@ npm run dev        # 開啟 http://localhost:5173
 | 邏輯模擬 | 20 顆 74LS IC 依 datasheet 模擬；LED 發光、腳位與導線依電位上色（1 / 0 / 浮接 / 衝突）；在板上撥開關、按按鈕；時脈可暫停、單步、重置；偵測未供電、震盪、輸出衝突 |
 | 檢視 | 滾輪縮放、中鍵 / Space + 拖曳 / 拖曳空白處平移、Fit to Screen、Reset View |
 | Undo / Redo | 所有編輯動作與 Auto Route 都可以 `Ctrl+Z` / `Ctrl+Shift+Z` |
-| 檔案 | 儲存 / 另存新檔 / 開啟（存在瀏覽器）、匯入 / 匯出 JSON、匯出 PNG / SVG、自動儲存 |
+| 檔案 | 儲存 / 另存新檔 / 開啟（存在瀏覽器）、匯入 / 匯出 JSON、匯出 PNG / SVG、自動儲存；「複製連結」把電路放在網址裡，別人點開就看到 |
 
 AI 標準佈線**不會移動元件**，只保留你的接線所定義的電氣連接（哪些導通群組要連在一起），重新決定每一條導線。
 排不出來時會回報 "No valid routing solution." 與每個失敗 Net 的原因，電路不會被修改。
@@ -108,6 +108,7 @@ MCP 伺服器 `breadboard-lab` 讓 AI 工具直接檢查、編輯、佈線、模
 | `list_files` | 工作資料夾裡的電路檔 |
 | `task_set` / `task_show` | 寫入真值表題目（輸出可以是 7 段顯示器）／題目與化簡後的布林式 |
 | `task_to_diagram` / `task_check` | 從題目產生邏輯圖（四種形式）／和邏輯圖、麵包板比對 |
+| `share_link` | 把電路做成連結，點開就在網頁上看到（不用匯入檔案） |
 
 例如：「用 74LS00 做一個 XOR，開關標 A、B，LED 標 X，接好後檢查並和邏輯圖比對」。
 工具只能讀寫工作資料夾裡的 `.json` 檔，不連網路。設計見 `docs/superpowers/specs/2026-10-17-mcp-server-design.md`、`2026-10-19-mcp-other-tools-design.md`。
@@ -194,11 +195,8 @@ docs/            設計規格與實作計畫
 | 40 | 在自己畫的邏輯圖上顯示布林式（照圖寫出來與化簡後；真值表分頁、屬性分頁、圖上、MCP） | ✅ 完成 |
 | 41 | 轉成麵包板變快（排不完的位置早點放棄、不重做快速試、網頁同時用好幾個 Worker；結果不變） | ✅ 完成 |
 | 42 | MCP 的轉成麵包板也同時跑好幾種擺法（Node worker_threads；編碼器 27 → 13 秒） | ✅ 完成 |
+| 43 | 用連結開啟電路（網頁「複製連結」、MCP `share_link`；電路壓縮後放在網址 # 後面） | ✅ 完成 |
 
 ### 未開發的構想
 
-| 構想 | 說明 | 狀態 |
-|---|---|---|
-| 用連結開啟電路 | 電路壓縮後放在網址裡，點開就看到（AI 做完給一個網址，不用手動匯入）（[評估](docs/ideas/2026-10-16-mcp-interface.md)） | ⬜ 未開發 |
-
-其他還沒做的項目（時序元件、自訂方塊與匯流排、用連結開啟電路、小問題…）整理在 [docs/ideas/backlog.md](docs/ideas/backlog.md)。
+還沒做的項目（時序元件、自訂方塊與匯流排、小問題…）整理在 [docs/ideas/backlog.md](docs/ideas/backlog.md)。

@@ -5,7 +5,7 @@ import { EXAMPLES } from '../../editor/examples';
 import { redoLabel, undoLabel } from '../../editor/history';
 import { zoomAt } from '../../editor/viewport';
 import { LOGIC_EXAMPLES } from '../../logic/examples';
-import { exportJson, exportPng, exportSvg, importJsonFile } from '../../state/fileActions';
+import { copyShareLink, exportJson, exportPng, exportSvg, importJsonFile } from '../../state/fileActions';
 import { logicDirty, useLogic } from '../../state/logic';
 import { openConvert } from '../Logic/LogicPanel';
 import { deriveMode, isComparisonFresh, isDirty, useStore, type Mode } from '../../state/store';
@@ -152,6 +152,7 @@ export function Toolbar() {
         { label: '匯出 JSON Export', onClick: run(exportJson) },
         { label: '匯出 PNG', onClick: run(() => void exportPng()) },
         { label: '匯出 SVG', onClick: run(exportSvg) },
+        { label: '複製連結（別人點開就看到這個電路）', onClick: run(() => void copyShareLink()) },
         'separator',
         { heading: '範例電路' },
         ...EXAMPLES.map((ex) => ({ label: ex.name, onClick: run(() => store.loadCircuit(ex.build(), ex.name, `已載入範例「${ex.name}」：${ex.description}`)) })),
