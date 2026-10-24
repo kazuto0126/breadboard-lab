@@ -63,6 +63,11 @@ describe('the bundled MCP server', () => {
     expect((await call('task_to_diagram', { file: 'maj.json' })).text).toContain('邏輯圖和題目全部一致');
     expect((await call('task_check', { file: 'maj.json' })).text).toContain('邏輯圖：8 種輸入組合，邏輯圖和題目全部一致');
     expect((await call('list_files', {})).text).toContain('- maj.json：MB-102，元件 0 個，有邏輯圖，有題目（A B C → X）');
+    // 子專案 42：轉成麵包板用好幾個佈線執行緒（打包版的執行緒載入整個檔案，不能干擾和 AI 工具溝通的 stdout）。
+    const converted = await call('logic_to_breadboard', { file: 'maj.json' });
+    expect(converted).toMatchObject({ isError: false });
+    expect(converted.text).toContain('已存到 maj.json');
+    expect((await call('task_check', { file: 'maj.json' })).text).toContain('麵包板：8 種輸入組合');
     expect(await call('circuit_summary', { file: '../x.json' })).toMatchObject({ isError: true, text: expect.stringContaining('只能讀寫工作資料夾裡的檔案') });
   }, 60_000);
 });

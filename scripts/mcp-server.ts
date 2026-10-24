@@ -7,6 +7,7 @@
  */
 import { existsSync, writeFileSync } from 'node:fs';
 import { basename, relative, sep } from 'node:path';
+import { isMainThread } from 'node:worker_threads';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
@@ -14,6 +15,7 @@ import { toCircuitFile } from '../src/editor/fileFormat';
 import * as taskTools from '../src/mcp/taskTools';
 import * as tools from '../src/mcp/tools';
 import { listCircuitFiles, loadLabFile } from './mcp-files';
+import { createRoutingPool, poolSize } from './mcp-pool';
 import { folderFromArgs, insideProject } from './mcp-paths';
 
 /** 版本號：打包時換成建置的日期（vite.mcp.config.ts），原始碼版是 1.0.0。 */
@@ -49,14 +51,33 @@ function withFile(file: string, run: (lab: tools.LabFile) => tools.ToolResult): 
   const lab = load(where.path);
   if (typeof lab === 'string') return reply(lab, true);
   try {
-    const r = run(lab);
-    if (r.error || !r.file) return reply(r.text, r.error === true);
-    save(where.path, r.file);
-    return reply(`${r.text}\n已存到 ${shown(where.path)}；在網頁用「檔案 → 匯入 JSON」打開。`);
+    return saved(where.path, run(lab));
   } catch (err) {
     return reply(`工具執行失敗（程式的問題）：${err instanceof Error ? err.message : String(err)}`, true);
   }
 }
+
+/** 子專案 42：同上，工具要等一段時間（轉成麵包板用好幾個執行緒同時佈線）。 */
+async function withFileAsync(file: string, run: (lab: tools.LabFile) => Promise<tools.ToolResult>): Promise<Reply> {
+  const where = insideProject(ROOT, file);
+  if (!where.ok) return reply(where.error, true);
+  const lab = load(where.path);
+  if (typeof lab === 'string') return reply(lab, true);
+  try {
+    return saved(where.path, await run(lab));
+  } catch (err) {
+    return reply(`工具執行失敗（程式的問題）：${err instanceof Error ? err.message : String(err)}`, true);
+  }
+}
+
+function saved(path: string, r: tools.ToolResult): Reply {
+  if (r.error || !r.file) return reply(r.text, r.error === true);
+  save(path, r.file);
+  return reply(`${r.text}\n已存到 ${shown(path)}；在網頁用「檔案 → 匯入 JSON」打開。`);
+}
+
+/** 子專案 42：轉成麵包板的佈線執行緒（核心數 − 1，最多 4 個；只有 1 個時不用執行緒）。 */
+const pool = isMainThread && poolSize() > 1 ? createRoutingPool(poolSize()) : null;
 
 const file = z.string().describe('電路檔的路徑（工作資料夾裡的 .json 檔，例如 circuits/xor.json）');
 const hole = (what: string) =>
@@ -255,7 +276,8 @@ server.registerTool(
       pulls: z.boolean().optional().describe('加上 / 下拉電阻（預設不加）'),
     },
   },
-  async ({ file: f, ...args }) => withFile(f, (lab) => tools.logicToBreadboard(lab, args)),
+  async ({ file: f, ...args }) =>
+    pool ? withFileAsync(f, (lab) => tools.logicToBreadboardParallel(lab, args, pool.routeMany, pool.size)) : withFile(f, (lab) => tools.logicToBreadboard(lab, args)),
 );
 
 server.registerTool(
@@ -335,4 +357,5 @@ server.registerTool(
   async (args) => withFile(args.file, (lab) => taskTools.taskCheck(lab)),
 );
 
-await server.connect(new StdioServerTransport());
+// 子專案 42：打包版的佈線執行緒載入的是整個檔案；只有主執行緒連上 AI 工具（執行緒的工作在 mcp-pool.ts）。
+if (isMainThread) await server.connect(new StdioServerTransport());

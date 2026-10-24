@@ -20,20 +20,21 @@ import { darkReasonText, whyDark } from '../core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle } from '../core/simulation/simulate';
 import { routingSummaryText, summarizeRouting } from '../editor/explain/routing';
 import { checkDiagram } from '../logic/check';
-import { convertAndRoute, type ConvertRouted } from '../logic/convertRoute';
+import { convertAndRoute, convertAndRouteParallel, type ConvertRouted, type RouteJob } from '../logic/convertRoute';
 import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
 import { truthTable } from '../logic/evaluate';
 import { diagramFormulas } from '../logic/formula';
 import { parseLogicDiagram } from '../logic/file';
 import { valueOfSegments } from '../logic/sevenSeg';
 import { overlaps } from '../logic/shapes';
-import { switchText } from '../logic/toBreadboard';
+import { switchText, type ConvertOptions } from '../logic/toBreadboard';
 import { emptyDiagram, isGate, type LogicDiagram, type LogicNode } from '../logic/types';
 import { verifyText } from '../logic/verifyBreadboard';
 import type { LayoutId } from '../types/board';
 import type { Circuit } from '../types/circuit';
 import type { ComponentInstance, LedColor, Rotation } from '../types/component';
 import type { GridPoint } from '../types/geometry';
+import type { RoutingResult } from '../types/routing';
 
 /**
  * 規格（2026-10-17 mcp-server）：MCP 工具的邏輯。全部是純函式（不讀寫檔、不用 Node API），
@@ -441,14 +442,25 @@ export function checkAgainstDiagram(f: LabFile): ToolResult {
   return { text: diagramCheckText(f.logic, f.circuit) };
 }
 
-export function logicToBreadboard(
-  f: LabFile,
-  args: { switch_to?: 'vcc' | 'gnd'; board?: 'auto' | LayoutId; gates?: 'direct' | 'nand' | 'nor'; pulls?: boolean; inputs?: 'switch' | 'button'; display?: 'ca' | 'cc' },
-): ToolResult {
+export type LogicToBreadboardArgs = { switch_to?: 'vcc' | 'gnd'; board?: 'auto' | LayoutId; gates?: 'direct' | 'nand' | 'nor'; pulls?: boolean; inputs?: 'switch' | 'button'; display?: 'ca' | 'cc' };
+
+const convertOptionsOf = (args: LogicToBreadboardArgs): ConvertOptions & { display: 'ca' | 'cc' } =>
+  ({ switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false, inputs: args.inputs ?? 'switch', display: args.display ?? 'ca' }) as const;
+
+export function logicToBreadboard(f: LabFile, args: LogicToBreadboardArgs): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
-  const options = { switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false, inputs: args.inputs ?? 'switch', display: args.display ?? 'ca' } as const;
+  const options = convertOptionsOf(args);
   // 子專案 36：和網頁一樣，試好幾種擺法挑佈線最好的（自動選板時 MB-102 都排不完才用 EIC-1106）；電源接最近的軌（子專案 34）。
   const converted = convertAndRoute(f.logic, options);
+  if (!converted.ok) return fail(converted.reason);
+  return convertedReply(f, options, converted);
+}
+
+/** 子專案 42：同樣的轉換，佈線交給 routeMany（MCP 伺服器用好幾個執行緒同時跑）。 */
+export async function logicToBreadboardParallel(f: LabFile, args: LogicToBreadboardArgs, routeMany: (jobs: RouteJob[]) => Promise<RoutingResult[]>, parallel: number): Promise<ToolResult> {
+  if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
+  const options = convertOptionsOf(args);
+  const converted = await convertAndRouteParallel(f.logic, options, routeMany, parallel);
   if (!converted.ok) return fail(converted.reason);
   return convertedReply(f, options, converted);
 }
