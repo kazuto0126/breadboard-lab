@@ -44,6 +44,14 @@ export const LAYOUT_VARIANTS: Record<LayoutId, LayoutVariant[]> = {
   ],
 };
 
+/** 子專案 48：兩塊 EIC-1106 左右貼在一起時試的擺法（一塊板接不完的大電路）。 */
+export const TWO_BOARD_VARIANTS: LayoutVariant[] = [
+  { gap: 6, leds: 'pair', split: false, boards: 2, orderIcs: true },
+  { gap: 9, leds: 'pair', split: false, boards: 2, orderIcs: true },
+  { gap: 6, leds: 'straddle', split: false, boards: 2, orderIcs: true },
+  { gap: 6, leds: 'pair', split: false, boards: 2 },
+];
+
 /** 總時間預設 40 秒：每塊板先用短時間試每一種擺法（每種最多 4 秒），剩下的時間給最好的兩種。 */
 const TOTAL_MS = 40_000;
 const MIN_QUICK_MS = 300;
@@ -72,22 +80,24 @@ export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: 
   const total = budget.totalMs ?? TOTAL_MS;
   const started = performance.now();
   const hasDisplay = d.nodes.some((n) => n.kind === 'DISPLAY');
-  const boards: LayoutId[] = options.board !== 'auto' ? [options.board] : hasDisplay ? ['EIC1106'] : ['MB102', 'EIC1106'];
+  // 子專案 48：自動選板時最後試兩塊 EIC-1106（一塊板接不完時）。
+  const single = (layout: LayoutId) => ({ layout, variants: LAYOUT_VARIANTS[layout] });
+  const boards = options.board !== 'auto' ? [single(options.board)] : [...(hasDisplay ? [] : [single('MB102')]), single('EIC1106'), { layout: 'EIC1106' as const, variants: TWO_BOARD_VARIANTS }];
   const power = { nearestPowerRail: true };
   const lanes = Math.max(1, Math.floor(parallel));
   let tried = 0;
   let failure = '';
 
-  for (const [i, board] of boards.entries()) {
+  for (const [i, { layout: board, variants }] of boards.entries()) {
     const candidates: ConvertSuccess[] = [];
     const seen = new Set<string>();
-    for (const variant of LAYOUT_VARIANTS[board]) {
+    for (const variant of variants) {
       const r = toBreadboard(d, { ...options, board }, variant);
       if (!r.ok) {
         failure = r.reason;
         continue;
       }
-      const key = JSON.stringify(r.circuit.components.map((c) => [c.id, c.anchor.x, c.anchor.y, c.rotation, c.span ?? 0]));
+      const key = JSON.stringify(r.circuit.components.map((c) => [c.id, c.boardId, c.anchor.x, c.anchor.y, c.rotation, c.span ?? 0]));
       if (seen.has(key)) continue;
       seen.add(key);
       candidates.push(r);

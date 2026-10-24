@@ -107,6 +107,23 @@ function routeCanvas(
     toRoute = active.filter((n) => touched.has(n.netId));
   }
 
+  // 子專案 48：拆線重接。協商後還接不上的 Net 先允許重疊接上，把擋到它的幾個 Net 拆掉、在不准碰的條件下重接；
+  // 全部接得上才採用，否則還原。大電路常常只差一兩條，協商再多輪也一樣卡住。可以超過時間限制一點（REPAIR_SHARE）。
+  const repairUntil = performance.now() + config.timeBudgetMs * REPAIR_SHARE;
+  for (let round = 0; round < REPAIR_ROUNDS; round++) {
+    let fixed = false;
+    for (const net of routable) {
+      if (performance.now() > repairUntil) break;
+      const why = failed.get(net.netId)?.reason;
+      if (why !== 'TIME_LIMIT' && why !== 'ITERATION_LIMIT' && why !== 'UNROUTABLE') continue;
+      if (!ripUpAndReroute(problem, state, net, active, hard, negotiate(presentFactor))) continue;
+      failed.delete(net.netId);
+      active = routable.filter((n) => active.includes(n) || n === net);
+      fixed = true;
+    }
+    if (!fixed) break;
+  }
+
   // 2. 改善階段：其他線一律不准碰，逐一重排，總成本下降才採用。
   for (let pass = 0; pass < config.negotiation.maxImprovementPasses && !outOfTime(); pass++) {
     let improved = false;
@@ -146,6 +163,40 @@ function dropConflicts(
     }
   }
   return active.filter((n) => !failedIds.has(n.netId));
+}
+
+/** 子專案 48：拆線重接最多拆幾個 Net、最多幾輪、最多多用時間限制的幾成。 */
+const MAX_VICTIMS = 3;
+const REPAIR_ROUNDS = 3;
+const REPAIR_SHARE = 0.2;
+
+/**
+ * 子專案 48：允許重疊把 net 接上，拆掉和它衝突的 Net（最多 MAX_VICTIMS 個），在不准碰的條件下依原本的順序重接。
+ * 全部接得上才回傳 true；否則還原成原本的線。
+ */
+function ripUpAndReroute(problem: RoutingProblem, state: StraightState, net: RoutingNet, active: RoutingNet[], hard: SearchParams, soft: SearchParams): boolean {
+  state.removeNet(net.netId);
+  const first = routeNet(problem, state, net, soft);
+  if (!first.ok) return false;
+  const victims = active.filter((n) => n !== net && state.netsIn(state.conflicts()).has(n.netId));
+  if (victims.length > MAX_VICTIMS) {
+    state.removeNet(net.netId);
+    return false;
+  }
+  const saved = victims.map((n) => ({ net: n, wires: state.wiresOf(n.netId).map((w) => ({ ...w, cells: [...w.cells] })) }));
+  for (const v of victims) state.removeNet(v.netId);
+  const undo = () => {
+    state.removeNet(net.netId);
+    for (const v of saved) {
+      state.removeNet(v.net.netId);
+      for (const w of v.wires) state.addWire(w);
+    }
+    return false;
+  };
+  // 接上的線自己也不能有衝突（例如同一個 Net 的線互相經過端點）。
+  if (state.conflicts().length > 0) return undo();
+  for (const v of victims) if (!routeNet(problem, state, v, hard).ok) return undo();
+  return true;
 }
 
 /** 在其他線都不准碰的條件下重排 net；總成本下降才保留，否則還原。 */
