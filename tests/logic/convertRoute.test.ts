@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { autoPlaceAndRoute } from '../../src/core/icPlacement/autoPlace';
 import { applyRouting } from '../../src/core/routing/apply';
-import { convertAndRoute } from '../../src/logic/convertRoute';
+import { convertAndRoute, convertAndRouteParallel, type RouteJob } from '../../src/logic/convertRoute';
 import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
 import { addNode, connect } from '../../src/logic/edit';
 import { majorityDiagram } from '../../src/logic/examples';
@@ -98,6 +98,50 @@ describe('converting with a layout search (sub-project 36)', () => {
     expect(quick.length).toBeGreaterThan(1);
     expect(quick.every((ms) => ms !== undefined && ms <= 4000)).toBe(true);
   }, 60_000);
+
+  it('continues polishing from the quick result instead of starting over (sub-project 41)', () => {
+    const quickResults = new Set<RoutingResult>();
+    const from: Array<RoutingResult | undefined> = [];
+    const route = (c: Parameters<typeof autoPlaceAndRoute>[0], config?: DeepPartial<RoutingConfig>, start?: RoutingResult) => {
+      const quick = config?.placement?.maxPasses === 1;
+      if (!quick) from.push(start);
+      const r = autoPlaceAndRoute(c, { ...config, placement: { ...config?.placement, timeBudgetMs: 1, maxPasses: 0 } });
+      if (quick) quickResults.add(r);
+      return r;
+    };
+    const r = convertAndRoute(majorityDiagram(), { switchTo: 'vcc', board: 'MB102' }, { totalMs: 4000 }, route);
+    expect(r.ok).toBe(true);
+    expect(from.length).toBeGreaterThan(0);
+    expect(from.every((f) => f !== undefined && quickResults.has(f))).toBe(true);
+  }, 60_000);
+
+  it('hands each batch to the parallel runner at once and ends with the same result (sub-project 41)', async () => {
+    // 假的佈線：每一種擺法依它的位置給固定的結果，和時間無關，一次一件與同時跑要挑到同一種。
+    const scoreOf = (c: Parameters<typeof autoPlaceAndRoute>[0]) => c.components.reduce((n, p) => n + p.anchor.x * 7 + p.anchor.y, 0) % 13;
+    const fakeRoute = (c: Parameters<typeof autoPlaceAndRoute>[0], config?: DeepPartial<RoutingConfig>): RoutingResult => ({
+      status: 'success',
+      message: '',
+      wires: [],
+      failedNets: [],
+      metrics: { wireCount: 20 + scoreOf(c) - (config?.placement?.maxPasses === 1 ? 0 : 1), totalLength: 80, bends: 0, crossings: 0, overlaps: 0, shortJogs: 0 },
+      score: 0,
+      stats: { iterations: 0, elapsedMs: 0 },
+      moves: [],
+    });
+    const options = { switchTo: 'vcc', board: 'MB102', pulls: true } as const;
+    const one = convertAndRoute(comparator(), options, { totalMs: 10_000 }, fakeRoute);
+    const batches: number[] = [];
+    const many = await convertAndRouteParallel(comparator(), options, async (jobs: RouteJob[]) => {
+      batches.push(jobs.length);
+      return jobs.map((j) => fakeRoute(j.circuit, j.config));
+    }, 4, { totalMs: 10_000 });
+    if (!one.ok || !many.ok) throw new Error('轉換失敗');
+    expect(many.result.circuit).toEqual(one.result.circuit);
+    expect(many.routed.metrics).toEqual(one.routed.metrics);
+    expect(many.tried).toBe(one.tried);
+    // 第一批是全部的快速試，第二批是一起排的最好兩種。
+    expect(batches).toEqual([one.tried, 2]);
+  });
 
   it('explains when no layout fits', () => {
     expect(convertAndRoute(andChain(28), { switchTo: 'vcc', board: 'MB102', pulls: true })).toEqual({ ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' });

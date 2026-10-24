@@ -1,6 +1,7 @@
 import { autoPlaceAndRoute, isBetterRouting } from '../core/icPlacement/autoPlace';
 import type { LayoutId } from '../types/board';
-import type { RoutingResult } from '../types/routing';
+import type { Circuit } from '../types/circuit';
+import type { DeepPartial, RoutingConfig, RoutingResult } from '../types/routing';
 import { convertProblem } from './synth';
 import { DEFAULT_LAYOUT, toBreadboard, type ConvertOptions, type ConvertResult, type LayoutVariant } from './toBreadboard';
 import type { LogicDiagram } from './types';
@@ -54,8 +55,18 @@ const POLISHED = 2;
  */
 const CLOSE_NETS = 2;
 
-/** route：佈線用的函式（測試時換成假的，不用真的等時間）。 */
-export function convertAndRoute(d: LogicDiagram, options: ConvertOptions, budget: { totalMs?: number } = {}, route: typeof autoPlaceAndRoute = autoPlaceAndRoute): ConvertRouted {
+/** 一次佈線（可移動 IC）：from 是之前的結果，從它接著搬。 */
+export interface RouteJob {
+  circuit: Circuit;
+  config: DeepPartial<RoutingConfig>;
+  from?: RoutingResult;
+}
+
+/**
+ * 子專案 41（規格 2026-10-24 faster-conversion）：轉換的步驟。每次 yield 一批互不相關的佈線（同一塊板的快速試、要排到最好的那幾種），
+ * 拿到這一批的結果再往下走。parallel：同時能跑幾件（網頁用好幾個 Worker；MCP 一次一件），只影響時間怎麼分，每件分到的時間和一次一件時一樣。
+ */
+export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: { totalMs?: number } = {}, parallel = 1): Generator<RouteJob[], ConvertRouted, RoutingResult[]> {
   const problem = convertProblem(d);
   if (problem) return { ok: false, reason: problem };
   const total = budget.totalMs ?? TOTAL_MS;
@@ -63,6 +74,7 @@ export function convertAndRoute(d: LogicDiagram, options: ConvertOptions, budget
   const hasDisplay = d.nodes.some((n) => n.kind === 'DISPLAY');
   const boards: LayoutId[] = options.board !== 'auto' ? [options.board] : hasDisplay ? ['EIC1106'] : ['MB102', 'EIC1106'];
   const power = { nearestPowerRail: true };
+  const lanes = Math.max(1, Math.floor(parallel));
   let tried = 0;
   let failure = '';
 
@@ -85,12 +97,10 @@ export function convertAndRoute(d: LogicDiagram, options: ConvertOptions, budget
     const boardStart = performance.now();
     const boardMs = Math.max(0, (total - (boardStart - started)) / (boards.length - i));
     const quickMs = Math.min(MAX_QUICK_MS, Math.max(MIN_QUICK_MS, (boardMs * 0.4) / candidates.length));
-    const ranked: Array<{ result: ConvertSuccess; routed: RoutingResult }> = [];
-    for (const result of candidates) {
-      tried++;
-      // 子專案 38：佈線器本身也限時（排不完的擺法它會一直重排到自己的上限 5 秒，MB-102 上的大電路每種要 3–5 秒）。
-      ranked.push({ result, routed: route(result.circuit, { timeBudgetMs: quickMs, placement: { ...power, timeBudgetMs: quickMs, maxPasses: 1 } }) });
-    }
+    tried += candidates.length;
+    // 子專案 38：佈線器本身也限時（排不完的擺法它會一直重排到自己的上限 5 秒，MB-102 上的大電路每種要 3–5 秒）。
+    const quick: RoutingResult[] = yield candidates.map((result) => ({ circuit: result.circuit, config: { timeBudgetMs: quickMs, placement: { ...power, timeBudgetMs: quickMs, maxPasses: 1 } } }));
+    const ranked = candidates.map((result, k) => ({ result, routed: quick[k] }));
     // 好的排前面（同分時保持試的順序）。
     ranked.sort((a, b) => (isBetterRouting(a.routed, b.routed) ? -1 : isBetterRouting(b.routed, a.routed) ? 1 : 0));
     let best = ranked[0];
@@ -101,15 +111,43 @@ export function convertAndRoute(d: LogicDiagram, options: ConvertOptions, budget
     if (last || best.routed.status === 'success' || close) {
       const top = ranked.slice(0, last || !close ? POLISHED : 1);
       const until = last || !close ? boardStart + boardMs : Math.max(boardStart + boardMs, (performance.now() + started + total) / 2);
-      for (const [k, entry] of top.entries()) {
+      // 一次一件時剩下的時間依序分（前一種提早排完，多的時間給下一種）；可以同時跑時一起排，每一種分到的時間和一次一件時第一種一樣。
+      const together = lanes >= top.length;
+      for (let k = 0; k < top.length; k += together ? top.length : 1) {
+        const group = together ? top : [top[k]];
         const polishMs = (until - performance.now()) / (top.length - k);
         if (polishMs <= MIN_QUICK_MS) break;
-        const polished = route(entry.result.circuit, { placement: { ...power, timeBudgetMs: polishMs } });
-        const routed = isBetterRouting(polished, entry.routed) ? polished : entry.routed;
-        if (isBetterRouting(routed, best.routed) || entry === best) best = { result: entry.result, routed };
+        // 從快速試的結果接著搬（不重做快速試已經做過的那一輪）。
+        const polished: RoutingResult[] = yield group.map((entry) => ({ circuit: entry.result.circuit, config: { placement: { ...power, timeBudgetMs: polishMs } }, from: entry.routed }));
+        for (const [j, entry] of group.entries()) {
+          const routed = isBetterRouting(polished[j], entry.routed) ? polished[j] : entry.routed;
+          if (isBetterRouting(routed, best.routed) || entry === best) best = { result: entry.result, routed };
+        }
       }
     }
     if (best.routed.status === 'success' || last) return { ok: true, result: best.result, routed: best.routed, tried };
   }
   return { ok: false, reason: failure || '轉換失敗：沒有放得下的擺法' };
+}
+
+/** 一次跑一件（MCP、測試、沒有 Worker 的環境）。route：佈線用的函式（測試時換成假的，不用真的等時間）。 */
+export function convertAndRoute(d: LogicDiagram, options: ConvertOptions, budget: { totalMs?: number } = {}, route: typeof autoPlaceAndRoute = autoPlaceAndRoute): ConvertRouted {
+  const steps = convertSteps(d, options, budget, 1);
+  let step = steps.next();
+  while (!step.done) step = steps.next(step.value.map((job) => route(job.circuit, job.config, job.from)));
+  return step.value;
+}
+
+/** 同時跑好幾件（網頁：每一批交給 routeMany，例如分給好幾個 Worker）。 */
+export async function convertAndRouteParallel(
+  d: LogicDiagram,
+  options: ConvertOptions,
+  routeMany: (jobs: RouteJob[]) => Promise<RoutingResult[]>,
+  parallel: number,
+  budget: { totalMs?: number } = {},
+): Promise<ConvertRouted> {
+  const steps = convertSteps(d, options, budget, parallel);
+  let step = steps.next();
+  while (!step.done) step = steps.next(await routeMany(step.value));
+  return step.value;
 }

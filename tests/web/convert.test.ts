@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bcdDiagram, majorityDiagram } from '../../src/logic/examples';
 import { initialLogicState, useLogic } from '../../src/state/logic';
 import { initialState, useStore } from '../../src/state/store';
+import { conversionLanes } from '../../src/workers/routingClient';
 import { circuit, comp } from '../fixtures/build';
 import { handWired } from '../fixtures/handWired';
 
@@ -10,6 +11,16 @@ const S = () => useStore.getState();
 beforeEach(() => {
   useStore.setState(initialState());
   useLogic.setState(initialLogicState());
+});
+
+describe('conversion workers (sub-project 41)', () => {
+  it('keeps one core for the page and uses at most 4 workers', () => {
+    expect(conversionLanes(undefined)).toBe(1);
+    expect(conversionLanes(1)).toBe(1);
+    expect(conversionLanes(2)).toBe(1);
+    expect(conversionLanes(4)).toBe(3);
+    expect(conversionLanes(16)).toBe(4);
+  });
 });
 
 describe('convertLogic', () => {
