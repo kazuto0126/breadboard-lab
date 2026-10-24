@@ -156,8 +156,9 @@ describe('two 4-bit switches when pull resistors are on (sub-project 38)', () =>
       const r = build(d, 'EIC1106', { gap: 2, splitSwitches: true }, { pulls: true, switchTo });
       const c = r.circuit;
       expect(c.components.filter((x) => x.defId.startsWith('dipsw')).map((x) => `${x.id}:${x.defId}`)).toEqual(['SW1:dipsw-4', 'SW2:dipsw-4']);
-      expect(labels(c, 'SW1')).toEqual(['A', 'B', 'C', 'D']);
-      expect(labels(c, 'SW2')).toEqual(['E', 'F', 'G', 'H']);
+      // 子專案 45：依「哪顆 IC 先用到」分組：U1 用到的 C、D、E、F 在 SW1（以前照名稱 A–D、E–H）。
+      expect(labels(c, 'SW1')).toEqual(['C', 'D', 'E', 'F']);
+      expect(labels(c, 'SW2')).toEqual(['A', 'B', 'G', 'H']);
       // 8 顆都直立插進電源軌（沒有平放的電阻）。
       const rail = switchTo === 'vcc' ? /^P4-/ : /^P3\+/;
       const pulls = ['R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'R8'];
@@ -197,5 +198,18 @@ describe('two 4-bit switches when pull resistors are on (sub-project 38)', () =>
     expect(switchText({ switch: 'dipsw-8', switches: 1, buttons: 0 })).toBe('8 位元指撥開關 × 1');
     expect(switchText({ switch: 'dipsw-4', switches: 2, buttons: 0 })).toBe('4 位元指撥開關 × 2');
     expect(switchText({ switch: null, switches: 0, buttons: 3 })).toBe('按鈕 × 3');
+  });
+});
+
+describe('grouping two switches by IC (sub-project 45)', () => {
+  it('puts the inputs the same IC uses first on the same switch, in name order, unused inputs last', async () => {
+    const { splitByIc } = await import('../../src/logic/toBreadboard');
+    const node = (id: string, name: string) => ({ id, kind: 'INPUT' as const, x: 0, y: 0, name });
+    const inputs = 'ABCDEFGH'.split('').map((n, k) => node(`i${k + 1}`, n));
+    // U1（0）用到 F、C、H、D；U2（1）用到 B、E；G、A 沒有 IC 用到。
+    const order = new Map([['i6', 0], ['i3', 0], ['i8', 0], ['i4', 0], ['i2', 1], ['i5', 1]]);
+    const [one, two] = splitByIc(inputs, order);
+    expect(one.map((n) => n.name)).toEqual(['C', 'D', 'F', 'H']);
+    expect(two.map((n) => n.name)).toEqual(['A', 'B', 'E', 'G']);
   });
 });

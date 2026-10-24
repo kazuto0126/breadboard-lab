@@ -3,6 +3,16 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## 2026-10-24 — 子專案 45：兩個 4 位元開關依 IC 分組
+
+設計規格：`docs/superpowers/specs/2026-10-24-switch-groups-design.md`。使用者 2026-10-24 選了「1 和 3」，這是 3（小的先做）。
+
+- 轉換時開關拆成兩個 4 位元（加上 / 下拉電阻、輸入超過 4 個）時，改成依「哪顆 IC 先用到」分組（以前照名稱，前 4 個在 SW1）：
+  同一顆 IC 用到的輸入盡量在同一個開關，開關比較靠近用到它的 IC；沒有 IC 用到的排在最後；每個開關裡照名稱排，電阻編號仍然依輸入的名稱順序。
+- 量測（`npm run bench:convert`）：實習七 C（加下拉電阻）58 → 57 條線、總長 303 → 283（SW1 是 U1 用到的 C、D、E、F）；其他電路沒有用到兩個開關，不變。
+- MCP 的 `logic_to_breadboard` 一樣跟著改（沒有新的參數）。
+- 測試：分組規則；實習七 C 兩個開關的名稱。
+
 ## 2026-10-24 — 子專案 44：7 段顯示器的電阻接法（PR #68，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-24-display-resistors-design.md`；實作計畫：`docs/superpowers/plans/2026-10-24-display-resistors.md`。

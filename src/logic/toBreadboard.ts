@@ -14,7 +14,7 @@ import type { GridPoint } from '../types/geometry';
 import { SEGMENT_NAMES, sortedIo } from './evaluate';
 import { toNandUnits, toNorUnits } from './nandOnly';
 import { BLOCK_PINS } from './blocks';
-import { assignIcs, convertProblem, displayResistorsOf, decompose, drivers, gateSlots, type Unit } from './synth';
+import { assignIcs, convertProblem, displayResistorsOf, decompose, drivers, gateSlots, type IcPlan, type Unit } from './synth';
 import { isSink, signalOf, type LogicDiagram, type LogicNode } from './types';
 
 export interface ConvertOptions {
@@ -159,6 +159,32 @@ function displayInverters(d: LogicDiagram, options: ConvertOptions): Unit[] {
     .flatMap((n) => directPins(n).flatMap(([p]) => (driver.has(`${n.id}#${p}`) ? [{ kind: 'NOT' as const, inputs: [driver.get(`${n.id}#${p}`)!], output: `inv~${n.id}~${p}` }] : [])));
 }
 
+/**
+ * 子專案 45：每個輸入第一次被哪顆 IC 用到（IC 的順序和放在板上的順序一樣：邏輯閘、IC 方塊、顯示器的解碼 IC）；
+ * 只接到 LED 等其他零件的輸入排在最後。
+ */
+function icOrderOf(d: LogicDiagram, plans: IcPlan[], chips: LogicNode[]): Map<string, number> {
+  const first = new Map<string, number>();
+  const mark = (signal: string | undefined, k: number) => {
+    if (signal !== undefined && !first.has(signal)) first.set(signal, k);
+  };
+  plans.forEach((plan, k) => plan.slots.forEach((unit) => unit?.inputs.forEach((signal) => mark(signal, k))));
+  const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)]));
+  const later = [...chips, ...d.nodes.filter((n) => n.kind === 'DISPLAY' && !n.segments)];
+  later.forEach((node, j) => {
+    for (const [key, signal] of driver) if (key.startsWith(`${node.id}#`)) mark(signal, plans.length + j);
+  });
+  return first;
+}
+
+/** 子專案 45：拆成兩個 4 位元開關時依「哪顆 IC 先用到」分組（同一顆 IC 的輸入盡量在同一個開關）；每個開關裡照名稱排。 */
+export function splitByIc(inputs: LogicNode[], order: Map<string, number>): [LogicNode[], LogicNode[]] {
+  const rank = (n: LogicNode) => order.get(n.id) ?? Number.MAX_SAFE_INTEGER;
+  const sorted = inputs.map((n, k) => ({ n, k })).sort((a, b) => rank(a.n) - rank(b.n) || a.k - b.k).map((x) => x.n);
+  const byName = (list: LogicNode[]) => [...list].sort((a, b) => inputs.indexOf(a) - inputs.indexOf(b));
+  return [byName(sorted.slice(0, 4)), byName(sorted.slice(4))];
+}
+
 /** 規格（2026-10-13 logic-to-breadboard）第 4、5 節。 */
 export function toBreadboard(d: LogicDiagram, options: ConvertOptions, variant: LayoutVariant = DEFAULT_LAYOUT): ConvertResult {
   const problem = convertProblem(d, options);
@@ -216,8 +242,8 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   // 子專案 38：拆成兩個 4 位元開關時，每個開關各自挪到有孔的地方，不用平放的電阻。
   const splitSwitches = variant.splitSwitches === true && uprightPulls && inputs.length > 4;
   const flatPull = uprightPulls && inputs.length >= 6 && !splitSwitches ? 5 : -1;
-  /** 每個開關接的輸入（依名稱排序；拆開時前 4 個在 SW1、其他在 SW2）。 */
-  const switches = splitSwitches ? [inputs.slice(0, 4), inputs.slice(4)] : [inputs];
+  /** 每個開關接的輸入（依名稱排序）；拆開時依「哪顆 IC 先用到」分組（子專案 45），開關比較靠近用到它的 IC。 */
+  const switches = splitSwitches ? splitByIc(inputs, icOrderOf(d, plans, chips)) : [inputs];
   const swDef = splitSwitches || inputs.length <= 4 ? 'dipsw-4' : 'dipsw-8';
   const swPins = swDef === 'dipsw-4' ? 8 : 16;
   const switchBlocks: Block[] = [];
@@ -238,15 +264,15 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   } else {
     switches.forEach((group, s) => {
       const id = `SW${s + 1}`;
-      const first = s * 4; // 這個開關的第 1 位是第幾個輸入（電阻的編號依輸入的順序）
       switchBlocks.push({
         width: swPins / 2,
-        align: uprightPulls ? (x) => group.every((_, j) => (first + j === flatPull) !== railHole(pullRail, x + j)) : undefined,
+        // 電阻的編號依輸入的順序（子專案 45 起兩個開關的輸入不一定連號）。
+        align: uprightPulls ? (x) => group.every((node, j) => (inputs.indexOf(node) === flatPull) !== railHole(pullRail, x + j)) : undefined,
         place: (x) => {
           components.push(comp(id, swDef, hole(`F${x}`, 1), { board: BOARD_ID, props: { switchStates: Array(swPins / 2).fill(false), labels: Array.from({ length: swPins / 2 }, (_, j) => group[j]?.name ?? '') } }));
           if (!uprightPulls) return;
           group.forEach((node, j) => {
-            const k = first + j;
+            const k = inputs.indexOf(node);
             if (k === flatPull || !railHole(pullRail, x + j)) return;
             const rid = `R${k + 1}`;
             const at = hole(`${pullRow}${x + j}`, 1);
