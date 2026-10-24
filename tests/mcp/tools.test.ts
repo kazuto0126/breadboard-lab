@@ -293,3 +293,24 @@ describe('logic diagram tools', () => {
     expect(none.text).toContain('把開關、LED 的名稱設成邏輯圖上的名稱');
   });
 });
+
+describe('share_link (sub-project 43)', () => {
+  it('gives a link that opens the same circuit file on the website', async () => {
+    const { shareLink } = await import('../../src/mcp/tools');
+    const { readShareHash, SITE_URL } = await import('../../src/editor/shareLink');
+    const { parseCircuitText } = await import('../../src/editor/fileFormat');
+    const f: LabFile = { ...newLabFile('多數決', 'MB102'), logic: majorityDiagram() };
+    const r = await shareLink(f);
+    expect(r.file).toBeUndefined();
+    const link = r.text.match(/https:\S+/)![0];
+    expect(link.startsWith(`${SITE_URL}#c=`)).toBe(true);
+    expect(r.text).toMatch(/連結有 \d+ 個字。/);
+    const opened = await readShareHash(new URL(link).hash);
+    if (opened.kind !== 'circuit') throw new Error('連結解不開');
+    const parsed = parseCircuitText(opened.text);
+    if (!parsed.ok) throw new Error(parsed.error);
+    expect(parsed.name).toBe('多數決');
+    expect(parsed.circuit).toEqual(f.circuit);
+    expect(parsed.logic?.nodes).toEqual(f.logic.nodes);
+  });
+});
