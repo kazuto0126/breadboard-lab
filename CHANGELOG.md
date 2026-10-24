@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-10-24 — 子專案 46：邏輯圖的時序元件
+## 2026-10-24 — 子專案 46：邏輯圖的時序元件（PR #71，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-24-sequential-logic-design.md`；實作計畫：`docs/superpowers/plans/2026-10-24-sequential-logic.md`。
 使用者 2026-10-24 選了「1 和 3」的 1，問問題時回「繼續」（不問，直接做；決定寫在規格裡）。
@@ -33,7 +33,7 @@
 - MCP：沒給位置的計數器排版、時序表的文字、沒有時脈時說明。
 - 端對端：十進位計數器按時脈數到 3、時序表 0–9 再回到 0、重設，轉成麵包板後「16 個脈衝全部一致」。
 
-## 2026-10-24 — 子專案 45：兩個 4 位元開關依 IC 分組
+## 2026-10-24 — 子專案 45：兩個 4 位元開關依 IC 分組（PR #70，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-24-switch-groups-design.md`。使用者 2026-10-24 選了「1 和 3」，這是 3（小的先做）。
 
