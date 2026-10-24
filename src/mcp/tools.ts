@@ -450,10 +450,19 @@ export function checkAgainstDiagram(f: LabFile): ToolResult {
   return { text: diagramCheckText(f.logic, f.circuit) };
 }
 
-export type LogicToBreadboardArgs = { switch_to?: 'vcc' | 'gnd'; board?: 'auto' | LayoutId; gates?: 'direct' | 'nand' | 'nor'; pulls?: boolean; inputs?: 'switch' | 'button'; display?: 'ca' | 'cc' };
+export type LogicToBreadboardArgs = {
+  switch_to?: 'vcc' | 'gnd';
+  board?: 'auto' | LayoutId;
+  gates?: 'direct' | 'nand' | 'nor';
+  pulls?: boolean;
+  inputs?: 'switch' | 'button';
+  display?: 'ca' | 'cc';
+  /** 子專案 44：7 段顯示器每段一顆電阻或共用一顆（沒給時 1 個顯示器每段一顆、2 個共用一顆）。 */
+  display_resistors?: 'each' | 'shared';
+};
 
 const convertOptionsOf = (args: LogicToBreadboardArgs): ConvertOptions & { display: 'ca' | 'cc' } =>
-  ({ switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false, inputs: args.inputs ?? 'switch', display: args.display ?? 'ca' }) as const;
+  ({ switchTo: args.switch_to ?? 'vcc', board: args.board ?? 'auto', gates: args.gates ?? 'direct', pulls: args.pulls ?? false, inputs: args.inputs ?? 'switch', display: args.display ?? 'ca', ...(args.display_resistors ? { displayResistors: args.display_resistors } : {}) }) as const;
 
 export function logicToBreadboard(f: LabFile, args: LogicToBreadboardArgs): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);

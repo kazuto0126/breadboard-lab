@@ -14,7 +14,7 @@ import type { GridPoint } from '../types/geometry';
 import { SEGMENT_NAMES, sortedIo } from './evaluate';
 import { toNandUnits, toNorUnits } from './nandOnly';
 import { BLOCK_PINS } from './blocks';
-import { assignIcs, convertProblem, decompose, drivers, gateSlots, type Unit } from './synth';
+import { assignIcs, convertProblem, displayResistorsOf, decompose, drivers, gateSlots, type Unit } from './synth';
 import { isSink, signalOf, type LogicDiagram, type LogicNode } from './types';
 
 export interface ConvertOptions {
@@ -29,6 +29,11 @@ export interface ConvertOptions {
   inputs?: 'switch' | 'button';
   /** 子專案 32：7 段顯示器用共陽極 + 74LS47（預設）或共陰極 + 74LS48。 */
   display?: 'ca' | 'cc';
+  /**
+   * 子專案 44：7 段顯示器每段一顆 220 Ω（亮度一致）或共同腳共用一顆 100 Ω（線比較少，亮的段越多越暗）。
+   * 沒指定時 1 個顯示器每段一顆、2 個共用一顆（每段一顆時 2 個排不完）。
+   */
+  displayResistors?: 'each' | 'shared';
 }
 
 export interface Bom {
@@ -156,7 +161,7 @@ function displayInverters(d: LogicDiagram, options: ConvertOptions): Unit[] {
 
 /** 規格（2026-10-13 logic-to-breadboard）第 4、5 節。 */
 export function toBreadboard(d: LogicDiagram, options: ConvertOptions, variant: LayoutVariant = DEFAULT_LAYOUT): ConvertResult {
-  const problem = convertProblem(d);
+  const problem = convertProblem(d, options);
   if (problem) return { ok: false, reason: problem };
   // 有 7 段顯示器時 MB-102 的線排不完（規格 2026-10-13 seven-seg 第 6 節），自動選板直接用 EIC-1106。
   const hasDisplay = d.nodes.some((n) => n.kind === 'DISPLAY');
@@ -338,24 +343,35 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     leds[node.id] = `D${k + 1}`;
   });
   const displayIds: Record<string, string> = {};
+  // 子專案 44：共用一顆電阻時段直接接，電阻在共同腳。
+  const shared = displayResistorsOf(d, options.displayResistors) === 'shared';
   for (const { node, ic, ds } of displayParts) {
-    // DP 與每段直接控制的段：共陰極直接經過電阻；共陽極先經過反相器（見 displayInverters）。
-    for (const [p, s] of directPins(node)) {
-      const signal = driver.get(`${node.id}#${p}`);
-      if (!signal) continue;
+    /** 一段：每段一顆電阻時經過 220 Ω，共用時直接接。 */
+    const segment = (signal: string, s: string) => {
+      if (shared) {
+        pinNo(dsDef, s).forEach((n) => tie(`${ds}#${n}`, signal));
+        return;
+      }
       const into = `${ds}:${s}`;
       pinNo(dsDef, s).forEach((n) => tie(`${ds}#${n}`, into));
-      twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [cc ? signal : `inv~${node.id}~${p}`, into], area: 3, group: ds });
+      twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [signal, into], area: 3, group: ds });
+    };
+    // DP 與每段直接控制的段：共陰極直接接訊號；共陽極先經過反相器（見 displayInverters）。
+    for (const [p, s] of directPins(node)) {
+      const signal = driver.get(`${node.id}#${p}`);
+      if (signal) segment(cc ? signal : `inv~${node.id}~${p}`, s);
     }
     if (ic) for (const s of ['a', 'b', 'c', 'd', 'e', 'f', 'g']) {
       const out = `${ic}:${segOut(s)}`;
-      const into = `${ds}:${s}`;
       pinNo(decoder, segOut(s)).forEach((p) => tie(`${ic}#${p}`, out));
-      pinNo(dsDef, s).forEach((p) => tie(`${ds}#${p}`, into));
-      twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 220 }, span: RESISTOR_SPAN, nets: [out, into], area: 3, group: ds });
+      segment(out, s);
     }
-    if (cc) pinNo(dsDef, 'CC').forEach((p) => tie(`${ds}#${p}`, GND));
-    else pinNo(dsDef, 'CA').forEach((p) => tie(`${ds}#${p}`, VCC));
+    const common = cc ? 'CC' : 'CA';
+    if (shared) {
+      const at = `${ds}:${common}`;
+      pinNo(dsDef, common).forEach((p) => tie(`${ds}#${p}`, at));
+      twoLeads.push({ id: `R${++r}`, defId: 'resistor', props: { resistance: 100 }, span: RESISTOR_SPAN, nets: cc ? [at, GND] : [VCC, at], area: 3, group: ds });
+    } else pinNo(dsDef, common).forEach((p) => tie(`${ds}#${p}`, cc ? GND : VCC));
     displayIds[node.id] = ds;
   }
   for (const t of twoLeads) {

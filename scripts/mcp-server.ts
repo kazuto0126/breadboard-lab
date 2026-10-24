@@ -283,6 +283,10 @@ server.registerTool(
       gates: z.enum(['direct', 'nand', 'nor']).optional().describe('照種類對應（預設）、只用 NAND（74LS00）或只用 NOR（74LS02）'),
       inputs: z.enum(['switch', 'button']).optional().describe('輸入用指撥開關（預設）或每個輸入一顆按鈕'),
       display: z.enum(['ca', 'cc']).optional().describe('7 段顯示器用共陽極 + 74LS47（預設）或共陰極 + 74LS48'),
+      display_resistors: z
+        .enum(['each', 'shared'])
+        .optional()
+        .describe('7 段顯示器的電阻：each 每段一顆 220 Ω（亮度一致，最多 1 個顯示器）或 shared 共同腳共用一顆 100 Ω（線比較少，最多 2 個；亮的段越多越暗）。沒給時 1 個顯示器 each、2 個 shared'),
       pulls: z.boolean().optional().describe('加上 / 下拉電阻（預設不加）'),
     },
   },
