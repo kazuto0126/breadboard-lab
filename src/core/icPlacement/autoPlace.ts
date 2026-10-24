@@ -23,8 +23,9 @@ export function isBetterRouting(a: RoutingResult, b: RoutingResult): boolean {
 /**
  * 規格 2026-10-10 ic-placement：「AI 佈線（可移動 IC）」。起點是「IC 都不動」的佈線；每顆 IC 輪流試粗估最好的幾個位置、
  * 實際佈線，比目前最好的結果好才採用。回傳的結果一定有 moves（沒有搬動時是空陣列）。
+ * 子專案 41：from 是同一個電路之前的結果（例如轉成麵包板的快速試），從它接著搬，不重做已經做過的。
  */
-export function autoPlaceAndRoute(circuit: Circuit, overrides?: DeepPartial<RoutingConfig>): RoutingResult {
+export function autoPlaceAndRoute(circuit: Circuit, overrides?: DeepPartial<RoutingConfig>, from?: RoutingResult): RoutingResult {
   const started = performance.now();
   const config = mergeConfig(overrides);
   const { candidatesPerIc, maxPasses, timeBudgetMs } = config.placement;
@@ -42,11 +43,12 @@ export function autoPlaceAndRoute(circuit: Circuit, overrides?: DeepPartial<Rout
     return { ...autoRoute(power.circuit, options), powerSymbols: { added: power.added, removed: power.removed } };
   };
 
-  let moves: IcMove[] = [];
-  let best = route(moves, overrides)!;
+  let moves: IcMove[] = from?.moves ?? [];
+  let best = from ?? route(moves, overrides)!;
   // 候選位置的協商輪數上限：佈不出來的位置會一直協商到上限，要很快放棄（規格 3.3）。
-  const candidateIterations = Math.min(config.negotiation.maxIterations, Math.max(config.placement.candidateIterations, 2 * best.stats.iterations));
-  const candidateOptions: DeepPartial<RoutingConfig> = { ...overrides, negotiation: { ...overrides?.negotiation, maxIterations: candidateIterations } };
+  // 子專案 41：找到更好的結果就跟著它重算（目前最好的只要幾輪就排完時，要一百多輪的位置通常排不完，不用等到上限）。
+  const optionsFor = (r: RoutingResult): DeepPartial<RoutingConfig> => ({ ...overrides, negotiation: { ...overrides?.negotiation, maxIterations: Math.min(config.negotiation.maxIterations, Math.max(config.placement.candidateIterations, 2 * r.stats.iterations)) } });
+  let candidateOptions = optionsFor(best);
   for (let pass = 0; pass < maxPasses && !outOfTime(); pass++) {
     let improved = false;
     for (const id of movableIcs(circuit, nets)) {
@@ -59,6 +61,7 @@ export function autoPlaceAndRoute(circuit: Circuit, overrides?: DeepPartial<Rout
         if (result && isBetterRouting(result, best)) {
           best = result;
           moves = next;
+          candidateOptions = optionsFor(best);
           improved = true;
         }
       }

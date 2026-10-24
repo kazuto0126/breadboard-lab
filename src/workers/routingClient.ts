@@ -1,11 +1,11 @@
 import { autoPlaceAndRoute } from '../core/icPlacement/autoPlace';
 import { autoRoute } from '../core/routing/autoRoute';
-import { convertAndRoute, type ConvertRouted } from '../logic/convertRoute';
+import { convertAndRoute, convertAndRouteParallel, type ConvertRouted, type RouteJob } from '../logic/convertRoute';
 import type { ConvertOptions } from '../logic/toBreadboard';
 import type { LogicDiagram } from '../logic/types';
 import type { Circuit } from '../types/circuit';
 import type { DeepPartial, RoutingConfig, RoutingResult } from '../types/routing';
-import type { ConversionRequest, RoutingRequest, WorkerResponse } from './protocol';
+import type { RoutingRequest, WorkerResponse } from './protocol';
 // 內嵌（inline）的 Worker：程式碼包在主程式裡、用 blob URL 啟動，單一 HTML 檔用 file:// 開啟也能用。
 import RoutingWorker from './routing.worker.ts?worker&inline';
 
@@ -37,7 +37,7 @@ let nextId = 1;
  * 每件工作建立一個新的 module Worker；取消時直接 terminate，不需要在引擎內部設中斷點。
  * 沒有 Worker 的環境退回主執行緒（用 setTimeout 讓畫面先更新「計算中」）。
  */
-function startJob<T>(request: Omit<RoutingRequest, 'id'> | Omit<ConversionRequest, 'id'>, pick: (msg: Extract<WorkerResponse, { ok: true }>) => T, inline: () => T): WorkerJob<T> {
+function startJob<T>(request: Omit<RoutingRequest, 'id'>, pick: (msg: Extract<WorkerResponse, { ok: true }>) => T, inline: () => T): WorkerJob<T> {
   if (typeof Worker === 'undefined') return runInline(inline);
 
   const id = nextId++;
@@ -75,13 +75,57 @@ export function startRouting(circuit: Circuit, config?: DeepPartial<RoutingConfi
   );
 }
 
-/** 子專案 36：邏輯圖轉成麵包板（試好幾種擺法，挑佈線最好的），在 Worker 裡算。 */
+/** 子專案 41：轉成麵包板同時用幾個 Worker（保留一個核心給畫面，最多 4 個）。 */
+export function conversionLanes(cores: number | undefined): number {
+  return Math.max(1, Math.min(4, (cores || 2) - 1));
+}
+
+/**
+ * 子專案 36：邏輯圖轉成麵包板（試好幾種擺法，挑佈線最好的）。子專案 41：每一批佈線（同一塊板的快速試、要排到最好的那幾種）
+ * 分給好幾個 Worker 同時跑，主執行緒只負責排程（擺零件、比較結果很快）。取消時全部 Worker 一起停。
+ */
 export function startConversion(diagram: LogicDiagram, options: ConvertOptions): ConversionJob {
-  return startJob(
-    { kind: 'convert', diagram, options },
-    (msg) => (msg as Extract<WorkerResponse, { converted: ConvertRouted }>).converted,
-    () => convertAndRoute(diagram, options),
-  );
+  if (typeof Worker === 'undefined') return runInline(() => convertAndRoute(diagram, options));
+  const lanes = conversionLanes(typeof navigator === 'undefined' ? undefined : navigator.hardwareConcurrency);
+  const running = new Set<RoutingJob>();
+  let cancelled = false;
+  const routeMany = async (jobs: RouteJob[]): Promise<RoutingResult[]> => {
+    const results: RoutingResult[] = new Array(jobs.length);
+    let next = 0;
+    const lane = async () => {
+      while (next < jobs.length) {
+        if (cancelled) throw new RoutingCancelled();
+        const k = next++;
+        const job = startJob(
+          { kind: 'route', circuit: jobs[k].circuit, config: jobs[k].config, moveIcs: true, from: jobs[k].from },
+          (msg) => (msg as Extract<WorkerResponse, { result: RoutingResult }>).result,
+          () => autoPlaceAndRoute(jobs[k].circuit, jobs[k].config, jobs[k].from),
+        );
+        running.add(job);
+        try {
+          results[k] = await job.promise;
+        } finally {
+          running.delete(job);
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(lanes, jobs.length) }, lane));
+    return results;
+  };
+  let rejectCancel: ((e: Error) => void) | null = null;
+  const cancelledPromise = new Promise<never>((_, reject) => {
+    rejectCancel = reject;
+  });
+  const promise = Promise.race([convertAndRouteParallel(diagram, options, routeMany, lanes), cancelledPromise]);
+  return {
+    promise,
+    cancel: () => {
+      if (cancelled) return;
+      cancelled = true;
+      for (const job of running) job.cancel();
+      rejectCancel?.(new RoutingCancelled());
+    },
+  };
 }
 
 function runInline<T>(work: () => T): WorkerJob<T> {
