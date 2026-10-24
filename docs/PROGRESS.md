@@ -13,7 +13,7 @@
 
 ## 進行中
 
-- 沒有進行中的子專案。
+- 子專案 47：轉換與佈線的改善（分支 `feat/convert-improvements`，規格 `docs/superpowers/specs/2026-10-25-convert-improvements-design.md`）：已實作，PR 等使用者看過後合併；合併後執行 `npm run publish:site` 發布。
 
 ## 接下來（依優先順序）
 
