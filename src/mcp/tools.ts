@@ -24,7 +24,7 @@ import { routingSummaryText, summarizeRouting } from '../editor/explain/routing'
 import { checkDiagram } from '../logic/check';
 import { convertAndRoute, convertAndRouteParallel, type ConvertRouted, type RouteJob } from '../logic/convertRoute';
 import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
-import { truthTable } from '../logic/evaluate';
+import { isSequential, sequenceTable, sortedIo, truthTable } from '../logic/evaluate';
 import { diagramFormulas } from '../logic/formula';
 import { parseLogicDiagram } from '../logic/file';
 import { valueOfSegments } from '../logic/sevenSeg';
@@ -352,7 +352,7 @@ function layoutMissing(raw: Obj): Obj {
     const known = memo.get(id);
     if (known !== undefined) return known;
     const k = kind.get(id);
-    if (k === 'INPUT' || k === 'HIGH' || k === 'LOW') return 0;
+    if (k === 'INPUT' || k === 'HIGH' || k === 'LOW' || k === 'CLOCK') return 0;
     if (seen.has(id)) return 1;
     seen.add(id);
     const d = 1 + Math.max(0, ...drivers(id).map((from) => depthOf(from, seen)));
@@ -406,8 +406,10 @@ export function logicSet(f: LabFile, args: { diagram: unknown }): ToolResult {
 
 const NO_LOGIC = '檔案裡還沒有邏輯圖；用 logic_set 寫入';
 
-export function logicTruthTable(f: LabFile): ToolResult {
+export function logicTruthTable(f: LabFile, args: { pulses?: number } = {}): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
+  // 子專案 46：時序電路回傳時序表。
+  if (isSequential(f.logic)) return sequenceReply(f.logic, args.pulses ?? 16);
   const t = truthTable(f.logic);
   if (!t.ok) {
     if (t.reason === 'loop') return { text: `邏輯圖有迴圈（${(t.loop ?? []).join('、')}），算不出真值表。` };
@@ -426,6 +428,26 @@ export function logicTruthTable(f: LabFile): ToolResult {
     }
   }
   const issues = checkDiagram(f.logic);
+  if (issues.length > 0) lines.push('', '檢查：', ...issues.map((i) => `- ${i.message}`));
+  return { text: lines.join('\n') };
+}
+
+/** 子專案 46（規格 2026-10-24 sequential-logic 第 6 節）：時序表的文字（從重設開始，其他輸入用檔案裡開關的值）。 */
+function sequenceReply(d: LogicDiagram, pulses: number): ToolResult {
+  const t = sequenceTable(d, Math.max(1, Math.min(64, Math.floor(pulses))));
+  if (!t.ok) {
+    if (t.reason === 'loop') return { text: `邏輯圖有迴圈（${(t.loop ?? []).join('、')}）：閘的輸出不能再接回前面（要經過正反器或計數器）。` };
+    if (t.reason === 'no-clock') return { text: '這是時序電路（有正反器或計數器），但沒有時脈：加一個 kind 為 CLOCK 的節點，接到 CLK 腳。' };
+    return { text: '邏輯圖沒有輸出端或 7 段顯示器。' };
+  }
+  const cell = (v: string | number) => (v === 'X' ? '?' : String(v));
+  const inputs = sortedIo(d).inputs;
+  const lines = [
+    `時序表（從重設開始：正反器、計數器都是 0；${inputs.length > 0 ? `其他輸入：${inputs.map((n) => `${n.name} = ${n.value ?? 0}`).join('、')}` : '沒有其他輸入'}）：`,
+    `${t.clock} 第幾次 | ${t.outputs.join(' ')}`,
+    ...t.rows.map((r) => `${r.pulse} | ${r.out.map(cell).join(' ')}`),
+  ];
+  const issues = checkDiagram(d);
   if (issues.length > 0) lines.push('', '檢查：', ...issues.map((i) => `- ${i.message}`));
   return { text: lines.join('\n') };
 }

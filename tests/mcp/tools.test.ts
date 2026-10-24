@@ -328,3 +328,34 @@ describe('display resistors in logic_to_breadboard (sub-project 44)', () => {
     expect(failed(logicToBreadboard(f, { display_resistors: 'each' }))).toBe('每段一顆電阻時 7 段顯示器最多 1 個；兩個請選「共用一顆電阻」');
   });
 });
+
+describe('sequential circuits in the MCP tools (sub-project 46)', () => {
+  it('lays out a counter without positions and answers with the sequence table', async () => {
+    const { logicSet, logicTruthTable } = await import('../../src/mcp/tools');
+    const { BLOCK_PINS } = await import('../../src/logic/blocks');
+    const IN = BLOCK_PINS['74LS93'].inputs;
+    const OUT = BLOCK_PINS['74LS93'].outputs;
+    const diagram = {
+      nodes: [
+        { id: 'c1', kind: 'CLOCK', name: 'CLK' },
+        { id: 'b1', kind: 'BLOCK', chip: '74LS93' },
+        { id: 'o1', kind: 'OUTPUT', name: 'QA' },
+        { id: 'o2', kind: 'OUTPUT', name: 'QB' },
+      ],
+      wires: [
+        { id: 'w1', from: 'c1', to: { node: 'b1', pin: IN.indexOf('CKA') } },
+        { id: 'w2', from: 'b1', fromPin: OUT.indexOf('QA'), to: { node: 'b1', pin: IN.indexOf('CKB') } },
+        { id: 'w3', from: 'b1', fromPin: OUT.indexOf('QA'), to: { node: 'o1', pin: 0 } },
+        { id: 'w4', from: 'b1', fromPin: OUT.indexOf('QB'), to: { node: 'o2', pin: 0 } },
+      ],
+    };
+    const f = okFile(logicSet(newLabFile('x', 'MB102'), { diagram }));
+    expect(f.logic.nodes.find((n) => n.id === 'c1')).toMatchObject({ kind: 'CLOCK', x: 2 });
+    const text = logicTruthTable(f, { pulses: 4 }).text;
+    expect(text).toContain('時序表（從重設開始');
+    expect(text).toContain('CLK 第幾次 | QA QB');
+    expect(text.split('\n').slice(2, 7)).toEqual(['0 | 0 0', '1 | 1 0', '2 | 0 1', '3 | 1 1', '4 | 0 0']);
+    const noClock = okFile(logicSet(newLabFile('x', 'MB102'), { diagram: { nodes: diagram.nodes.slice(1), wires: diagram.wires.slice(1) } }));
+    expect(logicTruthTable(noClock).text).toContain('沒有時脈');
+  });
+});

@@ -1,4 +1,4 @@
-import { isBlockChip } from './blocks';
+import { isBlockChip, isSequentialChip } from './blocks';
 import { inputCountOf, outputCountOf, overlaps } from './shapes';
 import { parseLogicNotes } from './notes';
 import { parseTask } from './task';
@@ -69,7 +69,9 @@ function parseWire(raw: unknown, i: number, nodes: Map<string, LogicNode>): Logi
   const source = nodes.get(w.from as string);
   const target = nodes.get(to.node as string);
   if (!source || !target) fail(`線 ${String(w.id)} 接到不存在的元件`);
-  if (isSink(source!.kind) || target!.kind === 'INPUT' || source === target) fail(`線 ${String(w.id)} 的方向不對`);
+  // 子專案 46：正反器、計數器可以接回自己（例如 74LS93 的 QA 接 CKB）；時脈不能當終點。
+  const selfOk = source === target && target!.kind === 'BLOCK' && isSequentialChip(target!.chip);
+  if (isSink(source!.kind) || target!.kind === 'INPUT' || target!.kind === 'CLOCK' || (source === target && !selfOk)) fail(`線 ${String(w.id)} 的方向不對`);
   if ((to.pin as number) < 0 || (to.pin as number) >= inputCountOf(target!)) fail(`線 ${String(w.id)} 接到不存在的輸入腳`);
   const fromPin = w.fromPin === undefined ? 0 : (w.fromPin as number);
   if (!isInt(fromPin) || fromPin < 0 || fromPin >= outputCountOf(source!)) fail(`線 ${String(w.id)} 從不存在的輸出腳接出`);

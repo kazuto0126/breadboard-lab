@@ -1,4 +1,4 @@
-import { isBlockChip } from './blocks';
+import { isBlockChip, isSequentialChip } from './blocks';
 import { dropLogicNoteTargets } from './notes';
 import { boxOf, inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
 import { canRotate, isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
@@ -99,7 +99,9 @@ export function connect(d: LogicDiagram, from: string, to: { node: string; pin: 
   if (source.kind === 'DISPLAY') return fail(d, '顯示器沒有可以接出去的腳');
   if (!Number.isInteger(fromPin) || fromPin < 0 || fromPin >= outputCountOf(source)) return fail(d, '沒有這個輸出腳');
   if (target.kind === 'INPUT') return fail(d, '輸入端沒有可以接進來的腳');
-  if (source.id === target.id) return fail(d, '不能把自己的輸出接回自己的輸入');
+  if (target.kind === 'CLOCK') return fail(d, '時脈沒有可以接進來的腳');
+  // 子專案 46：正反器、計數器可以把自己的輸出接回自己的輸入（例如 74LS93 的 QA 接 CKB）。
+  if (source.id === target.id && !(target.kind === 'BLOCK' && isSequentialChip(target.chip))) return fail(d, '不能把自己的輸出接回自己的輸入');
   if (!Number.isInteger(to.pin) || to.pin < 0 || to.pin >= inputCountOf(target)) return fail(d, '沒有這個輸入腳');
   const kept = d.wires.filter((w) => !(w.to.node === to.node && w.to.pin === to.pin));
   if (kept.length !== d.wires.length && d.wires.some((w) => w.to.node === to.node && w.to.pin === to.pin && w.from === from && (w.fromPin ?? 0) === fromPin)) return { ok: true, diagram: d };
