@@ -13,7 +13,7 @@
 
 ## 進行中
 
-- 沒有進行中的子專案（下一個：MCP 轉換也同時跑好幾種，使用者 2026-10-24 要做）。
+- 子專案 42：MCP 轉換也同時跑好幾種擺法（分支 `feat/mcp-parallel`，規格 `docs/superpowers/specs/2026-10-24-mcp-parallel-design.md`）：已實作，PR 等使用者看過後合併；合併後執行 `npm run publish:site` 發布（打包檔在網站上）。
 
 ## 接下來（依優先順序）
 
