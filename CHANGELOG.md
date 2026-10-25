@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-10-25 — 子專案 51：單顆正反器元件
+## 2026-10-25 — 子專案 51：單顆正反器元件（PR #81，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-25-single-flip-flops-design.md`；實作計畫：`docs/superpowers/plans/2026-10-25-single-flip-flops.md`。
 backlog「時序電路的其他功能」，使用者 2026-10-25 選這一項（照我的建議先做單顆正反器）。
