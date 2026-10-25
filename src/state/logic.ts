@@ -36,6 +36,8 @@ export interface LogicState {
   seq: SeqState;
   /** 子專案 46：時序表列到第幾次脈衝。 */
   pulses: number;
+  /** 子專案 50：時序表分頁顯示表格或波形（不存檔、不進 Undo）。 */
+  seqView: 'table' | 'wave';
   load(d: LogicDiagram): void;
   markSaved(): void;
   apply(r: EditResult, label: string, selection?: LogicSelection): boolean;
@@ -66,6 +68,7 @@ export interface LogicState {
   /** 子專案 46：時序方塊全部回到上電狀態（0）。 */
   resetSeq(): void;
   setPulses(n: number): void;
+  setSeqView(v: 'table' | 'wave'): void;
   /** 子專案 29：便條（格子座標）；新增後選取並開始編輯。 */
   addNoteAt(x: number, y: number): void;
   addNoteAtCenter(): void;
@@ -79,10 +82,10 @@ export interface LogicState {
   deleteNote(id: string): void;
 }
 
-export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote' | 'showFormulas' | 'seq' | 'pulses'> {
+export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote' | 'showFormulas' | 'seq' | 'pulses' | 'seqView'> {
   const restored = typeof window !== 'undefined' ? persistence.loadAutosave()?.logic : undefined;
   const diagram = restored ?? emptyDiagram();
-  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null, showFormulas: false, seq: evaluate(diagram).seq, pulses: 16 };
+  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null, showFormulas: false, seq: evaluate(diagram).seq, pulses: 16, seqView: 'table' };
 }
 
 /** 子專案 46：圖或輸入改了之後，時序方塊從目前的狀態重算到穩定（新的方塊從上電狀態開始）。 */
@@ -198,6 +201,9 @@ export const useLogic = create<LogicState>((set, get) => ({
   },
   setPulses(n) {
     set({ pulses: n });
+  },
+  setSeqView(seqView) {
+    set({ seqView });
   },
   setViewport(viewport) {
     set({ viewport });

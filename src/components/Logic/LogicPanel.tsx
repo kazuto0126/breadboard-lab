@@ -12,6 +12,7 @@ import { diagramFormulas, type OutputFormula } from '../../logic/formula';
 import { useStore } from '../../state/store';
 import { LogicNoteInspector } from './LogicNoteInspector';
 import { TaskTab } from './TaskTab';
+import { Waveform } from './Waveform';
 
 const TABS: Array<[LogicTab, string]> = [
   ['inspect', '屬性'],
@@ -442,6 +443,7 @@ function OutputFormulas({ diagram, node }: { diagram: LogicDiagram; node: LogicN
 /** 子專案 46（規格 2026-10-24 sequential-logic 第 4 節）：時序電路的時序表（從重設開始，第 0 到第 n 次脈衝）。 */
 function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
   const pulses = useLogic((l) => l.pulses);
+  const view = useLogic((l) => l.seqView);
   const table = useMemo(() => sequenceTable(diagram, pulses), [diagram, pulses]);
   /** 顯示器的欄（數字）用另一個顏色。 */
   const kinds = useMemo(() => sortedIo(diagram).outputs.map((o) => o.kind === 'DISPLAY'), [diagram]);
@@ -461,6 +463,14 @@ function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
   }
   return (
     <div className="p-3">
+      {/* 子專案 50：表格 / 波形切換。 */}
+      <div className="mb-2 flex gap-1">
+        {(['table', 'wave'] as const).map((v) => (
+          <button key={v} type="button" aria-pressed={view === v} onClick={() => useLogic.getState().setSeqView(v)} className={`${btn} ${view === v ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
+            {v === 'table' ? '表格' : '波形'}
+          </button>
+        ))}
+      </div>
       <div className="mb-2 flex items-center gap-2 text-xs text-slate-300">
         <span>列到第</span>
         {PULSE_CHOICES.map((n) => (
@@ -470,6 +480,9 @@ function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
         ))}
         <span>次脈衝</span>
       </div>
+      {view === 'wave' ? (
+        <Waveform table={table} />
+      ) : (
       <table data-testid="sequence-table" className="w-full border-collapse text-center font-mono text-sm">
         <thead>
           <tr className="text-slate-300">
@@ -494,7 +507,10 @@ function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
           ))}
         </tbody>
       </table>
-      <p className="mt-2 text-xs text-slate-400">從重設（正反器、計數器都是 0）開始，其他輸入用目前開關的值；第 0 列是還沒有脈衝時。</p>
+      )}
+      <p className="mt-2 text-xs text-slate-400">
+        從重設（正反器、計數器都是 0）開始，其他輸入用目前開關的值；{view === 'wave' ? '每格是那次脈衝之後的值，第 0 格是還沒有脈衝時。' : '第 0 列是還沒有脈衝時。'}
+      </p>
       <div className="mt-2">
         <SeqControls />
       </div>

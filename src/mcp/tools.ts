@@ -25,6 +25,7 @@ import { checkDiagram } from '../logic/check';
 import { convertAndRoute, convertAndRouteParallel, type ConvertRouted, type RouteJob } from '../logic/convertRoute';
 import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
 import { isSequential, sequenceTable, sortedIo, truthTable } from '../logic/evaluate';
+import { waveText } from '../logic/waveform';
 import { diagramFormulas } from '../logic/formula';
 import { parseLogicDiagram } from '../logic/file';
 import { valueOfSegments } from '../logic/sevenSeg';
@@ -455,6 +456,8 @@ function sequenceReply(d: LogicDiagram, pulses: number): ToolResult {
     `${t.clock} 第幾次 | ${t.outputs.join(' ')}`,
     ...t.rows.map((r) => `${r.pulse} | ${r.out.map(cell).join(' ')}`),
   ];
+  // 子專案 50：文字波形（AI 看不到畫面上的波形）。
+  if (t.display.some((d) => !d)) lines.push('', '波形（每格是那次脈衝之後的值；‾ 是 1、_ 是 0、? 是不確定；時脈每個 | 是一個脈衝）：', waveText(t));
   const issues = checkDiagram(d);
   if (issues.length > 0) lines.push('', '檢查：', ...issues.map((i) => `- ${i.message}`));
   return { text: lines.join('\n') };

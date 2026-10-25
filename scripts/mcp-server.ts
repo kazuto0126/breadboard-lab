@@ -94,7 +94,7 @@ const server = new McpServer(
       '建議流程：new_circuit → list_parts（查元件名稱與腳位）→ place_part（IC 第 1 腳放在 F 列，跨過凹槽）→ add_wire → check_circuit → auto_route → simulate。',
       '從邏輯圖開始：logic_set → logic_truth_table → logic_to_breadboard（轉換、佈線、比對一次完成）。手接的麵包板用 set_part 標上和邏輯圖一樣的名稱，再用 check_against_diagram 比對。',
       '從真值表題目開始：task_set → task_show → task_to_diagram → logic_to_breadboard → task_check。',
-      '時序電路（正反器、計數器）：logic_set 用 CLOCK 節點與 74LS74 / 76 / 90 / 93 / 161 / 193 方塊 → logic_truth_table 看時序表 → logic_to_breadboard。',
+      '時序電路（正反器、計數器）：logic_set 用 CLOCK 節點與 74LS74 / 76 / 90 / 93 / 161 / 193 方塊 → logic_truth_table 看時序表與文字波形 → logic_to_breadboard。',
     ].join('\n'),
   },
 );
@@ -281,7 +281,7 @@ server.registerTool(
   'logic_truth_table',
   {
     title: '真值表',
-    description: '電路檔裡邏輯圖的真值表（輸入依名稱排序，第一個是最高位元）、每個輸出的布林式（照圖寫出來與化簡後）與檢查結果。時序電路（有正反器、計數器或時脈）回傳時序表：從重設開始每次脈衝之後的輸出。',
+    description: '電路檔裡邏輯圖的真值表（輸入依名稱排序，第一個是最高位元）、每個輸出的布林式（照圖寫出來與化簡後）與檢查結果。時序電路（有正反器、計數器或時脈）回傳時序表：從重設開始每次脈衝之後的輸出，再加一段文字波形（每格一個字元，‾ 是 1、_ 是 0）。',
     inputSchema: { file, pulses: z.number().int().min(1).max(64).optional().describe('時序表列到第幾次脈衝（預設 16）') },
   },
   async (args) => withFile(args.file, (lab) => tools.logicTruthTable(lab, { pulses: args.pulses })),
