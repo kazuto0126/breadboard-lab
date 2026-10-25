@@ -3,7 +3,7 @@ import type { LayoutId } from '../types/board';
 import type { Circuit } from '../types/circuit';
 import type { DeepPartial, RoutingConfig, RoutingResult } from '../types/routing';
 import { convertProblem } from './synth';
-import { DEFAULT_LAYOUT, toBreadboard, type ConvertOptions, type ConvertResult, type LayoutVariant } from './toBreadboard';
+import { DEFAULT_LAYOUT, TWO_BOARD_LAYOUT, toBreadboard, type ConvertOptions, type ConvertResult, type LayoutVariant } from './toBreadboard';
 import type { LogicDiagram } from './types';
 
 /**
@@ -30,6 +30,9 @@ export const LAYOUT_VARIANTS: Record<LayoutId, LayoutVariant[]> = {
     { gap: 2, leds: 'pair', split: true },
     // 子專案 38：加上電阻、輸入超過 4 個時開關拆成兩個 4 位元（其他時候和上面的擺法一樣，不會重複試）。
     { gap: 2, leds: 'pair', split: false, splitSwitches: true },
+    // 子專案 48：IC 照 orderIcs 排（有接線的 IC 靠在一起；順序和原本一樣時擺出來一樣，不會重複試）。
+    { gap: 2, leds: 'pair', split: false, orderIcs: true },
+    { gap: 3, leds: 'straddle', split: false, orderIcs: true },
   ],
   // 子專案 38：一排擺法（全部在第 2 區，上下兩區留給跨線）與兩個 4 位元開關；2026-10-19 量測：編碼器 73 → 62 條線，加上下拉電阻 81 → 58 條。
   EIC1106: [
@@ -41,12 +44,16 @@ export const LAYOUT_VARIANTS: Record<LayoutId, LayoutVariant[]> = {
     { gap: 4, leds: 'straddle', split: false },
     { gap: 3, leds: 'straddle', split: false },
     { gap: 2, leds: 'pair', split: false },
+    // 子專案 48：IC 照 orderIcs 排。2026-10-25 量測：6 個輸入、4 個輸出、6 顆 IC 的電路從差 8 條變成一塊板排得完。
+    { gap: 4, leds: 'straddle', split: false, orderIcs: true },
+    { gap: 3, leds: 'straddle', split: false, orderIcs: true },
+    { gap: 6, leds: 'pair', split: false, orderIcs: true },
   ],
 };
 
 /** 子專案 48：兩塊 EIC-1106 左右貼在一起時試的擺法（一塊板接不完的大電路）。 */
 export const TWO_BOARD_VARIANTS: LayoutVariant[] = [
-  { gap: 6, leds: 'pair', split: false, boards: 2, orderIcs: true },
+  TWO_BOARD_LAYOUT,
   { gap: 9, leds: 'pair', split: false, boards: 2, orderIcs: true },
   { gap: 6, leds: 'straddle', split: false, boards: 2, orderIcs: true },
   { gap: 6, leds: 'pair', split: false, boards: 2 },

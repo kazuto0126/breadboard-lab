@@ -3,7 +3,8 @@ import { validateCircuit } from '../../src/core/circuit/validate';
 import { analyzeCircuit } from '../../src/editor/analysis';
 import { addNode, connect } from '../../src/logic/edit';
 import { majorityDiagram } from '../../src/logic/examples';
-import { toBreadboard, type ConvertResult } from '../../src/logic/toBreadboard';
+import { boardText, toBreadboard, type ConvertResult } from '../../src/logic/toBreadboard';
+import { boardGroups } from '../../src/editor/boards';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 import { powerProblems } from '../fixtures/powerChecks';
 
@@ -59,7 +60,7 @@ describe('toBreadboard', () => {
       ['R4', 'resistor', 220],
       ['D1', 'led', null],
     ]);
-    expect(r.bom).toEqual({ ics: { '74LS08': 1, '74LS32': 1 }, switch: 'dipsw-4', switches: 1, buttons: 0, resistors: 4, leds: 1, displays: 0, layout: 'MB102' });
+    expect(r.bom).toEqual({ ics: { '74LS08': 1, '74LS32': 1 }, switch: 'dipsw-4', switches: 1, buttons: 0, resistors: 4, leds: 1, displays: 0, layout: 'MB102', boards: 1 });
     expect(r.inputs).toEqual(['i1', 'i2', 'i3']);
     expect(r.leds).toEqual({ o1: 'D1' });
     expect(validateCircuit(r.circuit).filter((e) => e.severity === 'error' && !e.code.startsWith('WIRE'))).toEqual([]);
@@ -85,7 +86,23 @@ describe('toBreadboard', () => {
     expect(validateCircuit(r.circuit).filter((e) => e.severity === 'error' && !e.code.startsWith('WIRE'))).toEqual([]);
     expect(wiredAsPlanned(r)).toEqual({ merged: [], split: [] });
     expect(toBreadboard(d, { switchTo: 'vcc', board: 'MB102', pulls: true })).toEqual({ ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' });
-    expect(toBreadboard(andChain(60), { switchTo: 'vcc', board: 'auto', pulls: true })).toMatchObject({ ok: false, reason: expect.stringContaining('EIC-1106 放不下') });
+    expect(toBreadboard(andChain(60), { switchTo: 'vcc', board: 'auto', pulls: true })).toMatchObject({ ok: false, reason: expect.stringContaining('兩塊 EIC-1106 也放不下') });
+  });
+
+  // 子專案 48：一塊 EIC-1106 放不下時，自動選板改用兩塊左右貼在一起（指定 EIC-1106 時不會）。
+  it('uses two EIC-1106 side by side when one is not enough', () => {
+    const d = andChain(40);
+    expect(toBreadboard(d, { switchTo: 'vcc', board: 'EIC1106', pulls: true })).toMatchObject({ ok: false, reason: expect.stringContaining('請改用「自動」選板') });
+    const r = ok(toBreadboard(d, { switchTo: 'vcc', board: 'auto', pulls: true }));
+    expect(r.bom).toMatchObject({ layout: 'EIC1106', boards: 2, ics: { '74LS08': 10 } });
+    expect(boardText(r.bom)).toBe('EIC-1106 × 2（左右貼在一起）');
+    // 第 2 塊板貼在右邊（邊對邊，組成同一個群組），兩塊板上都有 IC。
+    expect(r.circuit.boards.map((b) => [b.id, b.layoutId, b.y])).toEqual([['b1', 'EIC1106', 0], ['b2', 'EIC1106', 0]]);
+    expect(boardGroups(r.circuit)).toHaveLength(1);
+    const icBoards = new Set(r.circuit.components.filter((c) => c.defId === '74LS08').map((c) => c.boardId));
+    expect(icBoards).toEqual(new Set(['b1', 'b2']));
+    expect(validateCircuit(r.circuit).filter((e) => e.severity === 'error' && !e.code.startsWith('WIRE'))).toEqual([]);
+    expect(wiredAsPlanned(r)).toEqual({ merged: [], split: [] });
   });
 
   it('refuses diagrams that cannot be converted', () => {

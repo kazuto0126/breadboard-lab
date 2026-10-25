@@ -58,6 +58,11 @@ export function switchText(bom: Pick<Bom, 'switch' | 'switches' | 'buttons'>): s
   return bom.switch ? `${bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × ${bom.switches}` : `按鈕 × ${bom.buttons}`;
 }
 
+/** 子專案 48：零件清單裡板子那一項（「MB-102」「EIC-1106」「EIC-1106 × 2（左右貼在一起）」）。 */
+export function boardText(bom: Pick<Bom, 'layout' | 'boards'>): string {
+  return bom.layout === 'MB102' ? 'MB-102' : bom.boards === 2 ? 'EIC-1106 × 2（左右貼在一起）' : 'EIC-1106';
+}
+
 export type ConvertResult =
   | {
       ok: true;
@@ -110,6 +115,8 @@ export interface LayoutVariant {
 
 /** 預設擺法（子專案 36 以前的擺法）。 */
 export const DEFAULT_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: false };
+/** 子專案 48：兩塊 EIC-1106 的預設擺法。 */
+export const TWO_BOARD_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: false, boards: 2, orderIcs: true };
 
 /** 一個預定的連接點：元件的某隻腳，或接線柱的孔。 */
 type Terminal = { pin: string } | { point: GridPoint };
@@ -145,13 +152,13 @@ interface Block {
 /** 子專案 47：相鄰的兩顆 IC 之間至少空幾欄（使用者 2026-10-25：「IC 與 IC 不要並聯，至少空兩行」）。 */
 const IC_GAP = 2;
 
-/** 子專案 48：IC 數量不超過這個時試所有的順序，更多時兩兩交換到不能再好。 */
+/** 子專案 48：IC 數量不超過這個時試所有的順序，更多時一步一步改到不能再好。 */
 const ORDER_ALL = 8;
 
 /**
  * 子專案 48：IC 排成一列的順序，讓有接線的 IC 靠在一起。signals[i]：第 i 顆 IC 接的訊號。每個訊號的跨度
  * （用到它的 IC 最左到最右的位置；輸入另外算在最左邊 −1，輸出在 outputsRight 時算在最右邊、否則最左邊）加起來最小；
- * 同分時保持原本的順序。回傳排好的順序（原本的索引）。
+ * 同分時保持原本的順序。8 顆以下試所有的順序，更多時從原本的順序一步一步改（交換、倒過來、搬一顆）。回傳排好的順序（原本的索引）。
  */
 export function orderIcs(signals: string[][], inputs: Set<string>, outputs: Set<string>, outputsRight: boolean): number[] {
   const n = signals.length;
@@ -193,19 +200,29 @@ export function orderIcs(signals: string[][], inputs: Set<string>, outputs: Set<
     }
     return best;
   }
+  // 更多顆：交換兩顆、把一段倒過來、把一顆搬到另一個位置，直到不能再好。
+  const moves = (order: number[], i: number, j: number): number[][] => {
+    const swap = [...order];
+    [swap[i], swap[j]] = [swap[j], swap[i]];
+    const reversed = [...order.slice(0, i), ...order.slice(i, j + 1).reverse(), ...order.slice(j + 1)];
+    const moved = [...order];
+    moved.splice(j, 0, ...moved.splice(i, 1));
+    const back = [...order];
+    back.splice(i, 0, ...back.splice(j, 1));
+    return [swap, reversed, moved, back];
+  };
   for (let improved = true; improved; ) {
     improved = false;
     for (let i = 0; i < n; i++)
-      for (let j = i + 1; j < n; j++) {
-        const next = [...best];
-        [next[i], next[j]] = [next[j], next[i]];
-        const c = cost(next);
-        if (c < bestCost) {
-          bestCost = c;
-          best = next;
-          improved = true;
+      for (let j = i + 1; j < n; j++)
+        for (const next of moves(best, i, j)) {
+          const c = cost(next);
+          if (c < bestCost) {
+            bestCost = c;
+            best = next;
+            improved = true;
+          }
         }
-      }
   }
   return best;
 }
@@ -282,8 +299,16 @@ export function toBreadboard(d: LogicDiagram, options: ConvertOptions, variant: 
     }
   }
   if (options.board === 'MB102') return { ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' };
+  // 子專案 48：自動選板時一塊 EIC-1106 放不下，改用兩塊左右貼在一起。
+  if (options.board === 'auto') {
+    try {
+      return build(d, options, 'EIC1106', TWO_BOARD_LAYOUT);
+    } catch (err) {
+      if (!(err instanceof NoRoom)) throw err;
+    }
+  }
   const chips = assignIcs(unitsFor(d, options)).length;
-  return { ok: false, reason: `零件太多，一塊 EIC-1106 放不下（需要 ${chips} 片 IC）` };
+  return { ok: false, reason: options.board === 'auto' || variant.boards === 2 ? `零件太多，兩塊 EIC-1106 也放不下（需要 ${chips} 片 IC）` : `零件太多，一塊 EIC-1106 放不下（需要 ${chips} 片 IC），請改用「自動」選板（可以用兩塊）` };
 }
 
 function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, variant: LayoutVariant): ConvertResult {

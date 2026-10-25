@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { applyRouting } from '../../src/core/routing/apply';
 import { convertAndRoute } from '../../src/logic/convertRoute';
+import { designFromTask } from '../../src/logic/design';
+import { taskFromExpressions } from '../../src/logic/expression';
 import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
 import { bcdDiagram, majorityDiagram } from '../../src/logic/examples';
 import type { ConvertOptions } from '../../src/logic/toBreadboard';
@@ -16,11 +18,18 @@ function twoDisplays(): LogicDiagram {
   return { ...emptyDiagram(), nodes, wires };
 }
 
+/** 子專案 48：從布林式產生的大電路（6 顆 IC）。 */
+function fromExpressions(lines: string[]): LogicDiagram {
+  const r = taskFromExpressions(lines.join('\n'));
+  if (!r.ok) throw new Error(r.reason);
+  return designFromTask(r.task).diagram;
+}
+
 /**
  * 子專案 36（規格 2026-10-20 conversion-placement 第 3 節）：「轉成麵包板」的量測。比較慢，不在一般的 npm test 與 CI 跑；
  * 用 npm run bench:convert 執行，結果印出來並檢查目標。
  */
-const cases: Array<{ name: string; d: () => LogicDiagram; options: Partial<ConvertOptions>; board?: 'MB102' | 'EIC1106'; maxWires?: number; ics?: Record<string, number> }> = [
+const cases: Array<{ name: string; d: () => LogicDiagram; options: Partial<ConvertOptions>; board?: 'MB102' | 'EIC1106'; boards?: 1 | 2; maxWires?: number; ics?: Record<string, number> }> = [
   { name: 'A 比較器（下拉電阻）', d: comparator, options: { pulls: true }, board: 'MB102', maxWires: 27 },
   { name: '多數決（下拉電阻）', d: majorityDiagram, options: { pulls: true }, board: 'MB102', maxWires: 28 },
   { name: 'B 解碼器', d: () => decoder(), options: {}, board: 'MB102' },
@@ -31,7 +40,11 @@ const cases: Array<{ name: string; d: () => LogicDiagram; options: Partial<Conve
   { name: 'C 編碼器（下拉電阻）', d: encoder, options: { pulls: true }, maxWires: 62, ics: { '74LS32': 2 } },
   { name: 'BCD 範例', d: bcdDiagram, options: {}, maxWires: 60 },
   // 子專案 44：共用一顆電阻（兩個顯示器時的預設）；每段一顆時 10 條排不完。
-  { name: '兩個 7 段顯示器（共用電阻）', d: twoDisplays, options: {}, board: 'EIC1106' },
+  { name: '兩個 7 段顯示器（共用電阻）', d: twoDisplays, options: {}, board: 'EIC1106', boards: 1 },
+  // 子專案 48：6 顆 IC 的大電路，子專案 47 時一塊 EIC-1106 差 1–8 條；現在 IC 照接線排、一塊排不完時用兩塊 EIC-1106。
+  { name: '大電路 6 輸入 3 輸出（下拉電阻）', d: () => fromExpressions(['X = A B + C D + E F', "Y = A' C E + B D' F", "Z = A C' + B' E + D F'"]), options: { pulls: true }, board: 'EIC1106' },
+  { name: '大電路 6 輸入 4 輸出（下拉電阻）', d: () => fromExpressions(['W = A B C + D E F', "X = A' B + C' D + E' F", 'Y = A D + B E + C F', "Z = A' F' + B' E'"]), options: { pulls: true }, board: 'EIC1106' },
+  { name: '大電路 5 輸入 4 輸出（下拉電阻）', d: () => fromExpressions(["W = (A + B)(C + D')", "X = (A' + E)(B + C)", 'Y = A B + D E', "Z = C' E + A D'"]), options: { pulls: true }, board: 'EIC1106' },
 ];
 
 describe('logic-to-breadboard measurements', () => {
@@ -43,11 +56,13 @@ describe('logic-to-breadboard measurements', () => {
       const ms = Math.round(performance.now() - started);
       if (!r.ok) throw new Error(r.reason);
       const { metrics } = r.routed;
-      console.log(`MEASURE ${c.name}: ${r.result.bom.layout} ${r.routed.status} ${metrics.wireCount} 條線、總長 ${metrics.totalLength}、交叉 ${metrics.crossings}、試了 ${r.tried} 種擺法、${ms} ms`);
+      console.log(`MEASURE ${c.name}: ${r.result.bom.layout} × ${r.result.bom.boards} ${r.routed.status} ${metrics.wireCount} 條線、總長 ${metrics.totalLength}、交叉 ${metrics.crossings}、試了 ${r.tried} 種擺法、${ms} ms`);
       expect(r.routed.status).toBe('success');
       // 子專案 39：不能有交叉。
       expect(metrics.crossings).toBe(0);
       if (c.board) expect(r.result.bom.layout).toBe(c.board);
+      // 子專案 48：小電路一定只用一塊板。
+      expect(r.result.bom.boards).toBe(c.boards ?? (c.name.startsWith('大電路') ? r.result.bom.boards : 1));
       if (c.maxWires) expect(metrics.wireCount).toBeLessThanOrEqual(c.maxWires);
       if (c.ics) expect(r.result.bom.ics).toEqual(c.ics);
       expect(ms).toBeLessThan(45_000);

@@ -413,8 +413,15 @@ function ToBreadboardDialog() {
               {preview.bom.switch === 'dipsw-8' && pulls && '（可能改用 4 位元 × 2，電阻才能都直接插進電源軌）'}
               、電阻 × {preview.bom.resistors}、LED × {preview.bom.leds}
               {preview.bom.displays > 0 && `、7 段顯示器 × ${preview.bom.displays}（${display === 'cc' ? '共陰極' : '共陽極'}）`}；
-              {/* 子專案 36 起自動選板會先試 MB-102 的每一種擺法，排不完才改用 EIC-1106，所以預覽不說一定放在 MB-102。 */}
-              {board === 'auto' && preview.bom.layout === 'MB102' ? '先試 MB-102，排不完時改用 EIC-1106' : `放在 ${preview.bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}`}。
+              {/* 子專案 36 起自動選板會先試 MB-102 的每一種擺法，排不完才改用 EIC-1106，所以預覽不說一定放在 MB-102。
+                  子專案 48：自動選板時一塊 EIC-1106 也排不完，會用兩塊 EIC-1106 左右貼在一起。 */}
+              {board === 'auto'
+                ? preview.bom.boards === 2
+                  ? '放在兩塊 EIC-1106（左右貼在一起）'
+                  : preview.bom.layout === 'MB102'
+                  ? '先試 MB-102，排不完時改用 EIC-1106，還排不完時用兩塊 EIC-1106'
+                  : '放在 EIC-1106，排不完時用兩塊 EIC-1106（左右貼在一起）'
+                : `放在 ${preview.bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}`}。
             </>
           ) : (
             <span className="text-red-300">{preview.reason}</span>
