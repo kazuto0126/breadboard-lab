@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-10-25 — 子專案 50：時序圖（波形）
+## 2026-10-25 — 子專案 50：時序圖（波形）（PR #79，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-25-waveform-design.md`；實作計畫：`docs/superpowers/plans/2026-10-25-waveform.md`。
 backlog「時序電路的其他功能」裡的第一個，使用者 2026-10-25 選這一項（擺法交給我決定，看過示意圖）。
