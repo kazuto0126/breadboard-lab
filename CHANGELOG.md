@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-10-25 — 子專案 48：大電路轉成麵包板（IC 照接線排、兩塊 EIC-1106、拆線重接）
+## 2026-10-25 — 子專案 48：大電路轉成麵包板（IC 照接線排、兩塊 EIC-1106、拆線重接）（PR #75，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-25-big-convert-design.md`；實作計畫：`docs/superpowers/plans/2026-10-25-big-convert.md`。
 backlog「大電路轉換佈線接不完」；使用者 2026-10-25 選「一塊板接不完時自動多加一塊板」。
