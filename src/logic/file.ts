@@ -1,6 +1,7 @@
 import { isBlockChip, isSequentialChip } from './blocks';
 import { inputCountOf, outputCountOf, overlaps } from './shapes';
 import { parseLogicNotes } from './notes';
+import { parseStateTask } from './stateTask';
 import { parseTask } from './task';
 import { canRotate, isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
@@ -111,6 +112,12 @@ export function parseLogicDiagram(raw: unknown): { ok: true; diagram: LogicDiagr
       const task = parseTask(r.task);
       if (!task.ok) return { ok: false, error: task.reason };
       diagram.task = task.task;
+    }
+    // 子專案 52：狀態表題目。
+    if (r.stateTask !== undefined) {
+      const task = parseStateTask(r.stateTask);
+      if (!task.ok) return { ok: false, error: task.reason };
+      diagram.stateTask = task.task;
     }
     // 子專案 29：便條。
     if (r.notes !== undefined) {

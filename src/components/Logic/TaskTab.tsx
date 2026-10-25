@@ -23,6 +23,7 @@ import {
 } from '../../logic/task';
 import { designFromTask, termsOfTask, usesPos, type DesignForm } from '../../logic/design';
 import { taskFromExpressions } from '../../logic/expression';
+import { withStateTask } from '../../logic/stateTask';
 import { literalsOf, posText, sopText, sumLiteralsOf, type Term } from '../../logic/minimize';
 import type { LogicDiagram } from '../../logic/types';
 import { useLogic } from '../../state/logic';
@@ -210,7 +211,8 @@ function Simplified({ diagram, task }: { diagram: LogicDiagram; task: TruthTask 
   const pos = usesPos(form);
   const generate = () => {
     const s = useLogic.getState();
-    s.apply({ ok: true, diagram: designFromTask(task, form).diagram }, `從題目產生邏輯圖（${FORMS.find((x) => x[0] === form)![1]}）`, null);
+    // 子專案 52：狀態表題目跟著保留。
+    s.apply({ ok: true, diagram: withStateTask(designFromTask(task, form).diagram, diagram.stateTask) }, `從題目產生邏輯圖（${FORMS.find((x) => x[0] === form)![1]}）`, null);
     s.fit();
   };
   return (
