@@ -26,8 +26,18 @@ export const IC_FOR: Record<UnitKind, string> = {
 };
 const ORDER = Object.keys(IC_FOR) as UnitKind[];
 
-/** 7 段顯示器最多幾個（規格 2026-10-13 seven-seg 第 6 節）；子專案 44：每段一顆電阻時只有 1 個（2 個排不完）。 */
-export const MAX_DISPLAYS = 2;
+/**
+ * 7 段顯示器最多幾個（規格 2026-10-13 seven-seg 第 6 節）。子專案 49：共用一顆電阻時 3 個、每段一顆時 2 個
+ * （一塊 EIC-1106 只放得下共用電阻的 2 個或每段一顆的 1 個，更多時要兩塊 EIC-1106，所以要自動選板）。
+ */
+export const MAX_DISPLAYS = 3;
+/** 子專案 49：每段一顆電阻時最多幾個顯示器（3 個兩塊板也排不完）。 */
+export const MAX_DISPLAYS_EACH = 2;
+
+/** 子專案 49：這些顯示器一塊 EIC-1106 放不下、要用兩塊（共用電阻 3 個、每段一顆 2 個）。 */
+export function displaysNeedTwoBoards(count: number, resistors: 'each' | 'shared'): boolean {
+  return resistors === 'each' ? count >= 2 : count >= 3;
+}
 
 /** 子專案 44（規格 2026-10-24 display-resistors）：沒指定時 1 個顯示器每段一顆電阻、2 個以上共用一顆。 */
 export function displayResistorsOf(d: LogicDiagram, chosen?: 'each' | 'shared'): 'each' | 'shared' {
@@ -35,7 +45,7 @@ export function displayResistorsOf(d: LogicDiagram, chosen?: 'each' | 'shared'):
 }
 
 /** 規格第 6 節：不能轉的原因；可以轉時回傳 null。 */
-export function convertProblem(d: LogicDiagram, options: { displayResistors?: 'each' | 'shared' } = {}): string | null {
+export function convertProblem(d: LogicDiagram, options: { displayResistors?: 'each' | 'shared'; board?: 'auto' | 'MB102' | 'EIC1106' } = {}): string | null {
   const issues = checkDiagram(d);
   if (issues.some((i) => i.code === 'LOGIC_LOOP')) return '邏輯圖有迴圈，不能轉成麵包板';
   const { inputs, outputs } = sortedIo(d);
@@ -43,7 +53,10 @@ export function convertProblem(d: LogicDiagram, options: { displayResistors?: 'e
   if ((inputs.length === 0 && !d.nodes.some((n) => n.kind === 'CLOCK')) || outputs.length === 0) return '邏輯圖要有輸入端和輸出端才能轉';
   const displayCount = d.nodes.filter((n) => n.kind === 'DISPLAY').length;
   if (displayCount > MAX_DISPLAYS) return `7 段顯示器最多 ${MAX_DISPLAYS} 個（零件太多，佈線接不完）`;
-  if (displayCount > 1 && displayResistorsOf(d, options.displayResistors) === 'each') return '每段一顆電阻時 7 段顯示器最多 1 個；兩個請選「共用一顆電阻」';
+  const resistors = displayResistorsOf(d, options.displayResistors);
+  if (displayCount > MAX_DISPLAYS_EACH && resistors === 'each') return `每段一顆電阻時 7 段顯示器最多 ${MAX_DISPLAYS_EACH} 個；${MAX_DISPLAYS} 個請選「共用一顆電阻」`;
+  if (options.board !== undefined && options.board !== 'auto' && displaysNeedTwoBoards(displayCount, resistors))
+    return `${displayCount} 個 7 段顯示器${resistors === 'each' ? '（每段一顆電阻）' : ''}要用兩塊 EIC-1106，請把麵包板選「自動」`;
   if (inputs.length > MAX_TABLE_INPUTS) return `輸入端最多 ${MAX_TABLE_INPUTS} 個（指撥開關最多 8 位元）`;
   if (issues.some((i) => i.code === 'LOGIC_INPUT_OPEN' || i.code === 'LOGIC_OUTPUT_OPEN')) return '還有沒接好的腳（到「檢查」分頁看是哪些），請先接好';
   return null;

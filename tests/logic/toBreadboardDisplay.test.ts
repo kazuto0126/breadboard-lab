@@ -57,12 +57,14 @@ describe('converting a 7-segment display', () => {
     expect(wiredAsPlanned(r)).toEqual({ merged: [], split: [] });
   });
 
-  it('allows two displays with distinct parts, but not three', () => {
+  it('allows two displays with distinct parts, but not four', () => {
     let d = emptyDiagram();
     d = must(addNode(d, 'INPUT', 0, 0));
-    for (let k = 0; k < 3; k++) d = must(addNode(d, 'DISPLAY', 6 + k * 6, 0));
-    for (let k = 1; k <= 3; k++) for (let p = 0; p < 4; p++) d = must(connect(d, 'i1', { node: `d${k}`, pin: p }));
-    expect(convertProblem(d)).toBe('7 段顯示器最多 2 個（零件太多，佈線接不完）');
+    for (let k = 0; k < 4; k++) d = must(addNode(d, 'DISPLAY', 6 + k * 6, 0));
+    for (let k = 1; k <= 4; k++) for (let p = 0; p < 4; p++) d = must(connect(d, 'i1', { node: `d${k}`, pin: p }));
+    // 子專案 49：最多 3 個（共用電阻、兩塊 EIC-1106）。
+    expect(convertProblem(d)).toBe('7 段顯示器最多 3 個（零件太多，佈線接不完）');
+    d = { ...d, nodes: d.nodes.filter((n) => n.id !== 'd4'), wires: d.wires.filter((w) => w.to.node !== 'd4') };
     const two = { ...d, nodes: d.nodes.filter((n) => n.id !== 'd3'), wires: d.wires.filter((w) => w.to.node !== 'd3') };
     const r = ok(toBreadboard(two, { switchTo: 'gnd', board: 'auto' }));
     const ids = r.circuit.components.map((c) => c.id);

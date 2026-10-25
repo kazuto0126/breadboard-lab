@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
-/** 子專案 44（規格 2026-10-24 display-resistors）：兩個 7 段顯示器時預設共用一顆電阻；選每段一顆時說明最多 1 個。 */
-test('兩個 7 段顯示器：對話框預設共用一顆電阻，選每段一顆時說明原因，轉換後比對一致', async ({ page }) => {
+/** 子專案 44（規格 2026-10-24 display-resistors）：兩個 7 段顯示器時預設共用一顆電阻；子專案 49：選每段一顆時預覽說要兩塊 EIC-1106。 */
+test('兩個 7 段顯示器：對話框預設共用一顆電阻，選每段一顆時說要兩塊板，轉換後比對一致', async ({ page }) => {
   test.setTimeout(240_000);
   await page.goto('/');
   await page.evaluate(() => localStorage.clear());
@@ -28,8 +28,13 @@ test('兩個 7 段顯示器：對話框預設共用一顆電阻，選每段一�
   await expect(dialog.getByLabel(/共用一顆電阻/)).toBeChecked();
   await expect(dialog.getByTestId('convert-preview')).toContainText('電阻 × 10');
   await dialog.getByLabel(/每段一顆電阻/).check();
-  await expect(dialog.getByTestId('convert-preview')).toContainText('每段一顆電阻時 7 段顯示器最多 1 個');
+  await expect(dialog.getByTestId('convert-preview')).toContainText('電阻 × 22');
+  await expect(dialog.getByTestId('convert-preview')).toContainText('放在兩塊 EIC-1106');
+  // 指定一塊 EIC-1106 時不能轉，說明要選自動。
+  await dialog.getByLabel('EIC-1106', { exact: true }).check();
+  await expect(dialog.getByTestId('convert-preview')).toContainText('要用兩塊 EIC-1106，請把麵包板選「自動」');
   await expect(dialog.getByRole('button', { name: '轉換' })).toBeDisabled();
+  await dialog.getByLabel('自動', { exact: true }).check();
   await dialog.getByLabel(/共用一顆電阻/).check();
   await dialog.getByRole('button', { name: '轉換' }).click();
 

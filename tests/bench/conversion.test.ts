@@ -18,6 +18,16 @@ function twoDisplays(): LogicDiagram {
   return { ...emptyDiagram(), nodes, wires };
 }
 
+/** 子專案 49：三個 7 段顯示器共用 8 個開關（第 3 個接 A、C、E、G）。 */
+function threeDisplays(): LogicDiagram {
+  const d = twoDisplays();
+  return {
+    ...d,
+    nodes: [...d.nodes, { id: 'd3', kind: 'DISPLAY', x: 10, y: 20, name: 'S3' }],
+    wires: [...d.wires, ...[1, 3, 5, 7].map((i, p) => ({ id: `w2${p}`, from: `i${i}`, to: { node: 'd3', pin: p } }))],
+  };
+}
+
 /** 子專案 48：從布林式產生的大電路（6 顆 IC）。 */
 function fromExpressions(lines: string[]): LogicDiagram {
   const r = taskFromExpressions(lines.join('\n'));
@@ -41,6 +51,10 @@ const cases: Array<{ name: string; d: () => LogicDiagram; options: Partial<Conve
   { name: 'BCD 範例', d: bcdDiagram, options: {}, maxWires: 60 },
   // 子專案 44：共用一顆電阻（兩個顯示器時的預設）；每段一顆時 10 條排不完。
   { name: '兩個 7 段顯示器（共用電阻）', d: twoDisplays, options: {}, board: 'EIC1106', boards: 1 },
+  // 子專案 49：顯示器多到一塊 EIC-1106 放不下時用兩塊（每個顯示器和它的解碼 IC 在同一塊板）。
+  { name: '兩個 7 段顯示器（每段一顆電阻）', d: twoDisplays, options: { displayResistors: 'each' }, board: 'EIC1106', boards: 2 },
+  // 不加下拉電阻時一次跑一件（MCP、量測）偶爾差 1 條；加上電阻（預設）時都排得完。
+  { name: '三個 7 段顯示器（共用電阻、下拉電阻）', d: threeDisplays, options: { pulls: true }, board: 'EIC1106', boards: 2 },
   // 子專案 48：6 顆 IC 的大電路，子專案 47 時一塊 EIC-1106 差 1–8 條；現在 IC 照接線排、一塊排不完時用兩塊 EIC-1106。
   { name: '大電路 6 輸入 3 輸出（下拉電阻）', d: () => fromExpressions(['X = A B + C D + E F', "Y = A' C E + B D' F", "Z = A C' + B' E + D F'"]), options: { pulls: true }, board: 'EIC1106' },
   { name: '大電路 6 輸入 4 輸出（下拉電阻）', d: () => fromExpressions(['W = A B C + D E F', "X = A' B + C' D + E' F", 'Y = A D + B E + C F', "Z = A' F' + B' E'"]), options: { pulls: true }, board: 'EIC1106' },

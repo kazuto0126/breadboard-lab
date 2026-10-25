@@ -325,7 +325,8 @@ describe('display resistors in logic_to_breadboard (sub-project 44)', () => {
     ];
     const wires = [0, 1].flatMap((k) => [0, 1, 2, 3].map((p) => ({ id: `w${k}${p}`, from: `i${k * 4 + p + 1}`, to: { node: `d${k + 1}`, pin: p } })));
     const f: LabFile = { ...newLabFile('x', 'EIC1106'), logic: { version: 1, nodes, wires } };
-    expect(failed(logicToBreadboard(f, { display_resistors: 'each' }))).toBe('每段一顆電阻時 7 段顯示器最多 1 個；兩個請選「共用一顆電阻」');
+    // 子專案 49：每段一顆電阻的 2 個顯示器要兩塊 EIC-1106，指定板子時說明要選自動。
+    expect(failed(logicToBreadboard(f, { display_resistors: 'each', board: 'EIC1106' }))).toBe('2 個 7 段顯示器（每段一顆電阻）要用兩塊 EIC-1106，請把麵包板選「自動」');
   });
 });
 

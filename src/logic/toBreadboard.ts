@@ -14,7 +14,7 @@ import type { GridPoint } from '../types/geometry';
 import { SEGMENT_NAMES, sortedIo } from './evaluate';
 import { toNandUnits, toNorUnits } from './nandOnly';
 import { BLOCK_DEFAULTS, BLOCK_PINS } from './blocks';
-import { assignIcs, convertProblem, displayResistorsOf, decompose, drivers, gateSlots, type IcPlan, type Unit } from './synth';
+import { assignIcs, convertProblem, displayResistorsOf, displaysNeedTwoBoards, decompose, drivers, gateSlots, type IcPlan, type Unit } from './synth';
 import { isSink, signalOf, type LogicDiagram, type LogicNode } from './types';
 
 export interface ConvertOptions {
@@ -111,12 +111,21 @@ export interface LayoutVariant {
    * 一塊板接不完的大電路用。
    */
   boards?: 2;
+  /** 子專案 49：兩塊板時每個 7 段顯示器和它的解碼 IC、電阻放在同一塊板（前一半在第 1 塊、後一半在第 2 塊）。 */
+  displayBoards?: true;
 }
 
 /** 預設擺法（子專案 36 以前的擺法）。 */
 export const DEFAULT_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: false };
 /** 子專案 48：兩塊 EIC-1106 的預設擺法。 */
 export const TWO_BOARD_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: false, boards: 2, orderIcs: true };
+/** 子專案 49：顯示器多到要兩塊板時的預設擺法（每個顯示器和它的解碼 IC 在同一塊板）。 */
+export const TWO_BOARD_DISPLAY_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: false, boards: 2, displayBoards: true };
+
+/** 子專案 49：自動選板時，這張圖的顯示器一塊 EIC-1106 放不下、一定要兩塊。 */
+export function needsTwoBoards(d: LogicDiagram, options: Pick<ConvertOptions, 'displayResistors'>): boolean {
+  return displaysNeedTwoBoards(d.nodes.filter((n) => n.kind === 'DISPLAY').length, displayResistorsOf(d, options.displayResistors));
+}
 
 /** 一個預定的連接點：元件的某隻腳，或接線柱的孔。 */
 type Terminal = { pin: string } | { point: GridPoint };
@@ -147,6 +156,8 @@ interface Block {
   align?: (x: number) => boolean;
   /** 子專案 47：IC（兩顆相鄰的 IC 之間至少空 IC_GAP 欄）；子專案 48：值是 IC 的元件 id。 */
   ic?: string;
+  /** 子專案 49：兩塊板時至少要放在第幾塊板（0 是第 1 塊）；前面的區塊還沒排到那塊板時直接跳過去。 */
+  board?: number;
 }
 
 /** 子專案 47：相鄰的兩顆 IC 之間至少空幾欄（使用者 2026-10-25：「IC 與 IC 不要並聯，至少空兩行」）。 */
@@ -286,11 +297,14 @@ export function splitByIc(inputs: LogicNode[], order: Map<string, number>): [Log
 
 /** 規格（2026-10-13 logic-to-breadboard）第 4、5 節。 */
 export function toBreadboard(d: LogicDiagram, options: ConvertOptions, variant: LayoutVariant = DEFAULT_LAYOUT): ConvertResult {
-  const problem = convertProblem(d, options);
+  // 子專案 49：兩塊板的擺法（自動選板時轉換會用到）不受「要選自動」的限制。
+  const problem = convertProblem(d, variant.boards === 2 ? { ...options, board: 'auto' } : options);
   if (problem) return { ok: false, reason: problem };
   // 有 7 段顯示器時 MB-102 的線排不完（規格 2026-10-13 seven-seg 第 6 節），自動選板直接用 EIC-1106。
+  // 子專案 49：顯示器多到一塊 EIC-1106 放不下時直接用兩塊。
   const hasDisplay = d.nodes.some((n) => n.kind === 'DISPLAY');
-  const layouts: LayoutId[] = options.board !== 'auto' ? [options.board] : hasDisplay ? ['EIC1106'] : ['MB102', 'EIC1106'];
+  const twoNeeded = options.board === 'auto' && needsTwoBoards(d, options);
+  const layouts: LayoutId[] = options.board !== 'auto' ? [options.board] : twoNeeded ? [] : hasDisplay ? ['EIC1106'] : ['MB102', 'EIC1106'];
   for (const layout of layouts) {
     try {
       return build(d, options, layout, variant);
@@ -302,7 +316,7 @@ export function toBreadboard(d: LogicDiagram, options: ConvertOptions, variant: 
   // 子專案 48：自動選板時一塊 EIC-1106 放不下，改用兩塊左右貼在一起。
   if (options.board === 'auto') {
     try {
-      return build(d, options, 'EIC1106', TWO_BOARD_LAYOUT);
+      return build(d, options, 'EIC1106', twoNeeded ? TWO_BOARD_DISPLAY_LAYOUT : TWO_BOARD_LAYOUT);
     } catch (err) {
       if (!(err instanceof NoRoom)) throw err;
     }
@@ -350,7 +364,8 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   const uprightPulls = options.pulls === true && options.inputs !== 'button';
   // 子專案 38：拆成兩個 4 位元開關時，每個開關各自挪到有孔的地方，不用平放的電阻。
   // 子專案 47：不加電阻時也試；加上電阻、6 個以上輸入時一定拆（電阻都插在開關那一排，不平放）。
-  const splitSwitches = inputs.length > 4 && (variant.splitSwitches === true || (uprightPulls && inputs.length >= 6));
+  // 子專案 49：顯示器分到兩塊板時也一定拆（和加上電阻時一樣，量測比較好排）。
+  const splitSwitches = inputs.length > 4 && (variant.splitSwitches === true || (two && variant.displayBoards === true) || (uprightPulls && inputs.length >= 6));
   const flatPull = uprightPulls && inputs.length >= 6 && !splitSwitches ? 5 : -1;
   /** 每個開關接的輸入（依名稱排序）；拆開時依「哪顆 IC 先用到」分組（子專案 45），開關比較靠近用到它的 IC。 */
   const switches = splitSwitches ? splitByIc(inputs, icOrderOf(d, plans, chips)) : [inputs];
@@ -464,9 +479,11 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   // 每段直接控制的顯示器不用解碼 IC。
   let nextIc = plans.length + chips.length;
   const displayParts: Array<{ node: (typeof displays)[number]; ic: string | null; ds: string }> = displays.map((node, k) => ({ node, ic: node.segments ? null : `U${++nextIc}`, ds: `DS${k + 1}` }));
-  for (const { node, ic } of displayParts) {
+  /** 子專案 49：第 k 個顯示器放在哪一塊板（只有兩塊板、displayBoards 時）。 */
+  const displayBoard = (k: number) => (two && variant.displayBoards && k >= 0 ? Math.floor((k * 2) / displayParts.length) : undefined);
+  for (const [k, { node, ic }] of displayParts.entries()) {
     if (!ic) continue;
-    icBlocks.push({ ic, width: 8, place: (x, area) => components.push(comp(ic, decoder, hole(`F${x}`, area), { board: boardNow })) });
+    icBlocks.push({ ic, board: displayBoard(k), width: 8, place: (x, area) => components.push(comp(ic, decoder, hole(`F${x}`, area), { board: boardNow })) });
     ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
     for (const name of ['VCC', '/LT', '/BI/RBO', '/RBI']) pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, VCC));
     pinNo(decoder, 'GND').forEach((p) => tie(`${ic}#${p}`, GND));
@@ -579,9 +596,11 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     }
     // 兩個一組：第一個放 A 列、第二個放 J 列（同一段欄），各自用不同的導通群組。
     const size = 2;
+    const onBoard = displayBoard(displayParts.findIndex((p) => p.ds === group));
     for (let i = 0; i < list.length; i += size) {
       const pair = list.slice(i, i + size);
       blocks[eic ? area : area === 1 ? 1 : 3].push({
+        board: onBoard,
         width: Math.max(...pair.map((t) => t.span)) + 1,
         place: (x) =>
           pair.forEach((t, j) =>
@@ -592,6 +611,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     const shown = displayParts.find((p) => p.ds === group);
     if (shown)
       blocks[3].push({
+        board: onBoard,
         width: 5,
         place: (x) => components.push(comp(shown.ds, dsDef, hole(`H${x}`, eic ? 3 : undefined), { board: boardNow, props: { labels: [shown.node.name ?? ''] } as never })),
       });
@@ -603,6 +623,8 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     const order = orderIcs(signals, new Set(inputs.map((n) => n.id)), new Set(outputs.map((n) => driver.get(`${n.id}#0`)!)), inOneRow);
     icBlocks.splice(0, icBlocks.length, ...order.map((k) => icBlocks[k]));
   }
+  // 子專案 49：要放在第 2 塊板的解碼 IC 排在後面（同一塊板的保持原本的順序）。
+  icBlocks.sort((a, b) => (a.board ?? 0) - (b.board ?? 0));
   if (!inOneRow) blocks[2].push(...icBlocks);
   else {
     blocks[1] = [...ledsBefore, ...blocks[1], ...icBlocks.slice(0, 1), ...laterSwitches, ...icBlocks.slice(1), ...blocks[3]];
@@ -621,6 +643,11 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     let x = 2 + gap;
     let lastIcEnd = -Infinity;
     for (const b of list) {
+      if (b.board !== undefined && b.board > onBoard) {
+        onBoard = b.board;
+        x = 2;
+        lastIcEnd = -Infinity;
+      }
       for (;;) {
         let at = b.ic ? Math.max(x, lastIcEnd + IC_GAP + 1) : x;
         for (let i = 0; i < 6 && b.align && !b.align(at); i++) at++;
