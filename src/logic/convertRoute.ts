@@ -3,7 +3,7 @@ import type { LayoutId } from '../types/board';
 import type { Circuit } from '../types/circuit';
 import type { DeepPartial, RoutingConfig, RoutingResult } from '../types/routing';
 import { convertProblem } from './synth';
-import { DEFAULT_LAYOUT, TWO_BOARD_LAYOUT, toBreadboard, type ConvertOptions, type ConvertResult, type LayoutVariant } from './toBreadboard';
+import { DEFAULT_LAYOUT, TWO_BOARD_DISPLAY_LAYOUT, TWO_BOARD_LAYOUT, needsTwoBoards, toBreadboard, type ConvertOptions, type ConvertResult, type LayoutVariant } from './toBreadboard';
 import type { LogicDiagram } from './types';
 
 /**
@@ -57,6 +57,9 @@ export const TWO_BOARD_VARIANTS: LayoutVariant[] = [
   { gap: 9, leds: 'pair', split: false, boards: 2, orderIcs: true },
   { gap: 6, leds: 'straddle', split: false, boards: 2, orderIcs: true },
   { gap: 6, leds: 'pair', split: false, boards: 2 },
+  // 子專案 49：每個 7 段顯示器和它的解碼 IC 放在同一塊板（沒有顯示器時和上面一樣，不會重複試）。
+  TWO_BOARD_DISPLAY_LAYOUT,
+  { gap: 3, leds: 'pair', split: false, boards: 2, displayBoards: true },
 ];
 
 /** 總時間預設 40 秒：每塊板先用短時間試每一種擺法（每種最多 4 秒），剩下的時間給最好的兩種。 */
@@ -89,7 +92,9 @@ export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: 
   const hasDisplay = d.nodes.some((n) => n.kind === 'DISPLAY');
   // 子專案 48：自動選板時最後試兩塊 EIC-1106（一塊板接不完時）。
   const single = (layout: LayoutId) => ({ layout, variants: LAYOUT_VARIANTS[layout] });
-  const boards = options.board !== 'auto' ? [single(options.board)] : [...(hasDisplay ? [] : [single('MB102')]), single('EIC1106'), { layout: 'EIC1106' as const, variants: TWO_BOARD_VARIANTS }];
+  // 子專案 49：顯示器多到一塊 EIC-1106 放不下時只試兩塊。
+  const two = { layout: 'EIC1106' as const, variants: TWO_BOARD_VARIANTS };
+  const boards = options.board !== 'auto' ? [single(options.board)] : needsTwoBoards(d, options) ? [two] : [...(hasDisplay ? [] : [single('MB102')]), single('EIC1106'), two];
   const power = { nearestPowerRail: true };
   const lanes = Math.max(1, Math.floor(parallel));
   let tried = 0;

@@ -168,7 +168,7 @@ function dropConflicts(
 /** 子專案 48：拆線重接最多拆幾個 Net、最多幾輪、最多多用時間限制的幾成。 */
 const MAX_VICTIMS = 3;
 const REPAIR_ROUNDS = 3;
-const REPAIR_SHARE = 0.2;
+const REPAIR_SHARE = 0.1;
 
 /**
  * 子專案 48：允許重疊把 net 接上，拆掉和它衝突的 Net（最多 MAX_VICTIMS 個），在不准碰的條件下依原本的順序重接。

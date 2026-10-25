@@ -329,8 +329,8 @@ function ToBreadboardDialog() {
             <legend className="mb-1 font-semibold text-slate-100">7 段顯示器的電阻</legend>
             {(
               [
-                ['each', '每段一顆電阻（220 Ω）', '每一段亮度一樣（課本的接法）；最多 1 個顯示器。'],
-                ['shared', '共用一顆電阻（100 Ω，接在共同腳）', '線比較少，最多 2 個顯示器；亮的段越多每段越暗（例如 1 比 8 亮）。'],
+                ['each', '每段一顆電阻（220 Ω）', '每一段亮度一樣（課本的接法）；最多 2 個顯示器（2 個時用兩塊 EIC-1106）。'],
+                ['shared', '共用一顆電阻（100 Ω，接在共同腳）', '線比較少，最多 3 個顯示器（3 個時用兩塊 EIC-1106）；亮的段越多每段越暗（例如 1 比 8 亮）。'],
               ] as const
             ).map(([id, label, hint]) => (
               <label key={id} className={radio(displayResistors === id)}>

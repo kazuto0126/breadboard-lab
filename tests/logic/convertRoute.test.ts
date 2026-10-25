@@ -83,6 +83,25 @@ describe('converting with a layout search (sub-project 36)', () => {
     expect(run(3)).toEqual({ layout: 'EIC1106', boards: 2, polished: 2 });
   });
 
+  // 子專案 49：顯示器多到一塊 EIC-1106 放不下時，自動選板只試兩塊板（不浪費時間在一塊板上）。
+  it('only tries two EIC-1106 when the displays need them (sub-project 49)', () => {
+    const nodes: LogicDiagram['nodes'] = [];
+    for (let k = 0; k < 8; k++) nodes.push({ id: `i${k + 1}`, kind: 'INPUT', x: 0, y: k * 2, name: 'ABCDEFGH'[k] });
+    nodes.push({ id: 'd1', kind: 'DISPLAY', x: 10, y: 0 }, { id: 'd2', kind: 'DISPLAY', x: 10, y: 10 });
+    const wires = [0, 1].flatMap((k) => [0, 1, 2, 3].map((p) => ({ id: `w${k}${p}`, from: `i${k * 4 + p + 1}`, to: { node: `d${k + 1}`, pin: p } })));
+    const d: LogicDiagram = { ...emptyDiagram(), nodes, wires };
+    const boards: number[] = [];
+    const route = (c: Parameters<typeof autoPlaceAndRoute>[0]): RoutingResult => {
+      boards.push(c.boards.length);
+      return { status: 'success', message: '', wires: [], failedNets: [], metrics: { wireCount: 20, totalLength: 80, bends: 0, crossings: 0, overlaps: 0, shortJogs: 0 }, score: 0, stats: { iterations: 0, elapsedMs: 0 }, moves: [] };
+    };
+    const r = convertAndRoute(d, { switchTo: 'vcc', board: 'auto', displayResistors: 'each' }, { totalMs: 10_000 }, route);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.result.bom).toMatchObject({ boards: 2, displays: 2 });
+    expect(boards.length).toBeGreaterThan(0);
+    expect(boards.every((n) => n === 2)).toBe(true);
+  });
+
   // 子專案 48：一塊板排不完時自動選板最後試兩塊 EIC-1106；指定板子時只試那一塊。
   it('moves to two EIC-1106 when one board cannot be routed (sub-project 48)', () => {
     const fake = (c: Parameters<typeof autoPlaceAndRoute>[0]): RoutingResult => {

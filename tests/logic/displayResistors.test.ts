@@ -29,6 +29,13 @@ function displays(n: number): LogicDiagram {
   for (let k = 0; k < n; k++) for (let p = 0; p < 4; p++) d = must(connect(d, `i${k * 4 + p + 1}`, { node: `d${k + 1}`, pin: p }));
   return d;
 }
+
+/** 子專案 49：三個顯示器共用 8 個輸入（第 3 個接 i1、i3、i5、i7）。 */
+function threeDisplays(): LogicDiagram {
+  let d = must(addNode(displays(2), 'DISPLAY', 10, 16));
+  [1, 3, 5, 7].forEach((i, p) => (d = must(connect(d, `i${i}`, { node: 'd3', pin: p }))));
+  return d;
+}
 /** 顯示器某一隻腳接到的元件（同一個 Net 裡的其他腳）。 */
 const partnersOf = (r: Extract<ConvertResult, { ok: true }>, ds: string, pin: number) => {
   const net = analyzeCircuit(r.circuit).nets.find((n) => n.pins.some((p) => p.componentId === ds && p.pinNumber === pin))!;
@@ -61,13 +68,24 @@ describe('display resistors', () => {
     expect(partnersOf(r, cc, 3)).toEqual([resistorsOf(r)[0].id]);
   });
 
-  it('shares the resistor by default with two displays, and allows one per segment only with one display', () => {
+  it('shares the resistor by default with two displays; more displays use two EIC-1106 (sub-project 49)', () => {
     expect(convertProblem(displays(2))).toBeNull();
     const r = ok(toBreadboard(displays(2), { switchTo: 'vcc', board: 'auto' }));
     expect(resistorsOf(r)).toHaveLength(2);
-    expect(convertProblem(displays(2), { displayResistors: 'each' })).toBe('每段一顆電阻時 7 段顯示器最多 1 個；兩個請選「共用一顆電阻」');
-    expect(toBreadboard(displays(2), { switchTo: 'vcc', board: 'auto', displayResistors: 'each' })).toMatchObject({ ok: false });
-    expect(convertProblem(displays(3))).toBe('7 段顯示器最多 2 個（零件太多，佈線接不完）');
+    expect(r.bom.boards).toBe(1);
+    // 子專案 49：每段一顆電阻的 2 個顯示器、共用電阻的 3 個顯示器用兩塊 EIC-1106，每個顯示器和它的解碼 IC 在同一塊板。
+    for (const [n, displayResistors] of [[2, 'each'], [3, 'shared']] as const) {
+      const d = n === 3 ? threeDisplays() : displays(2);
+      expect(convertProblem(d, { displayResistors })).toBeNull();
+      const two = ok(toBreadboard(d, { switchTo: 'vcc', board: 'auto', displayResistors }));
+      expect(two.bom).toMatchObject({ layout: 'EIC1106', boards: 2, displays: n });
+      const boardOf = (id: string) => two.circuit.components.find((c) => c.id === id)!.boardId;
+      expect(boardOf(`DS${n}`)).toBe('b2');
+      expect(boardOf('DS1')).toBe('b1');
+      // 指定板子時不能用兩塊。
+      expect(convertProblem(d, { displayResistors, board: 'EIC1106' })).toMatch(/要用兩塊 EIC-1106，請把麵包板選「自動」/);
+    }
+    expect(convertProblem(threeDisplays(), { displayResistors: 'each' })).toBe('每段一顆電阻時 7 段顯示器最多 2 個；3 個請選「共用一顆電阻」');
   });
 
   it('simulates the same as the diagram with a shared resistor, and Check Circuit finds no errors', () => {
