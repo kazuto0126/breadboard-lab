@@ -12,6 +12,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { toCircuitFile } from '../src/editor/fileFormat';
+import * as stateTaskTools from '../src/mcp/stateTaskTools';
 import * as taskTools from '../src/mcp/taskTools';
 import * as tools from '../src/mcp/tools';
 import { listCircuitFiles, loadLabFile } from './mcp-files';
@@ -95,6 +96,7 @@ const server = new McpServer(
       '從邏輯圖開始：logic_set → logic_truth_table → logic_to_breadboard（轉換、佈線、比對一次完成）。手接的麵包板用 set_part 標上和邏輯圖一樣的名稱，再用 check_against_diagram 比對。',
       '從真值表題目開始：task_set → task_show → task_to_diagram → logic_to_breadboard → task_check。',
       '時序電路（正反器、計數器）：logic_set 用 CLOCK 節點與 74LS74 / 76 / 90 / 93 / 161 / 193 方塊或單顆正反器 DFF / JKFF → logic_truth_table 看時序表與文字波形 → logic_to_breadboard。',
+      '從狀態表題目開始（時序電路的設計題）：state_task_set → state_task_to_diagram（用 DFF / JKFF 產生電路並列出化簡後的式子）→ logic_truth_table → logic_to_breadboard。',
     ].join('\n'),
   },
 );
@@ -385,6 +387,44 @@ server.registerTool(
     inputSchema: { file },
   },
   async (args) => withFile(args.file, (lab) => taskTools.taskCheck(lab)),
+);
+
+// 子專案 52（規格 2026-10-25 state-table-task 第 6 節）：狀態表題目。
+server.registerTool(
+  'state_task_set',
+  {
+    title: '寫入狀態表題目',
+    description: [
+      '寫入（取代）電路檔裡的狀態表題目（時序電路的設計題），邏輯圖不動；clear: true 刪除。',
+      '狀態是 S0…S(states − 1)，用二進位編碼（S0 是重設後的狀態；正反器的個數是最少能編出所有狀態的個數，狀態位元叫 Q0、Q1、Q2）。',
+      'rows 是「現在狀態 × 輸入組合」：狀態由小到大，同一個狀態裡輸入照二進位從全 0 到全 1（第一個輸入是最高位元），共 states × 2^輸入數 列；',
+      '每列寫 next（下一個狀態 0–states−1 或 "X" 不在乎）與 out（每個輸出的 0 / 1 / "X"，輸出寫在每一列，Moore 和 Mealy 都能寫）。',
+      '回覆列出狀態表與化簡後的式子（D 型是 D1、D0；JK 用激勵表，是 J1 K1 J0 K0）。',
+    ].join(''),
+    inputSchema: {
+      file,
+      states: z.number().int().min(2).max(8).optional().describe('狀態數 2–8'),
+      inputs: z.array(z.string()).max(2).optional().describe('輸入名稱，最多 2 個（不能用 Q0–Q2、D0–D2、J0–J2、K0–K2）'),
+      outputs: z.array(z.string()).max(4).optional().describe('輸出名稱，最多 4 個'),
+      flip_flop: z.enum(['D', 'JK']).optional().describe('D：D 型正反器（預設）；JK：JK 正反器'),
+      rows: z
+        .array(z.object({ next: z.union([z.number().int(), z.literal('X')]), out: z.array(z.union([z.literal(0), z.literal(1), z.literal('X')])).optional() }))
+        .optional()
+        .describe('每一列的下一個狀態與輸出，例如 [{ "next": 1, "out": [0] }, …]'),
+      clear: z.boolean().optional().describe('刪除狀態表題目'),
+    },
+  },
+  async ({ file: f, ...args }) => withFile(f, (lab) => stateTaskTools.stateTaskSet(lab, args)),
+);
+
+server.registerTool(
+  'state_task_to_diagram',
+  {
+    title: '從狀態表產生電路',
+    description: '照狀態表化簡後產生時序電路（時脈、單顆 DFF / JKFF、AND–OR 邏輯、輸出端與狀態位元的輸出端），取代檔案裡的邏輯圖（題目保留），回覆化簡後的式子與從 S0 開始每次脈衝後的狀態。之後可以用 logic_to_breadboard 轉成麵包板。',
+    inputSchema: { file },
+  },
+  async (args) => withFile(args.file, (lab) => stateTaskTools.stateTaskToDiagram(lab)),
 );
 
 // 子專案 42：打包版的佈線執行緒載入的是整個檔案；只有主執行緒連上 AI 工具（執行緒的工作在 mcp-pool.ts）。
