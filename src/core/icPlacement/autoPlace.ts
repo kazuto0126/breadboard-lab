@@ -48,10 +48,11 @@ export function autoPlaceAndRoute(circuit: Circuit, overrides?: DeepPartial<Rout
 
   let moves: IcMove[] = from?.moves ?? [];
   let best = from ?? route(moves, overrides)!;
-  // 子專案 48：大電路的協商常常在時間到時還沒收斂（排不完的線是 TIME_LIMIT）。先用比較長的時間把目前的擺法重排一次，
-  // 搬 IC 才有好的比較基準。
+  // 子專案 48：接著之前的結果排時（轉成麵包板的快速試只給很短的時間），大電路的協商常常在時間到時還沒收斂
+  // （排不完的線是 TIME_LIMIT）。先用比較長的時間把目前的擺法重排一次，搬 IC 才有好的比較基準。
+  // 從頭開始時不重排：第一次佈線本來就用完整的時間，重排只會佔掉搬 IC 的時間。
   const unfinished = (r: RoutingResult) => r.failedNets.some((f) => f.reason === 'TIME_LIMIT');
-  if (unfinished(best) && !outOfTime()) {
+  if (from && unfinished(best) && !outOfTime()) {
     const longer = route(moves, { ...overrides, timeBudgetMs: Math.max(config.timeBudgetMs, timeBudgetMs * RETRY_SHARE) });
     if (longer && isBetterRouting(longer, best)) best = longer;
   }

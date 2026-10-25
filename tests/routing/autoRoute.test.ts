@@ -8,6 +8,8 @@ import { checkRoutingLegality } from '../../src/core/routing/legality';
 import type { RoutingResult } from '../../src/types/routing';
 import { circuit, comp, wire } from '../fixtures/build';
 import { acceptanceCircuit } from '../fixtures/circuits';
+import { bcdDiagram } from '../../src/logic/examples';
+import { toBreadboard } from '../../src/logic/toBreadboard';
 
 const withoutTiming = (r: RoutingResult) => ({ ...r, stats: { ...r.stats, elapsedMs: 0 } });
 
@@ -101,4 +103,17 @@ describe('autoRoute', () => {
     const c = acceptanceCircuit();
     expect(applyRouting(c, autoRoute(c)).wires.every((w) => w.source === 'auto')).toBe(true);
   });
+});
+
+// 子專案 48：協商放棄的 Net 拆掉擋路的幾個 Net 再重接。
+describe('ripping up and rerouting after the negotiation gives up', () => {
+  it('reconnects most of the nets one negotiation round leaves behind (BCD on EIC-1106: 6 → at most 2)', () => {
+    const r = toBreadboard(bcdDiagram(), { switchTo: 'vcc', board: 'auto', pulls: true });
+    if (!r.ok) throw new Error(r.reason);
+    const routed = autoRoute(r.circuit, { negotiation: { maxIterations: 1 } });
+    expect(routed.failedNets.length).toBeLessThanOrEqual(2);
+    // 接上的線一樣通過合法性檢查（不重疊、不交叉）；只有還沒接的 Net 連接關係不同。
+    const failed = new Set(routed.failedNets.map((n) => n.netId));
+    expect(checkRoutingLegality(r.circuit, routed.wires).filter((v) => v.code !== 'NET_MISMATCH' || v.netIds.some((id) => !failed.has(id)))).toEqual([]);
+  }, 60_000);
 });
