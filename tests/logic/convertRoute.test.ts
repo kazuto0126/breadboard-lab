@@ -74,13 +74,39 @@ describe('converting with a layout search (sub-project 36)', () => {
       };
       const r = convertAndRoute(comparator(), { switchTo: 'vcc', board: 'auto', pulls: true }, { totalMs: 10_000 }, route);
       if (!r.ok) throw new Error(r.reason);
-      return { layout: r.result.bom.layout, polished: calls.filter((c) => c === 'polish').length };
+      return { layout: r.result.bom.layout, boards: r.result.bom.boards, polished: calls.filter((c) => c === 'polish').length };
     };
     // 只差 1、2 條：MB-102 上最好的那一種花時間排完。
-    expect(run(1)).toEqual({ layout: 'MB102', polished: 1 });
-    expect(run(2)).toEqual({ layout: 'MB102', polished: 1 });
-    // 差很多（像編碼器）：直接換 EIC-1106，把時間留給它（在 EIC-1106 上排最好的兩種）。
-    expect(run(3)).toEqual({ layout: 'EIC1106', polished: 2 });
+    expect(run(1)).toEqual({ layout: 'MB102', boards: 1, polished: 1 });
+    expect(run(2)).toEqual({ layout: 'MB102', boards: 1, polished: 1 });
+    // 差很多（像編碼器）：直接換下一種板子，把時間留給它；子專案 48 起最後是兩塊 EIC-1106（排最好的兩種）。
+    expect(run(3)).toEqual({ layout: 'EIC1106', boards: 2, polished: 2 });
+  });
+
+  // 子專案 48：一塊板排不完時自動選板最後試兩塊 EIC-1106；指定板子時只試那一塊。
+  it('moves to two EIC-1106 when one board cannot be routed (sub-project 48)', () => {
+    const fake = (c: Parameters<typeof autoPlaceAndRoute>[0]): RoutingResult => {
+      const failed = c.boards.length === 2 ? 0 : 5;
+      return {
+        status: failed === 0 ? 'success' : 'partial',
+        message: '',
+        wires: [],
+        failedNets: Array.from({ length: failed }, (_, k) => ({ netId: `n${k}`, reason: 'TIME_LIMIT' as const, detail: '' })),
+        metrics: { wireCount: 20, totalLength: 80, bends: 0, crossings: 0, overlaps: 0, shortJogs: 0 },
+        score: 0,
+        stats: { iterations: 0, elapsedMs: 0 },
+        moves: [],
+      };
+    };
+    const auto = convertAndRoute(comparator(), { switchTo: 'vcc', board: 'auto', pulls: true }, { totalMs: 10_000 }, fake);
+    if (!auto.ok) throw new Error(auto.reason);
+    expect(auto.result.bom).toMatchObject({ layout: 'EIC1106', boards: 2 });
+    expect(auto.result.circuit.boards).toHaveLength(2);
+    expect(auto.routed.status).toBe('success');
+    const chosen = convertAndRoute(comparator(), { switchTo: 'vcc', board: 'EIC1106', pulls: true }, { totalMs: 10_000 }, fake);
+    if (!chosen.ok) throw new Error(chosen.reason);
+    expect(chosen.result.bom).toMatchObject({ layout: 'EIC1106', boards: 1 });
+    expect(chosen.routed.status).toBe('partial');
   });
 
   it('limits the router itself during quick tries, not only the IC moves (sub-project 38)', () => {
@@ -145,7 +171,8 @@ describe('converting with a layout search (sub-project 36)', () => {
 
   it('explains when no layout fits', () => {
     expect(convertAndRoute(andChain(28), { switchTo: 'vcc', board: 'MB102', pulls: true })).toEqual({ ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' });
-    expect(convertAndRoute(andChain(60), { switchTo: 'vcc', board: 'auto' })).toMatchObject({ ok: false, reason: expect.stringContaining('EIC-1106 放不下') });
+    // 子專案 48：自動選板時兩塊 EIC-1106 也放不下才失敗。
+    expect(convertAndRoute(andChain(60), { switchTo: 'vcc', board: 'auto' })).toMatchObject({ ok: false, reason: expect.stringContaining('兩塊 EIC-1106 也放不下') });
     expect(convertAndRoute(emptyDiagram(), { switchTo: 'vcc', board: 'auto' })).toEqual({ ok: false, reason: '邏輯圖要有輸入端和輸出端才能轉' });
   }, 120_000);
 });

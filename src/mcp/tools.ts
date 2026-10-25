@@ -29,7 +29,7 @@ import { diagramFormulas } from '../logic/formula';
 import { parseLogicDiagram } from '../logic/file';
 import { valueOfSegments } from '../logic/sevenSeg';
 import { overlaps } from '../logic/shapes';
-import { switchText, type ConvertOptions } from '../logic/toBreadboard';
+import { boardText, switchText, type ConvertOptions } from '../logic/toBreadboard';
 import { emptyDiagram, isGate, type LogicDiagram, type LogicNode } from '../logic/types';
 import { verifyText } from '../logic/verifyBreadboard';
 import type { LayoutId } from '../types/board';
@@ -531,7 +531,7 @@ export function convertedReply(f: LabFile, options: { display: 'ca' | 'cc' }, co
     ...(bom.displays > 0 ? [`7 段顯示器 × ${bom.displays}（${options.display === 'cc' ? '共陰極' : '共陽極'}）`] : []),
   ];
   const lines = [
-    `轉成麵包板（${bom.layout === 'MB102' ? 'MB-102' : 'EIC-1106'}）：${parts.join('、')}。`,
+    `轉成麵包板（${boardText(bom)}）：${parts.join('、')}。`,
     ...notes,
     ...routingSummaryText(summarizeRouting(circuit, { beforeScore: analyzeCircuit(r.circuit).routing, result: routed })),
   ];

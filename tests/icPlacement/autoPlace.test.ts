@@ -13,6 +13,8 @@ import type { Circuit } from '../../src/types/circuit';
 import type { RoutingResult } from '../../src/types/routing';
 import { circuit, comp, wire } from '../fixtures/build';
 import { adderCircuit, farIcCircuit } from '../fixtures/circuits';
+import { toBreadboard } from '../../src/logic/toBreadboard';
+import { majorityDiagram } from '../../src/logic/examples';
 
 const timeless = (r: RoutingResult) => ({ ...r, stats: { ...r.stats, elapsedMs: 0 } });
 const lit = (c: Circuit) => {
@@ -106,5 +108,21 @@ describe.each(EXAMPLES.map((ex) => [ex.name, ex] as const))('example %s with IC 
     expect(samePinPartition(extractNets(c), extractNets(applied))).toBe(true);
     expect(validateCircuit(applied).filter((e) => e.severity === 'error')).toEqual([]);
     expect(lit(applied)).toEqual(lit(applyRouting(c, base)));
+  }, 60_000);
+});
+
+// 子專案 48：接著之前的結果排時，之前時間不夠（TIME_LIMIT）就先用比較長的時間把目前的擺法重排一次。
+describe('continuing from a result that ran out of time', () => {
+  it('reroutes the current placement with more time before moving ICs', () => {
+    const r = toBreadboard(majorityDiagram(), { switchTo: 'vcc', board: 'EIC1106' });
+    if (!r.ok) throw new Error(r.reason);
+    expect(autoRoute(r.circuit).status).toBe('success');
+    const cut = { ...autoRoute(r.circuit), status: 'partial', failedNets: [{ netId: 'NET_1', reason: 'TIME_LIMIT', detail: '' }], moves: [] } as RoutingResult;
+    // 不搬 IC（maxPasses 0）：只有重排那一次能把結果變好。
+    const routed = autoPlaceAndRoute(r.circuit, { placement: { maxPasses: 0, timeBudgetMs: 10_000 } }, cut);
+    expect(routed.status).toBe('success');
+    // 之前不是時間不夠（例如真的接不上）就不重排。
+    const stuck = { ...cut, failedNets: [{ netId: 'NET_1', reason: 'UNROUTABLE', detail: '' }] } as RoutingResult;
+    expect(autoPlaceAndRoute(r.circuit, { placement: { maxPasses: 0, timeBudgetMs: 10_000 } }, stuck).failedNets).toHaveLength(1);
   }, 60_000);
 });

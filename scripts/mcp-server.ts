@@ -295,7 +295,7 @@ server.registerTool(
     inputSchema: {
       file,
       switch_to: z.enum(['vcc', 'gnd']).optional().describe('開關另一端接 +5 V（ON = 1，預設）或 GND（ON = 0）'),
-      board: z.enum(['auto', 'MB102', 'EIC1106']).optional().describe('麵包板（預設自動）'),
+      board: z.enum(['auto', 'MB102', 'EIC1106']).optional().describe('麵包板（預設自動：先試 MB-102，排不完改用 EIC-1106，還排不完用兩塊 EIC-1106 左右貼在一起；指定時只用那一塊）'),
       gates: z.enum(['direct', 'nand', 'nor']).optional().describe('照種類對應（預設）、只用 NAND（74LS00）或只用 NOR（74LS02）'),
       inputs: z.enum(['switch', 'button']).optional().describe('輸入用指撥開關（預設）或每個輸入一顆按鈕'),
       display: z.enum(['ca', 'cc']).optional().describe('7 段顯示器用共陽極 + 74LS47（預設）或共陰極 + 74LS48'),

@@ -40,6 +40,8 @@ export interface Bom {
   ics: Record<string, number>;
   /** 指撥開關；輸入用按鈕時是 null。 */
   switch: 'dipsw-4' | 'dipsw-8' | null;
+  /** 子專案 48：用幾塊板（兩塊時是兩塊 EIC-1106 左右貼在一起）。 */
+  boards: 1 | 2;
   /** 子專案 38：指撥開關的個數（拆成兩個 4 位元時是 2；輸入用按鈕時是 0）。 */
   switches: number;
   /** 子專案 30：按鈕的個數（輸入用指撥開關時是 0）。 */
@@ -54,6 +56,11 @@ export interface Bom {
 /** 子專案 38：零件清單裡開關那一項（「8 位元指撥開關 × 1」「4 位元指撥開關 × 2」「按鈕 × 3」）。 */
 export function switchText(bom: Pick<Bom, 'switch' | 'switches' | 'buttons'>): string {
   return bom.switch ? `${bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × ${bom.switches}` : `按鈕 × ${bom.buttons}`;
+}
+
+/** 子專案 48：零件清單裡板子那一項（「MB-102」「EIC-1106」「EIC-1106 × 2（左右貼在一起）」）。 */
+export function boardText(bom: Pick<Bom, 'layout' | 'boards'>): string {
+  return bom.layout === 'MB102' ? 'MB-102' : bom.boards === 2 ? 'EIC-1106 × 2（左右貼在一起）' : 'EIC-1106';
 }
 
 export type ConvertResult =
@@ -79,6 +86,8 @@ export type ConvertResult =
 const VCC = 'VCC';
 const GND = 'GND';
 const BOARD_ID = 'b1';
+/** 子專案 48：第 2 塊板（右邊）。 */
+const SECOND_ID = 'b2';
 const RESISTOR_SPAN = 3;
 const LAST_COLUMN = 63;
 /**
@@ -95,10 +104,19 @@ export interface LayoutVariant {
   split: boolean;
   oneRow?: true;
   splitSwitches?: true;
+  /** 子專案 48：IC 照 orderIcs 排（有接線的 IC 靠在一起）；沒有時照 IC 編號排。 */
+  orderIcs?: true;
+  /**
+   * 子專案 48：只在 EIC-1106（不是一排擺法）：兩塊 EIC-1106 左右貼在一起（第 2 塊在右邊），每一區排滿第 1 塊板再接著排到第 2 塊板。
+   * 一塊板接不完的大電路用。
+   */
+  boards?: 2;
 }
 
 /** 預設擺法（子專案 36 以前的擺法）。 */
 export const DEFAULT_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: false };
+/** 子專案 48：兩塊 EIC-1106 的預設擺法。 */
+export const TWO_BOARD_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: false, boards: 2, orderIcs: true };
 
 /** 一個預定的連接點：元件的某隻腳，或接線柱的孔。 */
 type Terminal = { pin: string } | { point: GridPoint };
@@ -123,15 +141,91 @@ class NoRoom extends Error {}
 /** 一個要放的區塊：寬度、放置方式，以及（可有可無的）要放在哪一欄才行。 */
 interface Block {
   width: number;
-  place: (x: number) => void;
+  /** area：放在第幾區（EIC-1106 分區時；其他時候沒有作用）。 */
+  place: (x: number, area: number) => void;
   /** 子專案 36：這一欄可以放嗎（例如直立的電阻要插進電源軌的孔）；放不行時往右挪，最多 5 欄。 */
   align?: (x: number) => boolean;
-  /** 子專案 47：IC（兩顆相鄰的 IC 之間至少空 IC_GAP 欄）。 */
-  ic?: true;
+  /** 子專案 47：IC（兩顆相鄰的 IC 之間至少空 IC_GAP 欄）；子專案 48：值是 IC 的元件 id。 */
+  ic?: string;
 }
 
 /** 子專案 47：相鄰的兩顆 IC 之間至少空幾欄（使用者 2026-10-25：「IC 與 IC 不要並聯，至少空兩行」）。 */
 const IC_GAP = 2;
+
+/** 子專案 48：IC 數量不超過這個時試所有的順序，更多時一步一步改到不能再好。 */
+const ORDER_ALL = 8;
+
+/**
+ * 子專案 48：IC 排成一列的順序，讓有接線的 IC 靠在一起。signals[i]：第 i 顆 IC 接的訊號。每個訊號的跨度
+ * （用到它的 IC 最左到最右的位置；輸入另外算在最左邊 −1，輸出在 outputsRight 時算在最右邊、否則最左邊）加起來最小；
+ * 同分時保持原本的順序。8 顆以下試所有的順序，更多時從原本的順序一步一步改（交換、倒過來、搬一顆）。回傳排好的順序（原本的索引）。
+ */
+export function orderIcs(signals: string[][], inputs: Set<string>, outputs: Set<string>, outputsRight: boolean): number[] {
+  const n = signals.length;
+  const users = new Map<string, number[]>();
+  signals.forEach((list, i) => list.forEach((s) => users.set(s, [...(users.get(s) ?? []), i])));
+  const cost = (order: number[]) => {
+    const pos = new Array<number>(n);
+    order.forEach((i, k) => (pos[i] = k));
+    let sum = 0;
+    for (const [s, list] of users) {
+      let lo = inputs.has(s) || (outputs.has(s) && !outputsRight) ? -1 : Infinity;
+      let hi = outputs.has(s) && outputsRight ? n : -Infinity;
+      for (const i of list) {
+        lo = Math.min(lo, pos[i]);
+        hi = Math.max(hi, pos[i]);
+      }
+      sum += Math.max(0, hi - lo);
+    }
+    return sum;
+  };
+  let best = signals.map((_, i) => i);
+  let bestCost = cost(best);
+  if (n <= ORDER_ALL) {
+    // 依字典順序列出所有排列（第一個是原本的順序，同分時留下先找到的）。
+    const order = [...best];
+    for (;;) {
+      let i = n - 2;
+      while (i >= 0 && order[i] > order[i + 1]) i--;
+      if (i < 0) break;
+      let j = n - 1;
+      while (order[j] < order[i]) j--;
+      [order[i], order[j]] = [order[j], order[i]];
+      order.splice(i + 1, n - i - 1, ...order.slice(i + 1).reverse());
+      const c = cost(order);
+      if (c < bestCost) {
+        bestCost = c;
+        best = [...order];
+      }
+    }
+    return best;
+  }
+  // 更多顆：交換兩顆、把一段倒過來、把一顆搬到另一個位置，直到不能再好。
+  const moves = (order: number[], i: number, j: number): number[][] => {
+    const swap = [...order];
+    [swap[i], swap[j]] = [swap[j], swap[i]];
+    const reversed = [...order.slice(0, i), ...order.slice(i, j + 1).reverse(), ...order.slice(j + 1)];
+    const moved = [...order];
+    moved.splice(j, 0, ...moved.splice(i, 1));
+    const back = [...order];
+    back.splice(i, 0, ...back.splice(j, 1));
+    return [swap, reversed, moved, back];
+  };
+  for (let improved = true; improved; ) {
+    improved = false;
+    for (let i = 0; i < n; i++)
+      for (let j = i + 1; j < n; j++)
+        for (const next of moves(best, i, j)) {
+          const c = cost(next);
+          if (c < bestCost) {
+            bestCost = c;
+            best = next;
+            improved = true;
+          }
+        }
+  }
+  return best;
+}
 
 /** 拆好的單元；只用 NAND / NOR 時再換成那一種 2 輸入閘（輸出端接的訊號一定保留）。 */
 function unitsFor(d: LogicDiagram, options: ConvertOptions) {
@@ -205,15 +299,26 @@ export function toBreadboard(d: LogicDiagram, options: ConvertOptions, variant: 
     }
   }
   if (options.board === 'MB102') return { ok: false, reason: 'MB-102 放不下，請改用 EIC-1106' };
+  // 子專案 48：自動選板時一塊 EIC-1106 放不下，改用兩塊左右貼在一起。
+  if (options.board === 'auto') {
+    try {
+      return build(d, options, 'EIC1106', TWO_BOARD_LAYOUT);
+    } catch (err) {
+      if (!(err instanceof NoRoom)) throw err;
+    }
+  }
   const chips = assignIcs(unitsFor(d, options)).length;
-  return { ok: false, reason: `零件太多，一塊 EIC-1106 放不下（需要 ${chips} 片 IC）` };
+  return { ok: false, reason: options.board === 'auto' || variant.boards === 2 ? `零件太多，兩塊 EIC-1106 也放不下（需要 ${chips} 片 IC）` : `零件太多，一塊 EIC-1106 放不下（需要 ${chips} 片 IC），請改用「自動」選板（可以用兩塊）` };
 }
 
 function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, variant: LayoutVariant): ConvertResult {
   const eic = layout === 'EIC1106';
   // 子專案 38：排成一排（MB-102，或 EIC-1106 的一排擺法）時，EIC-1106 上的東西全部放在第 2 區。
   const inOneRow = !eic || variant.oneRow === true;
-  const hole = (name: string, area?: number) => holeOn(BOARD_ID, eic ? `${inOneRow ? 2 : area}-${name}` : name, layout);
+  const two = eic && !inOneRow && variant.boards === 2;
+  /** 子專案 48：正在放哪一塊板（兩塊板時由下面的排列決定）。 */
+  let boardNow = BOARD_ID;
+  const hole = (name: string, area?: number) => holeOn(boardNow, eic ? `${inOneRow ? 2 : area}-${name}` : name, layout);
   const { inputs, outputs: sinks } = sortedIo(d);
   const outputs = sinks.filter((n) => n.kind === 'OUTPUT');
   const displays = sinks.filter((n) => n.kind === 'DISPLAY');
@@ -229,7 +334,6 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   // ---- 放置：開關、IC 跨凹槽排一列；兩腳元件兩個一組放在 A 列與 J 列 ----
   // 先列出每一區要放的東西（寬度與放置方式），再把剩下的欄平均分成間隔（最多 6 欄），留空間給 AI 佈線拉線。
   const blocks: Record<number, Block[]> = { 1: [], 2: [], 3: [] };
-  const icArea = eic ? 2 : 1;
   const icBlocks: Block[] = [];
   /** MB-102 上 LED 分兩邊時，放在開關左邊的那一半。 */
   const ledsBefore: Block[] = [];
@@ -260,7 +364,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   // 子專案 46：時脈換成麵包板的時脈元件（理想方波；實際接線時接到實驗箱的脈波產生器或 555），放在開關前面。
   const clockNode = d.nodes.find((n) => n.kind === 'CLOCK');
   if (clockNode) {
-    blocks[1].push({ width: 2, place: (x) => components.push(comp('CLK1', 'clock', hole(`C${x}`, 1), { board: BOARD_ID })) });
+    blocks[1].push({ width: 2, place: (x) => components.push(comp('CLK1', 'clock', hole(`C${x}`, 1), { board: boardNow })) });
     tie('CLK1#1', clockNode.id);
   }
 
@@ -270,7 +374,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     // 子專案 30：每個輸入一顆按鈕，跨過凹槽（第 1、2 腳是一側，第 3、4 腳是另一側）；一側接電源、另一側接輸入。
     inputs.forEach((node, k) => {
       const id = buttonIds[k];
-      blocks[1].push({ width: 3, place: (x) => components.push(comp(id, 'pushbutton', hole(`F${x}`, 1), { board: BOARD_ID, props: { labels: [node.name ?? ''] } })) });
+      blocks[1].push({ width: 3, place: (x) => components.push(comp(id, 'pushbutton', hole(`F${x}`, 1), { board: boardNow, props: { labels: [node.name ?? ''] } })) });
       tie(`${id}#1`, options.switchTo === 'vcc' ? VCC : GND);
       tie(`${id}#3`, node.id);
     });
@@ -282,15 +386,15 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
         // 電阻的編號依輸入的順序（子專案 45 起兩個開關的輸入不一定連號）。
         align: uprightPulls ? (x) => group.every((node, j) => (inputs.indexOf(node) === flatPull) !== railHole(pullRail, x + j)) : undefined,
         place: (x) => {
-          components.push(comp(id, swDef, hole(`F${x}`, 1), { board: BOARD_ID, props: { switchStates: Array(swPins / 2).fill(false), labels: Array.from({ length: swPins / 2 }, (_, j) => group[j]?.name ?? '') } }));
+          components.push(comp(id, swDef, hole(`F${x}`, 1), { board: boardNow, props: { switchStates: Array(swPins / 2).fill(false), labels: Array.from({ length: swPins / 2 }, (_, j) => group[j]?.name ?? '') } }));
           if (!uprightPulls) return;
           group.forEach((node, j) => {
             const k = inputs.indexOf(node);
             if (k === flatPull || !railHole(pullRail, x + j)) return;
             const rid = `R${k + 1}`;
             const at = hole(`${pullRow}${x + j}`, 1);
-            const span = Math.abs(holeOn(BOARD_ID, `${pullRail}${x + j}`, layout).y - at.y);
-            components.push(comp(rid, 'resistor', at, { board: BOARD_ID, rotation: pullDown ? 90 : 270, span, props: { resistance: pullDown ? 330 : 1000 } as never }));
+            const span = Math.abs(holeOn(boardNow, `${pullRail}${x + j}`, layout).y - at.y);
+            components.push(comp(rid, 'resistor', at, { board: boardNow, rotation: pullDown ? 90 : 270, span, props: { resistance: pullDown ? 330 : 1000 } as never }));
             tie(`${rid}#1`, node.id);
             tie(`${rid}#2`, pullDown ? GND : VCC);
           });
@@ -315,7 +419,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   blocks[1].push(...switchBlocks.filter((b) => !laterSwitches.includes(b)));
 
   for (const plan of plans) {
-    icBlocks.push({ ic: true, width: 7, place: (x) => components.push(comp(plan.id, plan.defId, hole(`F${x}`, icArea), { board: BOARD_ID })) });
+    icBlocks.push({ ic: plan.id, width: 7, place: (x, area) => components.push(comp(plan.id, plan.defId, hole(`F${x}`, area), { board: boardNow })) });
     const def = getComponentDefinition(plan.defId)!;
     for (const p of def.pins) {
       if (p.role === 'power') tie(`${plan.id}#${p.number}`, VCC);
@@ -335,7 +439,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     const chip = node.chip!;
     const ic = `U${plans.length + k + 1}`;
     const def = getComponentDefinition(chip)!;
-    icBlocks.push({ ic: true, width: def.pins.length / 2, place: (x) => components.push(comp(ic, chip, hole(`F${x}`, icArea), { board: BOARD_ID })) });
+    icBlocks.push({ ic, width: def.pins.length / 2, place: (x, area) => components.push(comp(ic, chip, hole(`F${x}`, area), { board: boardNow })) });
     const numberOf = (name: string) => def.pins.find((p) => p.name === name)!.number;
     for (const p of def.pins) {
       if (p.role === 'power') tie(`${ic}#${p.number}`, VCC);
@@ -362,7 +466,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   const displayParts: Array<{ node: (typeof displays)[number]; ic: string | null; ds: string }> = displays.map((node, k) => ({ node, ic: node.segments ? null : `U${++nextIc}`, ds: `DS${k + 1}` }));
   for (const { node, ic } of displayParts) {
     if (!ic) continue;
-    icBlocks.push({ ic: true, width: 8, place: (x) => components.push(comp(ic, decoder, hole(`F${x}`, icArea), { board: BOARD_ID })) });
+    icBlocks.push({ ic, width: 8, place: (x, area) => components.push(comp(ic, decoder, hole(`F${x}`, area), { board: boardNow })) });
     ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
     for (const name of ['VCC', '/LT', '/BI/RBO', '/RBI']) pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, VCC));
     pinNo(decoder, 'GND').forEach((p) => tie(`${ic}#${p}`, GND));
@@ -431,7 +535,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
       const at = (row: string, col: number) => hole(`${row}${col}`, eic ? area : undefined);
       // 子專案 37：低態致動的 LED 轉 180°、往右一欄放：陰極還是和電阻的那一腳同一排，陽極在右邊一排。
       const putLed = (led: TwoLead, row: string, col: number) =>
-        components.push(comp(led.id, led.defId, at(row, led.reversed ? col + 1 : col), { board: BOARD_ID, ...(led.reversed ? { rotation: 180 as const } : {}), props: led.props as never }));
+        components.push(comp(led.id, led.defId, at(row, led.reversed ? col + 1 : col), { board: boardNow, ...(led.reversed ? { rotation: 180 as const } : {}), props: led.props as never }));
       const units: Array<[TwoLead, TwoLead]> = [];
       for (let i = 0; i < list.length; i += 2) units.push([list[i], list[i + 1]]);
       const ledBlocks: Block[] = [];
@@ -445,7 +549,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
             width: chunk.length * 2,
             place: (x) =>
               chunk.forEach(([res, led], j) => {
-                components.push(comp(res.id, res.defId, at('E', x + 2 * j), { board: BOARD_ID, rotation: 90, props: res.props as never, span: 3 }));
+                components.push(comp(res.id, res.defId, at('E', x + 2 * j), { board: boardNow, rotation: 90, props: res.props as never, span: 3 }));
                 putLed(led, 'I', x + 2 * j);
               }),
           });
@@ -459,7 +563,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
             place: (x) =>
               pair.forEach(([res, led], j) => {
                 const [rRow, dRow] = j === 0 ? ['A', 'B'] : ['J', 'I'];
-                components.push(comp(res.id, res.defId, at(rRow, x), { board: BOARD_ID, props: res.props as never, span: res.span }));
+                components.push(comp(res.id, res.defId, at(rRow, x), { board: boardNow, props: res.props as never, span: res.span }));
                 putLed(led, dRow, x + res.span);
               }),
           });
@@ -481,7 +585,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
         width: Math.max(...pair.map((t) => t.span)) + 1,
         place: (x) =>
           pair.forEach((t, j) =>
-            components.push(comp(t.id, t.defId, hole(`${j === 0 ? 'A' : 'J'}${x}`, eic ? area : undefined), { board: BOARD_ID, props: t.props as never, ...(t.defId === 'resistor' ? { span: t.span } : {}) })),
+            components.push(comp(t.id, t.defId, hole(`${j === 0 ? 'A' : 'J'}${x}`, eic ? area : undefined), { board: boardNow, props: t.props as never, ...(t.defId === 'resistor' ? { span: t.span } : {}) })),
           ),
       });
     }
@@ -489,36 +593,54 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     if (shown)
       blocks[3].push({
         width: 5,
-        place: (x) => components.push(comp(shown.ds, dsDef, hole(`H${x}`, eic ? 3 : undefined), { board: BOARD_ID, props: { labels: [shown.node.name ?? ''] } as never })),
+        place: (x) => components.push(comp(shown.ds, dsDef, hole(`H${x}`, eic ? 3 : undefined), { board: boardNow, props: { labels: [shown.node.name ?? ''] } as never })),
       });
   }
   // 順序：開關、輸入的電阻（靠近開關）、IC、輸出的電阻與 LED。排成一排時（MB-102、EIC-1106 的一排擺法）全部排在同一列。
+  if (variant.orderIcs) {
+    // 子專案 48：輸入（開關）在最左邊；輸出（LED）排成一排時在最右邊，EIC-1106 分區時在第 3 區的左邊（也算最左邊）。
+    const signals = icBlocks.map((blk) => [...new Set(Object.entries(netOf).filter(([pin, net]) => pin.startsWith(`${blk.ic}#`) && net !== VCC && net !== GND).map(([, net]) => net))]);
+    const order = orderIcs(signals, new Set(inputs.map((n) => n.id)), new Set(outputs.map((n) => driver.get(`${n.id}#0`)!)), inOneRow);
+    icBlocks.splice(0, icBlocks.length, ...order.map((k) => icBlocks[k]));
+  }
   if (!inOneRow) blocks[2].push(...icBlocks);
   else {
     blocks[1] = [...ledsBefore, ...blocks[1], ...icBlocks.slice(0, 1), ...laterSwitches, ...icBlocks.slice(1), ...blocks[3]];
     blocks[3] = [];
   }
+  // 子專案 48：兩塊板時每一區排滿第 1 塊板再接著排到第 2 塊板（一個區塊不跨過兩塊板）。
+  const boardIds = two ? [BOARD_ID, SECOND_ID] : [BOARD_ID];
   for (const area of [1, 2, 3]) {
     const list = blocks[area];
     if (list.length === 0) continue;
     const used = list.reduce((sum, b) => sum + b.width, 0);
-    const free = LAST_COLUMN - 1 - used; // 第 2–63 欄
+    const free = boardIds.length * (LAST_COLUMN - 1) - used; // 每塊板第 2–63 欄
     if (free < list.length + 1) throw new NoRoom();
     const gap = Math.min(variant.gap, Math.floor(free / (list.length + 1)));
+    let onBoard = 0;
     let x = 2 + gap;
     let lastIcEnd = -Infinity;
     for (const b of list) {
-      if (b.ic) x = Math.max(x, lastIcEnd + IC_GAP + 1);
-      for (let i = 0; i < 6 && b.align && !b.align(x); i++) x++;
-      if (b.align && !b.align(x)) throw new NoRoom();
-      // 子專案 47：IC 之間空出來的欄可能把後面的零件推出板子：放之前先檢查。
-      if (x + b.width - 1 > LAST_COLUMN) throw new NoRoom();
-      b.place(x);
+      for (;;) {
+        let at = b.ic ? Math.max(x, lastIcEnd + IC_GAP + 1) : x;
+        for (let i = 0; i < 6 && b.align && !b.align(at); i++) at++;
+        // 子專案 47：IC 之間空出來的欄可能把後面的零件推出板子：放之前先檢查。
+        if ((!b.align || b.align(at)) && at + b.width - 1 <= LAST_COLUMN) {
+          x = at;
+          break;
+        }
+        if (onBoard + 1 >= boardIds.length) throw new NoRoom();
+        onBoard++;
+        x = 2;
+        lastIcEnd = -Infinity;
+      }
+      boardNow = boardIds[onBoard];
+      b.place(x, area);
       if (b.ic) lastIcEnd = x + b.width - 1;
       x += b.width + gap;
     }
-    if (x - gap > LAST_COLUMN + 1) throw new NoRoom();
   }
+  boardNow = BOARD_ID;
 
   // ---- 電源 ----
   // 子專案 34：先各放一個 5V / GND 符號，接好所有連線後再用 connectPowerToNearestRails 改成「每個要接電源的腳接最近的軌、
@@ -527,7 +649,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   const taken = new Set(
     components.flatMap((c) => {
       const fp = resolveFootprint(c, getComponentDefinition(c.defId)!);
-      return [...fp.pins.map((p) => p.point), ...fp.blocked].map((p) => `${p.x},${p.y}`);
+      return [...fp.pins.map((p) => p.point), ...fp.blocked].map((p) => `${p.boardId}:${p.x},${p.y}`);
     }),
   );
   const power: Array<[string, 'vcc' | 'gnd', string]> = !eic
@@ -540,7 +662,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     for (let col = 3; col <= LAST_COLUMN && !at; col++) {
       if (!railHole(rail, col)) continue;
       const p = holeOn(BOARD_ID, `${rail}${col}`, layout);
-      if (!taken.has(`${p.x},${p.y}`)) at = p;
+      if (!taken.has(`${p.boardId}:${p.x},${p.y}`)) at = p;
     }
     if (!at) throw new NoRoom();
     components.push(comp(id, defId, at, { board: BOARD_ID }));
@@ -548,7 +670,9 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   }
 
   // ---- 連線導線：每個訊號的終端依序兩兩相接（只告訴 AI 佈線哪些腳要連在一起） ----
-  const base: Circuit = { version: 1, boards: [board(BOARD_ID, 0, 0, layout)], components, wires: [] };
+  // 子專案 48：第 2 塊板貼在右邊（板寬 63 欄加兩邊留白，邊對邊貼合成同一個群組）。
+  const width = getLayout(layout).width + 2;
+  const base: Circuit = { version: 1, boards: boardIds.map((id, k) => board(id, k * width, 0, layout)), components, wires: [] };
   const pointOf = new Map<string, GridPoint>();
   for (const c of components) {
     const def = getComponentDefinition(c.defId)!;
@@ -562,7 +686,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   for (const [net, points] of extra) terminals.set(net, [...points, ...(terminals.get(net) ?? [])]);
 
   const used = new Set<string>();
-  const key = (p: GridPoint) => `${p.x},${p.y}`;
+  const key = (p: GridPoint) => `${p.boardId}:${p.x},${p.y}`;
   const freeHole = (p: GridPoint): GridPoint => {
     // 接線柱只有一個孔：直接用它。
     if (eic && (getLayout(layout).posts ?? []).some((post) => post.x === p.x && post.y === p.y)) return p;
@@ -603,7 +727,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   return {
     ok: true,
     circuit,
-    bom: { ics, switch: useButtons ? null : swDef, switches: useButtons ? 0 : switches.length, buttons: useButtons ? inputs.length : 0, resistors: components.filter((c) => c.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
+    bom: { ics, boards: two ? 2 : 1, switch: useButtons ? null : swDef, switches: useButtons ? 0 : switches.length, buttons: useButtons ? inputs.length : 0, resistors: components.filter((c) => c.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
     switchId: useButtons ? null : 'SW1',
     ...(useButtons ? { buttons: buttonIds } : {}),
     inputs: inputs.map((n) => n.id),

@@ -5,7 +5,7 @@ import { holeLabel } from '../../src/editor/analysis';
 import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
 import { addNode, connect } from '../../src/logic/edit';
 import { majorityDiagram } from '../../src/logic/examples';
-import { DEFAULT_LAYOUT, switchText, toBreadboard, type ConvertOptions, type LayoutVariant } from '../../src/logic/toBreadboard';
+import { DEFAULT_LAYOUT, orderIcs, switchText, toBreadboard, type ConvertOptions, type LayoutVariant } from '../../src/logic/toBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 import type { Circuit } from '../../src/types/circuit';
 import { encoder } from '../fixtures/labCircuits';
@@ -250,21 +250,44 @@ describe('conversion improvements (sub-project 47)', () => {
   });
 
   it('keeps at least two free columns between neighbouring ICs in every layout', async () => {
-    const { LAYOUT_VARIANTS } = await import('../../src/logic/convertRoute');
+    const { LAYOUT_VARIANTS, TWO_BOARD_VARIANTS } = await import('../../src/logic/convertRoute');
     const { getComponentDefinition } = await import('../../src/core/circuit/library');
+    // 子專案 48：兩塊板的擺法也一樣（不同板子上的 IC 分開比）。
     for (const d of [encoder(), inverters(8), majorityDiagram()])
-      for (const [board, variants] of Object.entries(LAYOUT_VARIANTS))
+      for (const [board, variants] of [...Object.entries(LAYOUT_VARIANTS), ['EIC1106', TWO_BOARD_VARIANTS] as const])
         for (const variant of variants) {
           const r = toBreadboard(d, { switchTo: 'vcc', board: board as 'MB102' | 'EIC1106', pulls: true }, variant);
           if (!r.ok) continue;
           const ics = r.circuit.components
             .filter((x) => getComponentDefinition(x.defId)?.category === 'ic')
-            .map((x) => ({ id: x.id, y: x.anchor.y, x0: x.anchor.x, x1: x.anchor.x + getComponentDefinition(x.defId)!.pins.length / 2 - 1 }))
-            .sort((a, b) => a.y - b.y || a.x0 - b.x0);
+            .map((x) => ({ id: x.id, y: `${x.boardId}:${x.anchor.y}`, x0: x.anchor.x, x1: x.anchor.x + getComponentDefinition(x.defId)!.pins.length / 2 - 1 }))
+            .sort((a, b) => a.y.localeCompare(b.y) || a.x0 - b.x0);
           for (let k = 1; k < ics.length; k++) {
             if (ics[k].y !== ics[k - 1].y) continue;
             expect(ics[k].x0 - ics[k - 1].x1 - 1, `${board} ${JSON.stringify(variant)} ${ics[k - 1].id} → ${ics[k].id}`).toBeGreaterThanOrEqual(2);
           }
         }
+  });
+});
+
+// 子專案 48：IC 排成一列的順序，有接線的 IC 靠在一起。
+describe('orderIcs', () => {
+  it('puts the ICs that share a signal next to each other (inputs on the left, outputs on the right)', () => {
+    // 第 0 顆接輸入 a、輸出 x；第 1 顆接 y 與輸出端 o；第 2 顆接 x、y：最好的順序是 0、2、1。
+    expect(orderIcs([['a', 'x'], ['y', 'o'], ['x', 'y']], new Set(['a']), new Set(['o']), true)).toEqual([0, 2, 1]);
+    // 輸出在左邊（EIC-1106 分區時 LED 在第 3 區左邊）：接輸出的 IC 也往左。
+    expect(orderIcs([['x'], ['x', 'y'], ['y', 'o']], new Set(), new Set(['o']), false)[0]).toBe(2);
+  });
+
+  it('keeps the original order when nothing is better', () => {
+    expect(orderIcs([['a'], ['a'], ['a']], new Set(['a']), new Set(), true)).toEqual([0, 1, 2]);
+  });
+
+  it('orders more than eight ICs step by step (a shuffled chain comes out in chain order)', () => {
+    // 10 顆 IC 串成一條鏈（第 k 顆接 s{k} 與 s{k+1}），打亂後交給它排；輸入 s0 在左邊、輸出 s10 在右邊。
+    const shuffled = [3, 7, 0, 9, 5, 1, 8, 2, 6, 4];
+    const signals = shuffled.map((k) => [`s${k}`, `s${k + 1}`]);
+    const order = orderIcs(signals, new Set(['s0']), new Set(['s10']), true);
+    expect(order.map((i) => shuffled[i])).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
   });
 });

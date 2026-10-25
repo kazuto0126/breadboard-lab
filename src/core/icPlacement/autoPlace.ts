@@ -11,6 +11,9 @@ import { icCandidates } from './candidates';
 import { estimateNets } from './estimate';
 import { applyMoves, placeAt, placementOf, relocatedCircuit, samePinPartition, samePlacement } from './relocate';
 
+/** 子專案 48：重排目前的擺法最多用掉這次「可移動 IC」時間的幾成。 */
+const RETRY_SHARE = 0.4;
+
 /** 規格 1 節的好壞順序：接不完的 Net 少 → 交叉少 → 線少 → 總長短。a 比 b 好才回傳 true（同分是 false）。 */
 export function isBetterRouting(a: RoutingResult, b: RoutingResult): boolean {
   const key = (r: RoutingResult) => [r.failedNets.length, r.metrics.crossings, r.metrics.wireCount, r.metrics.totalLength];
@@ -45,6 +48,14 @@ export function autoPlaceAndRoute(circuit: Circuit, overrides?: DeepPartial<Rout
 
   let moves: IcMove[] = from?.moves ?? [];
   let best = from ?? route(moves, overrides)!;
+  // 子專案 48：接著之前的結果排時（轉成麵包板的快速試只給很短的時間），大電路的協商常常在時間到時還沒收斂
+  // （排不完的線是 TIME_LIMIT）。先用比較長的時間把目前的擺法重排一次，搬 IC 才有好的比較基準。
+  // 從頭開始時不重排：第一次佈線本來就用完整的時間，重排只會佔掉搬 IC 的時間。
+  const unfinished = (r: RoutingResult) => r.failedNets.some((f) => f.reason === 'TIME_LIMIT');
+  if (from && unfinished(best) && !outOfTime()) {
+    const longer = route(moves, { ...overrides, timeBudgetMs: Math.max(config.timeBudgetMs, timeBudgetMs * RETRY_SHARE) });
+    if (longer && isBetterRouting(longer, best)) best = longer;
+  }
   // 候選位置的協商輪數上限：佈不出來的位置會一直協商到上限，要很快放棄（規格 3.3）。
   // 子專案 41：找到更好的結果就跟著它重算（目前最好的只要幾輪就排完時，要一百多輪的位置通常排不完，不用等到上限）。
   const optionsFor = (r: RoutingResult): DeepPartial<RoutingConfig> => ({ ...overrides, negotiation: { ...overrides?.negotiation, maxIterations: Math.min(config.negotiation.maxIterations, Math.max(config.placement.candidateIterations, 2 * r.stats.iterations)) } });
