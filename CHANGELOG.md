@@ -3,6 +3,25 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## 2026-10-25 — 子專案 51：單顆正反器元件
+
+設計規格：`docs/superpowers/specs/2026-10-25-single-flip-flops-design.md`；實作計畫：`docs/superpowers/plans/2026-10-25-single-flip-flops.md`。
+backlog「時序電路的其他功能」，使用者 2026-10-25 選這一項（照我的建議先做單顆正反器）。
+
+### 改變
+
+- **元件庫多了單顆正反器**：「正反器與計數器」裡的 DFF（D 型正反器：D、CLK、/PRE、/CLR → Q、/Q）與 JKFF（JK 正反器：J、CLK、K、/PRE、/CLR → Q、/Q），
+  可以像課本一樣一顆一顆畫。行為和 74LS74 / 74LS76 的一組完全一樣（D 型上升緣、JK 下降緣），沒接的輸入也一樣（/PRE、/CLR 不用，D、J、K 是 0）。
+- **轉成麵包板時兩顆合用一片 IC**：依位置（上到下、左到右）兩顆一組，DFF 合成 74LS74、JKFF 合成 74LS76；單數時最後一片只用一組。
+- **新範例**「2 位元同步計數器（D 型正反器）」：兩顆 DFF 共用時脈，D0 = /Q0、D1 = Q1 XOR Q0，數 0–3；轉成一片 74LS74 與一片 74LS86。
+- **MCP**：`logic_set` 可以寫入 `DFF`、`JKFF`；工具說明、伺服器說明與設定說明頁跟著改。
+
+### 測試
+
+- D 型正反器的 D 接 /Q 時每個脈衝翻轉、/CLR 接 0 時一直是 0；JK 正反器 J = K = 1 時翻轉。
+- 3 顆 D 型正反器合成兩片 74LS74，接線對到第 1 / 2 組的腳，合併前後的時序表一樣。
+- 範例的時序表與材料表；端對端：打開範例、時序表數 0–3、轉成麵包板後送 16 個脈衝全部一致。
+
 ## 2026-10-25 — 子專案 50：時序圖（波形）（PR #79，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-25-waveform-design.md`；實作計畫：`docs/superpowers/plans/2026-10-25-waveform.md`。

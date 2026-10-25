@@ -14,6 +14,9 @@ export const BLOCK_PINS: Record<BlockChip, { inputs: string[]; outputs: string[]
   '74LS93': { inputs: ['CKA', 'CKB', 'R0(1)', 'R0(2)'], outputs: ['QA', 'QB', 'QC', 'QD'] },
   '74LS161': { inputs: ['CLK', '/CLR', '/LOAD', 'ENP', 'ENT', 'A', 'B', 'C', 'D'], outputs: ['QA', 'QB', 'QC', 'QD', 'RCO'] },
   '74LS193': { inputs: ['UP', 'DOWN', 'CLR', '/LOAD', 'A', 'B', 'C', 'D'], outputs: ['QA', 'QB', 'QC', 'QD', '/CO', '/BO'] },
+  // 子專案 51（規格 2026-10-25 single-flip-flops）：單顆正反器（74LS74 / 76 的一組）。
+  DFF: { inputs: ['D', 'CLK', '/PRE', '/CLR'], outputs: ['Q', '/Q'] },
+  JKFF: { inputs: ['J', 'CLK', 'K', '/PRE', '/CLR'], outputs: ['Q', '/Q'] },
 };
 
 /**
@@ -27,7 +30,15 @@ export const BLOCK_DEFAULTS: Partial<Record<BlockChip, Record<string, 0 | 1>>> =
   '74LS93': { CKA: 1, CKB: 1, 'R0(1)': 0, 'R0(2)': 0 },
   '74LS161': { CLK: 1, '/CLR': 1, '/LOAD': 1, ENP: 1, ENT: 1, A: 0, B: 0, C: 0, D: 0 },
   '74LS193': { UP: 1, DOWN: 1, CLR: 0, '/LOAD': 1, A: 0, B: 0, C: 0, D: 0 },
+  DFF: { D: 0, CLK: 1, '/PRE': 1, '/CLR': 1 },
+  JKFF: { J: 0, CLK: 1, K: 0, '/PRE': 1, '/CLR': 1 },
 };
+
+/**
+ * 子專案 51：單顆正反器用哪顆 IC（模擬用那顆 IC 第 1 組的腳；轉成麵包板時兩顆合用一片，第二顆用第 2 組）。
+ * 腳名就是 IC 的腳名去掉組別（1D → D）。
+ */
+export const HALF_CHIP: Partial<Record<BlockChip, BlockChip>> = { DFF: '74LS74', JKFF: '74LS76' };
 
 /** 子專案 46：時序 IC（有狀態、看時脈邊緣）。 */
 export const isSequentialChip = (chip: BlockChip | undefined): boolean => chip !== undefined && chip in BLOCK_DEFAULTS;
@@ -40,6 +51,8 @@ export const CLOCK_PINS: Partial<Record<BlockChip, string[]>> = {
   '74LS93': ['CKA', 'CKB'],
   '74LS161': ['CLK'],
   '74LS193': ['UP', 'DOWN'],
+  DFF: ['CLK'],
+  JKFF: ['CLK'],
 };
 
 export const BLOCK_CHIPS = Object.keys(BLOCK_PINS) as BlockChip[];
@@ -57,6 +70,8 @@ export const BLOCK_NAMES: Record<BlockChip, string> = {
   '74LS93': '4 位元二進位計數器',
   '74LS161': '4 位元同步計數器',
   '74LS193': '上 / 下數計數器',
+  DFF: 'D 型正反器（單顆）',
+  JKFF: 'JK 正反器（單顆）',
 };
 
 export const isBlockChip = (v: unknown): v is BlockChip => typeof v === 'string' && v in BLOCK_PINS;

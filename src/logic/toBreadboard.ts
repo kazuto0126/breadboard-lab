@@ -1,3 +1,4 @@
+import { packFlipFlops } from './flipFlops';
 import { getNode, parseHoleName } from '../core/breadboard/naming';
 import { getBoard, getLayout } from '../core/breadboard/registry';
 import { resolveFootprint } from '../core/circuit/footprint';
@@ -296,7 +297,9 @@ export function splitByIc(inputs: LogicNode[], order: Map<string, number>): [Log
 }
 
 /** 規格（2026-10-13 logic-to-breadboard）第 4、5 節。 */
-export function toBreadboard(d: LogicDiagram, options: ConvertOptions, variant: LayoutVariant = DEFAULT_LAYOUT): ConvertResult {
+export function toBreadboard(diagram: LogicDiagram, options: ConvertOptions, variant: LayoutVariant = DEFAULT_LAYOUT): ConvertResult {
+  // 子專案 51：單顆正反器兩顆合用一片 74LS74 / 76。
+  const d = packFlipFlops(diagram);
   // 子專案 49：兩塊板的擺法（自動選板時轉換會用到）不受「要選自動」的限制。
   const problem = convertProblem(d, variant.boards === 2 ? { ...options, board: 'auto' } : options);
   if (problem) return { ok: false, reason: problem };
