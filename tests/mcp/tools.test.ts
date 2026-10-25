@@ -356,6 +356,9 @@ describe('sequential circuits in the MCP tools (sub-project 46)', () => {
     expect(text).toContain('時序表（從重設開始');
     expect(text).toContain('CLK 第幾次 | QA QB');
     expect(text.split('\n').slice(2, 7)).toEqual(['0 | 0 0', '1 | 1 0', '2 | 0 1', '3 | 1 1', '4 | 0 0']);
+    // 子專案 50：文字波形。
+    expect(text).toContain('波形（每格是那次脈衝之後的值');
+    expect(text).toContain('CLK .||||\nQA  _‾_‾_\nQB  __‾‾_');
     const noClock = okFile(logicSet(newLabFile('x', 'MB102'), { diagram: { nodes: diagram.nodes.slice(1), wires: diagram.wires.slice(1) } }));
     expect(logicTruthTable(noClock).text).toContain('沒有時脈');
   });

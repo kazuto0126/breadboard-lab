@@ -259,7 +259,7 @@ export function truthTable(d: LogicDiagram): TruthTable {
 }
 
 export type SequenceTable =
-  | { ok: true; clock: string; outputs: string[]; rows: Array<{ pulse: number; out: OutValue[] }> }
+  | { ok: true; clock: string; outputs: string[]; /** 子專案 50：每欄是不是顯示器（波形畫成數字）。 */ display: boolean[]; rows: Array<{ pulse: number; out: OutValue[] }> }
   | { ok: false; reason: 'no-clock' | 'loop' | 'empty'; loop?: string[] };
 
 /** 子專案 46：時序表的列數（第 0 次到第 n 次脈衝）可以選的值。 */
@@ -284,5 +284,5 @@ export function sequenceTable(d: LogicDiagram, pulses = 16, values: Record<strin
     v = evaluate(d, { ...values, [clock.id]: 0 }, up.seq);
     rows.push({ pulse: k, out: read(v) });
   }
-  return { ok: true, clock: clock.name ?? clock.id, outputs: outputs.map((n) => n.name ?? n.id), rows };
+  return { ok: true, clock: clock.name ?? clock.id, outputs: outputs.map((n) => n.name ?? n.id), display: outputs.map((n) => n.kind === 'DISPLAY'), rows };
 }
