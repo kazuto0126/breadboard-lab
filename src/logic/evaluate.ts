@@ -1,6 +1,6 @@
 import { getComponentDefinition } from '../core/circuit/library';
 import { createModel, type LogicModel, type ModelState } from '../core/simulation/models';
-import { BLOCK_DEFAULTS, BLOCK_PINS, isSequentialChip } from './blocks';
+import { BLOCK_DEFAULTS, BLOCK_PINS, HALF_CHIP, isSequentialChip } from './blocks';
 import { inputCountOf } from './shapes';
 import { isGate, isSink, signalOf, type BlockChip, type GateKind, type LogicDiagram, type LogicNode } from './types';
 
@@ -102,7 +102,9 @@ export function blockOutputs(chip: BlockChip, inputs: Bit[]): Bit[] {
 export type SeqState = Record<string, { state: ModelState; out: Bit[] }>;
 
 const models = new Map<BlockChip, LogicModel>();
-function modelOf(chip: BlockChip): LogicModel | null {
+/** 子專案 51：單顆正反器用那顆 IC 的模型。 */
+function modelOf(block: BlockChip): LogicModel | null {
+  const chip = HALF_CHIP[block] ?? block;
   if (!models.has(chip)) {
     const spec = getComponentDefinition(chip)?.logic;
     if (!spec) return null;
@@ -111,13 +113,26 @@ function modelOf(chip: BlockChip): LogicModel | null {
   return models.get(chip)!;
 }
 const bitOf = (v: unknown): Bit => (v === 0 || v === 1 ? v : 'X');
+/** 子專案 51：模型的腳名換成方塊的腳名（單顆正反器是 IC 的第 1 組：1D → D）；第 2 組的腳不是方塊的腳（undefined）。 */
+function blockPin(chip: BlockChip, pin: string): string | undefined {
+  if (!HALF_CHIP[chip]) return pin;
+  const own = pin.slice(1);
+  return pin.startsWith('1') && (BLOCK_PINS[chip].inputs.includes(own) || BLOCK_PINS[chip].outputs.includes(own)) ? own : undefined;
+}
+/** 方塊的輸出腳在模型裡的名稱。 */
+const modelOutput = (chip: BlockChip, name: string) => (HALF_CHIP[chip] ? `1${name}` : name);
+/** 沒接的輸入：方塊自己的值；單顆正反器另一組的腳用那顆 IC 沒接時的值。 */
+function defaultOf(chip: BlockChip, pin: string): 0 | 1 {
+  const own = blockPin(chip, pin);
+  const base = HALF_CHIP[chip];
+  return (own === undefined ? undefined : BLOCK_DEFAULTS[chip]?.[own]) ?? (base ? BLOCK_DEFAULTS[base]?.[pin] : undefined) ?? 1;
+}
 /** 上電狀態：模型的初始狀態，輸出用沒接時的值算（不記下時脈，第一次真的求值時不會看成邊緣）。 */
 function powerOn(chip: BlockChip): { state: ModelState; out: Bit[] } {
   const model = modelOf(chip)!;
-  const defaults = BLOCK_DEFAULTS[chip] ?? {};
   const state = model.init();
-  const out = model.evaluate((pin) => defaults[pin] ?? 1, state).outputs;
-  return { state, out: BLOCK_PINS[chip].outputs.map((name) => bitOf(out[name])) };
+  const out = model.evaluate((pin) => defaultOf(chip, pin), state).outputs;
+  return { state, out: BLOCK_PINS[chip].outputs.map((name) => bitOf(out[modelOutput(chip, name)])) };
 }
 
 /** 子專案 46：時序方塊最多重算幾次（漣波計數器一級一級傳下去）。 */
@@ -140,12 +155,13 @@ export function evaluate(
   for (const node of sequential) seq[node.id] = state?.[node.id] ?? powerOn(node.chip!);
   /** 時序方塊的輸入：沒接時用 BLOCK_DEFAULTS 的值。 */
   const readOf = (node: LogicNode, current: Map<string, Bit>) => {
-    const names = BLOCK_PINS[node.chip!].inputs;
-    const defaults = BLOCK_DEFAULTS[node.chip!] ?? {};
+    const chip = node.chip!;
+    const names = BLOCK_PINS[chip].inputs;
     return (pin: string): Bit => {
-      const i = names.indexOf(pin);
+      const own = blockPin(chip, pin);
+      const i = own === undefined ? -1 : names.indexOf(own);
       const from = i < 0 ? undefined : driver.get(`${node.id}#${i}`);
-      return from === undefined ? (defaults[pin] ?? 1) : (current.get(from) ?? 'X');
+      return from === undefined ? defaultOf(chip, pin) : (current.get(from) ?? 'X');
     };
   };
   // 子專案 46：先用目前的輸出算組合邏輯，再用模型算每個時序方塊（看時脈邊緣、更新狀態）；輸出有變就再算一次。
@@ -154,7 +170,7 @@ export function evaluate(
     let changed = false;
     for (const node of sequential) {
       const ev = modelOf(node.chip!)!.evaluate(readOf(node, result.nodes), seq[node.id].state);
-      const out = BLOCK_PINS[node.chip!].outputs.map((name) => bitOf(ev.outputs[name]));
+      const out = BLOCK_PINS[node.chip!].outputs.map((name) => bitOf(ev.outputs[modelOutput(node.chip!, name)]));
       if (out.some((b, k) => b !== seq[node.id].out[k])) changed = true;
       seq[node.id] = { state: ev.state, out };
     }

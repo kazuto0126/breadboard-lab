@@ -7,8 +7,8 @@ export type GateKind = 'AND' | 'OR' | 'NOT' | 'NAND' | 'NOR' | 'XOR';
 /** 子專案 21：HIGH / LOW 是常數 1 / 0（5V、GND），BLOCK 是 IC 方塊。 */
 /** 子專案 46：CLOCK 是時脈（一個輸出，「一個脈衝」送出 0 → 1 → 0）。 */
 export type NodeKind = GateKind | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK';
-/** 子專案 46：74LS74 起是時序 IC（正反器、計數器）。 */
-export type BlockChip = '74LS83' | '74LS151' | '74LS153' | '74LS138' | '74LS85' | '74LS74' | '74LS76' | '74LS90' | '74LS93' | '74LS161' | '74LS193';
+/** 子專案 46：74LS74 起是時序 IC（正反器、計數器）。子專案 51：DFF、JKFF 是單顆正反器（轉換時兩顆合用一片 74LS74 / 76）。 */
+export type BlockChip = '74LS83' | '74LS151' | '74LS153' | '74LS138' | '74LS85' | '74LS74' | '74LS76' | '74LS90' | '74LS93' | '74LS161' | '74LS193' | 'DFF' | 'JKFF';
 
 export const GATE_KINDS: GateKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR'];
 
