@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { sopText } from '../../logic/minimize';
+import { compareDiagramToStateTask, comparisonNotes, mismatchText } from '../../logic/stateCheck';
 import {
   createStateTask,
   designFromStateTask,
@@ -76,6 +77,48 @@ function CreateForm({ diagram }: { diagram: LogicDiagram }) {
       <button type="button" className={`${btn} bg-sky-700 text-white hover:bg-sky-600`} onClick={run}>
         建立狀態表題目
       </button>
+    </div>
+  );
+}
+
+/** 子專案 53（規格 2026-10-28 state-task-check 第 4 節）：和邏輯圖比對（依名稱，從 S0 開始走）。 */
+const SHOWN = 8;
+function StateCompare({ diagram, task }: { diagram: LogicDiagram; task: StateTask }) {
+  const result = useMemo(() => compareDiagramToStateTask(diagram, task), [diagram, task]);
+  const box = 'rounded border px-3 py-2 text-xs leading-5';
+  if (result.kind === 'none') return <p className="text-xs text-slate-400">畫好邏輯圖之後，這裡會依名稱和狀態表比對。</p>;
+  if (result.kind === 'issues')
+    return (
+      <div data-testid="state-compare" className={`${box} border-amber-700 bg-amber-950/40 text-amber-100`}>
+        <div className="font-semibold">還不能和邏輯圖比對</div>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4">
+          {result.issues.map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  const ok = result.mismatches.length === 0;
+  const { summary, notes } = comparisonNotes(result, task);
+  return (
+    <div data-testid="state-compare" className={`${box} ${ok ? 'border-emerald-700 bg-emerald-950/50 text-emerald-200' : 'border-red-700 bg-red-950/50 text-red-200'}`}>
+      <div className="font-semibold">和邏輯圖比對</div>
+      <p>{summary}</p>
+      {result.mismatches.length > 0 && (
+        <ul className="mt-1 space-y-1">
+          {result.mismatches.slice(0, SHOWN).map((m) => (
+            <li key={m.row} className="rounded bg-red-900/50 px-2 py-1">
+              {mismatchText(m, task)}
+            </li>
+          ))}
+        </ul>
+      )}
+      {result.mismatches.length > SHOWN && <p className="mt-1">還有 {result.mismatches.length - SHOWN} 列。</p>}
+      {notes.map((t) => (
+        <p key={t} className="mt-1 text-amber-200">
+          {t}
+        </p>
+      ))}
     </div>
   );
 }
@@ -179,6 +222,8 @@ export function StateTaskTab({ diagram }: { diagram: LogicDiagram }) {
         </div>
         <p className="mt-1 text-xs text-slate-400">產生後到「時序表」分頁看從 S0 開始每次脈衝後的狀態（Q 是狀態的編碼）。</p>
       </div>
+      <StateCompare diagram={diagram} task={task} />
+      <p className="text-xs text-slate-400">自己畫的電路要有和題目同名的輸入端、輸出端，以及接到正反器 Q 的輸出端 Q0、Q1…（Q0 是最低位元），才能比對。</p>
     </div>
   );
 }

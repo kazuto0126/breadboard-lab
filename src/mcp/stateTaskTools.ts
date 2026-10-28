@@ -1,5 +1,6 @@
 import { sequenceTable } from '../logic/evaluate';
 import { sopText } from '../logic/minimize';
+import { compareDiagramToStateTask, comparisonNotes, mismatchText } from '../logic/stateCheck';
 import { createStateTask, designFromStateTask, excitationTask, flipFlopCount, stateBitNames, stateCode, stateTaskColumns, withStateTask, type StateTask } from '../logic/stateTask';
 import { withTask, type TaskValue } from '../logic/task';
 import { fail, type LabFile, type ToolResult } from './tools';
@@ -88,6 +89,22 @@ export function stateTaskToDiagram(f: LabFile): ToolResult {
       lines.push(`${r.pulse} | ${code === null ? '?' : `S${code}`} (${bits.join(' ')} = ${values.join(' ')})${outs.length > 0 ? `，${outs.join('、')}` : ''}`);
     }
   }
+  lines.push('', `和狀態表比對：${checkText(diagram, task)}`);
   lines.push('', '之後可以用 logic_truth_table 看時序表與波形（改輸入端的值再看），或用 logic_to_breadboard 轉成麵包板。');
   return { text: lines.join('\n'), file: next };
+}
+
+/** 子專案 53（規格 2026-10-28 state-task-check）：邏輯圖和狀態表比對的文字。 */
+function checkText(d: LabFile['logic'], task: StateTask): string {
+  const r = compareDiagramToStateTask(d, task);
+  if (r.kind === 'none') return '檔案裡還沒有邏輯圖；用 logic_set 畫，或用 state_task_to_diagram 產生';
+  if (r.kind === 'issues') return `還不能比對：\n${r.issues.map((i) => `- ${i}`).join('\n')}`;
+  const { summary, notes } = comparisonNotes(r, task);
+  return [summary, ...r.mismatches.map((m) => `- ${mismatchText(m, task)}`), ...notes.map((n) => `（${n}）`)].join('\n');
+}
+
+export function stateTaskCheck(f: LabFile): ToolResult {
+  const task = f.logic.stateTask;
+  if (!task) return fail(NO_TASK);
+  return { text: `和狀態表比對（依名稱：題目的輸入、輸出，狀態位元是輸出端 ${stateBitNames(task.states).join('、')}）：${checkText(f.logic, task)}` };
 }
