@@ -31,4 +31,12 @@ test('狀態表題目：2 位元上數計數器，D 型正反器的式子、產�
   await expect(rows.nth(3)).toHaveText('311');
   await expect(rows.nth(4)).toHaveText('400');
   await page.locator('svg').filter({ has: page.locator('[data-logic-node]') }).first().screenshot({ path: 'test-results/state-task.png' });
+
+  // 子專案 53：和邏輯圖比對；刪掉 Q0 的輸出端後說明要有 Q0。
+  await page.getByRole('tab', { name: '題目' }).click();
+  const compare = page.getByTestId('state-compare');
+  await expect(compare).toContainText('從 S0 開始比對了 4 列，邏輯圖和狀態表全部一致');
+  await page.locator('[data-logic-node]').filter({ hasText: 'Q0' }).click();
+  await page.keyboard.press('Delete');
+  await expect(compare).toContainText('要有輸出端 Q0');
 });
