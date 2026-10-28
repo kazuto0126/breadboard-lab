@@ -1,4 +1,5 @@
 import { designFromTask, termsOfTask, usesPos, type DesignForm } from '../logic/design';
+import { withStateTask } from '../logic/stateTask';
 import { checkAgainstTask } from '../logic/diagramCheck';
 import { taskFromExpressions } from '../logic/expression';
 import { posText, sopText } from '../logic/minimize';
@@ -160,7 +161,8 @@ export function taskToDiagram(f: LabFile, args: { form?: DesignForm }): ToolResu
   const form = args.form ?? 'sop';
   const { diagram } = designFromTask(task, form);
   const count = (pred: (kind: NodeKind) => boolean) => diagram.nodes.filter((n) => pred(n.kind)).length;
-  const next = { ...f, logic: diagram };
+  // 子專案 52：狀態表題目跟著保留。
+  const next = { ...f, logic: withStateTask(diagram, f.logic.stateTask) };
   const lines = [
     `照題目產生邏輯圖（${FORM_NAMES[form]}）：輸入 ${count((k) => k === 'INPUT')} 個、閘 ${count((k) => isGate(k))} 個、輸出 ${count((k) => k === 'OUTPUT' || k === 'DISPLAY')} 個、線 ${diagram.wires.length} 條。`,
     ...(f.logic.nodes.length > 0 ? [`取代了原本的邏輯圖（${f.logic.nodes.length} 個元件）。`] : []),

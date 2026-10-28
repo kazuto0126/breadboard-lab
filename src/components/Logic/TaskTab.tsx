@@ -23,10 +23,12 @@ import {
 } from '../../logic/task';
 import { designFromTask, termsOfTask, usesPos, type DesignForm } from '../../logic/design';
 import { taskFromExpressions } from '../../logic/expression';
+import { withStateTask } from '../../logic/stateTask';
 import { literalsOf, posText, sopText, sumLiteralsOf, type Term } from '../../logic/minimize';
 import type { LogicDiagram } from '../../logic/types';
 import { useLogic } from '../../state/logic';
 import { openConvert } from './LogicPanel';
+import { StateTaskTab } from './StateTaskTab';
 
 /** 最多列出幾列不一致。 */
 const SHOWN = 8;
@@ -210,7 +212,8 @@ function Simplified({ diagram, task }: { diagram: LogicDiagram; task: TruthTask 
   const pos = usesPos(form);
   const generate = () => {
     const s = useLogic.getState();
-    s.apply({ ok: true, diagram: designFromTask(task, form).diagram }, `從題目產生邏輯圖（${FORMS.find((x) => x[0] === form)![1]}）`, null);
+    // 子專案 52：狀態表題目跟著保留。
+    s.apply({ ok: true, diagram: withStateTask(designFromTask(task, form).diagram, diagram.stateTask) }, `從題目產生邏輯圖（${FORMS.find((x) => x[0] === form)![1]}）`, null);
     s.fit();
   };
   return (
@@ -310,7 +313,24 @@ function DiagramCompare({ diagram, task }: { diagram: LogicDiagram; task: TruthT
 }
 
 /** 規格第 3 節：邏輯圖畫面的「題目」分頁。 */
+/** 子專案 52：「題目」分頁上方切換真值表題目與狀態表題目（只有狀態表題目時先顯示狀態表）。 */
 export function TaskTab({ diagram }: { diagram: LogicDiagram }) {
+  const [kind, setKind] = useState<'truth' | 'state'>(diagram.stateTask && !diagram.task ? 'state' : 'truth');
+  return (
+    <div>
+      <div className="flex gap-1 px-3 pt-3">
+        {(['truth', 'state'] as const).map((k) => (
+          <button key={k} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={`${btn} ${kind === k ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
+            {k === 'truth' ? '真值表題目' : '狀態表題目'}
+          </button>
+        ))}
+      </div>
+      {kind === 'truth' ? <TruthTaskTab diagram={diagram} /> : <StateTaskTab diagram={diagram} />}
+    </div>
+  );
+}
+
+function TruthTaskTab({ diagram }: { diagram: LogicDiagram }) {
   const task = diagram.task;
   const [renaming, setRenaming] = useState(false);
   const [rewriting, setRewriting] = useState(false);
