@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-10-28 — 子專案 53：自己畫的電路和狀態表比對
+## 2026-10-28 — 子專案 53：自己畫的電路和狀態表比對（PR #84，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-28-state-task-check-design.md`；實作計畫：`docs/superpowers/plans/2026-10-28-state-task-check.md`。
 backlog「時序電路的其他功能」，使用者 2026-10-28 選第 2 項（照我的建議先做這個）。
@@ -22,7 +22,7 @@ backlog「時序電路的其他功能」，使用者 2026-10-28 選第 2 項（�
 - 產生的電路（計數器、偵測器，D 與 JK）全部一致；D0 接錯的計數器列出 S0 的下一個狀態錯、S1–S3 走不到；輸出接錯時列出那一列，改成不在乎就不比。
 - 還不能比對的原因；不一致的白話；MCP 工具；端對端：產生電路後全部一致，刪掉 Q0 的輸出端後說明要有 Q0。
 
-## 2026-10-25 — 子專案 52：從狀態表題目產生電路（PR #83，已合併，還沒發布）
+## 2026-10-25 — 子專案 52：從狀態表題目產生電路（PR #83，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-10-25-state-table-task-design.md`；實作計畫：`docs/superpowers/plans/2026-10-25-state-table-task.md`。
 backlog「時序電路的其他功能」，使用者 2026-10-25 選這一項（細節交給我決定）。
