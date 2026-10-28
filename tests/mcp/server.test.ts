@@ -29,13 +29,13 @@ afterAll(async () => {
 });
 
 describe('the MCP server', () => {
-  it('lists the 23 tools', async () => {
+  it('lists the 24 tools', async () => {
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
       [
         'add_wire', 'auto_route', 'check_against_diagram', 'check_circuit', 'circuit_summary', 'list_files', 'list_parts', 'logic_set',
         'logic_to_breadboard', 'logic_truth_table', 'new_circuit', 'place_part', 'remove', 'rename_circuit', 'set_part', 'share_link', 'simulate',
-        'state_task_set', 'state_task_to_diagram', 'task_check', 'task_set', 'task_show', 'task_to_diagram',
+        'state_task_check', 'state_task_set', 'state_task_to_diagram', 'task_check', 'task_set', 'task_show', 'task_to_diagram',
       ].sort(),
     );
   });

@@ -47,3 +47,18 @@ describe('state_task_to_diagram', () => {
     expect(stateTaskToDiagram(newLabFile('x', 'MB102'))).toMatchObject({ error: true, text: expect.stringContaining('state_task_set') });
   });
 });
+
+describe('state_task_check (sub-project 53)', () => {
+  it('compares the diagram with the state table', async () => {
+    const { stateTaskCheck } = await import('../../src/mcp/stateTaskTools');
+    const f = okFile(stateTaskSet(newLabFile('x', 'MB102'), counter));
+    expect(stateTaskCheck(f).text).toContain('還沒有邏輯圖');
+    const g = okFile(stateTaskToDiagram(f));
+    expect(stateTaskToDiagram(f).text).toContain('和狀態表比對：從 S0 開始比對了 4 列，邏輯圖和狀態表全部一致');
+    expect(stateTaskCheck(g).text).toContain('全部一致');
+    // 把 Q0 的輸出端改名：說明要有 Q0。
+    const renamed = { ...g, logic: { ...g.logic, nodes: g.logic.nodes.map((n) => (n.name === 'Q0' ? { ...n, name: 'A' } : n)) } };
+    expect(stateTaskCheck(renamed).text).toContain('要有輸出端 Q0');
+    expect(stateTaskCheck(newLabFile('x', 'MB102'))).toMatchObject({ error: true });
+  });
+});
