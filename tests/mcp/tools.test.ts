@@ -385,3 +385,25 @@ describe('rename_circuit (sub-project 47)', () => {
     expect(failed(renameCircuit(f, { name: 'x'.repeat(61) }))).toBe('名稱最多 60 個字');
   });
 });
+
+// 子專案 56：MCP 轉已經放好的元件；IC 只能 0 或 180 度。
+describe('rotating parts with MCP (sub-project 56)', () => {
+  it('turns a placed part and back, and explains what cannot turn', () => {
+    let f = okFile(placePart(newLabFile('x', 'MB102'), { part: 'led-red', hole: 'A30' }));
+    const start = f.circuit.components[0];
+    const turned = setPart(f, { id: 'D1', rotation: 90 });
+    f = okFile(turned);
+    expect(f.circuit.components[0].rotation).toBe(90);
+    expect(turned.text).toContain('轉到 90°');
+    expect(turned.text).toMatch(/第 1 腳 .+ @ A30/);
+    f = okFile(setPart(f, { id: 'D1', rotation: 0 }));
+    expect(f.circuit.components[0]).toEqual(start);
+    expect(failed(setPart(f, { id: 'D1', rotation: 45 }))).toContain('0、90、180、270');
+
+    let ic = okFile(placePart(newLabFile('x', 'MB102'), { part: '74LS00', hole: 'F10' }));
+    expect(failed(setPart(ic, { id: 'U1', rotation: 90 }))).toContain('IC 要跨過中間的凹槽，只能轉 0° 或 180°');
+    expect(failed(placePart(newLabFile('x', 'MB102'), { part: '74LS00', hole: 'F10', rotation: 270 }))).toContain('只能轉 0° 或 180°');
+    ic = okFile(setPart(ic, { id: 'U1', rotation: 180 }));
+    expect(ic.circuit.components[0].rotation).toBe(180);
+  });
+});
