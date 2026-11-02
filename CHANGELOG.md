@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-11-02 — 子專案 55：用 MCP 接大電路時碰到的問題
+## 2026-11-02 — 子專案 55：用 MCP 接大電路時碰到的問題（PR #86，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-11-02-mcp-convert-polish-design.md`。使用者 2026-11-02 用 MCP 接圖 8-8 後要求改善。
 
@@ -20,7 +20,7 @@
 
 - 接不完時的建議（不建議已經用的設定）；伺服器建立兩層新資料夾、`seconds` 與進度回報。
 
-## 2026-11-02 — 子專案 54：兩塊板的大電路多給時間（圖 8-8 十進制加法器）
+## 2026-11-02 — 子專案 54：兩塊板的大電路多給時間（圖 8-8 十進制加法器）（PR #86，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-11-02-two-board-time-design.md`；實作計畫：`docs/superpowers/plans/2026-11-02-two-board-time.md`。
 使用者 2026-11-02 要用 MCP 把課本圖 8-8 接成麵包板，原本試了 6 種接法都差 1–6 條線；使用者選「改進佈線器」。
