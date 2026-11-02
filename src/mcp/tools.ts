@@ -14,7 +14,7 @@ import { explainIssue } from '../editor/explain/index';
 import { nextComponentId } from '../editor/ids';
 import { librarySections, LED_COLORS, searchLibrary } from '../editor/library';
 import { defaultWireColor, straightProblemText, straightWireProblem } from '../editor/manualWire';
-import { buildOccupancy, checkPlacementWith, type HardIssue, type SoftIssue } from '../editor/placement';
+import { buildOccupancy, checkPlacementWith, turnedTo, type HardIssue, type SoftIssue } from '../editor/placement';
 import { autoPlaceAndRoute } from '../core/icPlacement/autoPlace';
 import { applyRouting } from '../core/routing/apply';
 import { autoRoute as routeCircuit } from '../core/routing/autoRoute';
@@ -59,6 +59,9 @@ export interface ToolResult {
 
 export const fail = (text: string): ToolResult => ({ text, error: true });
 const ROTATIONS: Rotation[] = [0, 90, 180, 270];
+/** 子專案 56：IC（DIP）要跨過凹槽，只能 0° 或 180°。 */
+const DIP_TURN = 'IC 要跨過中間的凹槽，只能轉 0° 或 180°';
+const dipCannotTurn = (def: { package: { type: string } }, rotation: Rotation) => def.package.type === 'dip' && (rotation === 90 || rotation === 270);
 
 /** 子專案 33：list_files 的一行說明（麵包板、元件數、有沒有邏輯圖與題目）。 */
 export function describeLabFile(f: LabFile): string {
@@ -211,6 +214,7 @@ export function placePart(f: LabFile, args: { part: string; hole?: string; rotat
   const def = getComponentDefinition(item.defId)!;
   const rotation = (args.rotation ?? 0) as Rotation;
   if (!ROTATIONS.includes(rotation)) return fail('rotation 只能是 0、90、180、270');
+  if (dipCannotTurn(def, rotation)) return fail(`${args.part} 不能轉 ${rotation}°：${DIP_TURN}`);
   if (args.id !== undefined && f.circuit.components.some((c) => c.id === args.id)) return fail(`ID ${args.id} 已經有元件了`);
   const id = args.id ?? nextComponentId(f.circuit, def.category);
   const spec = { defId: item.defId, rotation, props: item.props, ...(item.span !== undefined ? { span: item.span } : {}) };
@@ -247,12 +251,22 @@ export function addWire(f: LabFile, args: { from: string; to: string; color?: st
   return { text: `接好 ${id}：${holeLabel(circuit, a.point)} → ${holeLabel(circuit, b.point)}`, file: { ...f, circuit } };
 }
 
-export function setPart(f: LabFile, args: { id: string; labels?: string[]; resistance?: number; color?: string; switches?: boolean[] }): ToolResult {
+export function setPart(f: LabFile, args: { id: string; labels?: string[]; resistance?: number; color?: string; switches?: boolean[]; rotation?: number }): ToolResult {
   const instance = f.circuit.components.find((c) => c.id === args.id);
   if (!instance) return fail(`沒有元件 ${args.id}`);
   const def = getComponentDefinition(instance.defId)!;
   let circuit = f.circuit;
   const done: string[] = [];
+  // 子專案 56：轉到指定的角度（和網頁按 R 一樣以中心或腳 1 為軸，放不下時挪到附近）。
+  if (args.rotation !== undefined) {
+    const rotation = args.rotation as Rotation;
+    if (!ROTATIONS.includes(rotation)) return fail('rotation 只能是 0、90、180、270');
+    if (dipCannotTurn(def, rotation)) return fail(`${args.id} 不能轉 ${rotation}°：${DIP_TURN}`);
+    const turned = turnedTo(circuit, instance, rotation);
+    if (!turned) return fail(`${args.id} 轉到 ${rotation}° 放不下（附近的孔被佔用或超出麵包板）；先把它移到空一點的地方（remove 後用 place_part 指定 rotation）`);
+    circuit = { ...circuit, components: circuit.components.map((c) => (c.id === args.id ? turned : c)) };
+    done.push(`轉到 ${rotation}°：${pinsText(circuit, turned)}`);
+  }
   if (args.labels) {
     const slots = labelSlots(instance);
     if (slots === 0) return fail(`${args.id} 不能設名稱（只有指撥開關、LED、7 段顯示器可以）`);
@@ -279,7 +293,7 @@ export function setPart(f: LabFile, args: { id: string; labels?: string[]; resis
     circuit = updateComponentProps(circuit, args.id, { switchStates: [...args.switches] });
     done.push(`開關 ${args.switches.map((on) => (on ? 'ON' : 'OFF')).join(' ')}`);
   }
-  if (done.length === 0) return fail('沒有要改的東西（labels、resistance、color、switches 至少給一個）');
+  if (done.length === 0) return fail('沒有要改的東西（labels、resistance、color、switches、rotation 至少給一個）');
   return { text: `${args.id}：${done.join('；')}`, file: { ...f, circuit } };
 }
 

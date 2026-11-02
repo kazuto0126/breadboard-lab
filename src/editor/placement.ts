@@ -178,24 +178,51 @@ export function centeredAnchor(
   cx: number,
   cy: number,
 ): { x: number; y: number } {
+  const exact = exactCenteredAnchor(def, rotation, span, cx, cy);
+  return { x: roundCell(exact.x), y: roundCell(exact.y) };
+}
+
+/** 同上，但不取整（中心在兩個孔中間時會是半格）。 */
+function exactCenteredAnchor(def: ComponentDefinition, rotation: Rotation, span: number | undefined, cx: number, cy: number): { x: number; y: number } {
   const probe: ComponentInstance = { id: '?', defId: def.id, boardId: '?', anchor: { x: 0, y: 0 }, rotation, props: {} };
   if (span !== undefined) probe.span = span;
   const center = footprintCenter(probe, def);
-  return { x: roundCell(cx - center.x), y: roundCell(cy - center.y) };
+  return { x: cx - center.x, y: cy - center.y };
 }
 
 /**
  * 以元件中心為軸順時針旋轉，依序嘗試 +90°、+180°、+270°，回傳第一個能吸附到合法位置的結果。
  * 例如 DIP IC 轉 90° 一定放不下，會直接翻轉 180°。全部不行時回傳 null。
+ * 子專案 56：以中心轉完剛好在孔上就照中心轉；中心在兩個孔中間（2 腳元件、按鈕常常是）時改成以腳 1 為軸轉
+ * （以前四捨五入，每轉一次往同一邊偏一格）。先找轉完不用挪就放得下的方向（放不下的方向跳過，例如 LED 往上會跨過凹槽），
+ * 都不行才挪到附近；這樣轉回原本的方向時一定回到原本的位置。
  */
 export function rotatedPlacement(circuit: Circuit, instance: ComponentInstance): ComponentInstance | null {
+  return placeTurned(circuit, instance, [90, 180, 270].map((delta) => ((instance.rotation + delta) % 360) as Rotation));
+}
+
+/** 子專案 56：轉到指定的角度（MCP set_part 用）；轉完放不下、附近也找不到位置時回傳 null。 */
+export function turnedTo(circuit: Circuit, instance: ComponentInstance, rotation: Rotation): ComponentInstance | null {
+  return rotation === instance.rotation ? instance : placeTurned(circuit, instance, [rotation]);
+}
+
+/** 依序試這些角度：先找不用挪就放得下的，都不行才挪到附近。 */
+function placeTurned(circuit: Circuit, instance: ComponentInstance, rotations: Rotation[]): ComponentInstance | null {
   const def = getComponentDefinition(instance.defId);
   if (!def) return null;
   const center = footprintCenter(instance, def);
-  for (const delta of [90, 180, 270]) {
-    const rotation = ((instance.rotation + delta) % 360) as Rotation;
-    const anchor = centeredAnchor(def, rotation, instance.span, center.x, center.y);
-    const placed = findPlacement(circuit, { ...instance, rotation, anchor }, { ignoreId: instance.id });
+  // 中心在兩個孔中間、又不是只能翻 180° 的 DIP（IC、指撥開關）：一律以腳 1 為軸，不和以中心轉混用。
+  const onPin1 = def.package.type !== 'dip' && !(Number.isInteger(center.x) && Number.isInteger(center.y));
+  const turned = rotations.map((rotation): ComponentInstance => {
+    const exact = exactCenteredAnchor(def, rotation, instance.span, center.x, center.y);
+    const anchor = !onPin1 && Number.isInteger(exact.x) && Number.isInteger(exact.y) ? { x: exact.x + 0, y: exact.y + 0 } : instance.anchor;
+    return { ...instance, rotation, anchor };
+  });
+  const occ = buildOccupancy(circuit, instance.boardId, instance.id);
+  const inPlace = turned.find((t) => checkPlacementWith(occ, t, def).ok);
+  if (inPlace) return inPlace;
+  for (const t of turned) {
+    const placed = findPlacement(circuit, t, { ignoreId: instance.id });
     if (placed) return placed;
   }
   return null;

@@ -194,7 +194,7 @@ server.registerTool(
       file,
       part: z.string().describe('元件名稱（list_parts 列出的名稱）'),
       hole: hole('第 1 腳的位置').optional(),
-      rotation: z.number().int().optional().describe('旋轉角度：0、90、180、270'),
+      rotation: z.number().int().optional().describe('旋轉角度（順時針）：0、90、180、270；IC 只能 0 或 180（要跨過凹槽）'),
       id: z.string().optional().describe('指定元件 ID（預設自動編號：U1、R1、D1、SW1…）'),
     },
   },
@@ -215,7 +215,7 @@ server.registerTool(
   'set_part',
   {
     title: '改元件設定',
-    description: '改名稱（指撥開關每個開關一個、LED 與 7 段顯示器一個）、電阻值、LED 顏色、指撥開關 ON / OFF。',
+    description: '改名稱（指撥開關每個開關一個、LED 與 7 段顯示器一個）、電阻值、LED 顏色、指撥開關 ON / OFF、旋轉角度（rotation）。',
     inputSchema: {
       file,
       id: z.string().describe('元件 ID'),
@@ -223,6 +223,7 @@ server.registerTool(
       resistance: z.number().optional().describe('電阻值（Ω）'),
       color: z.enum(['red', 'green', 'yellow', 'blue']).optional().describe('LED 顏色'),
       switches: z.array(z.boolean()).optional().describe('指撥開關每個開關的狀態，true = ON'),
+      rotation: z.number().int().optional().describe('轉到這個角度（0、90、180、270，順時針）；和網頁按 R 一樣以中心轉（2 腳元件以第 1 腳為軸），放不下時挪到附近。IC 只能 0 或 180'),
     },
   },
   async ({ file: f, ...args }) => withFile(f, (lab) => tools.setPart(lab, args)),
