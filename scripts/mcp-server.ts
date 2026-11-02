@@ -86,7 +86,7 @@ const pool = isMainThread && poolSize() > 1 ? createRoutingPool(poolSize()) : nu
 
 const file = z.string().describe('電路檔的路徑（工作資料夾裡的 .json 檔，例如 circuits/xor.json）');
 const hole = (what: string) =>
-  z.string().describe(`${what}：孔位名稱，寫法和網頁一樣，例如 F10、A3、T+10（上方 + 軌）、B-3（下方 − 軌）；EIC-1106 寫 1-F10、P2+12；有好幾塊板時加板子 ID，例如 b2:F10`);
+  z.string().describe(`${what}：孔位名稱，寫法和網頁一樣，例如 F10、A3、T+10（上方 + 軌）、B-3（下方 − 軌）；EIC-1106 寫 1-F10、P2+12（每對電源軌 − 在上、+ 在下）；有好幾塊板時加板子 ID，例如 b2:F10`);
 
 const server = new McpServer(
   { name: 'breadboard-lab', version: VERSION },

@@ -25,8 +25,10 @@ describe('EIC-1106 layout', () => {
     expect(parseHoleName(b, '1-A15')).toEqual({ boardId: 'b1', x: 15, y: 10 });
     expect(parseHoleName(b, '2-F30')).toEqual({ boardId: 'b1', x: 30, y: 33 });
     expect(parseHoleName(b, '3-J63')).toEqual({ boardId: 'b1', x: 63, y: 53 });
-    expect(parseHoleName(b, 'P2+12')).toEqual({ boardId: 'b1', x: 12, y: 7 });
-    expect(parseHoleName(b, 'P5−40')).toEqual({ boardId: 'b1', x: 40, y: 56 });
+    // 子專案 57：每對電源軌 − 在上、+ 在下。
+    expect(parseHoleName(b, 'P2+12')).toEqual({ boardId: 'b1', x: 12, y: 8 });
+    expect(parseHoleName(b, 'P2-12')).toEqual({ boardId: 'b1', x: 12, y: 7 });
+    expect(parseHoleName(b, 'P5−40')).toEqual({ boardId: 'b1', x: 40, y: 55 });
     expect(parseHoleName(b, '紅')).toEqual({ boardId: 'b1', x: 20, y: 2 });
     expect(holeName(b, { boardId: 'b1', x: 15, y: 10 })).toBe('1-A15');
     expect(parseHoleName(b, 'A15')).toBeNull();

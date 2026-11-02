@@ -72,7 +72,8 @@ export const BoardBackground = memo(function BoardBackground({ frame, label }: {
         if (row.kind !== 'rail') return null;
         const plus = row.label.endsWith('+');
         const color = plus ? BOARD.railPlus : BOARD.railMinus;
-        const outerTop = row.label.startsWith('T') ? !plus : plus;
+        // 色線畫在每對軌的外側：MB-102 下方一對 + 在上，其他（T、EIC-1106 的 P1–P5）都是 − 在上。
+        const outerTop = row.label.startsWith('B') ? plus : !plus;
         const lineY = localPx(0, row.y + (outerTop ? -0.56 : 0.56)).y;
         const textY = localPx(0, row.y).y;
         const sign = plus ? '+' : '−';
@@ -85,7 +86,7 @@ export const BoardBackground = memo(function BoardBackground({ frame, label }: {
             <text x={localPx(62.8, 0).x} y={textY} fill={color} fontSize={0.75 * P} fontWeight={700} textAnchor="middle" dominantBaseline="central">
               {sign}
             </text>
-            {row.label.startsWith('P') && plus && (
+            {row.label.startsWith('P') && !plus && (
               <text x={localPx(0.1, 0).x} y={localPx(0, row.y + 0.5).y} fill={BOARD.label} fontSize={0.42 * P} fontWeight={700} textAnchor="middle" dominantBaseline="central">
                 {row.label.slice(0, 2)}
               </text>
