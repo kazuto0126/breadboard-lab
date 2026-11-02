@@ -9,9 +9,11 @@ import { LABEL_MAX } from './commands';
 import { parseLogicDiagram } from '../logic/file';
 import type { LogicDiagram } from '../logic/types';
 import { NOTE_COLORS, NOTE_MAX } from './notes';
+import { migrateEicRails } from './legacyRails';
 
 export const FILE_FORMAT = 'breadboard-lab/circuit';
-export const FILE_VERSION = 1;
+/** 子專案 57：版本 2 起 EIC-1106 的電源軌是 − 在上、+ 在下；版本 1 的檔案打開時換排（legacyRails）。 */
+export const FILE_VERSION = 2;
 
 /** 存檔格式（Save、Export JSON、自動儲存都用這個）。 */
 export interface CircuitFile {
@@ -258,7 +260,7 @@ export function parseCircuitData(raw: unknown): ParseResult {
     const top = raw as Obj;
     if (top.format !== undefined) {
       if (top.format !== FILE_FORMAT) fail('format', `不是 Breadboard Lab 的電路檔（${String(top.format)}）`);
-      if (top.version !== FILE_VERSION) fail('version', `不支援的檔案版本 ${String(top.version)}`);
+      if (top.version !== FILE_VERSION && top.version !== 1) fail('version', `不支援的檔案版本 ${String(top.version)}`);
       const name = typeof top.name === 'string' && top.name.trim() ? top.name.trim() : null;
       const checklist = parseChecklist(top.checklist);
       let logic: LogicDiagram | undefined;
@@ -267,7 +269,7 @@ export function parseCircuitData(raw: unknown): ParseResult {
         if (!parsed.ok) fail('logic', `邏輯圖有問題：${parsed.error}`);
         else logic = parsed.diagram;
       }
-      const circuit = parseCircuit(top.circuit);
+      const circuit = top.version === 1 ? migrateEicRails(parseCircuit(top.circuit)) : parseCircuit(top.circuit);
       return { ok: true, circuit, name, ...(checklist ? { checklist } : {}), ...(logic ? { logic } : {}) };
     }
     return { ok: true, circuit: parseCircuit(top), name: null };

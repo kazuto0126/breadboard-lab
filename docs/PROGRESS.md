@@ -13,7 +13,8 @@
 
 ## 進行中
 
-- 沒有進行中的子專案。圖 8-8 的電路檔在 `circuits/bcd-adder-8-8.json`（本機，不進 git）。
+- 子專案 57（分支 `feat/eic-rail-polarity`）：EIC-1106 電源軌改成 − 在上、+ 在下，舊檔自動換排；實作與測試完成，等 PR 合併。
+- 圖 8-8 的電路檔在 `circuits/bcd-adder-8-8.json`（本機，不進 git）。
 
 ## 接下來（依優先順序）
 

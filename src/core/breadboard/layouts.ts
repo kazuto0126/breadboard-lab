@@ -28,14 +28,15 @@ const terminalArea = (area: number, top: number): LayoutRow[] => [
   ...TOP_ROWS.map((label, i): LayoutRow => ({ y: top + i, kind: 'terminal', label, half: 'top', area })),
   ...BOTTOM_ROWS.map((label, i): LayoutRow => ({ y: top + 7 + i, kind: 'terminal', label, half: 'bot', area })),
 ];
+/** 子專案 57：每對電源軌 − 在上、+ 在下（以前是 + 在上；舊檔打開時由 fileFormat 換排）。 */
 const railPair = (n: 1 | 2 | 3 | 4 | 5, y: number): LayoutRow[] => [
-  { y, kind: 'rail', label: `P${n}+`, holeColumns: RAIL_COLUMNS },
-  { y: y + 1, kind: 'rail', label: `P${n}-`, holeColumns: RAIL_COLUMNS },
+  { y, kind: 'rail', label: `P${n}-`, holeColumns: RAIL_COLUMNS },
+  { y: y + 1, kind: 'rail', label: `P${n}+`, holeColumns: RAIL_COLUMNS },
 ];
 
 /**
  * EIC-1106（2390 孔）：由上到下 接線柱、P1、P2、插孔區 1、P3、插孔區 2、P4、插孔區 3、P5（規格 2026-10-11 eic-board 第 2 節）。
- * 每個插孔區和 MB-102 相同（63 欄 × A–J，中間凹槽）；每條電源軌 + − 兩列、各 50 孔、整條相通。
+ * 每個插孔區和 MB-102 相同（63 欄 × A–J，中間凹槽）；每條電源軌 − + 兩列（− 在上）、各 50 孔、整條相通。
  */
 export const EIC1106_LAYOUT: BoardLayout = {
   id: 'EIC1106',
