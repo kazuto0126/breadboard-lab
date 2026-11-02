@@ -23,6 +23,7 @@ import { compileSimulation, initialSimState, settle } from '../core/simulation/s
 import { routingSummaryText, summarizeRouting } from '../editor/explain/routing';
 import { checkDiagram } from '../logic/check';
 import { convertAndRoute, convertAndRouteParallel, type ConvertRouted, type RouteJob } from '../logic/convertRoute';
+import { displayResistorsOf } from '../logic/synth';
 import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
 import { isSequential, sequenceTable, sortedIo, truthTable } from '../logic/evaluate';
 import { waveText } from '../logic/waveform';
@@ -478,6 +479,20 @@ function diagramCheckText(d: LogicDiagram, circuit: Circuit): string {
   return [...lines, `對應：${c.mapping}`].join('\n');
 }
 
+/**
+ * 子專案 55：接不完時建議下一步：先多給時間（最常見的原因是時間到），再換顯示器電阻、選板、閘的種類；已經用了的設定不再建議。
+ */
+function retryHints(retry: RetryContext | undefined): string[] {
+  if (!retry) return ['可以多給時間（seconds，例如 120）、改用自動選板，或只用一種閘再轉一次。'];
+  const limit = retry.seconds ?? Math.round(retry.elapsedMs / 1000);
+  const hints = [`seconds: ${Math.min(300, Math.max(120, limit * 2))}（多給佈線器時間，常常就補得上最後幾條）`];
+  if (retry.displays && retry.displayResistors === 'each') hints.push('display_resistors: "shared"（顯示器共用一顆電阻，線比較少）');
+  if (retry.board !== 'auto') hints.push('board: "auto"（排不完時可以用兩塊 EIC-1106 左右貼在一起）');
+  if (retry.gates === 'direct') hints.push('gates: "nand"（只用 NAND，擺法不同，有時比較好排）');
+  hints.push('簡化邏輯圖（少一個閘、少幾條線都有幫助）');
+  return ['可以這樣再轉一次：', ...hints.map((h) => `- ${h}`)];
+}
+
 export function checkAgainstDiagram(f: LabFile): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
   return { text: diagramCheckText(f.logic, f.circuit) };
@@ -492,6 +507,24 @@ export type LogicToBreadboardArgs = {
   display?: 'ca' | 'cc';
   /** 子專案 44：7 段顯示器每段一顆電阻或共用一顆（沒給時 1 個顯示器每段一顆、2 個共用一顆）。 */
   display_resistors?: 'each' | 'shared';
+  /** 子專案 55：總時間上限（秒）；沒給時一般 40 秒、用到兩塊 EIC-1106 時 90 秒。 */
+  seconds?: number;
+};
+
+/** 子專案 55：接不完時照這次的設定建議下一步。 */
+export interface RetryContext {
+  board: 'auto' | LayoutId;
+  gates: 'direct' | 'nand' | 'nor';
+  displayResistors?: 'each' | 'shared';
+  displays?: number;
+  elapsedMs: number;
+  seconds?: number;
+}
+
+const budgetOf = (args: LogicToBreadboardArgs) => (args.seconds ? { totalMs: args.seconds * 1000 } : {});
+const retryOf = (f: LabFile, args: LogicToBreadboardArgs, elapsedMs: number): RetryContext => {
+  const displays = f.logic.nodes.filter((n) => n.kind === 'DISPLAY').length;
+  return { board: args.board ?? 'auto', gates: args.gates ?? 'direct', ...(displays > 0 ? { displays, displayResistors: displayResistorsOf(f.logic, args.display_resistors) } : {}), elapsedMs, ...(args.seconds ? { seconds: args.seconds } : {}) };
 };
 
 const convertOptionsOf = (args: LogicToBreadboardArgs): ConvertOptions & { display: 'ca' | 'cc' } =>
@@ -501,18 +534,32 @@ export function logicToBreadboard(f: LabFile, args: LogicToBreadboardArgs): Tool
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
   const options = convertOptionsOf(args);
   // 子專案 36：和網頁一樣，試好幾種擺法挑佈線最好的（自動選板時 MB-102 都排不完才用 EIC-1106）；電源接最近的軌（子專案 34）。
-  const converted = convertAndRoute(f.logic, options);
+  const started = performance.now();
+  const converted = convertAndRoute(f.logic, options, budgetOf(args));
   if (!converted.ok) return fail(converted.reason);
-  return convertedReply(f, options, converted);
+  return convertedReply(f, { ...options, retry: retryOf(f, args, performance.now() - started) }, converted);
 }
 
 /** 子專案 42：同樣的轉換，佈線交給 routeMany（MCP 伺服器用好幾個執行緒同時跑）。 */
-export async function logicToBreadboardParallel(f: LabFile, args: LogicToBreadboardArgs, routeMany: (jobs: RouteJob[]) => Promise<RoutingResult[]>, parallel: number): Promise<ToolResult> {
+export async function logicToBreadboardParallel(
+  f: LabFile,
+  args: LogicToBreadboardArgs,
+  routeMany: (jobs: RouteJob[]) => Promise<RoutingResult[]>,
+  parallel: number,
+  onProgress?: (message: string) => void,
+): Promise<ToolResult> {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
   const options = convertOptionsOf(args);
-  const converted = await convertAndRouteParallel(f.logic, options, routeMany, parallel);
+  const started = performance.now();
+  // 子專案 55：每一批佈線開始時回報進度（大電路要等一分多鐘）。
+  let batch = 0;
+  const reported = (jobs: RouteJob[]) => {
+    onProgress?.(`佈線中：第 ${++batch} 批，${jobs.length} 種擺法（已經 ${Math.round((performance.now() - started) / 1000)} 秒）`);
+    return routeMany(jobs);
+  };
+  const converted = await convertAndRouteParallel(f.logic, options, reported, parallel, budgetOf(args));
   if (!converted.ok) return fail(converted.reason);
-  return convertedReply(f, options, converted);
+  return convertedReply(f, { ...options, retry: retryOf(f, args, performance.now() - started) }, converted);
 }
 
 /**
@@ -520,9 +567,11 @@ export async function logicToBreadboardParallel(f: LabFile, args: LogicToBreadbo
  * 子專案 39（規格 2026-10-20 wiring-rules）：佈線沒有完成時不寫入檔案：預定的連線是元件腳之間的直線，常常是斜的、會交叉，
  * 不符合接線規則；改成說明哪幾個 Net 沒接好（接在哪些腳）。
  */
-export function convertedReply(f: LabFile, options: { display: 'ca' | 'cc' }, converted: Extract<ConvertRouted, { ok: true }>): ToolResult {
+export function convertedReply(f: LabFile, options: { display: 'ca' | 'cc'; retry?: RetryContext }, converted: Extract<ConvertRouted, { ok: true }>): ToolResult {
   const { result: r, routed, tried } = converted;
-  const notes = [`試了 ${tried} 種擺法，用佈線最好的一種。`];
+  const { retry } = options;
+  const time = retry ? `；用了 ${Math.round(retry.elapsedMs / 1000)} 秒${retry.seconds ? `（上限 ${retry.seconds} 秒）` : ''}` : '';
+  const notes = [`試了 ${tried} 種擺法，用佈線最好的一種${time}。`];
   const done = routed.status === 'success';
   const circuit = done ? applyRouting(r.circuit, routed) : r.circuit;
   const bom = r.bom;
@@ -545,7 +594,7 @@ export function convertedReply(f: LabFile, options: { display: 'ca' | 'cc' }, co
     const missing = routed.failedNets.map((n) => `${n.netId}（${pins(n.netId)}）`).join('；');
     lines.push(
       `佈線沒有完成，沒有寫入檔案：還沒接好的連線不能用斜的或交叉的線代替（每條線只能水平或垂直、不能交叉、不能跨過 IC）。沒接好的是 ${missing}。`,
-      '可以改用 board: "EIC1106"、加上 / 下拉電阻或只用一種閘再轉一次。',
+      ...retryHints(retry),
     );
     return { text: lines.join('\n') };
   }

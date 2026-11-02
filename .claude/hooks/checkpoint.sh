@@ -10,11 +10,17 @@ case "${branch}" in main | master | HEAD) exit 0 ;; esac
 gitdir=$(git rev-parse --git-dir 2>/dev/null) || exit 0
 if [ -e "${gitdir}/MERGE_HEAD" ] || [ -d "${gitdir}/rebase-merge" ] || [ -d "${gitdir}/rebase-apply" ]; then exit 0; fi
 
+# 只存已追蹤的檔案，和專案資料夾裡新增的檔案；最上層與其他地方的暫存檔（實驗腳本、電路檔）不碰（子專案 55）。
 if [ -n "$(git status --porcelain)" ]; then
-  git add -A >&2 &&
+  git add -u >&2
+  for path in src tests e2e docs scripts public .github .claude; do
+    [ -e "${path}" ] && git add -- "${path}" >&2
+  done
+  if ! git diff --cached --quiet; then
     git commit -q -m "wip: checkpoint $(date -u +%Y-%m-%dT%H:%MZ)" \
       -m "Automatic checkpoint from the Stop hook (.claude/hooks/checkpoint.sh) so unpushed work survives an interrupted session." >&2 ||
-    exit 0
+      exit 0
+  fi
 fi
 
 if ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1 || [ -n "$(git rev-list '@{u}..HEAD' 2>/dev/null)" ]; then

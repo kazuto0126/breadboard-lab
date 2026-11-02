@@ -4,7 +4,7 @@ import { convertAndRoute } from '../../src/logic/convertRoute';
 import { designFromTask } from '../../src/logic/design';
 import { taskFromExpressions } from '../../src/logic/expression';
 import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
-import { bcdDiagram, majorityDiagram } from '../../src/logic/examples';
+import { bcdAdderDiagram, bcdDiagram, majorityDiagram } from '../../src/logic/examples';
 import type { ConvertOptions } from '../../src/logic/toBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 import { comparator, decoder, encoder } from '../fixtures/labCircuits';
@@ -59,6 +59,8 @@ const cases: Array<{ name: string; d: () => LogicDiagram; options: Partial<Conve
   { name: '大電路 6 輸入 3 輸出（下拉電阻）', d: () => fromExpressions(['X = A B + C D + E F', "Y = A' C E + B D' F", "Z = A C' + B' E + D F'"]), options: { pulls: true }, board: 'EIC1106' },
   { name: '大電路 6 輸入 4 輸出（下拉電阻）', d: () => fromExpressions(['W = A B C + D E F', "X = A' B + C' D + E' F", 'Y = A D + B E + C F', "Z = A' F' + B' E'"]), options: { pulls: true }, board: 'EIC1106' },
   { name: '大電路 5 輸入 4 輸出（下拉電阻）', d: () => fromExpressions(["W = (A + B)(C + D')", "X = (A' + E)(B + C)", 'Y = A B + D E', "Z = C' E + A D'"]), options: { pulls: true }, board: 'EIC1106' },
+  // 子專案 54：課本圖 8-8（兩顆 74LS83、兩顆 74LS47、兩個顯示器）；兩塊板多給 50 秒後排得完。
+  { name: '大電路 十進制加法器（圖 8-8，共用電阻、下拉電阻）', d: bcdAdderDiagram, options: { pulls: true, displayResistors: 'shared' }, board: 'EIC1106', boards: 2 },
 ];
 
 describe('logic-to-breadboard measurements', () => {
@@ -79,7 +81,8 @@ describe('logic-to-breadboard measurements', () => {
       expect(r.result.bom.boards).toBe(c.boards ?? (c.name.startsWith('大電路') ? r.result.bom.boards : 1));
       if (c.maxWires) expect(metrics.wireCount).toBeLessThanOrEqual(c.maxWires);
       if (c.ics) expect(r.result.bom.ics).toEqual(c.ics);
-      expect(ms).toBeLessThan(45_000);
+      // 子專案 54：用到兩塊板時總時間是 90 秒。
+      expect(ms).toBeLessThan(r.result.bom.boards === 2 ? 100_000 : 45_000);
       expect(checkAgainstDiagram(d, applyRouting(r.result.circuit, r.routed))).toMatchObject({ kind: 'done', result: { mismatches: [] } });
     }, 120_000);
 });

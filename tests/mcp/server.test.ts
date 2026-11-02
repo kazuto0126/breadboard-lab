@@ -83,6 +83,22 @@ describe('the MCP server', () => {
     expect(text).toContain('- only-task.json：MB-102，元件 1 個，沒有邏輯圖，有題目（A B → X）');
   });
 
+  // 子專案 55：建立電路檔時自動建立資料夾；轉成麵包板時送進度（AI 工具看得到在做什麼，也不會因為等太久而逾時）。
+  it('creates folders for new files and reports progress while converting (sub-project 55)', async () => {
+    const t = 'tests/.tmp-mcp/new/folder/maj.json';
+    expect(await call('new_circuit', { file: t })).toMatchObject({ isError: false });
+    expect(existsSync(join(root, t))).toBe(true);
+    const { majorityDiagram } = await import('../../src/logic/examples');
+    const { nodes, wires } = majorityDiagram();
+    expect(await call('logic_set', { file: t, diagram: { nodes, wires } })).toMatchObject({ isError: false });
+    const messages: string[] = [];
+    const r = (await client.callTool({ name: 'logic_to_breadboard', arguments: { file: t, seconds: 10 } }, undefined, { onprogress: (p) => messages.push(p.message ?? ''), resetTimeoutOnProgress: true })) as Result;
+    expect(r.isError).not.toBe(true);
+    expect(r.content.map((c) => c.text).join('\n')).toMatch(/用了 \d+ 秒（上限 10 秒）/);
+    expect(messages.length).toBeGreaterThan(0);
+    expect(messages[0]).toMatch(/佈線中/);
+  }, 60_000);
+
   it('runs the task flow: write a task, draw it, convert it and check both (sub-project 33)', async () => {
     const t = 'tests/.tmp-mcp/task.json';
     await call('new_circuit', { file: t });

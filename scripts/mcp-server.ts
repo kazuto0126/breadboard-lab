@@ -5,13 +5,15 @@
  * 給 Cursor、VS Code、Gemini CLI、Claude Desktop 等用；--folder 指定工作資料夾（沒給就是目前資料夾）。
  * 工具的邏輯在 src/mcp/（純函式）；這裡只負責路徑檢查、讀檔、寫檔。
  */
-import { existsSync, writeFileSync } from 'node:fs';
-import { basename, relative, sep } from 'node:path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { basename, dirname, relative, sep } from 'node:path';
 import { isMainThread } from 'node:worker_threads';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { autoPlaceAndRoute } from '../src/core/icPlacement/autoPlace';
 import { toCircuitFile } from '../src/editor/fileFormat';
+import type { RouteJob } from '../src/logic/convertRoute';
 import * as stateTaskTools from '../src/mcp/stateTaskTools';
 import * as taskTools from '../src/mcp/taskTools';
 import * as tools from '../src/mcp/tools';
@@ -42,6 +44,8 @@ const load = (abs: string) => loadLabFile(abs, shown(abs));
 
 /** 子專案 33：邏輯圖沒有節點但有題目或便條時也要存（由 toCircuitFile 決定）。 */
 function save(abs: string, lab: tools.LabFile): void {
+  // 子專案 55：資料夾還不存在時一起建立（例如 new_circuit 的 circuits/xor.json）。
+  mkdirSync(dirname(abs), { recursive: true });
   writeFileSync(abs, `${JSON.stringify(toCircuitFile(lab.circuit, lab.name, new Date(), undefined, lab.logic), null, 2)}\n`, 'utf8');
 }
 
@@ -293,7 +297,7 @@ server.registerTool(
   'logic_to_breadboard',
   {
     title: '邏輯圖轉成麵包板',
-    description: '把邏輯圖轉成 74LS IC、指撥開關、LED 的麵包板（取代目前的電路），接著 AI 佈線、逐列模擬比對真值表；時序電路的時脈換成時脈元件，從重設開始送 16 個脈衝比對時序表。',
+    description: '把邏輯圖轉成 74LS IC、指撥開關、LED 的麵包板（取代目前的電路），接著 AI 佈線、逐列模擬比對真值表；時序電路的時脈換成時脈元件，從重設開始送 16 個脈衝比對時序表。一般最多 40 秒；用到兩塊 EIC-1106 的大電路最多 90 秒（可以用 seconds 調整）；有 progressToken 時每一批佈線回報一次進度。接不完時不寫入檔案，回覆照這次的設定建議下一步。',
     inputSchema: {
       file,
       switch_to: z.enum(['vcc', 'gnd']).optional().describe('開關另一端接 +5 V（ON = 1，預設）或 GND（ON = 0）'),
@@ -306,10 +310,18 @@ server.registerTool(
         .optional()
         .describe('7 段顯示器的電阻：each 每段一顆 220 Ω（亮度一致，最多 2 個顯示器）或 shared 共同腳共用一顆 100 Ω（線比較少，最多 3 個；亮的段越多越暗）。each 2 個、shared 3 個時要兩塊 EIC-1106（board 要是 auto）。沒給時 1 個顯示器 each、2 個以上 shared'),
       pulls: z.boolean().optional().describe('加上 / 下拉電阻（預設加上；電阻直立插在開關那一排、另一端插進電源軌）'),
+      seconds: z.number().int().min(10).max(300).optional().describe('總時間上限（秒，10–300）；沒給時一般 40 秒、用到兩塊 EIC-1106 時 90 秒。差一兩條線接不完時調大再轉一次'),
     },
   },
-  async ({ file: f, ...args }) =>
-    pool ? withFileAsync(f, (lab) => tools.logicToBreadboardParallel(lab, args, pool.routeMany, pool.size)) : withFile(f, (lab) => tools.logicToBreadboard(lab, args)),
+  async ({ file: f, ...args }, extra) => {
+    // 子專案 55：AI 工具有給 progressToken 時回報進度（每一批佈線一次）。
+    const token = extra._meta?.progressToken;
+    let progress = 0;
+    const onProgress = token === undefined ? undefined : (message: string) => void extra.sendNotification({ method: 'notifications/progress', params: { progressToken: token, progress: ++progress, message } });
+    // 只用一個執行緒時在主執行緒佈線（一批一批跑，中間也能回報進度）。
+    const inline = async (jobs: RouteJob[]) => jobs.map((job) => autoPlaceAndRoute(job.circuit, job.config, job.from));
+    return withFileAsync(f, (lab) => tools.logicToBreadboardParallel(lab, args, pool?.routeMany ?? inline, pool?.size ?? 1, onProgress));
+  },
 );
 
 server.registerTool(
