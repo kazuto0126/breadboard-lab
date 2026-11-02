@@ -65,7 +65,8 @@ src/data/components/  元件定義 JSON（74ls/、generic/），IC 行為寫在 
 - 每完成一個小步驟（測試通過）就 commit 並推送，不要累積大量修改才推。
 - 推送前更新 `docs/PROGRESS.md`（進行中、下一步、卡住的地方）；做完的事記在 `CHANGELOG.md`。
 - `.claude/hooks/checkpoint.sh` 會在每次回覆結束或因用量上限中斷時，把工作分支上還沒提交或推送的修改存成
-  `wip: checkpoint` commit 推上去（不會動 main）。這只是保險，平常仍要自己寫有意義的 commit。
+  `wip: checkpoint` commit 推上去（不會動 main；新檔案只收 src、tests、e2e、docs、scripts、public 等專案資料夾裡的，
+  最上層的實驗腳本與 `circuits/` 的電路檔不會被收進去）。這只是保險，平常仍要自己寫有意義的 commit。
 - 要知道其他對話做到哪裡：`git fetch --all`，再看 `docs/PROGRESS.md`、`git log origin/<分支>` 與 PR。
 
 ## 目前狀態

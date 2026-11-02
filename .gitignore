@@ -7,3 +7,5 @@ dist-single/
 dist-mcp/
 # MCP 整合測試的暫存檔
 tests/.tmp-mcp/
+# MCP 與實驗用的電路檔（本機）
+circuits/

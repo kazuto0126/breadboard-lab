@@ -3,6 +3,23 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
+## 2026-11-02 — 子專案 55：用 MCP 接大電路時碰到的問題
+
+設計規格：`docs/superpowers/specs/2026-11-02-mcp-convert-polish-design.md`。使用者 2026-11-02 用 MCP 接圖 8-8 後要求改善。
+
+### 改變
+
+- **`new_circuit` 會建立資料夾**：寫到還不存在的資料夾（例如 `circuits/xx.json`）時不再失敗。
+- **`logic_to_breadboard` 可以多給時間**：新參數 `seconds`（10–300 秒）；回覆寫出這次用了幾秒（上限幾秒）。
+- **接不完時照這次的設定建議下一步**：先建議多給時間，再依情況建議顯示器共用電阻、自動選板、只用 NAND、簡化邏輯圖；已經用了的設定不再建議（以前不管設定都寫「改用 EIC1106、加上下拉電阻」）。
+- **轉換時回報進度**：AI 工具有給 progressToken 時，每一批佈線回報一次（「佈線中：第 3 批，2 種擺法（已經 45 秒）」），等一分多鐘時看得到在做什麼，也比較不會逾時。
+- **自動存檔的 hook 不再收暫存檔**：只收已追蹤的檔案與專案資料夾裡的新檔案；`circuits/` 加進 `.gitignore`。
+- 設定說明頁、工具說明跟著改。
+
+### 測試
+
+- 接不完時的建議（不建議已經用的設定）；伺服器建立兩層新資料夾、`seconds` 與進度回報。
+
 ## 2026-11-02 — 子專案 54：兩塊板的大電路多給時間（圖 8-8 十進制加法器）
 
 設計規格：`docs/superpowers/specs/2026-11-02-two-board-time-design.md`；實作計畫：`docs/superpowers/plans/2026-11-02-two-board-time.md`。

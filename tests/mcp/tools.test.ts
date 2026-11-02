@@ -120,6 +120,18 @@ describe('editing', () => {
     expect(out.file).toBeUndefined();
     expect(out.text).toContain('佈線沒有完成，沒有寫入檔案');
     expect(out.text).toMatch(/NET_9（.+腳.+）/);
+    // 子專案 55：照這次的設定建議下一步（不再建議已經用了的設定）。
+    const hinted = convertedReply(lab, { display: 'ca', retry: { board: 'auto', gates: 'direct', displayResistors: 'shared', elapsedMs: 41_000 } }, { ok: true, result: r, routed, tried: 3 }).text;
+    expect(hinted).toContain('用了 41 秒');
+    expect(hinted).toContain('seconds: 120');
+    expect(hinted).toContain('gates: "nand"');
+    expect(hinted).not.toContain('board: "EIC1106"');
+    expect(hinted).not.toContain('display_resistors');
+    const each = convertedReply(lab, { display: 'ca', retry: { board: 'EIC1106', gates: 'nand', displayResistors: 'each', displays: 2, elapsedMs: 90_000, seconds: 200 } }, { ok: true, result: r, routed, tried: 3 }).text;
+    expect(each).toContain('seconds: 300');
+    expect(each).toContain('display_resistors: "shared"');
+    expect(each).toContain('board: "auto"');
+    expect(each).not.toContain('gates: "nand"');
   });
 
   it('sets names, values, colours and switch states, and removes things', () => {
