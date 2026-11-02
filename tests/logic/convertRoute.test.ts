@@ -4,7 +4,7 @@ import { applyRouting } from '../../src/core/routing/apply';
 import { convertAndRoute, convertAndRouteParallel, type RouteJob } from '../../src/logic/convertRoute';
 import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
 import { addNode, connect } from '../../src/logic/edit';
-import { majorityDiagram } from '../../src/logic/examples';
+import { bcdAdderDiagram, majorityDiagram } from '../../src/logic/examples';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 import type { DeepPartial, RoutingConfig, RoutingResult } from '../../src/types/routing';
 import { comparator } from '../fixtures/labCircuits';
@@ -81,6 +81,24 @@ describe('converting with a layout search (sub-project 36)', () => {
     expect(run(2)).toEqual({ layout: 'MB102', boards: 1, polished: 1 });
     // 差很多（像編碼器）：直接換下一種板子，把時間留給它；子專案 48 起最後是兩塊 EIC-1106（排最好的兩種）。
     expect(run(3)).toEqual({ layout: 'EIC1106', boards: 2, polished: 2 });
+  });
+
+  // 子專案 54：用到兩塊 EIC-1106 時多給時間（圖 8-8 的 BCD 加法器 40 秒差 1 條、90 秒排完）；指定時間時照指定的。
+  it('gives two-board conversions more time unless a budget is given (sub-project 54)', () => {
+    const polish: number[] = [];
+    // 只記兩塊板的那幾次（一塊板只差 1 條時也會先排排看）。
+    const route = (c: Parameters<typeof autoPlaceAndRoute>[0], config: DeepPartial<RoutingConfig> = {}, from?: RoutingResult): RoutingResult => {
+      if (from && c.boards.length === 2) polish.push(config.placement?.timeBudgetMs ?? 0);
+      return { status: 'partial', message: '', wires: [], failedNets: [{ netId: 'n', reason: 'TIME_LIMIT', detail: '' }], metrics: { wireCount: 20, totalLength: 80, bends: 0, crossings: 0, overlaps: 0, shortJogs: 0 }, score: 0, stats: { iterations: 0, elapsedMs: 0 }, moves: [] };
+    };
+    const r = convertAndRoute(bcdAdderDiagram(), { switchTo: 'vcc', board: 'auto', pulls: true, displayResistors: 'shared' }, {}, route);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.result.bom.boards).toBe(2);
+    // 最好的兩種擺法依序分剩下的時間：第一種至少 40 秒（以前總共 40 秒，第一種約 20 秒）。
+    expect(polish[0]).toBeGreaterThan(40_000);
+    polish.length = 0;
+    convertAndRoute(bcdAdderDiagram(), { switchTo: 'vcc', board: 'auto', pulls: true, displayResistors: 'shared' }, { totalMs: 10_000 }, route);
+    expect(polish[0]).toBeLessThan(10_000);
   });
 
   // 子專案 49：顯示器多到一塊 EIC-1106 放不下時，自動選板只試兩塊板（不浪費時間在一塊板上）。

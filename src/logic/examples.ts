@@ -135,6 +135,53 @@ export function syncCounterDiagram(): LogicDiagram {
   return d;
 }
 
+/**
+ * 子專案 54：課本「圖 8-8」十進制加法器顯示電路。第一顆 74LS83 算 A + B，修正訊號 C = C4 + S4·S3 + S4·S2；
+ * C = 1 時第二顆 74LS83 再加 0110，個位接 74LS47 與 7 段顯示器，十位顯示 C（圖上是兩顆 74LS83 的進位 OR 起來，結果一樣）。
+ */
+export function bcdAdderDiagram(): LogicDiagram {
+  const IN = BLOCK_PINS['74LS83'].inputs;
+  const OUT = BLOCK_PINS['74LS83'].outputs;
+  let d = emptyDiagram();
+  for (const [name, y] of [['A1', 0], ['A2', 2], ['A3', 4], ['A4', 6], ['B1', 9], ['B2', 11], ['B3', 13], ['B4', 15]] as const) {
+    const id = nextNodeId(d, 'INPUT');
+    d = must(renameNode(must(addNode(d, 'INPUT', 0, y)), id, name));
+  }
+  d = must(addNode(d, 'LOW', 0, 18)); // k1
+  d = must(addNode(d, 'BLOCK', 6, 2, '74LS83')); // b1
+  d = must(addNode(d, 'AND', 18, 2)); // g1 S4·S3
+  d = must(addNode(d, 'AND', 18, 6)); // g2 S4·S2
+  d = must(addNode(d, 'OR', 24, 4)); // g3
+  d = must(addNode(d, 'OR', 30, 8)); // g4 C
+  d = must(addNode(d, 'BLOCK', 38, 2, '74LS83')); // b2
+  d = must(addNode(d, 'DISPLAY', 50, 2)); // d1 個位
+  d = must(addNode(d, 'DISPLAY', 50, 12)); // d2 十位
+  d = must(renameNode(d, 'd1', 'ONES'));
+  d = must(renameNode(d, 'd2', 'TENS'));
+  const pin = (name: string) => IN.indexOf(name);
+  const out = (name: string) => OUT.indexOf(name);
+  for (let k = 0; k < 8; k++) d = must(connect(d, `i${k + 1}`, { node: 'b1', pin: pin(`${k < 4 ? 'A' : 'B'}${(k % 4) + 1}`) }));
+  d = must(connect(d, 'k1', { node: 'b1', pin: pin('C0') }));
+  d = must(connect(d, 'b1', { node: 'g1', pin: 0 }, out('S4')));
+  d = must(connect(d, 'b1', { node: 'g1', pin: 1 }, out('S3')));
+  d = must(connect(d, 'b1', { node: 'g2', pin: 0 }, out('S4')));
+  d = must(connect(d, 'b1', { node: 'g2', pin: 1 }, out('S2')));
+  d = must(connect(d, 'g1', { node: 'g3', pin: 0 }));
+  d = must(connect(d, 'g2', { node: 'g3', pin: 1 }));
+  d = must(connect(d, 'g3', { node: 'g4', pin: 0 }));
+  d = must(connect(d, 'b1', { node: 'g4', pin: 1 }, out('C4')));
+  for (const s of ['S1', 'S2', 'S3', 'S4']) d = must(connect(d, 'b1', { node: 'b2', pin: pin(`A${s[1]}`) }, out(s)));
+  // 第二顆加 0 C C 0（B4 B3 B2 B1），C0 = 0。
+  for (const b of ['B1', 'B4', 'C0']) d = must(connect(d, 'k1', { node: 'b2', pin: pin(b) }));
+  for (const b of ['B2', 'B3']) d = must(connect(d, 'g4', { node: 'b2', pin: pin(b) }));
+  ['S1', 'S2', 'S3', 'S4'].forEach((s, k) => {
+    d = must(connect(d, 'b2', { node: 'd1', pin: k }, out(s)));
+  });
+  d = must(connect(d, 'g4', { node: 'd2', pin: 0 }));
+  for (const k of [1, 2, 3]) d = must(connect(d, 'k1', { node: 'd2', pin: k }));
+  return d;
+}
+
 export const LOGIC_EXAMPLES = [
   { id: 'majority', name: '多數決電路（圖 2-5）', description: 'X = AB + AC + BC：三個輸入有兩個以上是 1 時 X = 1', build: majorityDiagram },
   { id: 'bcd', name: 'BCD 顯示（7 段顯示器）', description: 'W X Y Z 四個開關當成 BCD 數字（W 是最高位元），7 段顯示器顯示 0–9', build: bcdDiagram },
@@ -142,4 +189,5 @@ export const LOGIC_EXAMPLES = [
   { id: 'decade-counter', name: '十進位計數器（74LS90 + 7 段顯示器）', description: '每按一次時脈加 1，顯示 0–9；QA 接 CKB 才會數到 9', build: decadeCounterDiagram },
   { id: 'ripple-counter', name: '3 位元漣波計數器（74LS76 JK 正反器）', description: 'J = K = 1，每一級的 Q 接下一級的時脈（下降緣），Q2 Q1 Q0 數 0–7', build: rippleCounterDiagram },
   { id: 'sync-counter', name: '2 位元同步計數器（D 型正反器）', description: '兩顆 D 型正反器共用時脈：D0 = /Q0、D1 = Q1 XOR Q0，Q1 Q0 數 0–3', build: syncCounterDiagram },
+  { id: 'bcd-adder', name: '十進制加法器顯示（圖 8-8）', description: '兩顆 74LS83：A + B 大於 9 時加 6 修正，個位、十位各用 74LS47 與 7 段顯示器顯示 0–18', build: bcdAdderDiagram },
 ];

@@ -293,7 +293,7 @@ server.registerTool(
   'logic_to_breadboard',
   {
     title: '邏輯圖轉成麵包板',
-    description: '把邏輯圖轉成 74LS IC、指撥開關、LED 的麵包板（取代目前的電路），接著 AI 佈線、逐列模擬比對真值表；時序電路的時脈換成時脈元件，從重設開始送 16 個脈衝比對時序表。',
+    description: '把邏輯圖轉成 74LS IC、指撥開關、LED 的麵包板（取代目前的電路），接著 AI 佈線、逐列模擬比對真值表；時序電路的時脈換成時脈元件，從重設開始送 16 個脈衝比對時序表。一般最多 40 秒；用到兩塊 EIC-1106 的大電路最多 90 秒。',
     inputSchema: {
       file,
       switch_to: z.enum(['vcc', 'gnd']).optional().describe('開關另一端接 +5 V（ON = 1，預設）或 GND（ON = 0）'),

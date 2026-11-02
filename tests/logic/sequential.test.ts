@@ -186,3 +186,18 @@ describe('sequential examples', () => {
     for (const ex of LOGIC_EXAMPLES) expect(checkDiagram(ex.build()).filter((i) => i.severity === 'error'), ex.id).toEqual([]);
   });
 });
+
+describe('the BCD adder example (sub-project 54)', () => {
+  it('shows A + B as two decimal digits for every pair of BCD digits', async () => {
+    const { bcdAdderDiagram } = await import('../../src/logic/examples');
+    const d = bcdAdderDiagram();
+    expect(checkDiagram(d).filter((i) => i.severity === 'error')).toEqual([]);
+    const id = (name: string) => d.nodes.find((n) => n.name === name)!.id;
+    for (let a = 0; a <= 9; a++)
+      for (let b = 0; b <= 9; b++) {
+        const values = Object.fromEntries([1, 2, 3, 4].flatMap((k) => [[id(`A${k}`), ((a >> (k - 1)) & 1) as 0 | 1], [id(`B${k}`), ((b >> (k - 1)) & 1) as 0 | 1]]));
+        const v = evaluate(d, values);
+        expect([v.displays.get(id('TENS')), v.displays.get(id('ONES'))], `${a} + ${b}`).toEqual([Math.floor((a + b) / 10), (a + b) % 10]);
+      }
+  });
+});
