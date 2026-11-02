@@ -51,7 +51,9 @@ src/data/components/  元件定義 JSON（74ls/、generic/），IC 行為寫在 
 
 ## 慣例
 
-- 文件、介面文字、程式註解用繁體中文；commit message 用英文（`feat(editor): …`、`fix: …`、`docs: …`）。
+- 文件、介面文字、程式註解用繁體中文；commit message 用英文（`feat(editor): …`、`fix: …`、`docs: …`），但要寫詳細（2026-11-02 使用者要求，才分得出哪個版本）：
+  第一行寫清楚做了什麼並加上子專案編號，空一行後逐條列出改了哪些地方，最後一行寫 PR 編號與跑過的測試；
+  用 `gh pr merge` 合併時加 `--subject`、`--body` 寫同樣格式的說明（不要留預設的「Merge pull request #N from …」）。
 - 每次修改都要 commit 並 push 到 GitHub，並在 `CHANGELOG.md` 最上面的區段用繁體中文記錄。
 - 測試放 `tests/`（對應 src 的結構）；需要 DOM 型別的 store 測試放 `tests/web/`；e2e 用真實滑鼠操作。
 - 測試與範例電路用 `src/editor/builder.ts` 建立（`comp`、`wire`、`board`、`holeOn`、`latticeWire`）。
