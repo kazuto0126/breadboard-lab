@@ -1,0 +1,436 @@
+{
+  "format": "breadboard-lab/circuit",
+  "version": 1,
+  "name": "bcd-adder-8-8",
+  "savedAt": "2026-11-02T13:31:55.194Z",
+  "circuit": {
+    "version": 1,
+    "boards": [
+      {
+        "id": "b1",
+        "layoutId": "EIC1106",
+        "x": 0,
+        "y": 0,
+        "groupId": null
+      }
+    ],
+    "components": [],
+    "wires": []
+  },
+  "logic": {
+    "version": 1,
+    "nodes": [
+      {
+        "id": "iA4",
+        "kind": "INPUT",
+        "x": 2,
+        "y": 0,
+        "name": "A4",
+        "value": 0
+      },
+      {
+        "id": "iA3",
+        "kind": "INPUT",
+        "x": 2,
+        "y": 1,
+        "name": "A3",
+        "value": 0
+      },
+      {
+        "id": "iA2",
+        "kind": "INPUT",
+        "x": 2,
+        "y": 2,
+        "name": "A2",
+        "value": 0
+      },
+      {
+        "id": "iA1",
+        "kind": "INPUT",
+        "x": 2,
+        "y": 3,
+        "name": "A1",
+        "value": 0
+      },
+      {
+        "id": "iB4",
+        "kind": "INPUT",
+        "x": 2,
+        "y": 4,
+        "name": "B4",
+        "value": 0
+      },
+      {
+        "id": "iB3",
+        "kind": "INPUT",
+        "x": 2,
+        "y": 5,
+        "name": "B3",
+        "value": 0
+      },
+      {
+        "id": "iB2",
+        "kind": "INPUT",
+        "x": 2,
+        "y": 6,
+        "name": "B2",
+        "value": 0
+      },
+      {
+        "id": "iB1",
+        "kind": "INPUT",
+        "x": 2,
+        "y": 7,
+        "name": "B1",
+        "value": 0
+      },
+      {
+        "id": "k0",
+        "kind": "LOW",
+        "x": 2,
+        "y": 8
+      },
+      {
+        "id": "b1",
+        "kind": "BLOCK",
+        "x": 12,
+        "y": 0,
+        "chip": "74LS83"
+      },
+      {
+        "id": "g1",
+        "kind": "AND",
+        "x": 22,
+        "y": 0,
+        "inputs": 2
+      },
+      {
+        "id": "g2",
+        "kind": "AND",
+        "x": 22,
+        "y": 3,
+        "inputs": 2
+      },
+      {
+        "id": "g3",
+        "kind": "OR",
+        "x": 32,
+        "y": 0,
+        "inputs": 2
+      },
+      {
+        "id": "g4",
+        "kind": "OR",
+        "x": 42,
+        "y": 0,
+        "inputs": 2
+      },
+      {
+        "id": "b2",
+        "kind": "BLOCK",
+        "x": 52,
+        "y": 0,
+        "chip": "74LS83"
+      },
+      {
+        "id": "d1",
+        "kind": "DISPLAY",
+        "x": 62,
+        "y": 0,
+        "name": "ONES"
+      },
+      {
+        "id": "d2",
+        "kind": "DISPLAY",
+        "x": 62,
+        "y": 5,
+        "name": "TENS"
+      }
+    ],
+    "wires": [
+      {
+        "id": "w1",
+        "from": "iA1",
+        "to": {
+          "node": "b1",
+          "pin": 0
+        }
+      },
+      {
+        "id": "w2",
+        "from": "iA2",
+        "to": {
+          "node": "b1",
+          "pin": 1
+        }
+      },
+      {
+        "id": "w3",
+        "from": "iA3",
+        "to": {
+          "node": "b1",
+          "pin": 2
+        }
+      },
+      {
+        "id": "w4",
+        "from": "iA4",
+        "to": {
+          "node": "b1",
+          "pin": 3
+        }
+      },
+      {
+        "id": "w5",
+        "from": "iB1",
+        "to": {
+          "node": "b1",
+          "pin": 4
+        }
+      },
+      {
+        "id": "w6",
+        "from": "iB2",
+        "to": {
+          "node": "b1",
+          "pin": 5
+        }
+      },
+      {
+        "id": "w7",
+        "from": "iB3",
+        "to": {
+          "node": "b1",
+          "pin": 6
+        }
+      },
+      {
+        "id": "w8",
+        "from": "iB4",
+        "to": {
+          "node": "b1",
+          "pin": 7
+        }
+      },
+      {
+        "id": "w9",
+        "from": "k0",
+        "to": {
+          "node": "b1",
+          "pin": 8
+        }
+      },
+      {
+        "id": "w10",
+        "from": "b1",
+        "fromPin": 3,
+        "to": {
+          "node": "g1",
+          "pin": 0
+        }
+      },
+      {
+        "id": "w11",
+        "from": "b1",
+        "fromPin": 2,
+        "to": {
+          "node": "g1",
+          "pin": 1
+        }
+      },
+      {
+        "id": "w12",
+        "from": "b1",
+        "fromPin": 3,
+        "to": {
+          "node": "g2",
+          "pin": 0
+        }
+      },
+      {
+        "id": "w13",
+        "from": "b1",
+        "fromPin": 1,
+        "to": {
+          "node": "g2",
+          "pin": 1
+        }
+      },
+      {
+        "id": "w14",
+        "from": "g1",
+        "to": {
+          "node": "g3",
+          "pin": 0
+        }
+      },
+      {
+        "id": "w15",
+        "from": "g2",
+        "to": {
+          "node": "g3",
+          "pin": 1
+        }
+      },
+      {
+        "id": "w16",
+        "from": "g3",
+        "to": {
+          "node": "g4",
+          "pin": 0
+        }
+      },
+      {
+        "id": "w17",
+        "from": "b1",
+        "fromPin": 4,
+        "to": {
+          "node": "g4",
+          "pin": 1
+        }
+      },
+      {
+        "id": "w18",
+        "from": "b1",
+        "to": {
+          "node": "b2",
+          "pin": 0
+        }
+      },
+      {
+        "id": "w19",
+        "from": "b1",
+        "fromPin": 1,
+        "to": {
+          "node": "b2",
+          "pin": 1
+        }
+      },
+      {
+        "id": "w20",
+        "from": "b1",
+        "fromPin": 2,
+        "to": {
+          "node": "b2",
+          "pin": 2
+        }
+      },
+      {
+        "id": "w21",
+        "from": "b1",
+        "fromPin": 3,
+        "to": {
+          "node": "b2",
+          "pin": 3
+        }
+      },
+      {
+        "id": "w22",
+        "from": "k0",
+        "to": {
+          "node": "b2",
+          "pin": 4
+        }
+      },
+      {
+        "id": "w23",
+        "from": "g4",
+        "to": {
+          "node": "b2",
+          "pin": 5
+        }
+      },
+      {
+        "id": "w24",
+        "from": "g4",
+        "to": {
+          "node": "b2",
+          "pin": 6
+        }
+      },
+      {
+        "id": "w25",
+        "from": "k0",
+        "to": {
+          "node": "b2",
+          "pin": 7
+        }
+      },
+      {
+        "id": "w26",
+        "from": "k0",
+        "to": {
+          "node": "b2",
+          "pin": 8
+        }
+      },
+      {
+        "id": "w29",
+        "from": "b2",
+        "to": {
+          "node": "d1",
+          "pin": 0
+        }
+      },
+      {
+        "id": "w30",
+        "from": "b2",
+        "fromPin": 1,
+        "to": {
+          "node": "d1",
+          "pin": 1
+        }
+      },
+      {
+        "id": "w31",
+        "from": "b2",
+        "fromPin": 2,
+        "to": {
+          "node": "d1",
+          "pin": 2
+        }
+      },
+      {
+        "id": "w32",
+        "from": "b2",
+        "fromPin": 3,
+        "to": {
+          "node": "d1",
+          "pin": 3
+        }
+      },
+      {
+        "id": "w33",
+        "from": "g4",
+        "to": {
+          "node": "d2",
+          "pin": 0
+        }
+      },
+      {
+        "id": "w34",
+        "from": "k0",
+        "to": {
+          "node": "d2",
+          "pin": 1
+        }
+      },
+      {
+        "id": "w35",
+        "from": "k0",
+        "to": {
+          "node": "d2",
+          "pin": 2
+        }
+      },
+      {
+        "id": "w36",
+        "from": "k0",
+        "to": {
+          "node": "d2",
+          "pin": 3
+        }
+      }
+    ]
+  }
+}
