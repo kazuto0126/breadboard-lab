@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-11-03 — 子專案 58：自己接線可以拉斜線，AI 標準佈線改成直線（進行中）
+## 2026-11-03 — 子專案 58：自己接線可以拉斜線，AI 標準佈線改成直線（PR #92，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-11-03-free-diagonal-wires-design.md`。使用者 2026-11-03 要求：不會接電路的人也能先接起來。
 
