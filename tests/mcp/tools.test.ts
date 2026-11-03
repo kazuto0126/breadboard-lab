@@ -94,10 +94,15 @@ describe('editing', () => {
     expect(failed(addWire(f, { from: 'F5', to: 'F20' }))).toMatch(/^不能接 F5 → F20：/);
     expect(failed(addWire(f, { from: 'A10', to: 'A10' }))).toBe('不能接 A10 → A10：起點和終點是同一個孔');
     expect(failed(addWire(f, { from: 'A3', to: 'Q9' }))).toBe('孔位 Q9 不存在');
-    // 子專案 39：斜線、交叉、跨過 IC 都不能接。
-    expect(failed(addWire(f, { from: 'A3', to: 'D7' }))).toBe('不能接 A3 → D7：導線只能水平或垂直，不能斜著拉；要轉彎請分成兩條線（轉角接在同一排相通的孔）');
+    // 子專案 58：斜線可以接（和網頁一樣只檢查兩端，可以壓過 IC），回覆說 auto_route 會改成直線。
+    const d = addWire(f, { from: 'A3', to: 'D7' });
+    expect(d.text).toBe('接好 w2：A3 → D7（斜線；auto_route 會改成水平或垂直的線）');
+    f = okFile(d);
+    expect(okFile(addWire(f, { from: 'D12', to: 'H14' })).circuit.wires).toHaveLength(3);
+    expect(failed(addWire(f, { from: 'A1', to: 'F10' }))).toBe('不能接 A1 → F10：導線不能接在元件腳或被元件蓋住的孔（F10）');
+    // 子專案 39：直線照舊不能交叉、不能跨過 IC。
     f = okFile(addWire(f, { from: 'C30', to: 'C40' }));
-    expect(failed(addWire(f, { from: 'A35', to: 'E35' }))).toBe('不能接 A35 → E35：導線不能和導線 w2 交叉（在 C35）');
+    expect(failed(addWire(f, { from: 'A35', to: 'E35' }))).toBe('不能接 A35 → E35：導線不能和導線 w3 交叉（在 C35）');
     expect(failed(addWire(f, { from: 'D12', to: 'H12' }))).toBe('不能接 D12 → H12：導線不能跨過元件（例如 IC）或經過其他導線的端點（經過 E12）');
   });
 

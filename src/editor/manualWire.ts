@@ -54,7 +54,7 @@ export type StraightProblem =
   | { kind: 'crossing'; wireId: string; point: GridPoint }
   | { kind: 'covered'; wireId: string; point: GridPoint };
 
-/** 子專案 58：網頁的手動接線（拉線、拖曳端點、預覽）用這個選項，可以拉斜線。 */
+/** 子專案 58：網頁的手動接線（拉線、拖曳端點、預覽）與 MCP 的 add_wire 用這個選項，可以拉斜線。 */
 export const FREE_WIRING = { allowDiagonal: true } as const;
 
 /**
@@ -63,7 +63,7 @@ export const FREE_WIRING = { allowDiagonal: true } as const;
  * 端點也不能落在別條線經過的孔上（那條線就會變成經過障礙）。ignoreWireId：拖曳端點時忽略被移動的那條線。
  * 子專案 39（規格 2026-10-20 wiring-rules）：只能水平或垂直（轉彎要分成兩條），也不能和別條線十字交叉。MCP 的 add_wire 也用這個檢查。
  * 子專案 58：options.allowDiagonal（網頁的手動接線）可以拉斜線，斜線只檢查兩端（AI 標準佈線會改成直線）；
- * 已經拉好的斜線也不擋之後的線，只有它的兩端照舊算障礙。MCP 的 add_wire 不給這個選項。
+ * 已經拉好的斜線也不擋之後的線，只有它的兩端照舊算障礙。MCP 的 add_wire 也用這個選項。
  */
 export function straightWireProblem(
   circuit: Circuit,

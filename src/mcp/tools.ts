@@ -1,9 +1,11 @@
+import { buildLattice } from '../core/breadboard/lattice';
 import { getBoard } from '../core/breadboard/registry';
 import { parseHoleName } from '../core/breadboard/naming';
 import { resolveFootprint } from '../core/circuit/footprint';
 import { getComponentDefinition } from '../core/circuit/library';
 import { extractNets } from '../core/circuit/nets';
 import { validateCircuit } from '../core/circuit/validate';
+import { isDiagonal } from '../core/circuit/wireGeometry';
 import { analyzeCircuit, holeLabel, parseHoleLabel } from '../editor/analysis';
 import { addWire as addWireCommand, labelSlots, makeInstance, removeItems, setLabel, updateComponentProps } from '../editor/commands';
 import { circuitBrief } from '../editor/explain/brief';
@@ -13,7 +15,7 @@ import { plainText } from '../editor/explain/helpers';
 import { explainIssue } from '../editor/explain/index';
 import { nextComponentId } from '../editor/ids';
 import { librarySections, LED_COLORS, searchLibrary } from '../editor/library';
-import { defaultWireColor, straightProblemText, straightWireProblem } from '../editor/manualWire';
+import { defaultWireColor, FREE_WIRING, straightProblemText, straightWireProblem } from '../editor/manualWire';
 import { buildOccupancy, checkPlacementWith, turnedTo, type HardIssue, type SoftIssue } from '../editor/placement';
 import { autoPlaceAndRoute } from '../core/icPlacement/autoPlace';
 import { applyRouting } from '../core/routing/apply';
@@ -245,10 +247,13 @@ export function addWire(f: LabFile, args: { from: string; to: string; color?: st
   if (!a.ok) return fail(a.error);
   const b = parseHole(f.circuit, args.to);
   if (!b.ok) return fail(b.error);
-  const problem = straightWireProblem(f.circuit, a.point, b.point);
+  // 子專案 58：和網頁一樣可以接斜線（只檢查兩端），auto_route 會改成直線。
+  const problem = straightWireProblem(f.circuit, a.point, b.point, undefined, FREE_WIRING);
   if (problem) return fail(`不能接 ${args.from} → ${args.to}：${straightProblemText(f.circuit, problem)}`);
   const { circuit, id } = addWireCommand(f.circuit, a.point, b.point, args.color ?? defaultWireColor(f.circuit, a.point, b.point));
-  return { text: `接好 ${id}：${holeLabel(circuit, a.point)} → ${holeLabel(circuit, b.point)}`, file: { ...f, circuit } };
+  const wire = circuit.wires.find((w) => w.id === id)!;
+  const note = isDiagonal(wire, buildLattice(circuit.boards)) ? '（斜線；auto_route 會改成水平或垂直的線）' : '';
+  return { text: `接好 ${id}：${holeLabel(circuit, a.point)} → ${holeLabel(circuit, b.point)}${note}`, file: { ...f, circuit } };
 }
 
 export function setPart(f: LabFile, args: { id: string; labels?: string[]; resistance?: number; color?: string; switches?: boolean[]; rotation?: number }): ToolResult {
