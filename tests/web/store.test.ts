@@ -501,10 +501,15 @@ describe('straight manual wires', () => {
     s().addWire(hole('D12'), hole('H12'));
     expect(s().circuit.wires).toEqual([]);
     expect(s().toasts.at(-1)).toMatchObject({ kind: 'warning', message: expect.stringContaining('導線不能跨過元件（例如 IC）') });
-    // 子專案 39：斜線也不行。
+    // 子專案 58：斜線可以拉，不出提醒（AI 標準佈線會改成直線），斜線壓過 IC 也可以。
+    const toasts = s().toasts.length;
     s().addWire(hole('A20'), hole('C24'));
+    s().addWire(hole('D12'), hole('H14'));
+    expect(s().circuit.wires.map((w) => [w.id, w.straight])).toEqual([['w1', true], ['w2', true]]);
+    expect(s().toasts.length).toBe(toasts);
+    s().undo();
+    s().undo();
     expect(s().circuit.wires).toEqual([]);
-    expect(s().toasts.at(-1)).toMatchObject({ kind: 'warning', message: expect.stringContaining('導線只能水平或垂直') });
 
     s().addWire(hole('A20'), hole('A24'));
     expect(s().circuit.wires[0]).toMatchObject({ id: 'w1', straight: true, end: hole('A24') });
