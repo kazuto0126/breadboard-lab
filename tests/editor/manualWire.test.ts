@@ -34,6 +34,23 @@ describe('straightWireProblem', () => {
     expect(straightWireProblem(group, holeOn('b1', 'J5'), holeOn('b2', 'A5'))).toBeNull();
   });
 
+  // 子專案 58：網頁上手動接線可以拉斜線（AI 標準佈線會改成直線）；斜線只檢查兩端，可以壓過 IC、和別條線交叉。MCP 不給這個選項。
+  it('lets the web draw diagonal wires that only need free ends (sub-project 58)', () => {
+    const free = { allowDiagonal: true };
+    expect(straightWireProblem(base(), hole('A1'), hole('E5'), undefined, free)).toBeNull();
+    expect(straightWireProblem(base(), hole('D8'), hole('H14'), undefined, free)).toBeNull(); // 壓過 U1
+    expect(straightWireProblem(base(), hole('A41'), hole('E44'), undefined, free)).toBeNull(); // 和 w1 交叉
+    expect(straightWireProblem(base(), hole('A1'), hole('F10'), undefined, free)).toEqual({ kind: 'pin', point: hole('F10') });
+    expect(straightWireProblem(base(), hole('A1'), hole('C42'), undefined, free)).toEqual({ kind: 'covered', wireId: 'w1', point: hole('C42') });
+    expect(straightWireProblem(base(), hole('A1'), hole('E5'))).toEqual({ kind: 'diagonal' });
+  });
+
+  it('does not let diagonal wires block later straight wires, except at their ends (sub-project 58)', () => {
+    const c = circuit([], [straightWire('d1', 'B3', 'E6')]);
+    expect(straightWireProblem(c, hole('C1'), hole('C8'), undefined, { allowDiagonal: true })).toBeNull();
+    expect(straightWireProblem(c, hole('A3'), hole('D3'), undefined, { allowDiagonal: true })).toEqual({ kind: 'obstacle', point: hole('B3') });
+  });
+
   // 子專案 39：兩條線不能十字交叉。
   it('refuses crossing another wire', () => {
     expect(straightWireProblem(base(), hole('A42'), hole('E42'))).toEqual({ kind: 'crossing', wireId: 'w1', point: hole('C42') });

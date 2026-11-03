@@ -3,6 +3,7 @@ import { buildLattice } from '../../src/core/breadboard/lattice';
 import { nodeIdOf } from '../../src/core/breadboard/naming';
 import { analyzeWireInteractions, cellsUnder, pathIssues, segmentCrossing, segmentOverlap, wireLength, wireSegments } from '../../src/core/circuit/wireGeometry';
 import { validateCircuit } from '../../src/core/circuit/validate';
+import { autoRoute } from '../../src/core/routing/autoRoute';
 import { computeMetrics } from '../../src/core/routing/metrics';
 import { parseCircuitData, toCircuitFile } from '../../src/editor/fileFormat';
 import { buildOccupancy } from '../../src/editor/placement';
@@ -88,10 +89,13 @@ describe('checking straight wires', () => {
     expect(codes(circuit([], [straightWire('s1', 'A10', 'A20'), straightWire('s2', 'C15', 'A15')]))).toContain('WIRE_THROUGH_OBSTACLE');
   });
 
-  // 子專案 39（規格 2026-10-20 wiring-rules）：斜線、一條線裡轉彎、交叉都是錯誤。
-  it('flags diagonal wires, wires that turn, and crossings as errors', () => {
-    const diagonal = validateCircuit(circuit([], [straightWire('s1', 'B12', 'D14')]));
-    expect(diagonal.find((e) => e.code === 'WIRE_DIAGONAL')).toMatchObject({ severity: 'error', wireIds: ['s1'], message: '導線 s1 是斜的：導線只能水平或垂直，要轉彎請分成兩條' });
+  // 子專案 39（規格 2026-10-20 wiring-rules）：一條線裡轉彎、交叉都是錯誤。
+  // 子專案 58：斜線改成提醒（AI 標準佈線會改成直線），壓過 IC、和別條線交叉也不另外算錯。
+  it('warns about diagonal wires and flags wires that turn and crossings as errors', () => {
+    const diagonal = validateCircuit(circuit([comp('U1', '74LS00', 'F10')], [straightWire('s1', 'B12', 'D14'), straightWire('s2', 'D8', 'H14'), straightWire('s3', 'A27', 'E27'), straightWire('s4', 'B25', 'D29')]));
+    expect(diagonal.find((e) => e.code === 'WIRE_DIAGONAL')).toMatchObject({ severity: 'warning', wireIds: ['s1'], message: '導線 s1 是斜的：按「AI 標準佈線」會改成直線' });
+    expect(diagonal.filter((e) => e.code === 'WIRE_DIAGONAL').map((e) => e.wireIds)).toEqual([['s1'], ['s2'], ['s4']]);
+    expect(diagonal.filter((e) => e.severity === 'error' && e.code.startsWith('WIRE')).map((e) => e.code)).toEqual([]);
     const bent = validateCircuit(circuit([], [wire('p1', 'A10', 'C12')]));
     expect(bent.find((e) => e.code === 'WIRE_BENT')).toMatchObject({ severity: 'error', wireIds: ['p1'], message: '導線 p1 在一條線裡轉彎：要轉彎請分成兩條直線' });
     const crossing = validateCircuit(circuit([], [straightWire('s1', 'C10', 'C14'), straightWire('s2', 'A12', 'E12')]));
@@ -133,5 +137,20 @@ describe('checking straight wires', () => {
     raw.circuit.wires[0].path = [hole('A10'), hole('B10'), hole('C14')];
     const fixed = parseCircuitData(raw);
     expect(fixed.ok && fixed.circuit.wires[0].path).toEqual([hole('A10'), hole('C14')]);
+  });
+});
+
+// 子專案 58：使用者拉的斜線，AI 標準佈線全部改成直線（連接關係不變）。
+describe('routing diagonal wires', () => {
+  it('turns every diagonal wire into straight ones', () => {
+    const c = circuit(
+      [comp('V1', 'vcc', 'T+3'), comp('G1', 'gnd', 'B-3'), comp('R1', 'resistor', 'C10'), comp('D1', 'led', 'H20')],
+      [straightWire('d1', 'T+9', 'A8'), straightWire('d2', 'D14', 'G19'), straightWire('d3', 'J22', 'B-27')],
+    );
+    expect(validateCircuit(c).filter((e) => e.code === 'WIRE_DIAGONAL')).toHaveLength(3);
+    const routed = autoRoute(c);
+    expect(routed.failedNets).toEqual([]);
+    const after = { ...c, wires: routed.wires };
+    expect(validateCircuit(after).filter((e) => e.code.startsWith('WIRE') && e.severity !== 'info')).toEqual([]);
   });
 });

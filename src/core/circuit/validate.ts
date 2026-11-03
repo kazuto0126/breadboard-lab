@@ -18,7 +18,7 @@ import {
 } from './circuitIndex';
 import { effectiveSpan } from './footprint';
 import { compareIds, extractNetsWith, netByPin, netHasSource, pinKey } from './nets';
-import { analyzeWireInteractions, cellsUnder, pathIssues, wireSegments } from './wireGeometry';
+import { analyzeWireInteractions, cellsUnder, isDiagonal, pathIssues, wireSegments } from './wireGeometry';
 
 type Report = (error: Pick<CircuitError, 'code' | 'severity' | 'message'> & Partial<CircuitError>) => void;
 
@@ -99,13 +99,15 @@ function checkWires(circuit: Circuit, index: CircuitIndex, report: Report): void
   const endsAt = new Map<string, string[]>();
   for (const w of circuit.wires) for (const p of [w.start, w.end]) pushTo(endsAt, nodeIdOf(p), w.id);
 
+  // 子專案 58：使用者可以拉斜線（AI 標準佈線會改成直線），斜線只提醒一次，壓過元件、和別條線交叉不另外算錯。
+  const diagonal = new Set(circuit.wires.filter((w) => isDiagonal(w, lattice)).map((w) => w.id));
   for (const w of circuit.wires) {
     // 子專案 39（規格 2026-10-20 wiring-rules）：只能水平或垂直；要轉彎就分成兩條直線。
     const segments = wireSegments(w, lattice);
     if (segments.length > 1) {
       report({ code: 'WIRE_BENT', severity: 'error', message: `導線 ${w.id} 在一條線裡轉彎：要轉彎請分成兩條直線`, wireIds: [w.id], points: [w.start, w.end] });
-    } else if (segments.some((s) => s.a.x !== s.b.x && s.a.y !== s.b.y)) {
-      report({ code: 'WIRE_DIAGONAL', severity: 'error', message: `導線 ${w.id} 是斜的：導線只能水平或垂直，要轉彎請分成兩條`, wireIds: [w.id], points: [w.start, w.end] });
+    } else if (diagonal.has(w.id)) {
+      report({ code: 'WIRE_DIAGONAL', severity: 'warning', message: `導線 ${w.id} 是斜的：按「AI 標準佈線」會改成直線`, wireIds: [w.id], points: [w.start, w.end] });
     }
     const issues = pathIssues(w, isOnBoard, lattice);
     if (issues.length > 0) {
@@ -145,7 +147,7 @@ function checkWires(circuit: Circuit, index: CircuitIndex, report: Report): void
     }
 
     // 手動接線可以一孔多線（規格 2026-10-10 straight-wires 第 1 節）；自動佈線的一孔一線由 checkRoutingLegality 把關。
-    const blockedAt = cellsUnder(w, lattice).find((p) => {
+    const blockedAt = !diagonal.has(w.id) && cellsUnder(w, lattice).find((p) => {
       const id = nodeIdOf(p);
       return index.pinsAt.has(id) || index.bodiesAt.has(id) || (endsAt.get(id) ?? []).some((other) => other !== w.id);
     });
@@ -161,7 +163,9 @@ function checkWires(circuit: Circuit, index: CircuitIndex, report: Report): void
   }
 
   const byPair = new Map<string, { wireIds: string[]; points: GridPoint[] }>();
-  for (const o of analyzeWireInteractions(circuit.wires, lattice).overlaps) {
+  const straight = circuit.wires.filter((w) => !diagonal.has(w.id));
+  const interactions = analyzeWireInteractions(straight, lattice);
+  for (const o of interactions.overlaps) {
     const key = JSON.stringify(o.wireIds);
     const entry = byPair.get(key) ?? { wireIds: [...o.wireIds], points: [] };
     entry.points.push(parseNodeId(o.nodeId));
@@ -171,7 +175,7 @@ function checkWires(circuit: Circuit, index: CircuitIndex, report: Report): void
     report({ code: 'WIRE_OVERLAP', severity: 'error', message: `導線 ${wireIds[0]} 與 ${wireIds[1]} 重疊`, wireIds, points });
   }
   // 子專案 39：兩條線十字交叉也不行。
-  for (const x of analyzeWireInteractions(circuit.wires, lattice).crossings) {
+  for (const x of interactions.crossings) {
     const at = parseNodeId(x.nodeId);
     report({ code: 'WIRE_CROSSING', severity: 'error', message: `導線 ${x.wireIds[0]} 與 ${x.wireIds[1]} 交叉（在 ${holeLabel(index, at)}）`, wireIds: [...x.wireIds], points: [at] });
   }

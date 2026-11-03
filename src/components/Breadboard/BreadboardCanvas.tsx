@@ -11,7 +11,7 @@ import { groupMembers, moveBoards, snapBoardMove, snapUnits, type BoardMovePlan 
 import { boardFrames, fromWorld, PITCH, toWorld, type BoardFrame, type GridHit, type Point } from '../../editor/geometry';
 import { nextComponentId } from '../../editor/ids';
 import { isChecked } from '../../editor/checklist';
-import { defaultWireColor, straightWireProblem } from '../../editor/manualWire';
+import { defaultWireColor, FREE_WIRING, straightWireProblem } from '../../editor/manualWire';
 import { centeredAnchor, findPlacement } from '../../editor/placement';
 import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
 import { UI } from '../../render/theme';
@@ -687,7 +687,7 @@ export function BreadboardCanvas() {
   const updateWire = (d: WireDrag, clientX: number, clientY: number) => {
     const current = pointUnder(clientX, clientY, d.start);
     if (d.started && samePoint(current, d.current)) return;
-    const valid = !!current && !straightWireProblem(circuitRef.current, d.start, current);
+    const valid = !!current && !straightWireProblem(circuitRef.current, d.start, current, undefined, FREE_WIRING);
     setDrag({ ...d, started: true, current, path: current ? [d.start, current] : [d.start], valid });
   };
 
@@ -695,7 +695,7 @@ export function BreadboardCanvas() {
     const current = pointUnder(clientX, clientY, d.fixed);
     if (d.started && samePoint(current, d.current)) return;
     const [start, end] = d.which === 'start' ? [current, d.fixed] : [d.fixed, current];
-    const valid = !!current && !!start && !!end && !straightWireProblem(circuitRef.current, start, end, d.wireId);
+    const valid = !!current && !!start && !!end && !straightWireProblem(circuitRef.current, start, end, d.wireId, FREE_WIRING);
     setDrag({ ...d, started: true, current, valid });
   };
 

@@ -2,7 +2,7 @@ import { buildLattice, latticeOf, pointAt } from '../core/breadboard/lattice';
 import { getNode, holeName, nodeIdOf } from '../core/breadboard/naming';
 import { getBoard } from '../core/breadboard/registry';
 import { indexCircuit, nodeAt } from '../core/circuit/circuitIndex';
-import { cellsUnder, segmentCrossing, segmentOverlap, wireSegments } from '../core/circuit/wireGeometry';
+import { cellsUnder, isDiagonal, segmentCrossing, segmentOverlap, wireSegments } from '../core/circuit/wireGeometry';
 import type { Circuit, Wire } from '../types/circuit';
 import type { GridPoint } from '../types/geometry';
 import { holeLabel } from './analysis';
@@ -54,13 +54,24 @@ export type StraightProblem =
   | { kind: 'crossing'; wireId: string; point: GridPoint }
   | { kind: 'covered'; wireId: string; point: GridPoint };
 
+/** 子專案 58：網頁的手動接線（拉線、拖曳端點、預覽）與 MCP 的 add_wire 用這個選項，可以拉斜線。 */
+export const FREE_WIRING = { allowDiagonal: true } as const;
+
 /**
  * 規格（2026-10-10 straight-wires）第 1 節：手動直線（新拉的線、拖曳端點後的線）合不合法；不合法時回傳第一個原因。
  * 一孔多線可以；端點不能是元件腳或本體；線不能和別條線重疊，不能經過元件腳、本體（例如 IC）、別條線的端點；
  * 端點也不能落在別條線經過的孔上（那條線就會變成經過障礙）。ignoreWireId：拖曳端點時忽略被移動的那條線。
  * 子專案 39（規格 2026-10-20 wiring-rules）：只能水平或垂直（轉彎要分成兩條），也不能和別條線十字交叉。MCP 的 add_wire 也用這個檢查。
+ * 子專案 58：options.allowDiagonal（網頁的手動接線）可以拉斜線，斜線只檢查兩端（AI 標準佈線會改成直線）；
+ * 已經拉好的斜線也不擋之後的線，只有它的兩端照舊算障礙。MCP 的 add_wire 也用這個選項。
  */
-export function straightWireProblem(circuit: Circuit, start: GridPoint, end: GridPoint, ignoreWireId?: string): StraightProblem | null {
+export function straightWireProblem(
+  circuit: Circuit,
+  start: GridPoint,
+  end: GridPoint,
+  ignoreWireId?: string,
+  options: { allowDiagonal?: boolean } = {},
+): StraightProblem | null {
   const index = indexCircuit(circuit);
   for (const p of [start, end]) {
     const node = nodeAt(index, p);
@@ -76,10 +87,21 @@ export function straightWireProblem(circuit: Circuit, start: GridPoint, end: Gri
 
   const a = latticeOf(lattice, start);
   const b = latticeOf(lattice, end);
-  if (a && b && a.x !== b.x && a.y !== b.y) return { kind: 'diagonal' };
+  const diagonal = !!a && !!b && a.x !== b.x && a.y !== b.y;
+  if (diagonal && !options.allowDiagonal) return { kind: 'diagonal' };
 
   const probe: Wire = { id: '__new', color: '', source: 'manual', straight: true, start, end, path: [start, end] };
-  const others = circuit.wires.filter((w) => w.id !== ignoreWireId);
+  const all = circuit.wires.filter((w) => w.id !== ignoreWireId);
+  const others = all.filter((w) => !isDiagonal(w, lattice));
+  const endIds = new Set([nodeIdOf(start), nodeIdOf(end)]);
+  const coveredAt = () => {
+    for (const w of others) {
+      const under = cellsUnder(w, lattice).find((p) => endIds.has(nodeIdOf(p)));
+      if (under) return { kind: 'covered' as const, wireId: w.id, point: under };
+    }
+    return null;
+  };
+  if (diagonal) return coveredAt();
   const [mine] = wireSegments(probe, lattice);
   // 重疊比「經過端點」更具體，先檢查。
   for (const w of others) if (wireSegments(w, lattice).some((s) => segmentOverlap(mine, s))) return { kind: 'overlap', wireId: w.id };
@@ -89,17 +111,12 @@ export function straightWireProblem(circuit: Circuit, start: GridPoint, end: Gri
       const at = x && pointAt(lattice, Math.round(x.x), Math.round(x.y));
       if (at) return { kind: 'crossing', wireId: w.id, point: at };
     }
-  const ends = new Set(others.flatMap((w) => [nodeIdOf(w.start), nodeIdOf(w.end)]));
+  const ends = new Set(all.flatMap((w) => [nodeIdOf(w.start), nodeIdOf(w.end)]));
   for (const p of cellsUnder(probe, lattice)) {
     const id = nodeIdOf(p);
     if (index.pinsAt.has(id) || index.bodiesAt.has(id) || ends.has(id)) return { kind: 'obstacle', point: p };
   }
-  const endIds = new Set([nodeIdOf(start), nodeIdOf(end)]);
-  for (const w of others) {
-    const under = cellsUnder(w, lattice).find((p) => endIds.has(nodeIdOf(p)));
-    if (under) return { kind: 'covered', wireId: w.id, point: under };
-  }
-  return null;
+  return coveredAt();
 }
 
 export function straightProblemText(circuit: Circuit, problem: StraightProblem): string {

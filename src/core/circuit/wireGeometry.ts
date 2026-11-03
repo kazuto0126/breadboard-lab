@@ -57,6 +57,11 @@ export function wireSegments(wire: Wire, lattice?: Lattice): Segment[] {
   return out;
 }
 
+/** 子專案 58：斜的直線導線（網頁上手動拉的；AI 標準佈線會改成水平 / 垂直的線）。 */
+export function isDiagonal(wire: Wire, lattice?: Lattice): boolean {
+  return wireSegments(wire, lattice).some((s) => s.a.x !== s.b.x && s.a.y !== s.b.y);
+}
+
 /** 長度（格）：直線導線是兩端的直線距離，路徑導線是步數。 */
 export function wireLength(wire: Wire, lattice?: Lattice): number {
   if (!isStraight(wire)) return Math.max(0, wire.path.length - 1);

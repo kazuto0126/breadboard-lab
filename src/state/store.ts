@@ -41,7 +41,7 @@ import { logicDirty, useLogic } from './logic';
 import { boardFrames, gridBounds, MM_TO_PX, worldBounds } from '../editor/geometry';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
 import type { LibraryItem } from '../editor/library';
-import { DEFAULT_WIRE_COLOR, defaultWireColor, straightProblemText, straightWireProblem } from '../editor/manualWire';
+import { DEFAULT_WIRE_COLOR, defaultWireColor, FREE_WIRING, straightProblemText, straightWireProblem } from '../editor/manualWire';
 import { centerOn, DEFAULT_VIEWPORT, fitRect, screenToWorld, zoomAt, type Viewport } from '../editor/viewport';
 import type { BreadboardInstance, LayoutId } from '../types/board';
 import type { Circuit, NoteColor, Wire } from '../types/circuit';
@@ -695,7 +695,8 @@ export const useStore = create<Store>()((set, get) => {
     addWire(start, end) {
       if (guardEdit()) return;
       const s = get();
-      const problem = straightWireProblem(s.circuit, start, end);
+      // 子專案 58：網頁上可以拉斜線，AI 標準佈線會改成直線。
+      const problem = straightWireProblem(s.circuit, start, end, undefined, FREE_WIRING);
       if (problem) {
         if (problem.kind !== 'same-hole') get().toast('warning', straightProblemText(s.circuit, problem));
         return;
@@ -713,7 +714,7 @@ export const useStore = create<Store>()((set, get) => {
       const current = which === 'start' ? w.start : w.end;
       if (current.boardId === point.boardId && current.x === point.x && current.y === point.y) return;
       const [start, end] = which === 'start' ? [point, w.end] : [w.start, point];
-      const problem = straightWireProblem(s.circuit, start, end, id);
+      const problem = straightWireProblem(s.circuit, start, end, id, FREE_WIRING);
       if (problem) {
         if (problem.kind !== 'same-hole') get().toast('warning', straightProblemText(s.circuit, problem));
         return;

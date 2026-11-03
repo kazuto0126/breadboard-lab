@@ -376,7 +376,7 @@ args = ["/Users/你的帳號/tools/breadboard-lab-mcp.mjs", "--folder", "/Users/
   <tr><td><code>share_link</code></td><td>把電路做成連結，點開就在網頁上看到（不用匯入檔案）</td></tr>
   <tr><td><code>rename_circuit</code></td><td>改電路的名稱（網頁左上角顯示的名稱）</td></tr>
 </table>
-<p><strong>接線規則</strong>：每條導線只能水平或垂直，不能斜；要轉彎就分成兩條線（轉角接在同一排相通的孔）；兩條線不能重疊，也不能交叉；
+<p><strong>接線規則</strong>（使用者在網頁上自己接、AI 工具用 <code>add_wire</code> 接時都可以先拉斜線，按「AI 標準佈線」或 MCP 的 <code>auto_route</code> 會全部改成直線）：每條導線只能水平或垂直，不能斜；要轉彎就分成兩條線（轉角接在同一排相通的孔）；兩條線不能重疊，也不能交叉；
 線不能跨過 IC（上下、左右都不行）。AI 工具用 <code>add_wire</code> 接不合規則的線會被拒絕並說明原因；<code>auto_route</code> 與 <code>logic_to_breadboard</code> 接出來的線都符合這些規則。</p>
 
 <h2>7. 更新</h2>
