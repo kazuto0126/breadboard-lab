@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-11-10 — 子專案 59：迴授電路與 12 個輸入（進行中）
+## 2026-11-10 — 子專案 59：迴授電路與 12 個輸入（PR #94，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-11-10-feedback-and-more-inputs-design.md`。使用者 2026-11-10 要求（課本圖 10-14、10-17 的閂鎖，圖 9-5 的 11 個輸入）。
 
