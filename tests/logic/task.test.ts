@@ -150,7 +150,7 @@ describe('comparing the logic diagram with the task', () => {
       d = r.diagram;
     }
     const task = must(createTask(['A'], ['X']));
-    expect(compareDiagramToTask(d, task)).toEqual({ kind: 'issues', issues: ['邏輯圖有迴圈（g1、g2），不能和題目比對'] });
+    expect(compareDiagramToTask(d, task)).toEqual({ kind: 'issues', issues: ['邏輯圖有迴授（g1、g2），輸出跟之前的狀態有關，不能和真值表題目比對'] });
   });
 });
 

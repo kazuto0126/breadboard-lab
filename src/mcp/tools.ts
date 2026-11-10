@@ -27,7 +27,7 @@ import { checkDiagram } from '../logic/check';
 import { convertAndRoute, convertAndRouteParallel, type ConvertRouted, type RouteJob } from '../logic/convertRoute';
 import { displayResistorsOf } from '../logic/synth';
 import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
-import { isSequential, sequenceTable, sortedIo, truthTable } from '../logic/evaluate';
+import { isSequential, MAX_TABLE_INPUTS, sequenceTable, sortedIo, truthTable } from '../logic/evaluate';
 import { waveText } from '../logic/waveform';
 import { diagramFormulas } from '../logic/formula';
 import { parseLogicDiagram } from '../logic/file';
@@ -441,12 +441,13 @@ export function logicTruthTable(f: LabFile, args: { pulses?: number } = {}): Too
   if (isSequential(f.logic)) return sequenceReply(f.logic, args.pulses ?? 16);
   const t = truthTable(f.logic);
   if (!t.ok) {
-    if (t.reason === 'loop') return { text: `邏輯圖有迴圈（${(t.loop ?? []).join('、')}），算不出真值表。` };
-    if (t.reason === 'too-many') return { text: '輸入超過 8 個，真值表太長，不列出。' };
+    if (t.reason === 'too-many') return { text: `輸入超過 ${MAX_TABLE_INPUTS} 個，真值表太長，不列出。` };
     return { text: '邏輯圖沒有輸入端和輸出端。' };
   }
   const cell = (v: string | number) => (v === 'X' ? '?' : String(v));
   const lines = [`${t.inputs.join(' ')} | ${t.outputs.join(' ')}`, ...t.rows.map((r) => `${r.in.join(' ')} | ${r.out.map(cell).join(' ')}`)];
+  // 子專案 59：有迴授（閂鎖）時說明「保持」「不穩定」。
+  if (t.feedback) lines.push('', '有迴授（閘接回前面）：「保持」是輸出跟之前的狀態有關（維持原來的值），「不穩定」是一直來回跳、停不下來。');
   // 子專案 40：每個輸出照圖寫出來與化簡後的布林式（和網頁真值表分頁一樣）。
   const formulas = diagramFormulas(f.logic).outputs;
   if (formulas.length > 0) {
@@ -465,7 +466,6 @@ export function logicTruthTable(f: LabFile, args: { pulses?: number } = {}): Too
 function sequenceReply(d: LogicDiagram, pulses: number): ToolResult {
   const t = sequenceTable(d, Math.max(1, Math.min(64, Math.floor(pulses))));
   if (!t.ok) {
-    if (t.reason === 'loop') return { text: `邏輯圖有迴圈（${(t.loop ?? []).join('、')}）：閘的輸出不能再接回前面（要經過正反器或計數器）。` };
     if (t.reason === 'no-clock') return { text: '這是時序電路（有正反器或計數器），但沒有時脈：加一個 kind 為 CLOCK 的節點，接到 CLK 腳。' };
     return { text: '邏輯圖沒有輸出端或 7 段顯示器。' };
   }

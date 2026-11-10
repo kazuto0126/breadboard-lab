@@ -133,17 +133,18 @@ describe('reading the formula off the drawing', () => {
     const f = only(d);
     expect(f.read).toBeNull();
     expect(f.simplified).toBeNull();
-    expect(f.readProblem).toMatch('迴圈');
+    expect(f.readProblem).toMatch('迴授');
   });
 
-  it('reads but does not simplify more than 8 inputs', () => {
-    const names = 'ABCDEFGHI'.split('');
+  // 子專案 59：真值表最多 12 個輸入。
+  it('reads but does not simplify more than 12 inputs', () => {
+    const names = 'ABCDEFGHIJKLM'.split('');
     const nodes = [...names.map((n) => input(n)), gate('g', 'AND', 4), output('X')];
     const d = diagram(nodes, [w('A', 'g', 0), w('B', 'g', 1), w('C', 'g', 2), w('I', 'g', 3), w('g', 'X')]);
     const f = only(d);
     expect(f.read).toBe('ABCI');
     expect(f.simplified).toBeNull();
-    expect(f.simplifiedProblem).toMatch('8');
+    expect(f.simplifiedProblem).toMatch('12');
   });
 
   it('lists outputs by name and says when there are displays', () => {

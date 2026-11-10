@@ -2,7 +2,7 @@ import { getComponentDefinition } from '../core/circuit/library';
 import { whyDark } from '../core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle, type SimCircuit, type SimResult } from '../core/simulation/simulate';
 import type { Circuit } from '../types/circuit';
-import { segmentToken, sequenceTable, sortedIo, truthTable } from './evaluate';
+import { HOLD, segmentToken, sequenceTable, sortedIo, truthTable, UNSTABLE, type OutValue } from './evaluate';
 import { valueOfSegments } from './sevenSeg';
 import type { LogicDiagram } from './types';
 
@@ -88,7 +88,9 @@ export function verifyRows(d: LogicDiagram, circuit: Circuit, bindings: Bindings
   const table = truthTable(d);
   if (!table.ok) return { rows: 0, mismatches: [] };
   const outputs = sortedIo(d).outputs.map((o) => ({ id: o.id, display: o.kind === 'DISPLAY', segments: !!o.segments }));
-  return verifyExpected(circuit, bindings, outputs, table.rows.map((row) => ({ in: row.in, out: row.out.map((b) => (b === 'X' ? '?' : String(b))) })));
+  // 子專案 59：「保持」「不穩定」的格子跟之前的狀態有關，不比（當成 X）。
+  const cell = (b: OutValue) => (b === 'X' ? '?' : b === HOLD || b === UNSTABLE ? 'X' : String(b));
+  return verifyExpected(circuit, bindings, outputs, table.rows.map((row) => ({ in: row.in, out: row.out.map(cell) })));
 }
 
 /** 一列的輸入與期望值：輸出端 0 / 1 / ?，顯示器是數字或 ?；X 是不在乎（子專案 24 的題目），不比。 */

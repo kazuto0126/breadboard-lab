@@ -102,15 +102,15 @@ describe('sequential blocks', () => {
     expect(count(b, outs, 5).map((x) => parseInt(x, 2))).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
-  it('allows a loop through a flip-flop (Q → NOT → D toggles), but not a loop of gates', async () => {
+  it('allows a loop through a flip-flop (Q → NOT → D toggles), and a loop of gates (sub-project 59)', async () => {
     const d = diagram(
       [clock(), block('u', '74LS74'), { id: 'n', kind: 'NOT', x: 0, y: 0 }, output('Q')],
       [w('clk', 'u', await pinOf('74LS74', '1CLK')), w('u', 'n', 0, await outOf('74LS74', '1Q')), w('n', 'u', await pinOf('74LS74', '1D')), w('u', 'Q', 0, await outOf('74LS74', '1Q'))],
     );
-    expect(checkDiagram(d).filter((i) => i.code === 'LOGIC_LOOP')).toEqual([]);
+    expect(checkDiagram(d).filter((i) => i.severity === 'error')).toEqual([]);
     expect(count(d, ['Q'], 4)).toEqual(['0', '1', '0', '1', '0']);
     const gates = diagram([input('A'), { id: 'g1', kind: 'AND', x: 0, y: 0, inputs: 2 }, { id: 'g2', kind: 'OR', x: 0, y: 0, inputs: 2 }, output('X')], [w('A', 'g1', 0), w('g2', 'g1', 1), w('g1', 'g2', 0), w('A', 'g2', 1), w('g2', 'X')]);
-    expect(checkDiagram(gates).map((i) => i.code)).toContain('LOGIC_LOOP');
+    expect(checkDiagram(gates).filter((i) => i.severity === 'error')).toEqual([]);
   });
 
   it('clears asynchronously through /CLR', async () => {

@@ -139,6 +139,14 @@ function powerOn(chip: BlockChip): { state: ModelState; out: Bit[] } {
 const MAX_SETTLE = 32;
 
 /**
+ * 子專案 59：閘接回前面的迴授（例如 NAND 交叉接成的 SR 閂鎖）。迴授上的值記在 SeqState 裡（key 是 LOOP_KEY + 訊號），
+ * 下次求值時從記住的值開始算（閂鎖會「保持」）；沒記過的從 0 開始（上電狀態）。
+ */
+const LOOP_KEY = 'loop:';
+/** 迴授最多來回算幾輪；還在變就判定不穩定（一直來回跳，例如 NOT 接回自己），那些訊號當成 X。 */
+const MAX_LOOP_PASSES = 64;
+
+/**
  * values：輸入端 id → 0 / 1；沒給的用節點自己的 value。displays：顯示器 id → 0–15（A + 2B + 4C + 8D）或 X。
  * 子專案 32：dps 是小數點（沒接是 0）；segs 是每段直接控制的顯示器亮的段（沒接的段是 0，有不確定的是 X）。
  */
@@ -146,13 +154,17 @@ export function evaluate(
   d: LogicDiagram,
   values: Record<string, 0 | 1> = {},
   state?: SeqState,
-): { loop: string[] | null; nodes: Map<string, Bit>; displays: Map<string, number | 'X'>; dps: Map<string, Bit>; segs: Map<string, string[] | 'X'>; seq: SeqState } {
-  const { order, loop } = topoOrder(d);
-  if (loop) return { loop, nodes: new Map(), displays: new Map(), dps: new Map(), segs: new Map(), seq: state ?? {} };
+): { nodes: Map<string, Bit>; displays: Map<string, number | 'X'>; dps: Map<string, Bit>; segs: Map<string, string[] | 'X'>; seq: SeqState; unstable: Set<string> } {
+  const topo = topoOrder(d);
+  // 子專案 59：有迴授時，排不進拓撲順序的節點照圖上的順序接在後面，整張圖來回算到不再變。
+  const order = topo.loop ? [...topo.order, ...d.nodes.filter((n) => !topo.order.includes(n))] : topo.order;
+  const feedback = topo.loop ? order.slice(topo.order.length).filter((n) => !isSequentialNode(n)) : [];
   const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)]));
   const sequential = order.filter(isSequentialNode);
   const seq: SeqState = {};
   for (const node of sequential) seq[node.id] = state?.[node.id] ?? powerOn(node.chip!);
+  const memory = new Map<string, Bit>();
+  for (const [key, entry] of Object.entries(state ?? {})) if (key.startsWith(LOOP_KEY)) memory.set(key.slice(LOOP_KEY.length), entry.out[0]);
   /** 時序方塊的輸入：沒接時用 BLOCK_DEFAULTS 的值。 */
   const readOf = (node: LogicNode, current: Map<string, Bit>) => {
     const chip = node.chip!;
@@ -165,7 +177,7 @@ export function evaluate(
     };
   };
   // 子專案 46：先用目前的輸出算組合邏輯，再用模型算每個時序方塊（看時脈邊緣、更新狀態）；輸出有變就再算一次。
-  let result = combinational(order, driver, values, seq);
+  let result = combinational(order, driver, values, seq, feedback.length > 0 ? memory : null);
   for (let round = 0; sequential.length > 0 && round < MAX_SETTLE; round++) {
     let changed = false;
     for (const node of sequential) {
@@ -175,48 +187,74 @@ export function evaluate(
       seq[node.id] = { state: ev.state, out };
     }
     if (!changed) break;
-    result = combinational(order, driver, values, seq);
+    result = combinational(order, driver, values, seq, feedback.length > 0 ? memory : null);
   }
-  return { loop: null, ...result, seq };
+  // 子專案 59：記住迴授上的值（下次從這裡開始算）。
+  for (const node of feedback) {
+    const signals = node.kind === 'BLOCK' ? BLOCK_PINS[node.chip!].outputs.map((_, k) => signalOf(node.id, k)) : isGate(node.kind) ? [node.id] : [];
+    for (const s of signals) seq[LOOP_KEY + s] = { state: { prev: {}, bits: [] }, out: [result.nodes.get(s) ?? 'X'] };
+  }
+  return { ...result, seq };
 }
 
-/** 照拓撲順序算一次（時序方塊的輸出用 seq 裡目前的值）。 */
-function combinational(order: LogicNode[], driver: Map<string, string>, values: Record<string, 0 | 1>, seq: SeqState) {
-  const nodes = new Map<string, Bit>();
+/**
+ * 照順序算一次（時序方塊的輸出用 seq 裡目前的值）。子專案 59：memory 不是 null 時圖裡有迴授：
+ * 從記住的值（沒有時是 0）開始，一輪一輪照順序重算到不再變（每輪用到的是最新的值）；算了 MAX_LOOP_PASSES 輪還在變的訊號當成 X（不穩定）。
+ */
+function combinational(order: LogicNode[], driver: Map<string, string>, values: Record<string, 0 | 1>, seq: SeqState, memory: Map<string, Bit> | null) {
+  const nodes = new Map<string, Bit>(memory ?? []);
+  const unstable = new Set<string>();
   const displays = new Map<string, number | 'X'>();
   const dps = new Map<string, Bit>();
   const segs = new Map<string, string[] | 'X'>();
   const inputOf = (node: LogicNode, pin: number): Bit => {
     const from = driver.get(`${node.id}#${pin}`);
-    return from === undefined ? 'X' : (nodes.get(from) ?? 'X');
+    return from === undefined ? 'X' : (nodes.get(from) ?? (memory ? 0 : 'X'));
   };
-  for (const node of order) {
-    if (node.kind === 'INPUT' || node.kind === 'CLOCK') nodes.set(node.id, values[node.id] ?? node.value ?? 0);
-    else if (node.kind === 'HIGH') nodes.set(node.id, 1);
-    else if (node.kind === 'LOW') nodes.set(node.id, 0);
-    else if (isSequentialNode(node)) seq[node.id].out.forEach((v, k) => nodes.set(signalOf(node.id, k), v));
-    else if (node.kind === 'BLOCK' && node.chip) {
-      const ins = Array.from({ length: inputCountOf(node) }, (_, i) => inputOf(node, i));
-      blockOutputs(node.chip, ins).forEach((v, k) => nodes.set(signalOf(node.id, k), v));
-    } else if (node.kind === 'OUTPUT') nodes.set(node.id, inputOf(node, 0));
-    else if (node.kind === 'DISPLAY') {
-      // 沒接的 DP、沒接的段當成 0（不亮）。
-      const optional = (pin: number): Bit => (driver.has(`${node.id}#${pin}`) ? inputOf(node, pin) : 0);
-      if (node.segments) {
-        const bits = SEGMENT_NAMES.map((_, i) => optional(i));
-        segs.set(node.id, bits.includes('X') ? 'X' : SEGMENT_NAMES.filter((_, i) => bits[i] === 1));
-      } else {
-        const bits = [0, 1, 2, 3].map((i) => inputOf(node, i));
-        displays.set(node.id, bits.includes('X') ? 'X' : bits.reduce<number>((sum, b, i) => sum + (b as number) * (1 << i), 0));
-        dps.set(node.id, optional(4));
+  const set = (signal: string, v: Bit) => nodes.set(signal, unstable.has(signal) ? 'X' : v);
+  const pass = () => {
+    for (const node of order) {
+      if (node.kind === 'INPUT' || node.kind === 'CLOCK') nodes.set(node.id, values[node.id] ?? node.value ?? 0);
+      else if (node.kind === 'HIGH') nodes.set(node.id, 1);
+      else if (node.kind === 'LOW') nodes.set(node.id, 0);
+      else if (isSequentialNode(node)) seq[node.id].out.forEach((v, k) => nodes.set(signalOf(node.id, k), v));
+      else if (node.kind === 'BLOCK' && node.chip) {
+        const ins = Array.from({ length: inputCountOf(node) }, (_, i) => inputOf(node, i));
+        blockOutputs(node.chip, ins).forEach((v, k) => set(signalOf(node.id, k), v));
+      } else if (node.kind === 'OUTPUT') nodes.set(node.id, inputOf(node, 0));
+      else if (node.kind === 'DISPLAY') {
+        // 沒接的 DP、沒接的段當成 0（不亮）。
+        const optional = (pin: number): Bit => (driver.has(`${node.id}#${pin}`) ? inputOf(node, pin) : 0);
+        if (node.segments) {
+          const bits = SEGMENT_NAMES.map((_, i) => optional(i));
+          segs.set(node.id, bits.includes('X') ? 'X' : SEGMENT_NAMES.filter((_, i) => bits[i] === 1));
+        } else {
+          const bits = [0, 1, 2, 3].map((i) => inputOf(node, i));
+          displays.set(node.id, bits.includes('X') ? 'X' : bits.reduce<number>((sum, b, i) => sum + (b as number) * (1 << i), 0));
+          dps.set(node.id, optional(4));
+        }
+      }
+      else if (isGate(node.kind)) {
+        const ins = Array.from({ length: inputCountOf(node) }, (_, i) => inputOf(node, i));
+        set(node.id, gateValue(node.kind, ins));
       }
     }
-    else if (isGate(node.kind)) {
-      const ins = Array.from({ length: inputCountOf(node) }, (_, i) => inputOf(node, i));
-      nodes.set(node.id, gateValue(node.kind, ins));
+  };
+  pass();
+  if (memory) {
+    // 先找出一直在變的訊號（不穩定），當成 X 之後再算到穩定（X 傳下去也會停）。
+    for (let round = 0; round < 2; round++) {
+      for (let k = 0; k < MAX_LOOP_PASSES; k++) {
+        const before = new Map(nodes);
+        pass();
+        const changed = [...nodes].filter(([s, v]) => before.get(s) !== v).map(([s]) => s);
+        if (changed.length === 0) break;
+        if (k === MAX_LOOP_PASSES - 1) for (const s of changed) unstable.add(s);
+      }
+      if (unstable.size === 0) break;
     }
   }
-  return { nodes, displays, dps, segs };
+  return { nodes, displays, dps, segs, unstable };
 }
 
 /** 輸出端的燈號亮不亮：一般是 1 時亮；子專案 37 低態致動是 0 時亮；不確定時不亮。 */
@@ -231,7 +269,15 @@ export function sortedIo(d: LogicDiagram): { inputs: LogicNode[]; outputs: Logic
   };
 }
 
-export const MAX_TABLE_INPUTS = 8;
+/** 子專案 59：輸入最多 12 個（真值表 4096 列；以前是 8 個）。 */
+export const MAX_TABLE_INPUTS = 12;
+
+/** 子專案 59：有迴授的電路，輸出跟之前的狀態有關的格子（例如閂鎖 S = R = 0 時）。 */
+export const HOLD = '保持';
+/** 子專案 59：一直來回跳、停不下來的格子（例如 NOT 接回自己）。 */
+export const UNSTABLE = '不穩定';
+/** 子專案 59：算真值表時最多記幾種迴授狀態。 */
+const MAX_MEMORY_STATES = 16;
 
 /** 7 段的名稱（每段直接控制的顯示器的輸入順序）。 */
 export const SEGMENT_NAMES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'dp'];
@@ -253,30 +299,63 @@ export function segmentToken(lit: readonly string[]): string {
 }
 
 export type TruthTable =
-  | { ok: true; inputs: string[]; outputs: string[]; rows: Array<{ in: Array<0 | 1>; out: OutValue[] }> }
-  | { ok: false; reason: 'loop' | 'too-many' | 'empty' | 'sequential'; loop?: string[] };
+  | { ok: true; inputs: string[]; outputs: string[]; rows: Array<{ in: Array<0 | 1>; out: OutValue[] }>; /** 子專案 59：圖裡有迴授（格子可能是「保持」「不穩定」）。 */ feedback?: true }
+  | { ok: false; reason: 'too-many' | 'empty' | 'sequential' };
 
-/** 規格第 3 節：輸入端依名稱排序，第一個是最高位元，從全 0 數到全 1。 */
+/**
+ * 規格第 3 節：輸入端依名稱排序，第一個是最高位元，從全 0 數到全 1。
+ * 子專案 59：有迴授時，每一列從每一種可能的狀態（上電狀態，以及任何一列留下的狀態）各算一次：
+ * 都一樣就寫那個值，不一樣寫「保持」（跟之前的狀態有關），有一次停不下來就寫「不穩定」。
+ */
 export function truthTable(d: LogicDiagram): TruthTable {
   const { inputs, outputs } = sortedIo(d);
-  const loop = topoOrder(d).loop;
-  if (loop) return { ok: false, reason: 'loop', loop };
   // 子專案 46：時序電路沒有真值表（看時序表）。
   if (isSequential(d)) return { ok: false, reason: 'sequential' };
   if (inputs.length === 0 && outputs.length === 0) return { ok: false, reason: 'empty' };
   if (inputs.length > MAX_TABLE_INPUTS) return { ok: false, reason: 'too-many' };
-  const rows = [];
-  for (let r = 0; r < 1 << inputs.length; r++) {
-    const bits = inputs.map((_, i) => ((r >> (inputs.length - 1 - i)) & 1) as 0 | 1);
-    const v = evaluate(d, Object.fromEntries(inputs.map((n, i) => [n.id, bits[i]])));
-    rows.push({ in: bits, out: outputs.map((o) => (o.kind === 'DISPLAY' ? displayValue(o, v) : (v.nodes.get(o.id) ?? 'X'))) });
+  const rowBits = Array.from({ length: 1 << inputs.length }, (_, r) => inputs.map((_, i) => ((r >> (inputs.length - 1 - i)) & 1) as 0 | 1));
+  const valuesOf = (bits: Array<0 | 1>) => Object.fromEntries(inputs.map((n, i) => [n.id, bits[i]]));
+  const read = (v: ReturnType<typeof evaluate>) => outputs.map((o) => (o.kind === 'DISPLAY' ? displayValue(o, v) : (v.nodes.get(o.id) ?? 'X')));
+  const head = { ok: true as const, inputs: inputs.map((n) => n.name ?? n.id), outputs: outputs.map((n) => n.name ?? n.id) };
+  if (!topoOrder(d).loop) return { ...head, rows: rowBits.map((bits) => ({ in: bits, out: read(evaluate(d, valuesOf(bits))) })) };
+
+  const starts: SeqState[] = [{}];
+  const seen = new Set([memoryKey({})]);
+  const results: Array<Array<{ out: OutValue[]; unstable: boolean }>> = rowBits.map(() => []);
+  for (let s = 0; s < starts.length; s++) {
+    rowBits.forEach((bits, r) => {
+      const v = evaluate(d, valuesOf(bits), starts[s]);
+      results[r].push({ out: read(v), unstable: v.unstable.size > 0 });
+      const key = memoryKey(v.seq);
+      if (!seen.has(key) && starts.length < MAX_MEMORY_STATES) {
+        seen.add(key);
+        starts.push(v.seq);
+      }
+    });
   }
-  return { ok: true, inputs: inputs.map((n) => n.name ?? n.id), outputs: outputs.map((n) => n.name ?? n.id), rows };
+  const rows = rowBits.map((bits, r) => ({
+    in: bits,
+    out: outputs.map((_, k): OutValue => {
+      const cells = results[r];
+      if (cells.some((c) => c.unstable && c.out[k] === 'X')) return UNSTABLE;
+      return cells.every((c) => c.out[k] === cells[0].out[k]) ? cells[0].out[k] : HOLD;
+    }),
+  }));
+  return { ...head, rows, feedback: true };
+}
+
+/** 迴授記住的值寫成一個字串（比較是不是同一種狀態）。 */
+function memoryKey(seq: SeqState): string {
+  return Object.keys(seq)
+    .filter((k) => k.startsWith(LOOP_KEY))
+    .sort()
+    .map((k) => `${k}=${seq[k].out[0]}`)
+    .join(',');
 }
 
 export type SequenceTable =
   | { ok: true; clock: string; outputs: string[]; /** 子專案 50：每欄是不是顯示器（波形畫成數字）。 */ display: boolean[]; rows: Array<{ pulse: number; out: OutValue[] }> }
-  | { ok: false; reason: 'no-clock' | 'loop' | 'empty'; loop?: string[] };
+  | { ok: false; reason: 'no-clock' | 'empty' };
 
 /** 子專案 46：時序表的列數（第 0 次到第 n 次脈衝）可以選的值。 */
 export const PULSE_CHOICES = [8, 16, 32];
@@ -287,8 +366,6 @@ export const PULSE_CHOICES = [8, 16, 32];
  */
 export function sequenceTable(d: LogicDiagram, pulses = 16, values: Record<string, 0 | 1> = {}): SequenceTable {
   const clock = d.nodes.find((n) => n.kind === 'CLOCK');
-  const loop = topoOrder(d).loop;
-  if (loop) return { ok: false, reason: 'loop', loop };
   if (!clock) return { ok: false, reason: 'no-clock' };
   const { outputs } = sortedIo(d);
   if (outputs.length === 0) return { ok: false, reason: 'empty' };

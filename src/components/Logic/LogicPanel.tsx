@@ -3,7 +3,7 @@ import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
 import { removeNodes, removeWire, renameNode, setActiveLow, setConstant, setDisplayMode, setFlip, setGateKind, setInputCount, setRotation } from '../../logic/edit';
 import { BLOCK_DEFAULTS, BLOCK_PINS, isSequentialChip } from '../../logic/blocks';
-import { evaluate, isSequential, PULSE_CHOICES, segmentToken, sequenceTable, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
+import { evaluate, isSequential, MAX_TABLE_INPUTS, PULSE_CHOICES, segmentToken, sequenceTable, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
 import { boxOf } from '../../logic/shapes';
 import { canRotate, GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
@@ -449,9 +449,7 @@ function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
   const kinds = useMemo(() => sortedIo(diagram).outputs.map((o) => o.kind === 'DISPLAY'), [diagram]);
   if (!table.ok) {
     const text =
-      table.reason === 'loop'
-        ? `邏輯圖有迴圈（${(table.loop ?? []).join('、')}），閘的輸出不能再接回前面（要經過正反器或計數器）`
-        : table.reason === 'no-clock'
+      table.reason === 'no-clock'
           ? '放一個時脈（元件庫的「時脈」），接到正反器或計數器的 CLK，就會列出每次脈衝後的輸出'
           : '先放輸出端或 7 段顯示器';
     return (
@@ -523,15 +521,13 @@ function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
   if (!table.ok && table.reason === 'sequential') return <SequenceTab diagram={diagram} />;
   if (!table.ok) {
     const text =
-      table.reason === 'loop'
-        ? `邏輯圖有迴圈（${(table.loop ?? []).join('、')}），不能算真值表`
-        : table.reason === 'too-many'
-          ? '輸入超過 8 個，真值表太長（256 列以上），請用模擬檢查'
-          : '先放輸入端和輸出端';
+      table.reason === 'too-many'
+        ? `輸入超過 ${MAX_TABLE_INPUTS} 個，真值表太長（${1 << MAX_TABLE_INPUTS} 列以上），請用模擬檢查`
+        : '先放輸入端和輸出端';
     return (
       <div className="p-3">
         <p className="text-sm text-slate-300">{text}</p>
-        {table.reason !== 'loop' && <Formulas diagram={diagram} />}
+        <Formulas diagram={diagram} />
       </div>
     );
   }
@@ -583,6 +579,7 @@ function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
         </tbody>
       </table>
       <p className="mt-2 text-xs text-slate-400">標亮的是目前開關的組合；點一列可以把開關設成那個組合。</p>
+      {table.feedback && <p className="mt-1 text-xs text-slate-400">有迴授（閘接回前面）：「保持」是跟之前的狀態有關（維持原來的值），「不穩定」是一直來回跳、停不下來。</p>}
       <Formulas diagram={diagram} />
     </div>
   );

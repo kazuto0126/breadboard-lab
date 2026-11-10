@@ -130,7 +130,7 @@ export function LogicCanvas() {
   // 子專案 46：時序方塊用目前的狀態算（狀態在 store 裡，輸入改變時更新）。
   const seq = useLogic((s) => s.seq);
   const values = useMemo(() => evaluate(diagram, {}, seq), [diagram, seq]);
-  const valueOf = (id: string): Bit | undefined => (values.loop ? undefined : values.nodes.get(id));
+  const valueOf = (id: string): Bit | undefined => values.nodes.get(id);
   const driver = useMemo(() => new Map(diagram.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)])), [diagram]);
   const placingChip = useLogic((s) => s.placingChip);
   const placingTurn = useLogic((s) => s.placingTurn);
@@ -387,10 +387,10 @@ export function LogicCanvas() {
                     <ConstantBody node={node} selected={sel} />
                   </g>
                 ) : node.kind === 'DISPLAY' ? (
-                  <DisplayBody node={node} value={values.loop ? undefined : values.displays.get(node.id)} dp={values.loop ? undefined : values.dps.get(node.id)} lit={values.loop ? undefined : values.segs.get(node.id)} inputs={ins} selected={sel} />
+                  <DisplayBody node={node} value={values.displays.get(node.id)} dp={values.dps.get(node.id)} lit={values.segs.get(node.id)} inputs={ins} selected={sel} />
                 ) : node.kind === 'OUTPUT' ? (
                   <g transform={turnTransform(node)}>
-                    <OutputTerminal node={node} value={values.loop ? undefined : values.nodes.get(node.id)} selected={sel} />
+                    <OutputTerminal node={node} value={values.nodes.get(node.id)} selected={sel} />
                   </g>
                 ) : (
                   <g transform={turnTransform(node)}>

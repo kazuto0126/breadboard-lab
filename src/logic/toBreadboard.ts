@@ -45,6 +45,8 @@ export interface Bom {
   boards: 1 | 2;
   /** 子專案 38：指撥開關的個數（拆成兩個 4 位元時是 2；輸入用按鈕時是 0）。 */
   switches: number;
+  /** 子專案 59：超過 8 個輸入時每個開關的種類（依順序，例如 8 位元、4 位元）；其他時候不寫。 */
+  switchList?: Array<'dipsw-4' | 'dipsw-8'>;
   /** 子專案 30：按鈕的個數（輸入用指撥開關時是 0）。 */
   buttons: number;
   resistors: number;
@@ -55,7 +57,11 @@ export interface Bom {
 }
 
 /** 子專案 38：零件清單裡開關那一項（「8 位元指撥開關 × 1」「4 位元指撥開關 × 2」「按鈕 × 3」）。 */
-export function switchText(bom: Pick<Bom, 'switch' | 'switches' | 'buttons'>): string {
+export function switchText(bom: Pick<Bom, 'switch' | 'switches' | 'buttons' | 'switchList'>): string {
+  if (bom.switchList) {
+    const count = (def: string) => bom.switchList!.filter((s) => s === def).length;
+    return (['dipsw-8', 'dipsw-4'] as const).filter((def) => count(def) > 0).map((def) => `${def === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × ${count(def)}`).join('、');
+  }
   return bom.switch ? `${bom.switch === 'dipsw-4' ? '4' : '8'} 位元指撥開關 × ${bom.switches}` : `按鈕 × ${bom.buttons}`;
 }
 
@@ -368,12 +374,15 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   // 子專案 38：拆成兩個 4 位元開關時，每個開關各自挪到有孔的地方，不用平放的電阻。
   // 子專案 47：不加電阻時也試；加上電阻、6 個以上輸入時一定拆（電阻都插在開關那一排，不平放）。
   // 子專案 49：顯示器分到兩塊板時也一定拆（和加上電阻時一樣，量測比較好排）。
-  const splitSwitches = inputs.length > 4 && (variant.splitSwitches === true || (two && variant.displayBoards === true) || (uprightPulls && inputs.length >= 6));
-  const flatPull = uprightPulls && inputs.length >= 6 && !splitSwitches ? 5 : -1;
+  // 子專案 59：超過 8 個輸入時照名稱順序每 8 個一個開關（最後剩 4 個以內用 4 位元）。
+  const many = inputs.length > 8;
+  const splitSwitches = !many && inputs.length > 4 && (variant.splitSwitches === true || (two && variant.displayBoards === true) || (uprightPulls && inputs.length >= 6));
   /** 每個開關接的輸入（依名稱排序）；拆開時依「哪顆 IC 先用到」分組（子專案 45），開關比較靠近用到它的 IC。 */
-  const switches = splitSwitches ? splitByIc(inputs, icOrderOf(d, plans, chips)) : [inputs];
-  const swDef = splitSwitches || inputs.length <= 4 ? 'dipsw-4' : 'dipsw-8';
-  const swPins = swDef === 'dipsw-4' ? 8 : 16;
+  const switches = many ? Array.from({ length: Math.ceil(inputs.length / 8) }, (_, s) => inputs.slice(s * 8, s * 8 + 8)) : splitSwitches ? splitByIc(inputs, icOrderOf(d, plans, chips)) : [inputs];
+  /** 用平放電阻的輸入（第幾個）：6 個以上接在同一個開關時，第 6 個那一欄電源軌沒有孔。 */
+  const flatPulls = new Set(uprightPulls ? switches.filter((group) => group.length >= 6 && !splitSwitches).map((group) => inputs.indexOf(group[5])) : []);
+  const defOf = (group: LogicNode[]): 'dipsw-4' | 'dipsw-8' => (many ? (group.length <= 4 ? 'dipsw-4' : 'dipsw-8') : splitSwitches || inputs.length <= 4 ? 'dipsw-4' : 'dipsw-8');
+  const swDef = defOf(switches[0]);
   const switchBlocks: Block[] = [];
   // EIC-1106 分區時開關在第 1 區（下面 P3、上面 P2）；一排時在第 2 區（下面 P4、上面 P3）。
   const pullRail = pullDown ? (!eic ? 'B-' : inOneRow ? 'P4-' : 'P3-') : !eic ? 'T+' : inOneRow ? 'P3+' : 'P2+';
@@ -399,16 +408,18 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   } else {
     switches.forEach((group, s) => {
       const id = `SW${s + 1}`;
+      const def = defOf(group);
+      const swPins = def === 'dipsw-4' ? 8 : 16;
       switchBlocks.push({
         width: swPins / 2,
         // 電阻的編號依輸入的順序（子專案 45 起兩個開關的輸入不一定連號）。
-        align: uprightPulls ? (x) => group.every((node, j) => (inputs.indexOf(node) === flatPull) !== railHole(pullRail, x + j)) : undefined,
+        align: uprightPulls ? (x) => group.every((node, j) => flatPulls.has(inputs.indexOf(node)) !== railHole(pullRail, x + j)) : undefined,
         place: (x) => {
-          components.push(comp(id, swDef, hole(`F${x}`, 1), { board: boardNow, props: { switchStates: Array(swPins / 2).fill(false), labels: Array.from({ length: swPins / 2 }, (_, j) => group[j]?.name ?? '') } }));
+          components.push(comp(id, def, hole(`F${x}`, 1), { board: boardNow, props: { switchStates: Array(swPins / 2).fill(false), labels: Array.from({ length: swPins / 2 }, (_, j) => group[j]?.name ?? '') } }));
           if (!uprightPulls) return;
           group.forEach((node, j) => {
             const k = inputs.indexOf(node);
-            if (k === flatPull || !railHole(pullRail, x + j)) return;
+            if (flatPulls.has(k) || !railHole(pullRail, x + j)) return;
             const rid = `R${k + 1}`;
             const at = hole(`${pullRow}${x + j}`, 1);
             const span = Math.abs(holeOn(boardNow, `${pullRail}${x + j}`, layout).y - at.y);
@@ -496,7 +507,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   let r = 0;
   if (options.pulls) inputs.forEach((node, k) => {
     // 直立的電阻在放開關時一起放（編號一樣是 R1、R2…，依輸入的順序）。
-    if (uprightPulls && k !== flatPull) return;
+    if (uprightPulls && !flatPulls.has(k)) return;
     twoLeads.push({ id: `R${k + 1}`, defId: 'resistor', props: { resistance: pullDown ? 330 : 1000 }, span: RESISTOR_SPAN, nets: [node.id, pullDown ? GND : VCC], area: 1, group: 'in' });
   });
   if (options.pulls) r = inputs.length;
@@ -757,7 +768,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   return {
     ok: true,
     circuit,
-    bom: { ics, boards: two ? 2 : 1, switch: useButtons ? null : swDef, switches: useButtons ? 0 : switches.length, buttons: useButtons ? inputs.length : 0, resistors: components.filter((c) => c.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
+    bom: { ics, boards: two ? 2 : 1, switch: useButtons ? null : swDef, switches: useButtons ? 0 : switches.length, ...(many && !useButtons ? { switchList: switches.map(defOf) } : {}), buttons: useButtons ? inputs.length : 0, resistors: components.filter((c) => c.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
     switchId: useButtons ? null : 'SW1',
     ...(useButtons ? { buttons: buttonIds } : {}),
     inputs: inputs.map((n) => n.id),
