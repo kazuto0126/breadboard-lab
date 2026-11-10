@@ -1,4 +1,4 @@
-import { sortedIo, topoOrder, truthTable } from './evaluate';
+import { MAX_TABLE_INPUTS, sortedIo, topoOrder, truthTable } from './evaluate';
 import type { Expr } from './expression';
 import { literalsOf, minimize } from './minimize';
 import { inputCountOf } from './shapes';
@@ -126,7 +126,7 @@ export function diagramFormulas(d: LogicDiagram): { outputs: OutputFormula[]; di
   const outputs = sinks.filter((n) => n.kind === 'OUTPUT');
   const base = (n: LogicNode) => ({ id: n.id, name: n.name ?? n.id });
   if (topoOrder(d).loop) {
-    const problem = '邏輯圖有迴圈，寫不出布林式';
+    const problem = '有迴授（閘接回前面），輸出跟之前的狀態有關，寫不出布林式（看真值表）';
     return { outputs: outputs.map((n) => ({ ...base(n), read: null, readProblem: problem, simplified: null, simplifiedProblem: problem })), displays };
   }
   const dot = needsDot(inputs.map((n) => n.name ?? n.id));
@@ -146,7 +146,7 @@ export function diagramFormulas(d: LogicDiagram): { outputs: OutputFormula[]; di
         f.readProblem = `經過 IC 方塊 ${err.message}，照圖寫不出布林式`;
       }
       if (!table.ok) {
-        f.simplifiedProblem = table.reason === 'too-many' ? '輸入超過 8 個，真值表太長，不化簡' : table.reason === 'sequential' ? '時序電路不化簡（看時序表）' : '算不出真值表';
+        f.simplifiedProblem = table.reason === 'too-many' ? `輸入超過 ${MAX_TABLE_INPUTS} 個，真值表太長，不化簡` : table.reason === 'sequential' ? '時序電路不化簡（看時序表）' : '算不出真值表';
         return f;
       }
       const k = sinks.indexOf(n);

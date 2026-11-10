@@ -26,14 +26,13 @@ describe('checkDiagram', () => {
     expect(checkDiagram(d).some((i) => i.code === 'LOGIC_OUTPUT_OPEN' && i.message === '輸出 X 沒有接到任何閘')).toBe(true);
   });
 
-  it('reports loops as errors first', () => {
+  // 子專案 59：閘接回前面的迴授（閂鎖）不算錯。
+  it('does not report loops of gates', () => {
     let d = emptyDiagram();
     d = ok(addNode(d, 'OR', 0, 0));
     d = ok(addNode(d, 'OR', 10, 0));
     d = ok(connect(d, 'g1', { node: 'g2', pin: 0 }));
     d = ok(connect(d, 'g2', { node: 'g1', pin: 0 }));
-    const [first] = checkDiagram(d);
-    expect(first).toMatchObject({ code: 'LOGIC_LOOP', severity: 'error' });
-    expect(first.message).toMatch(/^g1、g2 形成迴圈/);
+    expect(checkDiagram(d).filter((i) => i.severity === 'error')).toEqual([]);
   });
 });

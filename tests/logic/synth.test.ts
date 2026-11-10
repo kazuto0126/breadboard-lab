@@ -111,12 +111,13 @@ describe('convertProblem', () => {
     loop = must(connect(loop, 'g1', { node: 'g2', pin: 0 }));
     loop = must(connect(loop, 'i1', { node: 'g2', pin: 1 }));
     loop = must(connect(loop, 'g2', { node: 'o1', pin: 0 }));
-    expect(convertProblem(loop)).toBe('邏輯圖有迴圈，不能轉成麵包板');
+    // 子專案 59：有迴授也可以轉。
+    expect(convertProblem(loop)).toBeNull();
     let many = emptyDiagram();
-    for (let i = 0; i < 9; i++) many = must(addNode(many, 'INPUT', 0, i * 2));
+    for (let i = 0; i < 13; i++) many = must(addNode(many, 'INPUT', 0, i * 2));
     many = must(addNode(many, 'OUTPUT', 10, 0));
     many = must(connect(many, 'i1', { node: 'o1', pin: 0 }));
-    expect(convertProblem(many)).toBe('輸入端最多 8 個（指撥開關最多 8 位元）');
+    expect(convertProblem(many)).toBe('輸入端最多 12 個（真值表 4096 列）');
   });
 });
 

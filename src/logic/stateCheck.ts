@@ -1,4 +1,4 @@
-import { evaluate, topoOrder, type Bit, type SeqState } from './evaluate';
+import { evaluate, type Bit, type SeqState } from './evaluate';
 import { stateBitNames, type StateTask } from './stateTask';
 import type { LogicDiagram } from './types';
 
@@ -38,8 +38,6 @@ const text = (b: Bit | undefined) => (b === 0 || b === 1 ? String(b) : '?');
  */
 export function compareDiagramToStateTask(d: LogicDiagram, task: StateTask): StateComparison {
   if (d.nodes.length === 0) return { kind: 'none' };
-  const loop = topoOrder(d).loop;
-  if (loop) return { kind: 'issues', issues: [`邏輯圖有迴圈（${loop.join('、')}），不能和狀態表比對`] };
   const bits = stateBitNames(task.states);
   const inputs = new Map(d.nodes.filter((n) => n.kind === 'INPUT').map((n) => [n.name ?? n.id, n.id]));
   const outputs = new Map(d.nodes.filter((n) => n.kind === 'OUTPUT').map((n) => [n.name ?? n.id, n.id]));

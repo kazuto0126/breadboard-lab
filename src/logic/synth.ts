@@ -47,7 +47,6 @@ export function displayResistorsOf(d: LogicDiagram, chosen?: 'each' | 'shared'):
 /** 規格第 6 節：不能轉的原因；可以轉時回傳 null。 */
 export function convertProblem(d: LogicDiagram, options: { displayResistors?: 'each' | 'shared'; board?: 'auto' | 'MB102' | 'EIC1106' } = {}): string | null {
   const issues = checkDiagram(d);
-  if (issues.some((i) => i.code === 'LOGIC_LOOP')) return '邏輯圖有迴圈，不能轉成麵包板';
   const { inputs, outputs } = sortedIo(d);
   // 子專案 46：只有時脈、沒有輸入端的計數器也可以轉。
   if ((inputs.length === 0 && !d.nodes.some((n) => n.kind === 'CLOCK')) || outputs.length === 0) return '邏輯圖要有輸入端和輸出端才能轉';
@@ -57,7 +56,7 @@ export function convertProblem(d: LogicDiagram, options: { displayResistors?: 'e
   if (displayCount > MAX_DISPLAYS_EACH && resistors === 'each') return `每段一顆電阻時 7 段顯示器最多 ${MAX_DISPLAYS_EACH} 個；${MAX_DISPLAYS} 個請選「共用一顆電阻」`;
   if (options.board !== undefined && options.board !== 'auto' && displaysNeedTwoBoards(displayCount, resistors))
     return `${displayCount} 個 7 段顯示器${resistors === 'each' ? '（每段一顆電阻）' : ''}要用兩塊 EIC-1106，請把麵包板選「自動」`;
-  if (inputs.length > MAX_TABLE_INPUTS) return `輸入端最多 ${MAX_TABLE_INPUTS} 個（指撥開關最多 8 位元）`;
+  if (inputs.length > MAX_TABLE_INPUTS) return `輸入端最多 ${MAX_TABLE_INPUTS} 個（真值表 ${1 << MAX_TABLE_INPUTS} 列）`;
   if (issues.some((i) => i.code === 'LOGIC_INPUT_OPEN' || i.code === 'LOGIC_OUTPUT_OPEN')) return '還有沒接好的腳（到「檢查」分頁看是哪些），請先接好';
   return null;
 }

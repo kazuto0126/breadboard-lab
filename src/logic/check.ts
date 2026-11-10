@@ -1,10 +1,9 @@
-import { topoOrder } from './evaluate';
 import { BLOCK_DEFAULTS, BLOCK_PINS } from './blocks';
 import { inputCountOf } from './shapes';
 import { isGate, isSink, type LogicDiagram, type LogicNode } from './types';
 
 export interface LogicIssue {
-  code: 'LOGIC_LOOP' | 'LOGIC_INPUT_OPEN' | 'LOGIC_OUTPUT_OPEN' | 'LOGIC_UNUSED' | 'LOGIC_NO_IO';
+  code: 'LOGIC_INPUT_OPEN' | 'LOGIC_OUTPUT_OPEN' | 'LOGIC_UNUSED' | 'LOGIC_NO_IO';
   severity: 'error' | 'warning';
   message: string;
   nodeIds: string[];
@@ -21,11 +20,9 @@ export function nodeLabel(node: LogicNode): string {
   return `${node.id}（${node.kind}）`;
 }
 
-/** 規格第 4 節。順序：迴圈、缺輸入 / 輸出端、每個節點（依圖上的順序）的開路與沒用到。 */
+/** 規格第 4 節。順序：缺輸入 / 輸出端、每個節點（依圖上的順序）的開路與沒用到。子專案 59 起閘接回前面的迴授（閂鎖）不算錯。 */
 export function checkDiagram(d: LogicDiagram): LogicIssue[] {
   const issues: LogicIssue[] = [];
-  const loop = topoOrder(d).loop;
-  if (loop) issues.push({ code: 'LOGIC_LOOP', severity: 'error', message: `${loop.join('、')} 形成迴圈：閘的輸出不能再接回前面（要經過正反器或計數器才可以）`, nodeIds: loop });
   if (d.nodes.some((n) => isGate(n.kind))) {
     if (!d.nodes.some((n) => n.kind === 'INPUT')) issues.push({ code: 'LOGIC_NO_IO', severity: 'warning', message: '邏輯圖還沒有輸入端', nodeIds: [] });
     if (!d.nodes.some((n) => isSink(n.kind))) issues.push({ code: 'LOGIC_NO_IO', severity: 'warning', message: '邏輯圖還沒有輸出端', nodeIds: [] });

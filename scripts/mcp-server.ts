@@ -272,6 +272,7 @@ server.registerTool(
       'HIGH（5V）、LOW（GND）、BLOCK（chip：74LS83、74LS151、74LS153、74LS138、74LS85；時序 IC：74LS74 雙 D 正反器、74LS76 雙 JK 正反器、74LS90、74LS93、74LS161、74LS193 計數器；單顆正反器 DFF（D、CLK、/PRE、/CLR → Q、/Q）、JKFF（J、CLK、K、/PRE、/CLR → Q、/Q），轉成麵包板時兩顆合用一片 74LS74 / 74LS76；輸入可以不接：清除 / 預設 / 載入不用、資料 0、時脈 1）、',
       'CLOCK（時脈，name，一張圖最多一個；接到正反器、計數器的 CLK）。腳的順序用 BLOCK 的腳名（和 74LS 資料表一樣），fromPin 是第幾個輸出。',
       '線：{ id, from, fromPin?（方塊的第幾個輸出）, to: { node, pin } }。節點沒有 x、y 時自動排版。',
+      '閘的輸出可以接回前面（迴授，例如 NAND 交叉接成的 SR 閂鎖）。輸入端最多 12 個；名稱英文字母開頭、最多 8 個英數字（Q̄ 寫成 QBAR、清除寫成 CLR）。',
     ].join(''),
     inputSchema: {
       file,
@@ -288,7 +289,7 @@ server.registerTool(
   'logic_truth_table',
   {
     title: '真值表',
-    description: '電路檔裡邏輯圖的真值表（輸入依名稱排序，第一個是最高位元）、每個輸出的布林式（照圖寫出來與化簡後）與檢查結果。時序電路（有正反器、計數器或時脈）回傳時序表：從重設開始每次脈衝之後的輸出，再加一段文字波形（每格一個字元，‾ 是 1、_ 是 0）。',
+    description: '電路檔裡邏輯圖的真值表（輸入依名稱排序，第一個是最高位元，最多 12 個輸入）、每個輸出的布林式（照圖寫出來與化簡後）與檢查結果。有迴授（閂鎖）時，輸出跟之前的狀態有關的格子寫「保持」，一直來回跳的寫「不穩定」。時序電路（有正反器、計數器或時脈）回傳時序表：從重設開始每次脈衝之後的輸出，再加一段文字波形（每格一個字元，‾ 是 1、_ 是 0）。',
     inputSchema: { file, pulses: z.number().int().min(1).max(64).optional().describe('時序表列到第幾次脈衝（預設 16）') },
   },
   async (args) => withFile(args.file, (lab) => tools.logicTruthTable(lab, { pulses: args.pulses })),
@@ -298,7 +299,7 @@ server.registerTool(
   'logic_to_breadboard',
   {
     title: '邏輯圖轉成麵包板',
-    description: '把邏輯圖轉成 74LS IC、指撥開關、LED 的麵包板（取代目前的電路），接著 AI 佈線、逐列模擬比對真值表；時序電路的時脈換成時脈元件，從重設開始送 16 個脈衝比對時序表。一般最多 40 秒；用到兩塊 EIC-1106 的大電路最多 90 秒（可以用 seconds 調整）；有 progressToken 時每一批佈線回報一次進度。接不完時不寫入檔案，回覆照這次的設定建議下一步。',
+    description: '把邏輯圖轉成 74LS IC、指撥開關、LED 的麵包板（取代目前的電路），接著 AI 佈線、逐列模擬比對真值表（「保持」「不穩定」的格子不比）；輸入最多 12 個，超過 8 個時照名稱順序每 8 個一個指撥開關；時序電路的時脈換成時脈元件，從重設開始送 16 個脈衝比對時序表。一般最多 40 秒；用到兩塊 EIC-1106 的大電路最多 90 秒（可以用 seconds 調整）；有 progressToken 時每一批佈線回報一次進度。接不完時不寫入檔案，回覆照這次的設定建議下一步。',
     inputSchema: {
       file,
       switch_to: z.enum(['vcc', 'gnd']).optional().describe('開關另一端接 +5 V（ON = 1，預設）或 GND（ON = 0）'),
