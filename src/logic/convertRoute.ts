@@ -33,6 +33,11 @@ export const LAYOUT_VARIANTS: Record<LayoutId, LayoutVariant[]> = {
     // 子專案 48：IC 照 orderIcs 排（有接線的 IC 靠在一起；順序和原本一樣時擺出來一樣，不會重複試）。
     { gap: 2, leds: 'pair', split: false, orderIcs: true },
     { gap: 3, leds: 'straddle', split: false, orderIcs: true },
+    // 子專案 60（指南 3.7）：LED 直立、一腳直接插進電源軌（每顆省一條線、只佔 1 欄）。2026-11-11 量測：圖 10-14 的閂鎖 23 → 20 條線、23 → 20 欄。
+    { gap: 2, leds: 'rail', split: false },
+    { gap: 3, leds: 'rail', split: false },
+    // 子專案 60（指南 3.2）：互相沒有訊號相連的子電路各自成一組（只有一個子電路時和上面一樣，不會重複試）。
+    { gap: 2, leds: 'rail', split: false, parts: true },
   ],
   // 子專案 38：一排擺法（全部在第 2 區，上下兩區留給跨線）與兩個 4 位元開關；2026-10-19 量測：編碼器 73 → 62 條線，加上下拉電阻 81 → 58 條。
   EIC1106: [
@@ -48,6 +53,12 @@ export const LAYOUT_VARIANTS: Record<LayoutId, LayoutVariant[]> = {
     { gap: 4, leds: 'straddle', split: false, orderIcs: true },
     { gap: 3, leds: 'straddle', split: false, orderIcs: true },
     { gap: 6, leds: 'pair', split: false, orderIcs: true },
+    // 子專案 60：LED 直插電源軌、子電路分組。2026-11-11 量測：圖 10-14～10-17 四題合成一張圖（12 個輸入、5 顆 IC），
+    // 照名稱排在兩個開關時 300 秒還差 2 條；分組後 8 秒排完（102 條線，用到兩區）。
+    { gap: 3, leds: 'rail', split: false, oneRow: true },
+    { gap: 3, leds: 'rail', split: false },
+    { gap: 3, leds: 'rail', split: false, parts: true },
+    { gap: 4, leds: 'straddle', split: false, parts: true },
   ],
 };
 
