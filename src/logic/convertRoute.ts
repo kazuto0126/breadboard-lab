@@ -55,8 +55,7 @@ export const LAYOUT_VARIANTS: Record<LayoutId, LayoutVariant[]> = {
     { gap: 6, leds: 'pair', split: false, orderIcs: true },
     // 子專案 60：LED 直插電源軌、子電路分組。2026-11-11 量測：圖 10-14～10-17 四題合成一張圖（12 個輸入、5 顆 IC），
     // 照名稱排在兩個開關時 300 秒還差 2 條；分組後 8 秒排完（102 條線，用到兩區）。
-    { gap: 3, leds: 'rail', split: false, oneRow: true },
-    { gap: 3, leds: 'rail', split: false },
+    // LED 直插電源軌只放在分組的擺法裡：大電路在 EIC-1106 上多試兩種不分組的沒有比較好，還佔掉後面的時間。
     { gap: 3, leds: 'rail', split: false, parts: true },
     { gap: 4, leds: 'straddle', split: false, parts: true },
   ],
@@ -123,7 +122,8 @@ export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: 
     for (const variant of variants) {
       const r = toBreadboard(d, { ...options, board }, variant);
       if (!r.ok) {
-        failure = r.reason;
+        // 子專案 60：不適用的擺法（分組但只有一個子電路）沒有原因，不算失敗。
+        if (r.reason) failure = r.reason;
         continue;
       }
       const key = JSON.stringify(r.circuit.components.map((c) => [c.id, c.boardId, c.anchor.x, c.anchor.y, c.rotation, c.span ?? 0]));

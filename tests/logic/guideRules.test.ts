@@ -71,9 +71,8 @@ describe('independent sub-circuits (guide 3.2)', () => {
     expect(validateCircuit(r.circuit).filter((e) => e.severity === 'error' && !e.code.startsWith('WIRE'))).toEqual([]);
   });
 
-  it('does nothing for a single part: same layout with or without parts', () => {
-    const at = (parts: boolean) => must(toBreadboard(majorityDiagram(), { switchTo: 'vcc', board: 'MB102' }, { gap: 2, leds: 'rail', split: false, ...(parts ? { parts: true as const } : {}) })).circuit.components;
-    expect(at(true)).toEqual(at(false));
+  it('is not tried for a single part', () => {
+    expect(toBreadboard(majorityDiagram(), { switchTo: 'vcc', board: 'MB102' }, { gap: 2, leds: 'rail', split: false, parts: true })).toEqual({ ok: false, reason: '' });
   });
 
   it('routes the four circuits on one EIC-1106 (was 2 nets short after 300 s)', () => {
