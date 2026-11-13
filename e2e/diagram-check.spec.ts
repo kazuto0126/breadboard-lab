@@ -20,8 +20,19 @@ test('依名稱對照邏輯圖：改名稱會找不到、改邏輯圖會列出�
   await page.getByTestId('routing-result').getByLabel('關閉').click();
   await expect(page.getByTestId('routing-result')).toHaveCount(0);
   const rename = async (name: string) => {
-    // LED 正中間是兩隻腳的點擊區：點上半部的燈罩才會選到 LED。
-    await page.locator('g[data-component-id="D1"]').click({ position: { x: 10, y: 3 } });
+    // LED 正中間可能是兩隻腳的點擊區：點燈罩上離兩隻腳都遠的地方（垂直於兩腳連線的方向）才會選到 LED。
+    // 子專案 60 起 LED 可能直立（一腳插進電源軌），所以照腳的位置算，不寫死方向。
+    const dome = (await page.locator('g[data-component-id="D1"] path').first().boundingBox())!;
+    const pinsAt = await page.locator('circle[data-component-id="D1"][data-pin]').evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }),
+    );
+    const [a, b] = pinsAt;
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const reach = Math.min(dome.width, dome.height) * 0.35;
+    await page.mouse.click(dome.x + dome.width / 2 - ((b.y - a.y) / len) * reach, dome.y + dome.height / 2 + ((b.x - a.x) / len) * reach);
     await page.getByRole('tab', { name: '屬性' }).click();
     const input = page.getByLabel('LED 名稱');
     await input.fill(name);
