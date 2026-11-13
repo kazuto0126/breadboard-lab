@@ -6,7 +6,7 @@ import { getComponentDefinition } from '../../src/core/circuit/library';
 import { validateCircuit } from '../../src/core/circuit/validate';
 import { applyRouting } from '../../src/core/routing/apply';
 import { convertAndRoute } from '../../src/logic/convertRoute';
-import { sortedIo } from '../../src/logic/evaluate';
+import { sequenceTable, sortedIo } from '../../src/logic/evaluate';
 import { majorityDiagram } from '../../src/logic/examples';
 import { packFlipFlops } from '../../src/logic/flipFlops';
 import { assignIcs, decompose, drivers } from '../../src/logic/synth';
@@ -110,5 +110,17 @@ describe('LEDs straight into the power rail (guide 3.7)', () => {
     const leds = r.circuit.components.filter((c) => c.defId === 'led');
     expect(leds.length).toBeGreaterThan(5);
     for (const led of leds) expect(pins(r, led.id, 'EIC1106').every((p) => p !== '?')).toBe(true);
+  });
+});
+
+// 子專案 60：時序表比對時，閂鎖上電的值不一定：上電是 0 或 1 結果不一樣的格子不比。
+describe('latch power-on value in sequence tables', () => {
+  it('changes only the latch outputs that hold', () => {
+    const a = sequenceTable(fourCircuits(), 1, {}, 0);
+    const b = sequenceTable(fourCircuits(), 1, {}, 1);
+    if (!a.ok || !b.ok) throw new Error('no table');
+    const changed = a.outputs.filter((_, k) => a.rows[0].out[k] !== b.rows[0].out[k]);
+    // 全部輸入 0：閘控 SR 閂鎖（LS_）與 T 電路（T_）保持上電的值；D、JK 正反器的輸出由狀態決定，不受影響。
+    expect(changed).toEqual(['LS_Q', 'LS_QB', 'T_QB', 'T_QN']);
   });
 });

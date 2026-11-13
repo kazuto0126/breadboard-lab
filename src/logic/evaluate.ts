@@ -143,6 +143,10 @@ const MAX_SETTLE = 32;
  * 下次求值時從記住的值開始算（閂鎖會「保持」）；沒記過的從 0 開始（上電狀態）。
  */
 const LOOP_KEY = 'loop:';
+/** 子專案 60：迴授上還沒記過的值從幾開始（上電狀態，記在 LOOP_KEY + POWER_ON；沒有時是 0）。 */
+const POWER_ON = '*';
+/** 子專案 60：上電時迴授上的值都是 seed（比對時用 0 與 1 各算一次，找出跟上電狀態有關的格子）。 */
+export const powerOnState = (seed: 0 | 1): SeqState => ({ [LOOP_KEY + POWER_ON]: { state: { prev: {}, bits: [] }, out: [seed] } });
 /** 迴授最多來回算幾輪；還在變就判定不穩定（一直來回跳，例如 NOT 接回自己），那些訊號當成 X。 */
 const MAX_LOOP_PASSES = 64;
 
@@ -209,7 +213,7 @@ function combinational(order: LogicNode[], driver: Map<string, string>, values: 
   const segs = new Map<string, string[] | 'X'>();
   const inputOf = (node: LogicNode, pin: number): Bit => {
     const from = driver.get(`${node.id}#${pin}`);
-    return from === undefined ? 'X' : (nodes.get(from) ?? (memory ? 0 : 'X'));
+    return from === undefined ? 'X' : (nodes.get(from) ?? (memory ? (memory.get(POWER_ON) ?? 0) : 'X'));
   };
   const set = (signal: string, v: Bit) => nodes.set(signal, unstable.has(signal) ? 'X' : v);
   const pass = () => {
@@ -364,13 +368,14 @@ export const PULSE_CHOICES = [8, 16, 32];
  * 子專案 46（規格 2026-10-24 sequential-logic 第 4 節）：從重設（全部 0）開始，其他輸入用 values（沒給時用開關目前的值），
  * 送 pulses 個脈衝（0 → 1 → 0），列出每次之後每個輸出端、顯示器的值。
  */
-export function sequenceTable(d: LogicDiagram, pulses = 16, values: Record<string, 0 | 1> = {}): SequenceTable {
+/** 子專案 60：seed 是迴授（閂鎖）上電時的值（預設 0）。 */
+export function sequenceTable(d: LogicDiagram, pulses = 16, values: Record<string, 0 | 1> = {}, seed: 0 | 1 = 0): SequenceTable {
   const clock = d.nodes.find((n) => n.kind === 'CLOCK');
   if (!clock) return { ok: false, reason: 'no-clock' };
   const { outputs } = sortedIo(d);
   if (outputs.length === 0) return { ok: false, reason: 'empty' };
   const read = (v: ReturnType<typeof evaluate>) => outputs.map((o) => (o.kind === 'DISPLAY' ? displayValue(o, v) : (v.nodes.get(o.id) ?? 'X')));
-  let v = evaluate(d, { ...values, [clock.id]: 0 });
+  let v = evaluate(d, { ...values, [clock.id]: 0 }, seed === 0 ? undefined : powerOnState(seed));
   const rows = [{ pulse: 0, out: read(v) }];
   for (let k = 1; k <= pulses; k++) {
     const up = evaluate(d, { ...values, [clock.id]: 1 }, v.seq);
