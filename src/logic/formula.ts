@@ -1,4 +1,5 @@
 import { MAX_TABLE_INPUTS, sortedIo, topoOrder, truthTable } from './evaluate';
+import { flat } from './flatten';
 import type { Expr } from './expression';
 import { literalsOf, minimize } from './minimize';
 import { inputCountOf } from './shapes';
@@ -121,6 +122,8 @@ function sumOfProducts(n: number, ones: number[], names: string[]): Formula {
 
 /** 每個輸出端（依名稱排序）的兩種式子；displays：圖上有 7 段顯示器（不列式子）。 */
 export function diagramFormulas(d: LogicDiagram): { outputs: OutputFormula[]; displays: boolean } {
+  // 子專案 65：自訂方塊先展開。
+  d = flat(d).diagram;
   const { inputs, outputs: sinks } = sortedIo(d);
   const displays = sinks.some((n) => n.kind === 'DISPLAY');
   const outputs = sinks.filter((n) => n.kind === 'OUTPUT');

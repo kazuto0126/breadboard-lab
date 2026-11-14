@@ -8,6 +8,7 @@ import { boxOf } from '../logic/shapes';
 import { clockNodes, evaluate, type SeqState } from '../logic/evaluate';
 import { emptyDiagram, type LogicDiagram, type NodeKind, type BlockChip, type Rotation } from '../logic/types';
 import * as persistence from './persistence';
+import { addCustomNode, applyBlockEdit, blockDiagram, blockOf, wrapAsBlock } from '../logic/customBlocks';
 
 /** 選取：一個元件、一條線，或框選的多個元件（子專案 15）。 */
 export type LogicSelection = { kind: 'node'; id: string } | { kind: 'wire'; id: string } | { kind: 'nodes'; ids: string[] } | { kind: 'note'; id: string } | null;
@@ -40,13 +41,22 @@ export interface LogicState {
   seqView: 'table' | 'wave';
   /** 子專案 64：時序表送時脈的順序（名稱，空白隔開；空字串是送名稱排第一個的時脈）。不存檔、不進 Undo。 */
   clockOrder: string;
+  /** 子專案 65：放置自訂方塊時是哪一個。 */
+  placingBlock: string | null;
+  /** 子專案 65：進到方塊裡編輯時，外面每一層（最後一個是上一層）；diagram 是方塊的內容。 */
+  outer: Array<{ diagram: LogicDiagram; history: History<LogicDiagram>; blockId: string; viewport: Viewport }>;
+  /** 子專案 65：點兩下方塊進到裡面編輯；回到上一層時整次修改是一步 Undo。 */
+  enterBlock(nodeId: string): void;
+  exitBlock(): void;
+  /** 子專案 65：選取的元件包成方塊；不能包時回傳原因。 */
+  wrapSelection(name: string): string | null;
   load(d: LogicDiagram): void;
   markSaved(): void;
   apply(r: EditResult, label: string, selection?: LogicSelection): boolean;
   undo(): void;
   redo(): void;
   select(sel: LogicSelection): void;
-  startPlacing(kind: NodeKind | null, chip?: BlockChip): void;
+  startPlacing(kind: NodeKind | null, chip?: BlockChip, block?: string): void;
   place(kind: NodeKind, x: number, y: number): boolean;
   deleteSelection(): void;
   /** 子專案 15：複製選取的元件（只放在這個分頁的記憶體）、貼上。 */
@@ -85,10 +95,10 @@ export interface LogicState {
   deleteNote(id: string): void;
 }
 
-export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote' | 'showFormulas' | 'seq' | 'pulses' | 'seqView' | 'clockOrder'> {
+export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote' | 'showFormulas' | 'seq' | 'pulses' | 'seqView' | 'clockOrder' | 'placingBlock' | 'outer'> {
   const restored = typeof window !== 'undefined' ? persistence.loadAutosave()?.logic : undefined;
   const diagram = restored ?? emptyDiagram();
-  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null, showFormulas: false, seq: evaluate(diagram).seq, pulses: 16, seqView: 'table', clockOrder: '' };
+  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null, showFormulas: false, seq: evaluate(diagram).seq, pulses: 16, seqView: 'table', clockOrder: '', placingBlock: null, outer: [] };
 }
 
 /** 子專案 46：圖或輸入改了之後，時序方塊從目前的狀態重算到穩定（新的方塊從上電狀態開始）。 */
@@ -99,11 +109,35 @@ export const useLogic = create<LogicState>((set, get) => ({
   ...initialLogicState(),
 
   load(d) {
-    set({ diagram: d, saved: d, history: emptyHistory(), selection: null, placing: null, editingNote: null, seq: evaluate(d).seq });
+    set({ diagram: d, saved: d, history: emptyHistory(), selection: null, placing: null, editingNote: null, seq: evaluate(d).seq, outer: [] });
     get().fit();
   },
   markSaved() {
-    set({ saved: get().diagram });
+    set({ saved: logicRoot(get()) });
+  },
+  enterBlock(nodeId) {
+    const s = get();
+    const node = s.diagram.nodes.find((n) => n.id === nodeId && n.kind === 'CUSTOM');
+    const inner = node?.block ? blockDiagram(s.diagram, node.block) : null;
+    if (!node || !inner) return;
+    set({ outer: [...s.outer, { diagram: s.diagram, history: s.history, blockId: node.block!, viewport: s.viewport }], diagram: inner, history: emptyHistory(), selection: null, placing: null, editingNote: null, seq: evaluate(inner).seq });
+    get().fit();
+  },
+  exitBlock() {
+    const s = get();
+    const top = s.outer[s.outer.length - 1];
+    if (!top) return;
+    const parent = applyBlockEdit(top.diagram, top.blockId, s.diagram);
+    const name = blockOf(top.diagram, top.blockId)?.name ?? top.blockId;
+    const history = parent === top.diagram ? top.history : record(top.history, top.diagram, `修改方塊 ${name}`);
+    set({ outer: s.outer.slice(0, -1), diagram: parent, history, selection: null, placing: null, editingNote: null, viewport: top.viewport, seq: settled(parent, s.seq) });
+  },
+  wrapSelection(name) {
+    const ids = selectedIds(get().selection);
+    const r = wrapAsBlock(get().diagram, ids, name);
+    if (!r.ok) return r.reason;
+    get().apply(r, `包成方塊 ${name}`, r.id ? { kind: 'node', id: r.id } : null);
+    return null;
   },
   apply(r, label, selection) {
     if (!r.ok) return false;
@@ -122,15 +156,16 @@ export const useLogic = create<LogicState>((set, get) => ({
   select(selection) {
     set({ selection });
   },
-  startPlacing(placing, chip) {
-    set({ placing, placingChip: placing === 'BLOCK' ? (chip ?? null) : null, placingTurn: {}, selection: null });
+  startPlacing(placing, chip, block) {
+    set({ placing, placingChip: placing === 'BLOCK' ? (chip ?? null) : null, placingBlock: placing === 'CUSTOM' ? (block ?? null) : null, placingTurn: {}, selection: null });
   },
   place(kind, x, y) {
     const chip = get().placingChip ?? undefined;
-    const r = addNode(get().diagram, kind, x, y, chip, get().placingTurn);
-    const name = kind === 'INPUT' ? '輸入端' : kind === 'OUTPUT' ? '輸出端' : kind === 'DISPLAY' ? '7 段顯示器' : kind === 'HIGH' ? '5V' : kind === 'LOW' ? 'GND' : kind === 'BLOCK' ? `${chip} 方塊` : kind;
+    const block = get().placingBlock;
+    const r = kind === 'CUSTOM' && block ? addCustomNode(get().diagram, block, x, y, get().placingTurn) : addNode(get().diagram, kind, x, y, chip, get().placingTurn);
+    const name = kind === 'INPUT' ? '輸入端' : kind === 'OUTPUT' ? '輸出端' : kind === 'DISPLAY' ? '7 段顯示器' : kind === 'HIGH' ? '5V' : kind === 'LOW' ? 'GND' : kind === 'BLOCK' ? `${chip} 方塊` : kind === 'CUSTOM' ? `方塊 ${blockOf(get().diagram, block ?? undefined)?.name ?? ''}` : kind;
     const done = get().apply(r, `新增 ${name}`, r.ok && r.id ? { kind: 'node', id: r.id } : undefined);
-    if (done) set({ placing: null, placingChip: null });
+    if (done) set({ placing: null, placingChip: null, placingBlock: null });
     return done;
   },
   deleteSelection() {
@@ -302,5 +337,21 @@ export function selectedIds(sel: LogicSelection): string[] {
 /** 邏輯圖有沒有還沒儲存的修改（開關切換也算：開關狀態會存檔；子專案 24 的題目也算）。 */
 export function logicDirty(s: LogicState = useLogic.getState()): boolean {
   const hasContent = (d: LogicDiagram) => d.nodes.length > 0 || d.task !== undefined || d.notes !== undefined;
-  return s.diagram !== s.saved && (hasContent(s.diagram) || hasContent(s.saved));
+  const root = logicRoot(s);
+  return root !== s.saved && (hasContent(root) || hasContent(s.saved));
+}
+
+let rootMemo: { diagram: LogicDiagram; outer: LogicState['outer']; root: LogicDiagram } | null = null;
+
+/**
+ * 子專案 65（規格 2026-11-14 custom-blocks 第 4 節）：主圖：在方塊裡編輯時，把正在改的內容一層一層放回去
+ * （存檔、自動儲存、匯出、和麵包板比對都用它）。同樣的狀態回傳同一個物件。
+ */
+export function logicRoot(s: Pick<LogicState, 'diagram' | 'outer'> = useLogic.getState()): LogicDiagram {
+  if (s.outer.length === 0) return s.diagram;
+  if (rootMemo && rootMemo.diagram === s.diagram && rootMemo.outer === s.outer) return rootMemo.root;
+  let d = s.diagram;
+  for (let i = s.outer.length - 1; i >= 0; i--) d = applyBlockEdit(s.outer[i].diagram, s.outer[i].blockId, d);
+  rootMemo = { diagram: s.diagram, outer: s.outer, root: d };
+  return d;
 }

@@ -7,7 +7,8 @@ export type GateKind = 'AND' | 'OR' | 'NOT' | 'NAND' | 'NOR' | 'XOR';
 /** DISPLAY：7 段顯示器（子專案 16），4 個輸入腳 A、B、C、D，沒有輸出腳。 */
 /** 子專案 21：HIGH / LOW 是常數 1 / 0（5V、GND），BLOCK 是 IC 方塊。 */
 /** 子專案 46：CLOCK 是時脈（一個輸出，「一個脈衝」送出 0 → 1 → 0）。 */
-export type NodeKind = GateKind | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK';
+/** 子專案 65：CUSTOM 是自訂方塊（定義在 LogicDiagram.blocks）。 */
+export type NodeKind = GateKind | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK' | 'CUSTOM';
 /** 子專案 46：74LS74 起是時序 IC（正反器、計數器）。子專案 51：DFF、JKFF 是單顆正反器（轉換時兩顆合用一片 74LS74 / 76）。 */
 export type BlockChip = '74LS83' | '74LS151' | '74LS153' | '74LS138' | '74LS85' | '74LS74' | '74LS76' | '74LS90' | '74LS93' | '74LS161' | '74LS193' | 'DFF' | 'JKFF';
 
@@ -18,8 +19,12 @@ export interface LogicNode {
   kind: NodeKind;
   x: number;
   y: number;
-  /** 只有閘：AND / OR / NAND / NOR 為 2–4；NOT = 1；XOR = 2。 */
+  /** 只有閘：AND / OR / NAND / NOR 為 2–4；NOT = 1；XOR = 2。子專案 65：自訂方塊是輸入腳數。 */
   inputs?: number;
+  /** 子專案 65：只有自訂方塊：輸出腳數。 */
+  outputs?: number;
+  /** 子專案 65：只有自訂方塊：定義的 id。 */
+  block?: string;
   /** 只有輸入端、輸出端、顯示器。 */
   name?: string;
   /** 只有輸入端：開關目前的狀態。 */
@@ -61,6 +66,19 @@ export interface LogicDiagram {
   stateTask?: StateTask;
   /** 子專案 29：邏輯圖上的便條。 */
   notes?: LogicNote[];
+  /** 子專案 65：這個檔案的自訂方塊。 */
+  blocks?: CustomBlock[];
+}
+
+/**
+ * 子專案 65（規格 2026-11-14 custom-blocks 第 1 節）：自訂方塊的定義：裡面是一張小邏輯圖，
+ * 輸入端是方塊的輸入腳、輸出端是輸出腳（順序照圖上的位置由上到下，腳名是它們的名稱）。
+ */
+export interface CustomBlock {
+  id: string;
+  name: string;
+  nodes: LogicNode[];
+  wires: LogicWire[];
 }
 
 /** 子專案 29：邏輯圖的便條（位置是格子座標）；指向一個元件。 */

@@ -1,4 +1,5 @@
 import { getComponentDefinition } from '../core/circuit/library';
+import { flat } from './flatten';
 import { createModel, type LogicModel, type ModelState } from '../core/simulation/models';
 import { BLOCK_DEFAULTS, BLOCK_PINS, HALF_CHIP, isSequentialChip } from './blocks';
 import { inputCountOf } from './shapes';
@@ -35,6 +36,7 @@ const isSequentialNode = (n: LogicNode | undefined): boolean => n?.kind === 'BLO
 
 /** 子專案 46：圖裡有時序方塊或時脈（真值表改成時序表）。 */
 export function isSequential(d: LogicDiagram): boolean {
+  d = flat(d).diagram;
   return d.nodes.some((n) => n.kind === 'CLOCK' || isSequentialNode(n));
 }
 
@@ -43,6 +45,7 @@ export function isSequential(d: LogicDiagram): boolean {
  * 子專案 46：接到時序方塊的線不算（時序方塊的輸出由狀態決定），所以經過正反器的迴圈不是迴圈。
  */
 export function topoOrder(d: LogicDiagram): { order: LogicNode[]; loop: string[] | null } {
+  d = flat(d).diagram;
   const indegree = new Map(d.nodes.map((n) => [n.id, 0]));
   const next = new Map<string, string[]>(d.nodes.map((n) => [n.id, []]));
   const sequential = new Set(d.nodes.filter(isSequentialNode).map((n) => n.id));
@@ -155,10 +158,18 @@ const MAX_LOOP_PASSES = 64;
  * 子專案 32：dps 是小數點（沒接是 0）；segs 是每段直接控制的顯示器亮的段（沒接的段是 0，有不確定的是 X）。
  */
 export function evaluate(
-  d: LogicDiagram,
+  d0: LogicDiagram,
   values: Record<string, 0 | 1> = {},
   state?: SeqState,
 ): { nodes: Map<string, Bit>; displays: Map<string, number | 'X'>; dps: Map<string, Bit>; segs: Map<string, string[] | 'X'>; seq: SeqState; unstable: Set<string> } {
+  // 子專案 65：自訂方塊先展開；方塊輸出腳的值用展開後對應訊號的值（畫線的顏色、屬性面板用）。
+  const { diagram: d, alias } = flat(d0);
+  const r = evaluateFlat(d, values, state);
+  for (const [a, b] of alias) r.nodes.set(a, r.nodes.get(b) ?? 'X');
+  return r;
+}
+
+function evaluateFlat(d: LogicDiagram, values: Record<string, 0 | 1>, state: SeqState | undefined) {
   const topo = topoOrder(d);
   // 子專案 59：有迴授時，排不進拓撲順序的節點照圖上的順序接在後面，整張圖來回算到不再變。
   const order = topo.loop ? [...topo.order, ...d.nodes.filter((n) => !topo.order.includes(n))] : topo.order;
@@ -266,6 +277,7 @@ function combinational(order: LogicNode[], driver: Map<string, string>, values: 
  * 這組輸入會不會一直來回跳。只看閘與組合 IC 方塊（有時序方塊的圖不判斷，回傳 false）。
  */
 export function racesFrom(d: LogicDiagram, values: Record<string, 0 | 1>, state: SeqState): boolean {
+  d = flat(d).diagram;
   if (isSequential(d) || !topoOrder(d).loop) return false;
   const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)]));
   let now = new Map<string, Bit>();
@@ -358,6 +370,7 @@ export type TruthTable =
  * 都一樣就寫那個值，不一樣寫「保持」（跟之前的狀態有關），有一次停不下來就寫「不穩定」。
  */
 export function truthTable(d: LogicDiagram): TruthTable {
+  d = flat(d).diagram;
   const { inputs, outputs } = sortedIo(d);
   // 子專案 46：時序電路沒有真值表（看時序表）。
   if (isSequential(d)) return { ok: false, reason: 'sequential' };
@@ -449,6 +462,7 @@ export const PULSE_CHOICES = [8, 16, 32];
  * 子專案 64：order 是時脈名稱的清單，照順序一直重複送；沒給時送名稱排第一個的時脈。每次送一個時脈，其他時脈留在 0。
  */
 export function sequenceTable(d: LogicDiagram, pulses = 16, values: Record<string, 0 | 1> = {}, seed: 0 | 1 = 0, order?: string[]): SequenceTable {
+  d = flat(d).diagram;
   const clocks = clockNodes(d);
   if (clocks.length === 0) return { ok: false, reason: 'no-clock' };
   const byName = new Map(clocks.map((n) => [n.name ?? n.id, n]));

@@ -37,7 +37,7 @@ import { convertProblem } from '../logic/synth';
 import type { ConvertOptions } from '../logic/toBreadboard';
 import { pressedFor, withSwitches, type SwitchBinding } from '../logic/verifyBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../logic/types';
-import { logicDirty, useLogic } from './logic';
+import { logicDirty, logicRoot, useLogic } from './logic';
 import { boardFrames, gridBounds, MM_TO_PX, worldBounds } from '../editor/geometry';
 import { emptyHistory, record, redo, undo, type History } from '../editor/history';
 import type { LibraryItem } from '../editor/library';
@@ -1078,7 +1078,8 @@ export const useStore = create<Store>()((set, get) => {
 
     convertLogic(options) {
       if (guardEdit()) return;
-      const diagram = useLogic.getState().diagram;
+      // 子專案 65：一律轉主圖（在方塊裡時按鈕是停用的）。
+      const diagram = logicRoot();
       const problem = convertProblem(diagram, options);
       if (problem) {
         get().toast('error', problem);
@@ -1158,7 +1159,7 @@ export const useStore = create<Store>()((set, get) => {
         set({ dialog: 'save-as' });
         return;
       }
-      if (!persistence.saveProject(target, s.circuit, pruneChecklist(s.checklist, s.circuit), useLogic.getState().diagram)) {
+      if (!persistence.saveProject(target, s.circuit, pruneChecklist(s.checklist, s.circuit), logicRoot())) {
         get().toast('error', '無法儲存：瀏覽器不允許使用本機儲存空間。請改用「匯出 JSON」。');
         return;
       }
@@ -1324,7 +1325,7 @@ export function startAutosave(): () => void {
     autosaveTimer = setTimeout(() => {
       const now = useStore.getState();
       const checklist = pruneChecklist(now.checklist, now.circuit);
-      if (!persistence.writeAutosave(now.circuit, now.projectName, checklist, isDirty(now), useLogic.getState().diagram) && !now.storageWarned) {
+      if (!persistence.writeAutosave(now.circuit, now.projectName, checklist, isDirty(now), logicRoot()) && !now.storageWarned) {
         useStore.setState({ storageWarned: true });
         now.toast('warning', '瀏覽器不允許使用本機儲存空間，無法自動儲存。請記得「匯出 JSON」。');
       }

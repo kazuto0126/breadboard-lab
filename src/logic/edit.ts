@@ -1,13 +1,13 @@
 import { isBlockChip, isSequentialChip } from './blocks';
 import { dropLogicNoteTargets } from './notes';
 import { boxOf, inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
-import { MAX_CLOCKS, canRotate, isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
+import { MAX_CLOCKS, canRotate, type CustomBlock, isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
 
 const fail = (diagram: LogicDiagram, reason: string): EditResult => ({ ok: false, diagram, reason });
-const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b', CLOCK: 'c' };
-const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
+const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK' | 'CUSTOM', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b', CLOCK: 'c', CUSTOM: 'm' };
+export const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
 const OUTPUT_NAMES = ['X', 'Y', 'Z', 'W', 'V', 'U', 'T', 'S', 'R', 'Q', 'P'];
 const INPUT_NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -17,7 +17,7 @@ export function nextNodeId(d: LogicDiagram, kind: NodeKind): string {
   for (let i = 1; ; i++) if (!used.has(`${prefix}${i}`)) return `${prefix}${i}`;
 }
 
-function nextWireId(d: LogicDiagram): string {
+export function nextWireId(d: LogicDiagram): string {
   const used = new Set(d.wires.map((w) => w.id));
   for (let i = 1; ; i++) if (!used.has(`w${i}`)) return `w${i}`;
 }
@@ -55,6 +55,8 @@ export interface Turn {
 export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, chip?: BlockChip, turn: Turn = {}): EditResult {
   const id = nextNodeId(d, kind);
   if (kind === 'BLOCK' && !isBlockChip(chip)) return fail(d, '要指定哪一顆 IC');
+  // 子專案 65：自訂方塊用 customBlocks.ts 的 addCustomNode（要知道是哪一個方塊）。
+  if (kind === 'CUSTOM') return fail(d, '要指定哪一個自訂方塊');
   // 子專案 64：一張圖最多 MAX_CLOCKS 個時脈（子專案 46 時只能一個）。
   if (kind === 'CLOCK' && d.nodes.filter((n) => n.kind === 'CLOCK').length >= MAX_CLOCKS) return fail(d, `一張圖最多 ${MAX_CLOCKS} 個時脈`);
   const plain: LogicNode =
@@ -68,7 +70,7 @@ export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, c
       ? { id, kind, x, y, name: defaultName(d, 'INPUT'), value: 0 }
       : kind === 'OUTPUT' || kind === 'DISPLAY'
         ? { id, kind, x, y, name: defaultName(d, kind) }
-        : { id, kind, x, y, inputs: defaultInputs(kind) };
+        : { id, kind, x, y, inputs: defaultInputs(kind as GateKind) };
   const node: LogicNode = canRotate(kind) ? { ...plain, ...(turn.rotation ? { rotation: turn.rotation } : {}), ...(turn.flip ? { flip: true as const } : {}) } : plain;
   if (!canPlace(d, node)) return fail(d, '這裡已經有元件了');
   return { ok: true, diagram: { ...d, nodes: [...d.nodes, node] }, id };
@@ -108,7 +110,8 @@ export function connect(d: LogicDiagram, from: string, to: { node: string; pin: 
   if (target.kind === 'INPUT') return fail(d, '輸入端沒有可以接進來的腳');
   if (target.kind === 'CLOCK') return fail(d, '時脈沒有可以接進來的腳');
   // 子專案 46：正反器、計數器可以把自己的輸出接回自己的輸入（例如 74LS93 的 QA 接 CKB）。
-  if (source.id === target.id && !(target.kind === 'BLOCK' && isSequentialChip(target.chip))) return fail(d, '不能把自己的輸出接回自己的輸入');
+  // 子專案 65：自訂方塊也可以（裡面可能有正反器）。
+  if (source.id === target.id && !(target.kind === 'BLOCK' && isSequentialChip(target.chip)) && target.kind !== 'CUSTOM') return fail(d, '不能把自己的輸出接回自己的輸入');
   if (!Number.isInteger(to.pin) || to.pin < 0 || to.pin >= inputCountOf(target)) return fail(d, '沒有這個輸入腳');
   const kept = d.wires.filter((w) => !(w.to.node === to.node && w.to.pin === to.pin));
   if (kept.length !== d.wires.length && d.wires.some((w) => w.to.node === to.node && w.to.pin === to.pin && w.from === from && (w.fromPin ?? 0) === fromPin)) return { ok: true, diagram: d };
@@ -185,14 +188,64 @@ export function nodesInRect(d: LogicDiagram, r: { x: number; y: number; w: numbe
 export interface LogicClipboard {
   nodes: LogicNode[];
   wires: LogicWire[];
+  /** 子專案 65：用到的自訂方塊定義（包含方塊裡再用到的），貼到別的檔案時一起帶過去。 */
+  blocks?: CustomBlock[];
+}
+
+/** 子專案 65：這些節點用到的方塊（包含方塊裡再用到的）。 */
+function usedBlocks(d: LogicDiagram, nodes: LogicNode[]): CustomBlock[] {
+  const defs = new Map((d.blocks ?? []).map((b) => [b.id, b]));
+  const out = new Map<string, CustomBlock>();
+  const walk = (list: LogicNode[]) => {
+    for (const n of list) {
+      if (n.kind !== 'CUSTOM' || n.block === undefined || out.has(n.block)) continue;
+      const b = defs.get(n.block);
+      if (!b) continue;
+      out.set(b.id, b);
+      walk(b.nodes);
+    }
+  };
+  walk(nodes);
+  return [...out.values()];
+}
+
+/**
+ * 子專案 65：貼上時把方塊定義併進來：已經有一模一樣的方塊（同名同內容）就用它；不然加一個新的（名稱重複時加數字）。
+ * 回傳併好的圖與「剪貼簿裡的方塊 id → 這張圖裡的方塊 id」。
+ */
+function mergeBlocks(d: LogicDiagram, blocks: CustomBlock[]): { diagram: LogicDiagram; ids: Map<string, string> } {
+  const ids = new Map<string, string>();
+  let list = [...(d.blocks ?? [])];
+  const content = (b: CustomBlock, map: Map<string, string>) => JSON.stringify({ n: b.nodes.map((n) => (n.kind === 'CUSTOM' ? { ...n, block: map.get(n.block!) ?? n.block } : n)), w: b.wires });
+  // 先給每個方塊一個 id，再換掉裡面的方塊參照。
+  for (const b of [...blocks].reverse()) {
+    const same = list.find((x) => x.name === b.name && content(x, new Map()) === content(b, ids));
+    if (same) {
+      ids.set(b.id, same.id);
+      continue;
+    }
+    const used = new Set(list.map((x) => x.id));
+    let id = b.id;
+    for (let i = 1; used.has(id); i++) id = `blk${i}`;
+    const names = new Set(list.map((x) => x.name));
+    let name = b.name;
+    for (let k = 2; names.has(name); k++) name = `${b.name.slice(0, 7)}${k}`;
+    ids.set(b.id, id);
+    list = [...list, { ...b, id, name }];
+  }
+  list = list.map((b) => (blocks.some((x) => ids.get(x.id) === b.id) ? { ...b, nodes: b.nodes.map((n) => (n.kind === 'CUSTOM' && n.block && ids.has(n.block) ? { ...n, block: ids.get(n.block) } : n)) } : b));
+  return { diagram: list.length > 0 ? { ...d, blocks: list } : d, ids };
 }
 
 /** 複製選取的元件，以及兩端都在選取範圍裡的線。 */
 export function copyNodes(d: LogicDiagram, ids: string[]): LogicClipboard {
   const picked = new Set(ids);
+  const nodes = d.nodes.filter((n) => picked.has(n.id)).map((n) => ({ ...n }));
+  const blocks = usedBlocks(d, nodes);
   return {
-    nodes: d.nodes.filter((n) => picked.has(n.id)).map((n) => ({ ...n })),
+    nodes,
     wires: d.wires.filter((w) => picked.has(w.from) && picked.has(w.to.node)).map((w) => ({ ...w, to: { ...w.to } })),
+    ...(blocks.length > 0 ? { blocks } : {}),
   };
 }
 
@@ -202,12 +255,14 @@ export function pasteNodes(d: LogicDiagram, clip: LogicClipboard): { ok: true; d
   for (let k = 1; k <= 20; k++) {
     const shifted = clip.nodes.map((n) => ({ ...n, x: n.x + 2 * k, y: n.y + 2 * k }));
     if (!shifted.every((n) => d.nodes.every((o) => !overlaps(n, o)))) continue;
-    let next = d;
+    // 子專案 65：方塊定義一起帶過來。
+    const merged = clip.blocks ? mergeBlocks(d, clip.blocks) : { diagram: d, ids: new Map<string, string>() };
+    let next = merged.diagram;
     const idMap = new Map<string, string>();
     for (const n of shifted) {
       const id = nextNodeId(next, n.kind);
       idMap.set(n.id, id);
-      const node: LogicNode = { ...n, id };
+      const node: LogicNode = { ...n, id, ...(n.kind === 'CUSTOM' && n.block && merged.ids.has(n.block) ? { block: merged.ids.get(n.block) } : {}) };
       if (n.kind === 'INPUT' || n.kind === 'OUTPUT' || n.kind === 'DISPLAY') {
         const taken = next.nodes.some((o) => o.name === n.name);
         node.name = taken || !n.name ? defaultName(next, n.kind) : n.name;

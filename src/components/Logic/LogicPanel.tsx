@@ -11,6 +11,8 @@ import { convertProblem } from '../../logic/synth';
 import { diagramFormulas, type OutputFormula } from '../../logic/formula';
 import { useStore } from '../../state/store';
 import { LogicNoteInspector } from './LogicNoteInspector';
+import { blockOf, nextBlockName, renameBlock } from '../../logic/customBlocks';
+import { blockPins } from '../../logic/flatten';
 import { TaskTab } from './TaskTab';
 import { Waveform } from './Waveform';
 
@@ -90,6 +92,7 @@ function NameEditor({ node }: { node: LogicNode }) {
 
 function Inspector({ diagram }: { diagram: LogicDiagram }) {
   const selection = useLogic((s) => s.selection);
+  const inBlock = useLogic((s) => s.outer.length > 0);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => setError(null), [selection]);
   const s = useLogic.getState();
@@ -106,7 +109,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     const node = diagram.nodes.find((n) => n.id === selection.id);
     if (!node) return null;
     return (
-      <Section title={isGate(node.kind) ? '邏輯閘' : node.kind === 'INPUT' ? '輸入端' : node.kind === 'DISPLAY' ? '7 段顯示器' : node.kind === 'BLOCK' ? (isSequentialChip(node.chip) ? '正反器 / 計數器' : 'IC 方塊') : node.kind === 'HIGH' || node.kind === 'LOW' ? '常數' : node.kind === 'CLOCK' ? '時脈' : '輸出端'}>
+      <Section title={isGate(node.kind) ? '邏輯閘' : node.kind === 'INPUT' ? '輸入端' : node.kind === 'DISPLAY' ? '7 段顯示器' : node.kind === 'BLOCK' ? (isSequentialChip(node.chip) ? '正反器 / 計數器' : 'IC 方塊') : node.kind === 'HIGH' || node.kind === 'LOW' ? '常數' : node.kind === 'CLOCK' ? '時脈' : node.kind === 'CUSTOM' ? '自訂方塊' : '輸出端'}>
         <div className="flex items-center justify-between">
           <div className="text-base font-semibold text-slate-50">{node.name ?? (node.kind === 'BLOCK' ? `${node.id}（${node.chip}）` : node.id)}</div>
           <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.apply({ ok: true, diagram: removeNodes(diagram, [node.id]) }, `刪除 ${node.id}`, null)}>
@@ -217,6 +220,8 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
         )}
         {node.kind === 'OUTPUT' && <OutputFormulas diagram={diagram} node={node} />}
         {node.kind === 'BLOCK' && <BlockValues diagram={diagram} node={node} />}
+        {node.kind === 'CUSTOM' && <CustomBlockInspector diagram={diagram} node={node} />}
+        {WRAPPABLE(node.kind) && <WrapForm diagram={diagram} />}
         {node.kind === 'DISPLAY' && <DisplayValue diagram={diagram} node={node} />}
         {node.kind === 'INPUT' && (
           <div className="flex items-center gap-2">
@@ -238,6 +243,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
         <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.deleteSelection()}>
           刪除這 {selection.ids.length} 個
         </button>
+        <WrapForm diagram={diagram} />
       </Section>
     );
   }
@@ -249,7 +255,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     return (
       <Section title="線">
         <p className="text-slate-200">
-          {nodeLabel(from)} → {nodeLabel(to)}
+          {nodeLabel(from, diagram)} → {nodeLabel(to, diagram)}
           {from.kind === 'BLOCK' && from.chip && `（${BLOCK_PINS[from.chip].outputs[w.fromPin ?? 0]}）`}
           {to.kind === 'DISPLAY' ? `${'ABCD'[w.to.pin]} 腳` : to.kind === 'BLOCK' && to.chip ? `的 ${BLOCK_PINS[to.chip].inputs[w.to.pin]} 腳` : to.kind !== 'OUTPUT' && `第 ${w.to.pin + 1} 個輸入`}
         </p>
@@ -266,10 +272,71 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
         閘 {count((n) => isGate(n.kind))}・輸入端 {count((n) => n.kind === 'INPUT')}・輸出端 {count((n) => n.kind === 'OUTPUT')}{count((n) => n.kind === 'DISPLAY') > 0 && `・顯示器 ${count((n) => n.kind === 'DISPLAY')}`}{count((n) => n.kind === 'BLOCK') > 0 && `・IC 方塊 ${count((n) => n.kind === 'BLOCK')}`}・線 {diagram.wires.length}
       </p>
       <p className="text-xs leading-5 text-slate-400">從左邊放邏輯閘、輸入端、輸出端，再從一個腳拖到另一個腳連線。點輸入端的開關切換 0 / 1，線和燈號會即時顯示結果。</p>
-      <button type="button" className={`${btn} bg-emerald-600 text-white hover:bg-emerald-500`} onClick={openConvert}>
-        轉成麵包板…
-      </button>
+      {inBlock ? (
+        <p className="text-xs leading-5 text-emerald-200">現在在方塊裡：輸入端是方塊的輸入腳、輸出端是輸出腳（由上到下的順序）。要轉成麵包板請先按畫布上方的「回到上一層」。</p>
+      ) : (
+        <button type="button" className={`${btn} bg-emerald-600 text-white hover:bg-emerald-500`} onClick={openConvert}>
+          轉成麵包板…
+        </button>
+      )}
     </Section>
+  );
+}
+
+/** 子專案 65：可以包進方塊的元件。 */
+const WRAPPABLE = (kind: LogicNode['kind']) => isGate(kind) || kind === 'BLOCK' || kind === 'CUSTOM' || kind === 'HIGH' || kind === 'LOW';
+
+/** 子專案 65（規格 2026-11-14 custom-blocks 第 3 節）：選取的元件包成方塊。 */
+function WrapForm({ diagram }: { diagram: LogicDiagram }) {
+  const [name, setName] = useState(() => nextBlockName(diagram));
+  const [error, setError] = useState<string | null>(null);
+  const wrap = () => setError(useLogic.getState().wrapSelection(name.trim()));
+  return (
+    <div data-testid="wrap-block" className="space-y-1 rounded border border-emerald-800 bg-emerald-950/30 p-2">
+      <div className="flex items-center gap-2">
+        <input aria-label="方塊名稱" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && wrap()} className="w-24 rounded border border-slate-600 bg-slate-950 px-2 py-0.5 text-sm text-slate-100 focus:border-sky-500 focus:outline-none" />
+        <button type="button" className={`${btn} bg-emerald-700 text-white hover:bg-emerald-600`} onClick={wrap}>
+          包成方塊
+        </button>
+      </div>
+      <p className="text-xs text-slate-400">穿過框的線變成方塊的腳；之後從左邊「自訂方塊」可以再放好幾個，點兩下方塊進去改。</p>
+      {error && <p className="text-xs text-red-300">{error}</p>}
+    </div>
+  );
+}
+
+/** 子專案 65（規格第 4 節）：自訂方塊：名稱、腳、打開。 */
+function CustomBlockInspector({ diagram, node }: { diagram: LogicDiagram; node: LogicNode }) {
+  const b = blockOf(diagram, node.block);
+  const [name, setName] = useState(b?.name ?? '');
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => setName(b?.name ?? ''), [b?.name]);
+  if (!b) return <p className="text-xs text-red-300">找不到這個方塊的定義</p>;
+  const pins = blockPins(b);
+  const uses = diagram.nodes.filter((n) => n.kind === 'CUSTOM' && n.block === b.id).length;
+  const rename = () => {
+    if (name.trim() === b.name) return;
+    const r = renameBlock(diagram, b.id, name);
+    if (!r.ok) setError(r.reason);
+    else {
+      setError(null);
+      useLogic.getState().apply(r, `方塊改名 ${name.trim()}`);
+    }
+  };
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <span className="w-12 text-slate-400">名稱</span>
+        <input aria-label="自訂方塊名稱" value={name} onChange={(e) => setName(e.target.value)} onBlur={rename} onKeyDown={(e) => e.key === 'Enter' && rename()} className="w-24 rounded border border-slate-600 bg-slate-950 px-2 py-0.5 text-sm text-slate-100 focus:border-sky-500 focus:outline-none" />
+      </div>
+      <p className="text-xs text-slate-300">
+        輸入 {pins.inputs.map((n) => n.name).join('、') || '沒有'} → 輸出 {pins.outputs.map((n) => n.name).join('、') || '沒有'}（這張圖用了 {uses} 個）
+      </p>
+      <button type="button" className={`${btn} bg-emerald-700 text-white hover:bg-emerald-600`} onClick={() => useLogic.getState().enterBlock(node.id)}>
+        打開方塊（點兩下也可以）
+      </button>
+      {error && <p className="text-xs text-red-300">{error}</p>}
+    </div>
   );
 }
 

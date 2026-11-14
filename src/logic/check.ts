@@ -1,5 +1,5 @@
 import { BLOCK_DEFAULTS, BLOCK_PINS } from './blocks';
-import { inputCountOf } from './shapes';
+import { inputCountOf, outputCountOf } from './shapes';
 import { isGate, isSink, type LogicDiagram, type LogicNode } from './types';
 
 export interface LogicIssue {
@@ -9,7 +9,7 @@ export interface LogicIssue {
   nodeIds: string[];
 }
 
-export function nodeLabel(node: LogicNode): string {
+export function nodeLabel(node: LogicNode, d?: LogicDiagram): string {
   if (node.kind === 'INPUT') return `輸入 ${node.name}`;
   if (node.kind === 'OUTPUT') return `輸出 ${node.name}`;
   if (node.kind === 'DISPLAY') return `顯示器 ${node.name}`;
@@ -17,13 +17,15 @@ export function nodeLabel(node: LogicNode): string {
   if (node.kind === 'LOW') return `GND ${node.id}`;
   if (node.kind === 'BLOCK') return `方塊 ${node.id}（${node.chip}）`;
   if (node.kind === 'CLOCK') return `時脈 ${node.name}`;
+  // 子專案 65：自訂方塊寫方塊的名稱。
+  if (node.kind === 'CUSTOM') return `方塊 ${d?.blocks?.find((b) => b.id === node.block)?.name ?? node.block}（${node.id}）`;
   return `${node.id}（${node.kind}）`;
 }
 
 /** 規格第 4 節。順序：缺輸入 / 輸出端、每個節點（依圖上的順序）的開路與沒用到。子專案 59 起閘接回前面的迴授（閂鎖）不算錯。 */
 export function checkDiagram(d: LogicDiagram): LogicIssue[] {
   const issues: LogicIssue[] = [];
-  if (d.nodes.some((n) => isGate(n.kind))) {
+  if (d.nodes.some((n) => isGate(n.kind) || n.kind === 'CUSTOM')) {
     if (!d.nodes.some((n) => n.kind === 'INPUT')) issues.push({ code: 'LOGIC_NO_IO', severity: 'warning', message: '邏輯圖還沒有輸入端', nodeIds: [] });
     if (!d.nodes.some((n) => isSink(n.kind))) issues.push({ code: 'LOGIC_NO_IO', severity: 'warning', message: '邏輯圖還沒有輸出端', nodeIds: [] });
   }
@@ -63,9 +65,9 @@ export function checkDiagram(d: LogicDiagram): LogicIssue[] {
     }
     for (let pin = 0; pin < inputCountOf(node); pin++) {
       if (!driven.has(`${node.id}#${pin}`))
-        issues.push({ code: 'LOGIC_INPUT_OPEN', severity: 'warning', message: `${nodeLabel(node)}第 ${pin + 1} 個輸入沒有接線，值不確定`, nodeIds: [node.id] });
+        issues.push({ code: 'LOGIC_INPUT_OPEN', severity: 'warning', message: `${nodeLabel(node, d)}第 ${pin + 1} 個輸入沒有接線，值不確定`, nodeIds: [node.id] });
     }
-    if (!used.has(node.id)) issues.push({ code: 'LOGIC_UNUSED', severity: 'warning', message: `${nodeLabel(node)}的輸出沒有接到任何地方`, nodeIds: [node.id] });
+    if (!used.has(node.id) && outputCountOf(node) > 0) issues.push({ code: 'LOGIC_UNUSED', severity: 'warning', message: `${nodeLabel(node, d)}的輸出沒有接到任何地方`, nodeIds: [node.id] });
   }
   return issues;
 }

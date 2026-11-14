@@ -1,5 +1,7 @@
 import { BLOCK_CHIPS, BLOCK_NAMES, isSequentialChip } from '../../logic/blocks';
+import { canUseInside, deleteBlock } from '../../logic/customBlocks';
 import { LOGIC_EXAMPLES } from '../../logic/examples';
+import { blockPins } from '../../logic/flatten';
 import type { NodeKind } from '../../logic/types';
 import { useLogic } from '../../state/logic';
 import { useStore } from '../../state/store';
@@ -27,10 +29,69 @@ const BLOCK_GROUPS: Array<[string, typeof BLOCK_CHIPS]> = [
   ['正反器與計數器', BLOCK_CHIPS.filter((c) => isSequentialChip(c))],
 ];
 
+/** 子專案 65（規格 2026-11-14 custom-blocks 第 4 節）：這個檔案的自訂方塊；點一下放置，沒用到的可以刪除。 */
+function CustomBlockList() {
+  const diagram = useLogic((s) => s.diagram);
+  const inside = useLogic((s) => s.outer[s.outer.length - 1]?.blockId);
+  const placing = useLogic((s) => s.placing);
+  const placingBlock = useLogic((s) => s.placingBlock);
+  const blocks = (diagram.blocks ?? []).filter((b) => inside === undefined || canUseInside(diagram.blocks ?? [], inside, b.id));
+  return (
+    <div data-testid="custom-blocks">
+      <div className="mt-3 px-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">自訂方塊（這個檔案）</div>
+      {blocks.length === 0 && <p className="mt-1 px-1 text-[11px] leading-5 text-slate-400">框選幾個閘，在右邊按「包成方塊」，就會出現在這裡，可以再放好幾個。</p>}
+      <div className="mt-1 grid grid-cols-1 gap-1.5">
+        {blocks.map((b) => {
+          const p = blockPins(b);
+          return (
+            <div key={b.id} className={`flex items-center gap-1 rounded-md border ${placing === 'CUSTOM' && placingBlock === b.id ? 'border-sky-500 bg-sky-900/40' : 'border-emerald-800 bg-slate-800/60'}`}>
+              <button
+                type="button"
+                data-logic-part={`CUSTOM:${b.name}`}
+                title={`${b.name}：${p.inputs.map((n) => n.name).join('、')} → ${p.outputs.map((n) => n.name).join('、')}（點一下再點畫布放下；畫布上點兩下方塊可以進去改）`}
+                onPointerDown={() => {
+                  useLogic.getState().startPlacing('CUSTOM', undefined, b.id);
+                  useStore.getState().toggleDrawer(null);
+                }}
+                className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left"
+              >
+                <span className="flex h-6 w-10 shrink-0 items-center justify-center rounded bg-emerald-50">
+                  <PartIcon kind="BLOCK" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[12px] font-medium leading-4 text-slate-100">{b.name}</span>
+                  <span className="block truncate text-[10px] leading-4 text-slate-400">
+                    {p.inputs.map((n) => n.name).join(' ')} → {p.outputs.map((n) => n.name).join(' ')}
+                  </span>
+                </span>
+              </button>
+              <button
+                type="button"
+                aria-label={`刪除方塊 ${b.name}`}
+                title="刪除這個方塊（要先刪掉用到它的地方）"
+                className="shrink-0 px-2 text-slate-400 hover:text-red-300"
+                onClick={() => {
+                  const r = deleteBlock(useLogic.getState().diagram, b.id);
+                  if (!r.ok) useStore.getState().toast('error', r.reason);
+                  else useLogic.getState().apply(r, `刪除方塊 ${b.name}`);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** 規格第 5 節：邏輯圖時的元件庫（邏輯閘、輸入端、輸出端）。 */
 export function LogicLibrary() {
   const placing = useLogic((s) => s.placing);
   const placingChip = useLogic((s) => s.placingChip);
+  // 子專案 65：在方塊裡編輯時不能放時脈、顯示器。
+  const inBlock = useLogic((s) => s.outer.length > 0);
   const open = useStore((s) => s.drawer === 'library');
   return (
     <aside
@@ -42,7 +103,7 @@ export function LogicLibrary() {
       </div>
       <div className="bbl-scroll min-h-0 flex-1 overflow-y-auto p-2">
         <div className="grid grid-cols-2 gap-1.5">
-          {PARTS.map(([kind, label, hint]) => (
+          {PARTS.filter(([kind]) => !inBlock || (kind !== 'CLOCK' && kind !== 'DISPLAY')).map(([kind, label, hint]) => (
             <button
               key={kind}
               type="button"
@@ -92,6 +153,7 @@ export function LogicLibrary() {
         </div>
         </div>
         ))}
+        <CustomBlockList />
         <LogicNoteCard />
         <p className="mt-3 px-1 text-[11px] leading-5 text-slate-400">
           點一下元件再點畫布放下（Esc 取消）。從一個腳拖到另一個腳連線；點輸入端的開關切換 0 / 1。
