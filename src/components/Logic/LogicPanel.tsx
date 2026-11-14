@@ -3,7 +3,7 @@ import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
 import { removeNodes, removeWire, renameNode, setActiveLow, setConstant, setDisplayMode, setFlip, setGateKind, setInputCount, setRotation } from '../../logic/edit';
 import { BLOCK_DEFAULTS, BLOCK_PINS, isSequentialChip } from '../../logic/blocks';
-import { evaluate, isSequential, MAX_TABLE_INPUTS, PULSE_CHOICES, segmentToken, sequenceTable, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
+import { clockNodes, evaluate, isSequential, parseClockOrder, MAX_TABLE_INPUTS, PULSE_CHOICES, segmentToken, sequenceTable, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
 import { boxOf } from '../../logic/shapes';
 import { canRotate, GATE_KINDS, isGate, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { LOGIC_CELL, useLogic, type LogicTab } from '../../state/logic';
@@ -185,7 +185,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
           </div>
         )}
         {(node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'DISPLAY' || node.kind === 'CLOCK') && <NameEditor node={node} />}
-        {node.kind === 'CLOCK' && <SeqControls note="點「送一個脈衝」或畫布上時脈的按鈕：送出 0 → 1 → 0（上升緣、下降緣各一次）。" />}
+        {node.kind === 'CLOCK' && <SeqControls clockId={node.id} note="點「送一個脈衝」或畫布上時脈的按鈕：送出 0 → 1 → 0（上升緣、下降緣各一次）。" />}
         {node.kind === 'OUTPUT' && (
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -330,15 +330,24 @@ function DisplayValue({ diagram, node }: { diagram: LogicDiagram; node: LogicNod
   );
 }
 
-/** 子專案 46：送一個脈衝、重設（正反器、計數器回到 0）。 */
-function SeqControls({ note }: { note?: string }) {
-  const hasClock = useLogic((l) => l.diagram.nodes.some((n) => n.kind === 'CLOCK'));
+/** 子專案 46：送一個脈衝、重設（正反器、計數器回到 0）。子專案 64：好幾個時脈時每個時脈一個按鈕（clockId 指定時只有那一個）。 */
+function SeqControls({ note, clockId }: { note?: string; clockId?: string }) {
+  const diagram = useLogic((l) => l.diagram);
+  const all = useMemo(() => clockNodes(diagram), [diagram]);
+  const clocks = clockId ? all.filter((n) => n.id === clockId) : all;
   return (
     <div className="space-y-1">
       <div className="flex flex-wrap gap-1">
-        <button type="button" disabled={!hasClock} className={`${btn} bg-violet-700 text-white hover:bg-violet-600`} onClick={() => useLogic.getState().pulse()}>
-          送一個脈衝
-        </button>
+        {clocks.length === 0 && (
+          <button type="button" disabled className={`${btn} bg-violet-700 text-white`}>
+            送一個脈衝
+          </button>
+        )}
+        {clocks.map((n) => (
+          <button key={n.id} type="button" className={`${btn} bg-violet-700 text-white hover:bg-violet-600`} onClick={() => useLogic.getState().pulse(n.id)}>
+            {all.length > 1 ? `送一個脈衝（${n.name}）` : '送一個脈衝'}
+          </button>
+        ))}
         <button type="button" className={`${btn} bg-slate-800 text-slate-200 hover:bg-slate-700`} onClick={() => useLogic.getState().resetSeq()}>
           重設（正反器、計數器回到 0）
         </button>
@@ -440,13 +449,51 @@ function OutputFormulas({ diagram, node }: { diagram: LogicDiagram; node: LogicN
   );
 }
 
+/** 子專案 64（規格 2026-11-14 multiple-clocks 第 2 節）：好幾個時脈時選送哪一個，或寫自訂順序。 */
+function ClockOrder({ clocks }: { clocks: string[] }) {
+  const text = useLogic((l) => l.clockOrder);
+  const set = (t: string) => useLogic.getState().setClockOrder(t);
+  const single = clocks.find((c) => text === c) ?? (text === '' ? clocks[0] : null);
+  return (
+    <div data-testid="clock-order" className="mb-2 space-y-1 text-xs text-slate-300">
+      <div className="flex flex-wrap items-center gap-1">
+        <span>每次送</span>
+        {clocks.map((c) => (
+          <button key={c} type="button" aria-pressed={single === c} onClick={() => set(c === clocks[0] ? '' : c)} className={`${btn} ${single === c ? 'bg-violet-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
+            {c}
+          </button>
+        ))}
+      </div>
+      <label className="flex items-center gap-1">
+        <span className="shrink-0">自訂順序</span>
+        <input
+          aria-label="送時脈的順序"
+          value={single ? '' : text}
+          placeholder={`例如 ${clocks[0]} ${clocks[0]} ${clocks[1]}（照順序一直重複）`}
+          onChange={(e) => set(e.target.value)}
+          className="w-full rounded border border-slate-600 bg-slate-950 px-2 py-0.5 text-xs text-slate-100 focus:border-sky-500 focus:outline-none"
+        />
+      </label>
+    </div>
+  );
+}
+
 /** 子專案 46（規格 2026-10-24 sequential-logic 第 4 節）：時序電路的時序表（從重設開始，第 0 到第 n 次脈衝）。 */
 function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
   const pulses = useLogic((l) => l.pulses);
   const view = useLogic((l) => l.seqView);
-  const table = useMemo(() => sequenceTable(diagram, pulses), [diagram, pulses]);
+  const orderText = useLogic((l) => l.clockOrder);
+  const table = useMemo(() => sequenceTable(diagram, pulses, {}, 0, parseClockOrder(orderText)), [diagram, pulses, orderText]);
+  const clocks = useMemo(() => clockNodes(diagram).map((n) => n.name ?? n.id), [diagram]);
   /** 顯示器的欄（數字）用另一個顏色。 */
   const kinds = useMemo(() => sortedIo(diagram).outputs.map((o) => o.kind === 'DISPLAY'), [diagram]);
+  if (!table.ok && table.reason === 'bad-order')
+    return (
+      <div className="space-y-2 p-3">
+        <ClockOrder clocks={clocks} />
+        <p className="text-sm text-amber-200">沒有叫 {table.unknown.join('、')} 的時脈（圖上的時脈：{clocks.join('、')}）。</p>
+      </div>
+    );
   if (!table.ok) {
     const text =
       table.reason === 'no-clock'
@@ -459,6 +506,7 @@ function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
       </div>
     );
   }
+  const multi = table.clocks.length > 1;
   return (
     <div className="p-3">
       {/* 子專案 50：表格 / 波形切換。 */}
@@ -478,13 +526,15 @@ function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
         ))}
         <span>次脈衝</span>
       </div>
+      {clocks.length > 1 && <ClockOrder clocks={clocks} />}
       {view === 'wave' ? (
         <Waveform table={table} />
       ) : (
       <table data-testid="sequence-table" className="w-full border-collapse text-center font-mono text-sm">
         <thead>
           <tr className="text-slate-300">
-            <th className="border-b border-slate-700 px-1 py-1 font-sans text-xs">{table.clock} 第幾次</th>
+            <th className="border-b border-slate-700 px-1 py-1 font-sans text-xs">{multi ? '第幾次' : `${table.clock} 第幾次`}</th>
+            {multi && <th className="border-b border-slate-700 px-1 py-1 font-sans text-xs">時脈</th>}
             {table.outputs.map((n, i) => (
               <th key={n} className={`border-b border-slate-700 px-1 py-1 text-amber-300 ${i === 0 ? 'border-l' : ''}`}>
                 {n}
@@ -496,6 +546,7 @@ function SequenceTab({ diagram }: { diagram: LogicDiagram }) {
           {table.rows.map((r) => (
             <tr key={r.pulse} data-pulse={r.pulse}>
               <td className="px-1 py-0.5 text-slate-400">{r.pulse}</td>
+              {multi && <td className="px-1 py-0.5 text-violet-300">{r.clock ?? '–'}</td>}
               {r.out.map((b, i) => (
                 <td key={i} className={`px-1 py-0.5 font-bold ${outTone(b, kinds[i])} ${i === 0 ? 'border-l border-slate-700' : ''}`}>
                   {bitText(b)}

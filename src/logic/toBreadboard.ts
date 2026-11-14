@@ -12,7 +12,7 @@ import type { LayoutId } from '../types/board';
 import type { Circuit, Wire } from '../types/circuit';
 import type { ComponentInstance } from '../types/component';
 import type { GridPoint } from '../types/geometry';
-import { SEGMENT_NAMES, sortedIo } from './evaluate';
+import { clockNodes, SEGMENT_NAMES, sortedIo } from './evaluate';
 import { toNandUnits, toNorUnits } from './nandOnly';
 import { BLOCK_DEFAULTS, BLOCK_PINS } from './blocks';
 import { assignIcs, convertProblem, displayResistorsOf, displaysNeedTwoBoards, decompose, drivers, gateSlots, type IcPlan, type Unit } from './synth';
@@ -482,11 +482,15 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   };
 
   // 子專案 46：時脈換成麵包板的時脈元件（理想方波；實際接線時接到實驗箱的脈波產生器或 555），放在開關前面。
-  const clockNode = d.nodes.find((n) => n.kind === 'CLOCK');
-  if (clockNode) {
-    blocks[1].push({ width: 2, rank: 0, place: (x, area) => components.push(comp('CLK1', 'clock', hole(`C${x}`, area), { board: boardNow })) });
-    tie('CLK1#1', clockNode.id);
-  }
+  // 子專案 64：每個時脈一個（CLK1、CLK2…），名稱寫邏輯圖時脈的名稱，依名稱比對。
+  const clockBlocks = new Map<Block, string>();
+  clockNodes(d).forEach((clockNode, k) => {
+    const id = `CLK${k + 1}`;
+    const block: Block = { width: 2, rank: 0, place: (x, area) => components.push(comp(id, 'clock', hole(`C${x}`, area), { board: boardNow, props: { labels: [clockNode.name ?? ''] } })) };
+    blocks[1].push(block);
+    clockBlocks.set(block, clockNode.id);
+    tie(`${id}#1`, clockNode.id);
+  });
 
   const useButtons = options.inputs === 'button';
   const buttonIds = inputs.map((_, k) => `BTN${k + 1}`);
@@ -783,10 +787,9 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   if (grouped) {
     // 子專案 60（指南 3.2）：一組接一組（組內：時脈、開關、輸入的電阻、IC、LED）；EIC-1106 上一區排不下（間隔不到 2 欄）就排到下一區。
     const all = [...blocks[1], ...blocks[3], ...icBlocks];
-    const clock = all.find((blk) => blk.rank === 0);
-    if (clock && clockNode) {
+    for (const [clock, clockNode] of clockBlocks) {
       // 時脈放在第一個用到它的子電路前面。
-      const users = Object.entries(netOf).flatMap(([pin, net]) => (net === clockNode.id ? [parts.of.get(pin.split('#')[0])] : [])).filter((p): p is number => p !== undefined);
+      const users = Object.entries(netOf).flatMap(([pin, net]) => (net === clockNode ? [parts.of.get(pin.split('#')[0])] : [])).filter((p): p is number => p !== undefined);
       clock.part = users.length > 0 ? Math.min(...users) : 0;
     }
     all.sort((x, y) => (x.part ?? 0) - (y.part ?? 0) || (x.rank ?? 0) - (y.rank ?? 0));

@@ -30,7 +30,7 @@ describe('waveText', () => {
   });
 
   it('writes ? for unknown values and leaves displays out', () => {
-    const t: SequenceTable = { ok: true, clock: 'C', outputs: ['X', 'S1'], display: [false, true], rows: [{ pulse: 0, out: ['X', 0] }, { pulse: 1, out: [1, 3] }] };
+    const t: SequenceTable = { ok: true, clock: 'C', clocks: ['C'], outputs: ['X', 'S1'], display: [false, true], rows: [{ pulse: 0, out: ['X', 0] }, { pulse: 1, out: [1, 3] }] };
     expect(waveText(t).split('\n')).toEqual(['C .|', 'X ?‾']);
   });
 });

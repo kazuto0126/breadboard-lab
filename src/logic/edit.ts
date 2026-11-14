@@ -1,7 +1,7 @@
 import { isBlockChip, isSequentialChip } from './blocks';
 import { dropLogicNoteTargets } from './notes';
 import { boxOf, inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
-import { canRotate, isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
+import { MAX_CLOCKS, canRotate, isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
 
@@ -31,6 +31,13 @@ export function defaultName(d: LogicDiagram, kind: 'INPUT' | 'OUTPUT' | 'DISPLAY
   for (let i = 1; ; i++) if (!used.has(`${pool[0]}${i}`)) return `${pool[0]}${i}`;
 }
 
+/** 子專案 64：時脈的預設名稱：CLK、CLK2、CLK3…。 */
+export function clockName(d: LogicDiagram): string {
+  const used = new Set(d.nodes.map((n) => n.name));
+  if (!used.has('CLK')) return 'CLK';
+  for (let i = 2; ; i++) if (!used.has(`CLK${i}`)) return `CLK${i}`;
+}
+
 export function canPlace(d: LogicDiagram, node: LogicNode, ignoreId?: string): boolean {
   return d.nodes.every((n) => n.id === ignoreId || n.id === node.id || !overlaps(n, node));
 }
@@ -48,15 +55,15 @@ export interface Turn {
 export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, chip?: BlockChip, turn: Turn = {}): EditResult {
   const id = nextNodeId(d, kind);
   if (kind === 'BLOCK' && !isBlockChip(chip)) return fail(d, '要指定哪一顆 IC');
-  // 子專案 46：一張圖只能有一個時脈（時序表一次看一個時脈）。
-  if (kind === 'CLOCK' && d.nodes.some((n) => n.kind === 'CLOCK')) return fail(d, '一張圖只能有一個時脈');
+  // 子專案 64：一張圖最多 MAX_CLOCKS 個時脈（子專案 46 時只能一個）。
+  if (kind === 'CLOCK' && d.nodes.filter((n) => n.kind === 'CLOCK').length >= MAX_CLOCKS) return fail(d, `一張圖最多 ${MAX_CLOCKS} 個時脈`);
   const plain: LogicNode =
     kind === 'BLOCK'
       ? { id, kind, x, y, chip }
       : kind === 'HIGH' || kind === 'LOW'
         ? { id, kind, x, y }
         : kind === 'CLOCK'
-          ? { id, kind, x, y, name: 'CLK', value: 0 }
+          ? { id, kind, x, y, name: clockName(d), value: 0 }
           : kind === 'INPUT'
       ? { id, kind, x, y, name: defaultName(d, 'INPUT'), value: 0 }
       : kind === 'OUTPUT' || kind === 'DISPLAY'

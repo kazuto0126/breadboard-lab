@@ -99,7 +99,7 @@ const server = new McpServer(
       '建議流程：new_circuit → list_parts（查元件名稱與腳位）→ place_part（IC 第 1 腳放在 F 列，跨過凹槽）→ add_wire → check_circuit → auto_route → simulate。',
       '從邏輯圖開始：logic_set → logic_truth_table → logic_to_breadboard（轉換、佈線、比對一次完成）。手接的麵包板用 set_part 標上和邏輯圖一樣的名稱，再用 check_against_diagram 比對。',
       '從真值表題目開始：task_set → task_show → task_to_diagram → logic_to_breadboard → task_check。',
-      '時序電路（正反器、計數器）：logic_set 用 CLOCK 節點與 74LS74 / 76 / 90 / 93 / 161 / 193 方塊或單顆正反器 DFF / JKFF → logic_truth_table 看時序表與文字波形 → logic_to_breadboard。',
+      '時序電路（正反器、計數器）：logic_set 用 CLOCK 節點（最多 4 個，各自獨立）與 74LS74 / 76 / 90 / 93 / 161 / 193 方塊或單顆正反器 DFF / JKFF → logic_truth_table 看時序表與文字波形（好幾個時脈時用 clocks 指定送的順序）→ logic_to_breadboard。',
       '從狀態表題目開始（時序電路的設計題）：state_task_set → state_task_to_diagram（用 DFF / JKFF 產生電路並列出化簡後的式子）→ logic_truth_table → logic_to_breadboard；自己畫的電路（logic_set，狀態位元接輸出端 Q0、Q1…）或接好的麵包板（狀態位元的 LED 叫 Q0、Q1…）用 state_task_check 比對。',
     ].join('\n'),
   },
@@ -270,7 +270,7 @@ server.registerTool(
     description: [
       '寫入（取代）電路檔裡的邏輯圖。節點種類：AND、OR、NAND、NOR（inputs 2–4）、NOT、XOR、INPUT、OUTPUT（要有 name；activeLow: true 是低態致動，0 時亮，轉成麵包板時 LED 正極接 +5 V、負極經過電阻接到輸出）、DISPLAY（7 段顯示器，name）、',
       'HIGH（5V）、LOW（GND）、BLOCK（chip：74LS83、74LS151、74LS153、74LS138、74LS85；時序 IC：74LS74 雙 D 正反器、74LS76 雙 JK 正反器、74LS90、74LS93、74LS161、74LS193 計數器；單顆正反器 DFF（D、CLK、/PRE、/CLR → Q、/Q）、JKFF（J、CLK、K、/PRE、/CLR → Q、/Q），轉成麵包板時兩顆合用一片 74LS74 / 74LS76；輸入可以不接：清除 / 預設 / 載入不用、資料 0、時脈 1）、',
-      'CLOCK（時脈，name，一張圖最多一個；接到正反器、計數器的 CLK）。腳的順序用 BLOCK 的腳名（和 74LS 資料表一樣），fromPin 是第幾個輸出。',
+      'CLOCK（時脈，name，一張圖最多 4 個，各自接不同的正反器、計數器的 CLK；轉成麵包板時每個時脈一個時脈元件，名稱一樣）。腳的順序用 BLOCK 的腳名（和 74LS 資料表一樣），fromPin 是第幾個輸出。',
       '線：{ id, from, fromPin?（方塊的第幾個輸出）, to: { node, pin } }。節點沒有 x、y 時自動排版。',
       '閘的輸出可以接回前面（迴授，例如 NAND 交叉接成的 SR 閂鎖）。輸入端最多 12 個；名稱英文字母開頭、最多 8 個英數字（Q̄ 寫成 QBAR、清除寫成 CLR）。',
     ].join(''),
@@ -289,10 +289,14 @@ server.registerTool(
   'logic_truth_table',
   {
     title: '真值表',
-    description: '電路檔裡邏輯圖的真值表（輸入依名稱排序，第一個是最高位元，最多 12 個輸入）、每個輸出的布林式（照圖寫出來與化簡後）與檢查結果。有迴授（閂鎖）時，輸出跟之前的狀態有關的格子寫「保持」，一直來回跳的寫「不穩定」。時序電路（有正反器、計數器或時脈）回傳時序表：從重設開始每次脈衝之後的輸出，再加一段文字波形（每格一個字元，‾ 是 1、_ 是 0）。',
-    inputSchema: { file, pulses: z.number().int().min(1).max(64).optional().describe('時序表列到第幾次脈衝（預設 16）') },
+    description: '電路檔裡邏輯圖的真值表（輸入依名稱排序，第一個是最高位元，最多 12 個輸入）、每個輸出的布林式（照圖寫出來與化簡後）與檢查結果。有迴授（閂鎖）時，輸出跟之前的狀態有關的格子寫「保持」，一直來回跳的寫「不穩定」。時序電路（有正反器、計數器或時脈）回傳時序表：從重設開始每次脈衝之後的輸出，再加一段文字波形（每格一個字元，‾ 是 1、_ 是 0）。有好幾個時脈時，每次送一個時脈：預設送名稱排第一個的，clocks 指定順序（照順序一直重複），表格多一欄寫送了哪個時脈，波形每個時脈一條。',
+    inputSchema: {
+      file,
+      pulses: z.number().int().min(1).max(64).optional().describe('時序表列到第幾次脈衝（預設 16）'),
+      clocks: z.array(z.string()).optional().describe('送時脈的順序（時脈名稱，照順序一直重複），例如 ["CLK", "CLK", "CLK2"]；只有一個時脈時不用給'),
+    },
   },
-  async (args) => withFile(args.file, (lab) => tools.logicTruthTable(lab, { pulses: args.pulses })),
+  async (args) => withFile(args.file, (lab) => tools.logicTruthTable(lab, { pulses: args.pulses, clocks: args.clocks })),
 );
 
 server.registerTool(

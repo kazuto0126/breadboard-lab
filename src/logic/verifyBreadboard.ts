@@ -2,7 +2,7 @@ import { getComponentDefinition } from '../core/circuit/library';
 import { whyDark } from '../core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle, type SimCircuit, type SimResult } from '../core/simulation/simulate';
 import type { Circuit } from '../types/circuit';
-import { HOLD, segmentToken, sequenceTable, sortedIo, topoOrder, truthTable, UNSTABLE, type OutValue } from './evaluate';
+import { allClocks, HOLD, segmentToken, sequenceTable, sortedIo, topoOrder, truthTable, UNSTABLE, type OutValue } from './evaluate';
 import { valueOfSegments } from './sevenSeg';
 import type { LogicDiagram } from './types';
 
@@ -47,6 +47,8 @@ export interface Bindings {
   displays: Record<string, string>;
   /** 子專案 46：時序電路的時脈元件 id。 */
   clock?: string;
+  /** 子專案 64：邏輯圖時脈的名稱 → 時脈元件 id（好幾個時脈時）。 */
+  clocks?: Record<string, string>;
 }
 
 /** 子專案 30：按鈕對應的這一列要不要按住。 */
@@ -163,27 +165,29 @@ export function sequenceCombos(count: number): Array<Array<0 | 1>> {
 export function verifySequence(d: LogicDiagram, circuit: Circuit, bindings: Bindings, pulses = VERIFY_PULSES): VerifyResult {
   const { inputs, outputs: sinks } = sortedIo(d);
   const outputs = sinks.map((o) => ({ id: o.id, display: o.kind === 'DISPLAY', segments: !!o.segments }));
-  const clock = bindings.clock ?? '';
+  // 子專案 64：好幾個時脈時輪流送（每個時脈都比得到）；名稱 → 時脈元件。
+  const order = allClocks(d);
+  const clockOf = (name: string | undefined) => (name !== undefined ? bindings.clocks?.[name] : undefined) ?? bindings.clock ?? '';
   const combos = sequenceCombos(inputs.length);
   const mismatches: VerifyResult['mismatches'] = [];
   for (const bits of combos) {
     const values = Object.fromEntries(inputs.map((n, i) => [n.id, bits[i]]));
-    const table = sequenceTable(d, pulses, values);
+    const table = sequenceTable(d, pulses, values, 0, order);
     // 子專案 60：有迴授（閂鎖）時，上電的值不一定：上電是 0 或 1 結果不一樣的格子不比（實體電路剛上電也不一定）。
-    const other = topoOrder(d).loop ? sequenceTable(d, pulses, values, 1) : table;
+    const other = topoOrder(d).loop ? sequenceTable(d, pulses, values, 1, order) : table;
     if (!table.ok) return { rows: 0, pulses, mismatches: [] };
     const sim = compileSimulation(withSwitches(circuit, bindings.inputs, bits));
     const pressed = pressedFor(bindings.inputs, bits);
     let state = initialSimState(sim);
-    const step = (level: 0 | 1) => {
-      const r = settle(sim, state, { pressed, clocks: { [clock]: level } });
+    const step = (level: 0 | 1, clock = '') => {
+      const r = settle(sim, state, { pressed, clocks: level === 1 ? { [clock]: 1 } : {} });
       state = r.state;
       return r.result;
     };
     let result = step(0);
     for (const row of table.rows) {
       if (row.pulse > 0) {
-        step(1);
+        step(1, clockOf(row.clock));
         result = step(0);
       }
       const twin = other.ok ? other.rows.find((r) => r.pulse === row.pulse) : undefined;

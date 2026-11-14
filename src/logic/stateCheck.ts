@@ -44,6 +44,8 @@ export function compareDiagramToStateTask(d: LogicDiagram, task: StateTask): Sta
   const clock = d.nodes.find((n) => n.kind === 'CLOCK');
   const issues: string[] = [];
   if (!clock) issues.push('邏輯圖沒有時脈：放一個時脈，接到每個正反器的 CLK');
+  // 子專案 64：狀態表題目只有一個時脈。
+  else if (d.nodes.filter((n) => n.kind === 'CLOCK').length > 1) issues.push('邏輯圖有好幾個時脈；狀態表題目的電路只能有一個時脈，接到每個正反器的 CLK');
   const missingBits = bits.filter((q) => !outputs.has(q));
   if (missingBits.length > 0) issues.push(`要有輸出端 ${missingBits.join('、')}（接到正反器的 Q，Q0 是最低位元），才知道電路在哪個狀態`);
   for (const name of task.inputs) if (!inputs.has(name)) issues.push(`題目的輸入 ${name} 在邏輯圖找不到輸入端`);

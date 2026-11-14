@@ -414,8 +414,28 @@ function memoryKey(seq: SeqState): string {
 }
 
 export type SequenceTable =
-  | { ok: true; clock: string; outputs: string[]; /** 子專案 50：每欄是不是顯示器（波形畫成數字）。 */ display: boolean[]; rows: Array<{ pulse: number; out: OutValue[] }> }
-  | { ok: false; reason: 'no-clock' | 'empty' };
+  | {
+      ok: true;
+      /** 第一個送的時脈（只有一個時脈時就是它）。 */
+      clock: string;
+      /** 子專案 64：圖上所有時脈的名稱（依名稱排序）。 */
+      clocks: string[];
+      outputs: string[];
+      /** 子專案 50：每欄是不是顯示器（波形畫成數字）。 */
+      display: boolean[];
+      /** clock：這一列之前送了哪個時脈（第 0 列沒有）。 */
+      rows: Array<{ pulse: number; out: OutValue[]; clock?: string }>;
+    }
+  | { ok: false; reason: 'no-clock' | 'empty' }
+  | { ok: false; reason: 'bad-order'; unknown: string[] };
+
+/** 子專案 64：圖上的時脈，依名稱排序。 */
+export function clockNodes(d: LogicDiagram): LogicNode[] {
+  return d.nodes.filter((n) => n.kind === 'CLOCK').sort((a, b) => (a.name ?? a.id).localeCompare(b.name ?? b.id, 'en', { numeric: true }));
+}
+
+/** 子專案 64：輪流送每一個時脈的順序（比對麵包板時用，每個時脈都比得到）。 */
+export const allClocks = (d: LogicDiagram): string[] => clockNodes(d).map((n) => n.name ?? n.id);
 
 /** 子專案 46：時序表的列數（第 0 次到第 n 次脈衝）可以選的值。 */
 export const PULSE_CHOICES = [8, 16, 32];
@@ -424,19 +444,32 @@ export const PULSE_CHOICES = [8, 16, 32];
  * 子專案 46（規格 2026-10-24 sequential-logic 第 4 節）：從重設（全部 0）開始，其他輸入用 values（沒給時用開關目前的值），
  * 送 pulses 個脈衝（0 → 1 → 0），列出每次之後每個輸出端、顯示器的值。
  */
-/** 子專案 60：seed 是迴授（閂鎖）上電時的值（預設 0）。 */
-export function sequenceTable(d: LogicDiagram, pulses = 16, values: Record<string, 0 | 1> = {}, seed: 0 | 1 = 0): SequenceTable {
-  const clock = d.nodes.find((n) => n.kind === 'CLOCK');
-  if (!clock) return { ok: false, reason: 'no-clock' };
+/**
+ * 子專案 60：seed 是迴授（閂鎖）上電時的值（預設 0）。
+ * 子專案 64：order 是時脈名稱的清單，照順序一直重複送；沒給時送名稱排第一個的時脈。每次送一個時脈，其他時脈留在 0。
+ */
+export function sequenceTable(d: LogicDiagram, pulses = 16, values: Record<string, 0 | 1> = {}, seed: 0 | 1 = 0, order?: string[]): SequenceTable {
+  const clocks = clockNodes(d);
+  if (clocks.length === 0) return { ok: false, reason: 'no-clock' };
+  const byName = new Map(clocks.map((n) => [n.name ?? n.id, n]));
+  const names = order && order.length > 0 ? order : [clocks[0].name ?? clocks[0].id];
+  const unknown = names.filter((n) => !byName.has(n));
+  if (unknown.length > 0) return { ok: false, reason: 'bad-order', unknown };
   const { outputs } = sortedIo(d);
   if (outputs.length === 0) return { ok: false, reason: 'empty' };
   const read = (v: ReturnType<typeof evaluate>) => outputs.map((o) => (o.kind === 'DISPLAY' ? displayValue(o, v) : (v.nodes.get(o.id) ?? 'X')));
-  let v = evaluate(d, { ...values, [clock.id]: 0 }, seed === 0 ? undefined : powerOnState(seed));
-  const rows = [{ pulse: 0, out: read(v) }];
+  const low = Object.fromEntries(clocks.map((n) => [n.id, 0 as const]));
+  let v = evaluate(d, { ...values, ...low }, seed === 0 ? undefined : powerOnState(seed));
+  const rows: Array<{ pulse: number; out: OutValue[]; clock?: string }> = [{ pulse: 0, out: read(v) }];
   for (let k = 1; k <= pulses; k++) {
-    const up = evaluate(d, { ...values, [clock.id]: 1 }, v.seq);
-    v = evaluate(d, { ...values, [clock.id]: 0 }, up.seq);
-    rows.push({ pulse: k, out: read(v) });
+    const name = names[(k - 1) % names.length];
+    const id = byName.get(name)!.id;
+    const up = evaluate(d, { ...values, ...low, [id]: 1 }, v.seq);
+    v = evaluate(d, { ...values, ...low }, up.seq);
+    rows.push({ pulse: k, out: read(v), clock: name });
   }
-  return { ok: true, clock: clock.name ?? clock.id, outputs: outputs.map((n) => n.name ?? n.id), display: outputs.map((n) => n.kind === 'DISPLAY'), rows };
+  return { ok: true, clock: names[0], clocks: clocks.map((n) => n.name ?? n.id), outputs: outputs.map((n) => n.name ?? n.id), display: outputs.map((n) => n.kind === 'DISPLAY'), rows };
 }
+
+/** 子專案 64：「CLK CLK2」「CLK、CLK2」→ 名稱清單（空白、逗號、頓號隔開）。 */
+export const parseClockOrder = (text: string): string[] => text.split(/[\s,，、]+/).filter(Boolean);

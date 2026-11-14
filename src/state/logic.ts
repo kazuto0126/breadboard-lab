@@ -5,7 +5,7 @@ import { addLogicNote, moveLogicNote, removeLogicNote, setLogicNoteColor, setLog
 import type { NoteColor } from '../types/circuit';
 import { addNode, copyNodes, flipNodes, pasteNodes, removeNodes, removeWire, rotateNodes, setInputValue, type EditResult, type LogicClipboard, type Turn } from '../logic/edit';
 import { boxOf } from '../logic/shapes';
-import { evaluate, type SeqState } from '../logic/evaluate';
+import { clockNodes, evaluate, type SeqState } from '../logic/evaluate';
 import { emptyDiagram, type LogicDiagram, type NodeKind, type BlockChip, type Rotation } from '../logic/types';
 import * as persistence from './persistence';
 
@@ -38,6 +38,8 @@ export interface LogicState {
   pulses: number;
   /** 子專案 50：時序表分頁顯示表格或波形（不存檔、不進 Undo）。 */
   seqView: 'table' | 'wave';
+  /** 子專案 64：時序表送時脈的順序（名稱，空白隔開；空字串是送名稱排第一個的時脈）。不存檔、不進 Undo。 */
+  clockOrder: string;
   load(d: LogicDiagram): void;
   markSaved(): void;
   apply(r: EditResult, label: string, selection?: LogicSelection): boolean;
@@ -63,8 +65,9 @@ export interface LogicState {
   fit(): void;
   setTab(tab: LogicTab): void;
   setShowFormulas(on: boolean): void;
-  /** 子專案 46：送一個脈衝（時脈 0 → 1 → 0）。沒有時脈時什麼都不做。 */
-  pulse(): void;
+  /** 子專案 46：送一個脈衝（時脈 0 → 1 → 0）。沒有時脈時什麼都不做。子專案 64：clockId 指定送哪個時脈（沒給時是名稱排第一個的）。 */
+  pulse(clockId?: string): void;
+  setClockOrder(order: string): void;
   /** 子專案 46：時序方塊全部回到上電狀態（0）。 */
   resetSeq(): void;
   setPulses(n: number): void;
@@ -82,10 +85,10 @@ export interface LogicState {
   deleteNote(id: string): void;
 }
 
-export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote' | 'showFormulas' | 'seq' | 'pulses' | 'seqView'> {
+export function initialLogicState(): Pick<LogicState, 'diagram' | 'saved' | 'history' | 'selection' | 'placing' | 'placingChip' | 'placingTurn' | 'viewport' | 'canvasSize' | 'tab' | 'editingNote' | 'showFormulas' | 'seq' | 'pulses' | 'seqView' | 'clockOrder'> {
   const restored = typeof window !== 'undefined' ? persistence.loadAutosave()?.logic : undefined;
   const diagram = restored ?? emptyDiagram();
-  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null, showFormulas: false, seq: evaluate(diagram).seq, pulses: 16, seqView: 'table' };
+  return { diagram, saved: diagram, history: emptyHistory(), selection: null, placing: null, placingChip: null, placingTurn: {}, viewport: DEFAULT_VIEWPORT, canvasSize: { width: 1200, height: 700 }, tab: 'inspect', editingNote: null, showFormulas: false, seq: evaluate(diagram).seq, pulses: 16, seqView: 'table', clockOrder: '' };
 }
 
 /** 子專案 46：圖或輸入改了之後，時序方塊從目前的狀態重算到穩定（新的方塊從上電狀態開始）。 */
@@ -189,12 +192,17 @@ export const useLogic = create<LogicState>((set, get) => ({
     for (const [id, v] of Object.entries(values)) d = setInputValue(d, id, v);
     set({ diagram: d, seq: settled(d, get().seq) });
   },
-  pulse() {
+  pulse(clockId) {
     const d = get().diagram;
-    const clock = d.nodes.find((n) => n.kind === 'CLOCK');
+    const clocks = clockNodes(d);
+    const clock = clocks.find((n) => n.id === clockId) ?? clocks[0];
     if (!clock) return;
-    const up = evaluate(d, { [clock.id]: 1 }, get().seq).seq;
-    set({ seq: evaluate(d, { [clock.id]: 0 }, up).seq });
+    const low = Object.fromEntries(clocks.map((n) => [n.id, 0 as const]));
+    const up = evaluate(d, { ...low, [clock.id]: 1 }, get().seq).seq;
+    set({ seq: evaluate(d, low, up).seq });
+  },
+  setClockOrder(clockOrder) {
+    set({ clockOrder });
   },
   resetSeq() {
     set({ seq: evaluate(get().diagram).seq });

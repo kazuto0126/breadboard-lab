@@ -27,7 +27,7 @@ import { checkDiagram } from '../logic/check';
 import { convertAndRoute, convertAndRouteParallel, type ConvertRouted, type RouteJob } from '../logic/convertRoute';
 import { displayResistorsOf } from '../logic/synth';
 import { checkAgainstDiagram as checkByNames } from '../logic/diagramCheck';
-import { isSequential, MAX_TABLE_INPUTS, sequenceTable, sortedIo, truthTable } from '../logic/evaluate';
+import { allClocks, isSequential, MAX_TABLE_INPUTS, sequenceTable, sortedIo, truthTable } from '../logic/evaluate';
 import { waveText } from '../logic/waveform';
 import { diagramFormulas } from '../logic/formula';
 import { parseLogicDiagram } from '../logic/file';
@@ -435,10 +435,10 @@ export function logicSet(f: LabFile, args: { diagram: unknown }): ToolResult {
 
 const NO_LOGIC = '檔案裡還沒有邏輯圖；用 logic_set 寫入';
 
-export function logicTruthTable(f: LabFile, args: { pulses?: number } = {}): ToolResult {
+export function logicTruthTable(f: LabFile, args: { pulses?: number; clocks?: string[] } = {}): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
   // 子專案 46：時序電路回傳時序表。
-  if (isSequential(f.logic)) return sequenceReply(f.logic, args.pulses ?? 16);
+  if (isSequential(f.logic)) return sequenceReply(f.logic, args.pulses ?? 16, args.clocks);
   const t = truthTable(f.logic);
   if (!t.ok) {
     if (t.reason === 'too-many') return { text: `輸入超過 ${MAX_TABLE_INPUTS} 個，真值表太長，不列出。` };
@@ -463,18 +463,22 @@ export function logicTruthTable(f: LabFile, args: { pulses?: number } = {}): Too
 }
 
 /** 子專案 46（規格 2026-10-24 sequential-logic 第 6 節）：時序表的文字（從重設開始，其他輸入用檔案裡開關的值）。 */
-function sequenceReply(d: LogicDiagram, pulses: number): ToolResult {
-  const t = sequenceTable(d, Math.max(1, Math.min(64, Math.floor(pulses))));
+function sequenceReply(d: LogicDiagram, pulses: number, clocks?: string[]): ToolResult {
+  const t = sequenceTable(d, Math.max(1, Math.min(64, Math.floor(pulses))), {}, 0, clocks);
   if (!t.ok) {
+    // 子專案 64：clocks 寫了圖上沒有的時脈。
+    if (t.reason === 'bad-order') return fail(`沒有叫 ${t.unknown.join('、')} 的時脈；圖上的時脈：${allClocks(d).join('、')}`);
     if (t.reason === 'no-clock') return { text: '這是時序電路（有正反器或計數器），但沒有時脈：加一個 kind 為 CLOCK 的節點，接到 CLK 腳。' };
     return { text: '邏輯圖沒有輸出端或 7 段顯示器。' };
   }
   const cell = (v: string | number) => (v === 'X' ? '?' : String(v));
   const inputs = sortedIo(d).inputs;
+  const multi = t.clocks.length > 1;
   const lines = [
     `時序表（從重設開始：正反器、計數器都是 0；${inputs.length > 0 ? `其他輸入：${inputs.map((n) => `${n.name} = ${n.value ?? 0}`).join('、')}` : '沒有其他輸入'}）：`,
-    `${t.clock} 第幾次 | ${t.outputs.join(' ')}`,
-    ...t.rows.map((r) => `${r.pulse} | ${r.out.map(cell).join(' ')}`),
+    ...(multi
+      ? [`第幾次 時脈 | ${t.outputs.join(' ')}`, ...t.rows.map((r) => `${r.pulse} ${r.clock ?? '-'} | ${r.out.map(cell).join(' ')}`)]
+      : [`${t.clock} 第幾次 | ${t.outputs.join(' ')}`, ...t.rows.map((r) => `${r.pulse} | ${r.out.map(cell).join(' ')}`)]),
   ];
   // 子專案 50：文字波形（AI 看不到畫面上的波形）。
   if (t.display.some((d) => !d)) lines.push('', '波形（每格是那次脈衝之後的值；‾ 是 1、_ 是 0、? 是不確定；時脈每個 | 是一個脈衝）：', waveText(t));
