@@ -17,6 +17,9 @@ export function nodeLabel(node: LogicNode, d?: LogicDiagram): string {
   if (node.kind === 'LOW') return `GND ${node.id}`;
   if (node.kind === 'BLOCK') return `方塊 ${node.id}（${node.chip}）`;
   if (node.kind === 'CLOCK') return `時脈 ${node.name}`;
+  // 子專案 66：合起來 / 拆開。
+  if (node.kind === 'MERGE') return `合起來 ${node.id}（${node.width} 位元）`;
+  if (node.kind === 'SPLIT') return `拆開 ${node.id}（${node.width} 位元）`;
   // 子專案 65：自訂方塊寫方塊的名稱。
   if (node.kind === 'CUSTOM') return `方塊 ${d?.blocks?.find((b) => b.id === node.block)?.name ?? node.block}（${node.id}）`;
   return `${node.id}（${node.kind}）`;

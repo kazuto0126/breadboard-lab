@@ -11,6 +11,9 @@ export function inputCountOf(node: LogicNode): number {
   if (isSource(node.kind)) return 0;
   if (node.kind === 'BLOCK') return node.chip ? BLOCK_PINS[node.chip].inputs.length : 0;
   if (node.kind === 'CUSTOM') return node.inputs ?? 0;
+  // 子專案 66：拆開是一個匯流排輸入；合起來是 width 個一位元輸入。
+  if (node.kind === 'SPLIT') return 1;
+  if (node.kind === 'MERGE') return node.width ?? 4;
   // 子專案 32：BCD 顯示器是 A–D 加上 DP；每段直接控制時是 a–g、dp。
   if (node.kind === 'DISPLAY') return node.segments ? 8 : 5;
   if (node.kind === 'OUTPUT' || node.kind === 'NOT') return 1;
@@ -23,12 +26,14 @@ export function outputCountOf(node: LogicNode): number {
   if (isSink(node.kind)) return 0;
   if (node.kind === 'BLOCK') return node.chip ? BLOCK_PINS[node.chip].outputs.length : 0;
   if (node.kind === 'CUSTOM') return node.outputs ?? 0;
+  if (node.kind === 'SPLIT') return node.width ?? 4;
   return 1;
 }
 
 /** 規格 2.1 的表。 */
 export function nodeSize(node: LogicNode): { w: number; h: number } {
   if (node.kind === 'BLOCK' || node.kind === 'CUSTOM') return { w: BLOCK_WIDTH, h: Math.max(inputCountOf(node), outputCountOf(node), 1) + 1 };
+  if (node.kind === 'SPLIT' || node.kind === 'MERGE') return { w: 2, h: node.width ?? 4 };
   if (node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'HIGH' || node.kind === 'LOW' || node.kind === 'CLOCK') return { w: 2, h: 1 };
   if (node.kind === 'DISPLAY') return { w: 4, h: node.segments ? 8 : 5 };
   if (node.kind === 'NOT') return { w: 3, h: 1 };
@@ -36,6 +41,9 @@ export function nodeSize(node: LogicNode): { w: number; h: number } {
 }
 
 const OFFSETS: Record<number, number[]> = { 1: [0], 2: [0, 2], 3: [0, 1, 2], 4: [0, 1, 3, 4] };
+
+/** 子專案 66：合起來 / 拆開的匯流排腳在第幾列（中間偏上）。 */
+export const busRow = (node: LogicNode): number => Math.floor(((node.width ?? 4) - 1) / 2);
 
 /** IC 方塊的寬度（格）。 */
 export const BLOCK_WIDTH = 6;
@@ -94,7 +102,8 @@ export function inputDir(node: LogicNode): Facing {
 
 export function inputPins(node: LogicNode): GridXY[] {
   const n = inputCountOf(node);
-  if (node.kind === 'BLOCK' || node.kind === 'CUSTOM') return Array.from({ length: n }, (_, k) => place(node, 0, k));
+  if (node.kind === 'BLOCK' || node.kind === 'CUSTOM' || node.kind === 'MERGE') return Array.from({ length: n }, (_, k) => place(node, 0, k));
+  if (node.kind === 'SPLIT') return [place(node, 0, busRow(node))];
   // 子專案 32：顯示器的 DP 在 B 和 C 中間那一列；每段直接控制時 8 個輸入一列一個。
   if (node.kind === 'DISPLAY') return (node.segments ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1, 3, 4, 2]).map((dy) => place(node, 0, dy));
   return (OFFSETS[n] ?? []).map((dy) => place(node, 0, dy));
@@ -104,7 +113,8 @@ export function inputPins(node: LogicNode): GridXY[] {
 export function outputPins(node: LogicNode): GridXY[] {
   if (isSink(node.kind)) return [];
   const { w, h } = nodeSize(node);
-  if (node.kind === 'BLOCK' || node.kind === 'CUSTOM') return Array.from({ length: outputCountOf(node) }, (_, k) => place(node, w, k));
+  if (node.kind === 'BLOCK' || node.kind === 'CUSTOM' || node.kind === 'SPLIT') return Array.from({ length: outputCountOf(node) }, (_, k) => place(node, w, k));
+  if (node.kind === 'MERGE') return [place(node, w, busRow(node))];
   return [place(node, w, isGate(node.kind) ? Math.floor(h / 2) : 0)];
 }
 

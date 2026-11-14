@@ -1,5 +1,6 @@
 import { canPlace, NAME_RULE, nextNodeId, nextWireId, type EditResult, type Turn } from './edit';
 import { blockPins, usesItself } from './flatten';
+import { blockPinGroups } from './pins';
 import { dropLogicNoteTargets } from './notes';
 import { boxOf } from './shapes';
 import { signalOf, type CustomBlock, type LogicDiagram, type LogicNode, type LogicWire } from './types';
@@ -124,23 +125,57 @@ export function wrapAsBlock(d: LogicDiagram, ids: string[], name = nextBlockName
     ...outSignals.map(([, ws], k) => ({ id: wid(), from: ws[0].from, ...(ws[0].fromPin ? { fromPin: ws[0].fromPin } : {}), to: { node: outNodes[k].id, pin: 0 } })),
   ];
   const blocks = d.blocks ?? [];
-  const def: CustomBlock = { id: nextBlockId(blocks), name, nodes: [...inNodes, ...inner, ...outNodes], wires: innerWires };
+  // 子專案 66：新做的方塊 A0–A3 這種腳合成一個多位元腳。
+  const def: CustomBlock = { id: nextBlockId(blocks), name, busPins: true, nodes: [...inNodes, ...inner, ...outNodes], wires: innerWires };
+  const groups = blockPinGroups(def);
 
   // 外面：選取的元件換成一個方塊。
   const notes = dropLogicNoteTargets(d.notes, picked);
   let outer: LogicDiagram = { ...d, nodes: d.nodes.filter((n) => !picked.has(n.id)), wires: d.wires.filter((w) => !picked.has(w.from) && !picked.has(w.to.node)), blocks: [...blocks, def], ...(notes ? { notes } : {}) };
   const id = nextNodeId(d, 'CUSTOM');
-  const node = freeSpot(outer, { id, kind: 'CUSTOM', x: x0, y: y0, block: def.id, inputs: inNodes.length, outputs: outNodes.length });
+  const node = freeSpot(outer, { id, kind: 'CUSTOM', x: x0, y: y0, block: def.id, inputs: groups.inputs.length, outputs: groups.outputs.length });
   if (!node) return fail(d, '附近沒有空位放方塊');
   outer = { ...outer, nodes: [...outer.nodes, node] };
   const add = (w: Omit<LogicWire, 'id'>) => (outer = { ...outer, wires: [...outer.wires, { id: nextWireId(outer), ...w }] });
-  inSignals.forEach((s, k) => add({ from: s.from, ...(s.fromPin ? { fromPin: s.fromPin } : {}), to: { node: id, pin: k } }));
-  outSignals.forEach(([, ws], k) => ws.forEach((w) => add({ from: id, ...(k > 0 ? { fromPin: k } : {}), to: { ...w.to } })));
+  /** 放一個合起來 / 拆開在方塊旁邊（左邊或右邊，放不下就往下找）。 */
+  const busNode = (kind: 'MERGE' | 'SPLIT', width: number, row: number): string | null => {
+    const bid = nextNodeId(outer, kind);
+    const spot = freeSpot(outer, { id: bid, kind, width, x: kind === 'MERGE' ? node.x - 4 : node.x + boxOf(node).w + 2, y: node.y + row });
+    if (!spot) return null;
+    outer = { ...outer, nodes: [...outer.nodes, spot] };
+    return bid;
+  };
+  const inIndex = (n: LogicNode) => inNodes.indexOf(n);
+  for (const [p, g] of groups.inputs.entries()) {
+    const sources = g.nodes.map((n) => inSignals[inIndex(n)]);
+    if (g.nodes.length === 1) {
+      const s = sources[0];
+      add({ from: s.from, ...(s.fromPin ? { fromPin: s.fromPin } : {}), to: { node: id, pin: p } });
+      continue;
+    }
+    // 外面一個一個的訊號先用「合起來」合成匯流排，再接到方塊的多位元腳。
+    const m = busNode('MERGE', g.nodes.length, p);
+    if (!m) return fail(d, '附近沒有空位放「合起來」');
+    sources.forEach((s, bit) => add({ from: s.from, ...(s.fromPin ? { fromPin: s.fromPin } : {}), to: { node: m, pin: bit } }));
+    add({ from: m, to: { node: id, pin: p } });
+  }
+  for (const [p, g] of groups.outputs.entries()) {
+    const sets = g.nodes.map((n) => outSignals[outNodes.indexOf(n)][1]);
+    if (g.nodes.length === 1) {
+      for (const w of sets[0]) add({ from: id, ...(p > 0 ? { fromPin: p } : {}), to: { ...w.to } });
+      continue;
+    }
+    // 方塊的多位元輸出先接到「拆開」，再一位一位接到原本的地方。
+    const sp = busNode('SPLIT', g.nodes.length, p);
+    if (!sp) return fail(d, '附近沒有空位放「拆開」');
+    add({ from: id, ...(p > 0 ? { fromPin: p } : {}), to: { node: sp, pin: 0 } });
+    sets.forEach((ws, bit) => ws.forEach((w) => add({ from: sp, ...(bit > 0 ? { fromPin: bit } : {}), to: { ...w.to } })));
+  }
   return { ok: true, diagram: outer, id };
 }
 
-/** 把 nodes / wires 裡用到 blockId 的方塊照新的腳更新（腳名還在的線照名稱接回去，不見的拿掉）。 */
-function refit(nodes: LogicNode[], wires: LogicWire[], blockId: string, oldPins: { inputs: string[]; outputs: string[] }, newPins: { inputs: string[]; outputs: string[] }) {
+/** 把 nodes / wires 裡用到 blockId 的方塊照新的腳更新（腳名還在的線照名稱接回去，不見的或位元數變了的拿掉）。 */
+function refit(nodes: LogicNode[], wires: LogicWire[], blockId: string, oldPins: PinKeys, newPins: PinKeys) {
   const users = new Set(nodes.filter((n) => n.kind === 'CUSTOM' && n.block === blockId).map((n) => n.id));
   if (users.size === 0) return { nodes, wires };
   const nextNodes = nodes.map((n) => (users.has(n.id) ? { ...n, inputs: newPins.inputs.length, outputs: newPins.outputs.length } : n));
@@ -149,12 +184,12 @@ function refit(nodes: LogicNode[], wires: LogicWire[], blockId: string, oldPins:
     let wire = w;
     if (users.has(w.to.node)) {
       const k = newPins.inputs.indexOf(oldPins.inputs[w.to.pin]);
-      if (k < 0) continue;
+      if (k < 0 || newPins.inWidth[k] !== oldPins.inWidth[w.to.pin]) continue;
       wire = { ...wire, to: { node: w.to.node, pin: k } };
     }
     if (users.has(w.from)) {
       const k = newPins.outputs.indexOf(oldPins.outputs[w.fromPin ?? 0]);
-      if (k < 0) continue;
+      if (k < 0 || newPins.outWidth[k] !== oldPins.outWidth[w.fromPin ?? 0]) continue;
       const { fromPin: _old, ...rest } = wire;
       wire = { ...rest, ...(k > 0 ? { fromPin: k } : {}) };
     }
@@ -163,9 +198,10 @@ function refit(nodes: LogicNode[], wires: LogicWire[], blockId: string, oldPins:
   return { nodes: nextNodes, wires: nextWires };
 }
 
-const pinNames = (b: Pick<CustomBlock, 'nodes'>) => {
+type PinKeys = { inputs: string[]; outputs: string[]; inWidth: number[]; outWidth: number[] };
+const pinNames = (b: Pick<CustomBlock, 'nodes' | 'busPins'>): PinKeys => {
   const p = blockPins(b);
-  return { inputs: p.inputs.map((n) => n.name ?? n.id), outputs: p.outputs.map((n) => n.name ?? n.id) };
+  return { inputs: p.inputs.map((n) => n.key), outputs: p.outputs.map((n) => n.key), inWidth: p.inputs.map((n) => n.width), outWidth: p.outputs.map((n) => n.width) };
 };
 
 /**
