@@ -18,6 +18,7 @@ import {
 import { withTask, type TaskValue } from '../../logic/task';
 import type { LogicDiagram } from '../../logic/types';
 import { useLogic } from '../../state/logic';
+import { StateDiagramView } from './StateDiagramView';
 
 /** 子專案 52（規格 2026-10-25 state-table-task 第 5 節）：「題目」分頁的狀態表題目。 */
 const btn = 'rounded px-2 py-1 text-xs disabled:opacity-50';
@@ -200,6 +201,7 @@ export function StateTaskTab({ diagram }: { diagram: LogicDiagram }) {
         </tbody>
       </table>
       <p className="text-xs text-slate-400">下一個狀態用選單選（X 是不在乎）；輸出點一下 0 → 1 → X。沒用到的狀態編碼當成不在乎。</p>
+      <StateDiagramView task={task} />
       <div className="rounded border border-slate-700 bg-slate-900/60 p-2">
         <div className="mb-1 text-xs font-semibold text-slate-200">化簡後的式子（積項和）</div>
         <ul data-testid="state-equations" className="space-y-0.5 font-mono text-xs text-slate-100">

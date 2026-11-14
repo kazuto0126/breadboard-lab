@@ -66,3 +66,33 @@ test('狀態表題目轉成麵包板：「檢查」分頁的「和狀態表比�
   await expect(card).toContainText('從 S0 開始比對了 4 列，麵包板和狀態表全部一致', { timeout: 30_000 });
   await expect(card).toContainText(/對應：Q1 → D\d+、Q0 → D\d+/);
 });
+
+/** 子專案 63（規格 2026-11-14 state-diagram）：狀態表題目下面畫出狀態圖，改狀態表時跟著變。 */
+test('狀態圖：序列偵測器的箭頭寫 輸入/輸出，改一格後箭頭跟著換', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByTestId('view-switch').getByRole('button', { name: '邏輯圖' }).click();
+  await page.getByRole('tab', { name: '題目' }).click();
+  await page.getByRole('button', { name: '狀態表題目', exact: true }).click();
+  await page.getByLabel('狀態數').selectOption('2');
+  await page.getByLabel('狀態表的輸入名稱').fill('X');
+  await page.getByLabel('狀態表的輸出名稱').fill('Z');
+  await page.getByRole('button', { name: '建立狀態表題目' }).click();
+  // S0：X = 1 → S1；S1：X = 1 → S1、Z = 1。
+  await page.getByLabel('S0、X = 1 的下一個狀態').selectOption('1');
+  await page.getByLabel('S1、X = 1 的下一個狀態').selectOption('1');
+  await page.getByRole('button', { name: '第 3 列 Z' }).click();
+
+  const diagram = page.getByTestId('state-diagram');
+  await expect(diagram.locator('[data-state-node]')).toHaveCount(2);
+  await expect(diagram.locator('[data-state-edge="0-1"]')).toHaveText('1/0');
+  await expect(diagram.locator('[data-state-edge="1-1"]')).toHaveText('1/1');
+  await expect(diagram.locator('[data-state-edge="1-0"]')).toHaveText('0/0');
+  await expect(page.getByText('箭頭上寫 X/Z（Mealy：輸入/輸出）')).toBeVisible();
+  await diagram.screenshot({ path: 'test-results/state-diagram.png' });
+
+  await page.getByLabel('S1、X = 0 的下一個狀態').selectOption('1');
+  await expect(diagram.locator('[data-state-edge="1-0"]')).toHaveCount(0);
+  await expect(diagram.locator('[data-state-edge="1-1"]')).toHaveText('0/0, 1/1');
+});
