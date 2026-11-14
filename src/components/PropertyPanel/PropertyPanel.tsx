@@ -31,7 +31,7 @@ import {
 } from '../common/describe';
 import { ExplanationCard } from './ExplanationCard';
 import { NoteInspector } from './NoteInspector';
-import { DiagramCheckCard, TaskCheckCard } from './DiagramCheckCard';
+import { DiagramCheckCard, StateTaskCheckCard, TaskCheckCard } from './DiagramCheckCard';
 import { PinoutDiagram } from './PinoutDiagram';
 import { RoutingSummaryCard } from './RoutingSummaryCard';
 import { WireExplanationCard } from './WireExplanationCard';
@@ -816,6 +816,7 @@ export function PropertyPanel() {
           <>
             <DiagramCheckCard circuit={circuit} />
             <TaskCheckCard circuit={circuit} />
+            <StateTaskCheckCard circuit={circuit} />
             <CheckTab analysis={analysis} />
           </>
         )}
