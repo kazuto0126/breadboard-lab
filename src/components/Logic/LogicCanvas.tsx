@@ -7,7 +7,8 @@ import { evaluate, lampLit, type Bit } from '../../logic/evaluate';
 import { diagramFormulas } from '../../logic/formula';
 import { bodyRect, inputPins, nodeSize, outputPin, outputPins, type GridXY } from '../../logic/shapes';
 import { canRotate, isGate, isSink, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
-import { BlockBody, ConstantBody } from './BlockBody';
+import { BlockBody, BusBody, ConstantBody } from './BlockBody';
+import { outWidth } from '../../logic/pins';
 import { DisplayBody } from './DisplayBody';
 import { LogicNoteLayer } from './LogicNoteLayer';
 import { junctions, wireRoutes } from '../../logic/wiring';
@@ -317,7 +318,7 @@ export function LogicCanvas() {
     placing && hover
       ? placing === 'CUSTOM'
         ? ghostCustom(diagram, placingBlock, hover, placingTurn)
-        : { id: '__ghost', kind: placing, x: hover.x, y: hover.y, inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: isGate(placing) ? undefined : '?', value: 0, ...(placing === 'BLOCK' && placingChip ? { chip: placingChip } : {}), ...(canRotate(placing) ? placingTurn : {}) }
+        : { id: '__ghost', kind: placing, x: hover.x, y: hover.y, ...(placing === 'MERGE' || placing === 'SPLIT' ? { width: 4 } : {}), inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: isGate(placing) ? undefined : '?', value: 0, ...(placing === 'BLOCK' && placingChip ? { chip: placingChip } : {}), ...(canRotate(placing) ? placingTurn : {}) }
       : null;
   const ghostOk = ghost ? canPlace(diagram, ghost) : true;
   const moveOk = drag?.kind === 'move' ? moveNodes(diagram, drag.ids, drag.dx, drag.dy).ok : true;
@@ -351,8 +352,15 @@ export function LogicCanvas() {
           const pts = routes.get(w.id) ?? [];
           if (pts.length < 2) return null;
           const sel = selection?.kind === 'wire' && selection.id === w.id;
-          const color = bitColor(valueOf(signalOf(w.from, w.fromPin)));
+          // 子專案 66：匯流排畫粗線，旁邊寫位元數與目前的值（十進位，有不確定的位元寫 ?）。
+          const source = view.nodes.find((n) => n.id === w.from);
+          const width = source ? outWidth(diagram, source, w.fromPin ?? 0) : 1;
+          const busBits = width > 1 ? Array.from({ length: width }, (_, k) => values.nodes.get(`${signalOf(w.from, w.fromPin)}[${k}]`)) : [];
+          const busValue = busBits.every((b) => b === 0 || b === 1) ? String(busBits.reduce((sum: number, b, k) => sum + (b as number) * 2 ** k, 0)) : '?';
+          const color = width > 1 ? '#7c3aed' : bitColor(valueOf(signalOf(w.from, w.fromPin)));
           const d = pts.map((p) => `${p.x * C},${p.y * C}`).join(' ');
+          const mid = pts[Math.floor((pts.length - 1) / 2)];
+          const next = pts[Math.floor((pts.length - 1) / 2) + 1];
           return (
             <g key={w.id} data-logic-wire={w.id}>
               <polyline
@@ -367,7 +375,12 @@ export function LogicCanvas() {
                   useLogic.getState().select({ kind: 'wire', id: w.id });
                 }}
               />
-              <polyline points={d} fill="none" stroke={sel ? '#0284c7' : color} strokeWidth={sel ? 3.5 : 2} strokeLinejoin="round" pointerEvents="none" />
+              <polyline points={d} fill="none" stroke={sel ? '#0284c7' : color} strokeWidth={width > 1 ? (sel ? 5.5 : 4.5) : sel ? 3.5 : 2} strokeLinejoin="round" pointerEvents="none" />
+              {width > 1 && (
+                <text data-bus-label={w.id} x={((mid.x + next.x) / 2) * C} y={((mid.y + next.y) / 2) * C - 0.35 * C} fontSize={0.4 * C} fill="#6d28d9" textAnchor="middle" pointerEvents="none">
+                  /{width} = {busValue}
+                </text>
+              )}
             </g>
           );
         })}
@@ -413,6 +426,8 @@ export function LogicCanvas() {
               <g pointerEvents="none">
                 {node.kind === 'INPUT' || node.kind === 'CLOCK' ? null : node.kind === 'BLOCK' || node.kind === 'CUSTOM' ? (
                   <BlockBody node={node} inputs={ins} outputs={outputPins(node).map((_, k) => valueOf(signalOf(node.id, k)))} selected={sel} labels={node.kind === 'CUSTOM' ? customLabels(diagram, node) : undefined} />
+                ) : node.kind === 'MERGE' || node.kind === 'SPLIT' ? (
+                  <BusBody node={node} selected={sel} />
                 ) : node.kind === 'HIGH' || node.kind === 'LOW' ? (
                   <g transform={turnTransform(node)}>
                     <ConstantBody node={node} selected={sel} />
@@ -500,7 +515,9 @@ export function LogicCanvas() {
 
         {ghost && (
           <g transform={`translate(${ghost.x * C} ${ghost.y * C})`} opacity={0.55} pointerEvents="none">
-            {ghost.kind === 'BLOCK' || ghost.kind === 'CUSTOM' ? (
+            {ghost.kind === 'MERGE' || ghost.kind === 'SPLIT' ? (
+              <BusBody node={ghost} />
+            ) : ghost.kind === 'BLOCK' || ghost.kind === 'CUSTOM' ? (
               <BlockBody node={ghost} labels={ghost.kind === 'CUSTOM' ? customLabels(diagram, ghost) : undefined} />
             ) : ghost.kind === 'DISPLAY' ? (
               <DisplayBody node={ghost} />

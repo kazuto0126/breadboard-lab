@@ -82,6 +82,19 @@ export function PartIcon({ kind }: { kind: NodeKind }) {
       </svg>
     );
   }
+  // 子專案 66：合起來（多條合成一條粗線）、拆開（一條粗線拆成多條）。
+  if (kind === 'MERGE' || kind === 'SPLIT') {
+    const merge = kind === 'MERGE';
+    return (
+      <svg viewBox="0 0 40 24" className="h-6 w-10" aria-hidden>
+        <line x1={20} y1={3} x2={20} y2={21} stroke="#7c3aed" strokeWidth={3} />
+        {[5, 10, 14, 19].map((y) => (
+          <line key={y} x1={merge ? 6 : 20} y1={y} x2={merge ? 20 : 34} y2={y} stroke="#475569" strokeWidth={1.2} />
+        ))}
+        <line x1={merge ? 20 : 4} y1={12} x2={merge ? 36 : 20} y2={12} stroke="#7c3aed" strokeWidth={3.5} />
+      </svg>
+    );
+  }
   if (kind === 'BLOCK') {
     return (
       <svg viewBox="0 0 40 24" className="h-6 w-10" aria-hidden>

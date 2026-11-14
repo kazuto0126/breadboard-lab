@@ -1,12 +1,13 @@
 import { isBlockChip, isSequentialChip } from './blocks';
 import { dropLogicNoteTargets } from './notes';
+import { inWidth, MAX_BUS, MIN_BUS, outWidth } from './pins';
 import { boxOf, inputCountOf, nodeSize, outputCountOf, overlaps } from './shapes';
 import { MAX_CLOCKS, canRotate, type CustomBlock, isGate, isSink, type BlockChip, type GateKind, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
 
 const fail = (diagram: LogicDiagram, reason: string): EditResult => ({ ok: false, diagram, reason });
-const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK' | 'CUSTOM', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b', CLOCK: 'c', CUSTOM: 'm' };
+const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK' | 'CUSTOM' | 'MERGE' | 'SPLIT', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b', CLOCK: 'c', CUSTOM: 'm', MERGE: 'bm', SPLIT: 'bs' };
 export const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
 const OUTPUT_NAMES = ['X', 'Y', 'Z', 'W', 'V', 'U', 'T', 'S', 'R', 'Q', 'P'];
 const INPUT_NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
@@ -66,6 +67,8 @@ export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, c
         ? { id, kind, x, y }
         : kind === 'CLOCK'
           ? { id, kind, x, y, name: clockName(d), value: 0 }
+          : kind === 'MERGE' || kind === 'SPLIT'
+            ? { id, kind, x, y, width: 4 }
           : kind === 'INPUT'
       ? { id, kind, x, y, name: defaultName(d, 'INPUT'), value: 0 }
       : kind === 'OUTPUT' || kind === 'DISPLAY'
@@ -113,6 +116,10 @@ export function connect(d: LogicDiagram, from: string, to: { node: string; pin: 
   // 子專案 65：自訂方塊也可以（裡面可能有正反器）。
   if (source.id === target.id && !(target.kind === 'BLOCK' && isSequentialChip(target.chip)) && target.kind !== 'CUSTOM') return fail(d, '不能把自己的輸出接回自己的輸入');
   if (!Number.isInteger(to.pin) || to.pin < 0 || to.pin >= inputCountOf(target)) return fail(d, '沒有這個輸入腳');
+  // 子專案 66：匯流排只能接到位元數一樣的腳。
+  const ws = outWidth(d, source, fromPin);
+  const wt = inWidth(d, target, to.pin);
+  if (ws !== wt) return fail(d, ws > 1 ? `${ws} 位元的匯流排只能接到 ${ws} 位元的腳` : `這是 ${wt} 位元的匯流排腳，要從 ${wt} 位元的匯流排接過來（用「合起來」）`);
   const kept = d.wires.filter((w) => !(w.to.node === to.node && w.to.pin === to.pin));
   if (kept.length !== d.wires.length && d.wires.some((w) => w.to.node === to.node && w.to.pin === to.pin && w.from === from && (w.fromPin ?? 0) === fromPin)) return { ok: true, diagram: d };
   const wire: LogicWire = { id: nextWireId({ ...d, wires: kept }), from, ...(fromPin > 0 ? { fromPin } : {}), to: { node: to.node, pin: to.pin } };
@@ -131,6 +138,26 @@ export function setGateKind(d: LogicDiagram, id: string, kind: GateKind): EditRe
   if (!node || !isGate(node.kind)) return fail(d, '只有邏輯閘可以換種類');
   const n = kind === 'NOT' ? 1 : kind === 'XOR' ? 2 : node.kind === 'NOT' || node.kind === 'XOR' ? 2 : (node.inputs ?? 2);
   return withInputs(d, { ...node, kind }, n, `改成 ${kind} 會和旁邊的元件重疊`);
+}
+
+/** 子專案 66：改合起來 / 拆開的位元數；接到不存在的腳或位元數不合的線拿掉。 */
+export function setBusWidth(d: LogicDiagram, id: string, width: number): EditResult {
+  const node = d.nodes.find((n) => n.id === id);
+  if (!node || (node.kind !== 'MERGE' && node.kind !== 'SPLIT')) return fail(d, '只有合起來、拆開可以改位元數');
+  if (!Number.isInteger(width) || width < MIN_BUS || width > MAX_BUS) return fail(d, `位元數要是 ${MIN_BUS}–${MAX_BUS}`);
+  const changed = { ...node, width };
+  if (!canPlace(d, changed)) return fail(d, '變大後會和別的元件重疊');
+  const next = replaceNode(d, changed);
+  return { ok: true, diagram: { ...next, wires: next.wires.filter((w) => !busMismatch(next, w)) } };
+}
+
+/** 線的兩端位元數不一樣，或接到不存在的腳。 */
+export function busMismatch(d: LogicDiagram, w: LogicWire): boolean {
+  const s = d.nodes.find((n) => n.id === w.from);
+  const t = d.nodes.find((n) => n.id === w.to.node);
+  if (!s || !t) return true;
+  if ((w.fromPin ?? 0) >= outputCountOf(s) || w.to.pin >= inputCountOf(t)) return true;
+  return outWidth(d, s, w.fromPin ?? 0) !== inWidth(d, t, w.to.pin);
 }
 
 export function setInputCount(d: LogicDiagram, id: string, n: number): EditResult {

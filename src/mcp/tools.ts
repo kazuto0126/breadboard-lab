@@ -1,6 +1,7 @@
 import { buildLattice } from '../core/breadboard/lattice';
 import { nextBlockName, wrapAsBlock } from '../logic/customBlocks';
 import { blockPins } from '../logic/flatten';
+import { blockPinGroups } from '../logic/pins';
 import { getBoard } from '../core/breadboard/registry';
 import { parseHoleName } from '../core/breadboard/naming';
 import { resolveFootprint } from '../core/circuit/footprint';
@@ -403,6 +404,8 @@ function layoutMissing(raw: Obj): Obj {
     ...(n.segments === true ? { segments: true as const } : {}),
     // 子專案 65：自訂方塊的大小看腳數。
     ...(typeof n.outputs === 'number' ? { outputs: n.outputs } : {}),
+    // 子專案 66：合起來 / 拆開的大小看位元數。
+    ...(typeof n.width === 'number' ? { width: n.width } : {}),
   });
   const hasPos = (n: Obj) => Number.isInteger(n.x) && Number.isInteger(n.y);
   const placed: LogicNode[] = nodes.filter(hasPos).map((n) => asNode(n, n.x as number, n.y as number));
@@ -421,13 +424,18 @@ function layoutMissing(raw: Obj): Obj {
 /** 子專案 65：自訂方塊的節點先填好腳數（自動排版要知道大小），方塊裡面沒有位置的也自動排版。 */
 function withBlockLayout(raw: Obj): Obj {
   if (!Array.isArray(raw.blocks)) return raw;
-  const count = (b: unknown, kind: string) => (isObj(b) && Array.isArray(b.nodes) ? b.nodes.filter((n) => isObj(n) && n.kind === kind).length : 0);
-  const pins = new Map(raw.blocks.filter(isObj).map((b) => [String(b.id), { inputs: count(b, 'INPUT'), outputs: count(b, 'OUTPUT') }]));
+  // 子專案 66：MCP 寫的方塊預設合成多位元腳（busPins: false 可以關掉）。
+  const blocks = raw.blocks.map((b) => (isObj(b) ? (b.busPins === false ? (({ busPins: _off, ...rest }) => rest)(b) : { ...b, busPins: true }) : b));
+  const count = (b: Obj) => {
+    const g = blockPinGroups({ nodes: (Array.isArray(b.nodes) ? b.nodes.filter(isObj) : []) as unknown as LogicNode[], busPins: b.busPins === true ? true : undefined });
+    return { inputs: g.inputs.length, outputs: g.outputs.length };
+  };
+  const pins = new Map(blocks.filter(isObj).map((b) => [String(b.id), count(b)]));
   const fill = (nodes: unknown) => (Array.isArray(nodes) ? nodes.map((n) => (isObj(n) && n.kind === 'CUSTOM' && pins.has(String(n.block)) ? { ...n, ...pins.get(String(n.block)) } : n)) : nodes);
   return {
     ...raw,
     nodes: fill(raw.nodes),
-    blocks: raw.blocks.map((b) => (isObj(b) ? layoutMissing({ ...b, nodes: fill(b.nodes) }) : b)),
+    blocks: blocks.map((b) => (isObj(b) ? layoutMissing({ ...b, nodes: fill(b.nodes) }) : b)),
   };
 }
 

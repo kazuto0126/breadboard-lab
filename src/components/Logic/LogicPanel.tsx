@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { centerOn } from '../../editor/viewport';
 import { checkDiagram, nodeLabel } from '../../logic/check';
-import { removeNodes, removeWire, renameNode, setActiveLow, setConstant, setDisplayMode, setFlip, setGateKind, setInputCount, setRotation } from '../../logic/edit';
+import { removeNodes, removeWire, renameNode, setBusWidth, setActiveLow, setConstant, setDisplayMode, setFlip, setGateKind, setInputCount, setRotation } from '../../logic/edit';
 import { BLOCK_DEFAULTS, BLOCK_PINS, isSequentialChip } from '../../logic/blocks';
 import { clockNodes, evaluate, isSequential, parseClockOrder, MAX_TABLE_INPUTS, PULSE_CHOICES, segmentToken, sequenceTable, sortedIo, truthTable, type Bit, type OutValue } from '../../logic/evaluate';
 import { boxOf } from '../../logic/shapes';
@@ -13,6 +13,7 @@ import { useStore } from '../../state/store';
 import { LogicNoteInspector } from './LogicNoteInspector';
 import { blockOf, nextBlockName, renameBlock } from '../../logic/customBlocks';
 import { blockPins } from '../../logic/flatten';
+import { MAX_BUS, MIN_BUS } from '../../logic/pins';
 import { TaskTab } from './TaskTab';
 import { Waveform } from './Waveform';
 
@@ -109,7 +110,7 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
     const node = diagram.nodes.find((n) => n.id === selection.id);
     if (!node) return null;
     return (
-      <Section title={isGate(node.kind) ? '邏輯閘' : node.kind === 'INPUT' ? '輸入端' : node.kind === 'DISPLAY' ? '7 段顯示器' : node.kind === 'BLOCK' ? (isSequentialChip(node.chip) ? '正反器 / 計數器' : 'IC 方塊') : node.kind === 'HIGH' || node.kind === 'LOW' ? '常數' : node.kind === 'CLOCK' ? '時脈' : node.kind === 'CUSTOM' ? '自訂方塊' : '輸出端'}>
+      <Section title={isGate(node.kind) ? '邏輯閘' : node.kind === 'INPUT' ? '輸入端' : node.kind === 'DISPLAY' ? '7 段顯示器' : node.kind === 'BLOCK' ? (isSequentialChip(node.chip) ? '正反器 / 計數器' : 'IC 方塊') : node.kind === 'HIGH' || node.kind === 'LOW' ? '常數' : node.kind === 'CLOCK' ? '時脈' : node.kind === 'CUSTOM' ? '自訂方塊' : node.kind === 'MERGE' ? '合起來（匯流排）' : node.kind === 'SPLIT' ? '拆開（匯流排）' : '輸出端'}>
         <div className="flex items-center justify-between">
           <div className="text-base font-semibold text-slate-50">{node.name ?? (node.kind === 'BLOCK' ? `${node.id}（${node.chip}）` : node.id)}</div>
           <button type="button" className={`${btn} bg-red-800 text-white hover:bg-red-700`} onClick={() => s.apply({ ok: true, diagram: removeNodes(diagram, [node.id]) }, `刪除 ${node.id}`, null)}>
@@ -221,6 +222,22 @@ function Inspector({ diagram }: { diagram: LogicDiagram }) {
         {node.kind === 'OUTPUT' && <OutputFormulas diagram={diagram} node={node} />}
         {node.kind === 'BLOCK' && <BlockValues diagram={diagram} node={node} />}
         {node.kind === 'CUSTOM' && <CustomBlockInspector diagram={diagram} node={node} />}
+        {(node.kind === 'MERGE' || node.kind === 'SPLIT') && (
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="w-12 text-slate-400">位元數</span>
+              {Array.from({ length: MAX_BUS - MIN_BUS + 1 }, (_, i) => i + MIN_BUS).map((n) => (
+                <button key={n} type="button" aria-pressed={node.width === n} onClick={() => run(setBusWidth(diagram, node.id, n), `${node.id} 改成 ${n} 位元`)} className={`${btn} ${node.width === n ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`}>
+                  {n}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-slate-400">
+              {node.kind === 'MERGE' ? '左邊一條一條的線（最上面是第 0 位）合成右邊一條匯流排（粗線）。' : '左邊一條匯流排（粗線）拆成右邊一條一條的線（最上面是第 0 位）。'}
+              匯流排只能接到位元數一樣的腳，例如自訂方塊的 A[3:0]。
+            </p>
+          </div>
+        )}
         {WRAPPABLE(node.kind) && <WrapForm diagram={diagram} />}
         {node.kind === 'DISPLAY' && <DisplayValue diagram={diagram} node={node} />}
         {node.kind === 'INPUT' && (

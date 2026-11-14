@@ -4,9 +4,11 @@ import { parseLogicNotes } from './notes';
 import { parseStateTask } from './stateTask';
 import { parseTask } from './task';
 import { usesItself } from './flatten';
+import { busMismatch } from './edit';
+import { blockPinGroups, MAX_BUS, MIN_BUS } from './pins';
 import { MAX_CLOCKS, canRotate, type CustomBlock, isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
-const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT', 'DISPLAY', 'HIGH', 'LOW', 'BLOCK', 'CLOCK', 'CUSTOM'];
+const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT', 'DISPLAY', 'HIGH', 'LOW', 'BLOCK', 'CLOCK', 'CUSTOM', 'MERGE', 'SPLIT'];
 /** 子專案 65：方塊 id → 腳數。 */
 type BlockPins = Map<string, { inputs: number; outputs: number }>;
 const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
@@ -33,6 +35,10 @@ function parseNode(raw: unknown, i: number, blocks: BlockPins): LogicNode {
   } else if (node.kind === 'BLOCK') {
     if (!isBlockChip(n.chip)) fail(`元件 ${node.id} 的 IC ${String(n.chip)} 不認得`);
     node.chip = n.chip as LogicNode['chip'];
+  } else if (node.kind === 'MERGE' || node.kind === 'SPLIT') {
+    // 子專案 66：合起來 / 拆開的位元數。
+    if (!isInt(n.width) || (n.width as number) < MIN_BUS || (n.width as number) > MAX_BUS) fail(`元件 ${node.id} 的位元數 ${String(n.width)} 不合法（${MIN_BUS}–${MAX_BUS}）`);
+    node.width = n.width as number;
   } else if (node.kind === 'CUSTOM') {
     // 子專案 65：自訂方塊；腳數照定義（不看檔案裡寫的）。
     const pins = typeof n.block === 'string' ? blocks.get(n.block) : undefined;
@@ -124,7 +130,7 @@ function parseGraph(rawNodes: unknown[], rawWires: unknown[], blocks: BlockPins,
 }
 
 /** 子專案 65：自訂方塊的定義（id、名稱不重複，名稱照輸入端的規則）；內容在 parseGraph 檢查。 */
-function parseBlocks(raw: unknown): Array<{ id: string; name: string; nodes: unknown[]; wires: unknown[] }> {
+function parseBlocks(raw: unknown): Array<{ id: string; name: string; busPins?: true; nodes: unknown[]; wires: unknown[] }> {
   if (!Array.isArray(raw)) fail('blocks 要是陣列');
   const ids = new Set<string>();
   const names = new Set<string>();
@@ -136,7 +142,8 @@ function parseBlocks(raw: unknown): Array<{ id: string; name: string; nodes: unk
     if (names.has(o.name as string)) fail(`自訂方塊名稱 ${String(o.name)} 重複`);
     ids.add(o.id as string);
     names.add(o.name as string);
-    return { id: o.id as string, name: o.name as string, nodes: o.nodes as unknown[], wires: o.wires as unknown[] };
+    if (o.busPins !== undefined && typeof o.busPins !== 'boolean') fail(`自訂方塊 ${String(o.name)} 的 busPins 要是 true 或 false`);
+    return { id: o.id as string, name: o.name as string, busPins: o.busPins === true ? (true as const) : undefined, nodes: o.nodes as unknown[], wires: o.wires as unknown[] };
   });
 }
 
@@ -147,15 +154,28 @@ export function parseLogicDiagram(raw: unknown): { ok: true; diagram: LogicDiagr
     const r = raw as Obj;
     // 子專案 65：自訂方塊的定義（先算每個方塊的腳數；裡面可以用其他方塊）。
     const blocks = r.blocks === undefined ? [] : parseBlocks(r.blocks);
-    const pins: BlockPins = new Map(blocks.map((b) => [b.id, { inputs: b.nodes.filter((n) => isObj(n) && n.kind === 'INPUT').length, outputs: b.nodes.filter((n) => isObj(n) && n.kind === 'OUTPUT').length }]));
+    // 子專案 66：多位元腳算一個腳。
+    const pins: BlockPins = new Map(
+      blocks.map((b) => {
+        const g = blockPinGroups({ nodes: b.nodes.filter(isObj) as unknown as LogicNode[], busPins: b.busPins });
+        return [b.id, { inputs: g.inputs.length, outputs: g.outputs.length }];
+      }),
+    );
     const { nodes, wires } = parseGraph(r.nodes as unknown[], r.wires as unknown[], pins);
     const parsed: CustomBlock[] = blocks.map((b) => {
       const inner = parseGraph(b.nodes, b.wires, pins, `方塊 ${b.name}：`);
       if (inner.nodes.some((n) => n.kind === 'CLOCK' || n.kind === 'DISPLAY')) fail(`方塊 ${b.name}：裡面不能放時脈或 7 段顯示器`);
-      return { id: b.id, name: b.name, nodes: inner.nodes, wires: inner.wires };
+      return { id: b.id, name: b.name, ...(b.busPins ? { busPins: true as const } : {}), nodes: inner.nodes, wires: inner.wires };
     });
     for (const b of parsed) if (usesItself(parsed, b.id)) fail(`方塊 ${b.name} 直接或間接用到自己`);
     const diagram: LogicDiagram = { version: 1, nodes, wires, ...(parsed.length > 0 ? { blocks: parsed } : {}) };
+    // 子專案 66：匯流排的位元數要一樣。
+    const widthProblem = (list: LogicWire[], graph: LogicDiagram, where: string) => {
+      const bad = list.find((w) => busMismatch(graph, w));
+      if (bad) fail(`${where}線 ${bad.id} 兩端的位元數不一樣`);
+    };
+    widthProblem(wires, diagram, '');
+    for (const b of parsed) widthProblem(b.wires, { version: 1, nodes: b.nodes, wires: b.wires, blocks: parsed }, `方塊 ${b.name}：`);
     if (r.task !== undefined) {
       const task = parseTask(r.task);
       if (!task.ok) return { ok: false, error: task.reason };

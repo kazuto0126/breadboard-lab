@@ -8,7 +8,8 @@ export type GateKind = 'AND' | 'OR' | 'NOT' | 'NAND' | 'NOR' | 'XOR';
 /** 子專案 21：HIGH / LOW 是常數 1 / 0（5V、GND），BLOCK 是 IC 方塊。 */
 /** 子專案 46：CLOCK 是時脈（一個輸出，「一個脈衝」送出 0 → 1 → 0）。 */
 /** 子專案 65：CUSTOM 是自訂方塊（定義在 LogicDiagram.blocks）。 */
-export type NodeKind = GateKind | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK' | 'CUSTOM';
+/** 子專案 66：MERGE（合起來）把 width 個一位元訊號合成一條匯流排；SPLIT（拆開）把匯流排拆回 width 個一位元訊號。 */
+export type NodeKind = GateKind | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK' | 'CUSTOM' | 'MERGE' | 'SPLIT';
 /** 子專案 46：74LS74 起是時序 IC（正反器、計數器）。子專案 51：DFF、JKFF 是單顆正反器（轉換時兩顆合用一片 74LS74 / 76）。 */
 export type BlockChip = '74LS83' | '74LS151' | '74LS153' | '74LS138' | '74LS85' | '74LS74' | '74LS76' | '74LS90' | '74LS93' | '74LS161' | '74LS193' | 'DFF' | 'JKFF';
 
@@ -25,6 +26,8 @@ export interface LogicNode {
   outputs?: number;
   /** 子專案 65：只有自訂方塊：定義的 id。 */
   block?: string;
+  /** 子專案 66：只有合起來 / 拆開：匯流排的位元數（2–8）。 */
+  width?: number;
   /** 只有輸入端、輸出端、顯示器。 */
   name?: string;
   /** 只有輸入端：開關目前的狀態。 */
@@ -77,6 +80,8 @@ export interface LogicDiagram {
 export interface CustomBlock {
   id: string;
   name: string;
+  /** 子專案 66：A0、A1… 這種腳合成一個多位元腳 A[n−1:0]（新做的方塊都是；子專案 65 存的方塊沒有這個欄位，照舊一個一個）。 */
+  busPins?: true;
   nodes: LogicNode[];
   wires: LogicWire[];
 }

@@ -88,6 +88,48 @@ export function BlockBody({
   );
 }
 
+/**
+ * 子專案 66（規格 2026-11-14 bus 第 4 節）：合起來 / 拆開：中間一條粗線，一位元那一邊每一位一條細線（寫位元編號），匯流排那一邊一條粗線。
+ */
+export function BusBody({ node, selected = false }: { node: LogicNode; selected?: boolean }) {
+  const local = { ...node, x: 0, y: 0 };
+  const ins = inputPins(local);
+  const outs = outputPins(local);
+  const merge = node.kind === 'MERGE';
+  const bits = merge ? ins : outs;
+  const bus = merge ? outs[0] : ins[0];
+  const r = bodyRect(local);
+  const mid = { x: (r.x0 + r.x1) / 2, y: (r.y0 + r.y1) / 2 };
+  const sideways = r.x1 - r.x0 < r.y1 - r.y0;
+  const color = selected ? '#0284c7' : '#7c3aed';
+  // 粗線沿著位元那一排（沒轉時是直的）。
+  const bar = sideways ? { x1: mid.x, y1: r.y0 + 0.4, x2: mid.x, y2: r.y1 - 0.4 } : { x1: r.x0 + 0.4, y1: mid.y, x2: r.x1 - 0.4, y2: mid.y };
+  const onBar = (p: { x: number; y: number }) => (sideways ? { x: mid.x, y: p.y } : { x: p.x, y: mid.y });
+  return (
+    <g data-logic-bus={node.id}>
+      <line x1={bar.x1 * C} y1={bar.y1 * C} x2={bar.x2 * C} y2={bar.y2 * C} stroke={color} strokeWidth={4} strokeLinecap="round" />
+      {bits.map((p, k) => {
+        const q = onBar(p);
+        return (
+          <g key={k}>
+            <line x1={p.x * C} y1={p.y * C} x2={q.x * C} y2={q.y * C} stroke="#475569" strokeWidth={1.4} />
+            <text x={((p.x + q.x) / 2) * C} y={((p.y + q.y) / 2) * C - 0.22 * C} fontSize={0.34 * C} fill="#475569" textAnchor="middle">
+              {k}
+            </text>
+          </g>
+        );
+      })}
+      {bus && (() => {
+        const q = onBar(bus);
+        return <line x1={bus.x * C} y1={bus.y * C} x2={q.x * C} y2={q.y * C} stroke={color} strokeWidth={4} />;
+      })()}
+      <text x={mid.x * C} y={(r.y0 - 0.15) * C} fontSize={0.34 * C} fill="#6d28d9" textAnchor="middle">
+        {merge ? '合' : '拆'}
+      </text>
+    </g>
+  );
+}
+
 /** 5V（常數 1）、GND（常數 0）。 */
 export function ConstantBody({ node, selected = false }: { node: LogicNode; selected?: boolean }) {
   const high = node.kind === 'HIGH';
