@@ -1,5 +1,8 @@
 import { useMemo } from 'react';
 import { checkAgainstDiagram, checkAgainstTask, type DiagramCheck } from '../../logic/diagramCheck';
+import { checkBreadboardAgainstStateTask } from '../../logic/stateBreadboardCheck';
+import { comparisonNotes, mismatchText } from '../../logic/stateCheck';
+import { stateBitNames } from '../../logic/stateTask';
 import { verifyText } from '../../logic/verifyBreadboard';
 import { useLogic } from '../../state/logic';
 import { useStore } from '../../state/store';
@@ -98,4 +101,54 @@ export function TaskCheckCard({ circuit }: { circuit: Circuit }) {
   const dontCares = task?.rows.some((r) => r.includes('X')) ?? false;
   const okText = (c: Done) => `${c.result.rows} 種輸入組合，麵包板的模擬結果和題目全部一致${dontCares ? '（不在乎的格子不比）' : ''}`;
   return <CheckCard check={check} text={{ testId: 'task-check', against: '題目', title: '和題目比對', okText }} />;
+}
+
+/**
+ * 子專案 62（規格 2026-11-14 breadboard-state-check 第 4 節）：檔案有狀態表題目時，依名稱把麵包板和狀態表比對
+ * （輸入是開關或按鈕，輸出與狀態位元 Q0、Q1… 是 LED，從上電狀態開始走）。
+ */
+export function StateTaskCheckCard({ circuit }: { circuit: Circuit }) {
+  const task = useLogic((l) => l.diagram.stateTask);
+  const check = useMemo(() => checkBreadboardAgainstStateTask(task, circuit), [task, circuit]);
+  if (!task || check.kind === 'none') return null;
+  const bits = stateBitNames(task.states).join('、');
+  if (check.kind === 'hint')
+    return (
+      <div data-testid="state-task-check" className={`${card} border-slate-700 bg-slate-900/60 text-slate-400`}>
+        可以和狀態表比對：把開關、LED 的名稱設成題目上的名稱，狀態位元的 LED 叫 {bits}。
+      </div>
+    );
+  if (check.kind === 'incomplete')
+    return (
+      <div data-testid="state-task-check" className={`${card} border-amber-700 bg-amber-950/40 text-amber-100`}>
+        <div className="font-semibold">還不能和狀態表比對</div>
+        <ul className="mt-1 list-disc space-y-0.5 pl-4">
+          {check.issues.map((issue) => (
+            <li key={issue}>{issue}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  const ok = check.mismatches.length === 0;
+  const { summary, notes } = comparisonNotes(check, task, '麵包板');
+  return (
+    <div data-testid="state-task-check" className={`${card} ${ok ? 'border-emerald-700 bg-emerald-950/50 text-emerald-200' : 'border-red-700 bg-red-950/50 text-red-200'}`}>
+      <div className="font-semibold">和狀態表比對</div>
+      <p>{summary}</p>
+      {!ok && (
+        <ul className="mt-1 space-y-1">
+          {check.mismatches.slice(0, SHOWN).map((m) => (
+            <li key={m.row} data-state-mismatch={m.row} className="rounded bg-red-900/50 px-2 py-1">
+              {mismatchText(m, task, '麵包板')}
+            </li>
+          ))}
+        </ul>
+      )}
+      {check.mismatches.length > SHOWN && <p className="mt-1">還有 {check.mismatches.length - SHOWN} 列。</p>}
+      {notes.map((n) => (
+        <p key={n} className="mt-1">（{n}）</p>
+      ))}
+      <p className={`mt-1 ${ok ? 'text-emerald-300/70' : 'text-red-300/70'}`}>對應：{check.mapping}</p>
+    </div>
+  );
 }

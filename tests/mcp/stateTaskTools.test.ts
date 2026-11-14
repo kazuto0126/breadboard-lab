@@ -62,3 +62,19 @@ describe('state_task_check (sub-project 53)', () => {
     expect(stateTaskCheck(newLabFile('x', 'MB102'))).toMatchObject({ error: true });
   });
 });
+
+describe('state_task_check with the breadboard (sub-project 62)', () => {
+  it('compares the converted breadboard with the state table too', async () => {
+    const { stateTaskCheck } = await import('../../src/mcp/stateTaskTools');
+    const { convertAndRoute } = await import('../../src/logic/convertRoute');
+    const { applyRouting } = await import('../../src/core/routing/apply');
+    const g = okFile(stateTaskToDiagram(okFile(stateTaskSet(newLabFile('x', 'MB102'), counter))));
+    expect(stateTaskCheck(g).text).toContain('麵包板：麵包板上還沒有元件');
+    const r = convertAndRoute(g.logic, { switchTo: 'vcc', board: 'auto', pulls: true });
+    if (!r.ok) throw new Error(r.reason);
+    const text = stateTaskCheck({ ...g, circuit: applyRouting(r.result.circuit, r.routed) }).text;
+    expect(text).toContain('邏輯圖：從 S0 開始比對了 4 列，邏輯圖和狀態表全部一致');
+    expect(text).toContain('麵包板：從 S0 開始比對了 4 列，麵包板和狀態表全部一致');
+    expect(text).toMatch(/對應：Q1 → D\d+、Q0 → D\d+/);
+  }, 120_000);
+});

@@ -40,3 +40,29 @@ test('狀態表題目：2 位元上數計數器，D 型正反器的式子、產�
   await page.keyboard.press('Delete');
   await expect(compare).toContainText('要有輸出端 Q0');
 });
+
+/** 子專案 62（規格 2026-11-14 breadboard-state-check）：轉成麵包板後，「檢查」分頁直接和狀態表比對。 */
+test('狀態表題目轉成麵包板：「檢查」分頁的「和狀態表比對」全部一致', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto('/');
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.getByTestId('view-switch').getByRole('button', { name: '邏輯圖' }).click();
+  await page.getByRole('tab', { name: '題目' }).click();
+  await page.getByRole('button', { name: '狀態表題目', exact: true }).click();
+  await page.getByLabel('狀態數').selectOption('4');
+  await page.getByRole('button', { name: '建立狀態表題目' }).click();
+  for (let s = 0; s < 4; s++) await page.getByLabel(`S${s} 的下一個狀態`).selectOption(String((s + 1) % 4));
+  await page.getByRole('button', { name: '產生電路', exact: true }).click();
+  await expect(page.locator('[data-logic-node]')).toHaveCount(8);
+
+  await page.getByRole('tab', { name: '屬性' }).click();
+  await page.getByRole('button', { name: '轉成麵包板…' }).click();
+  await page.getByRole('dialog', { name: '轉成麵包板' }).getByRole('button', { name: '轉換' }).click();
+  await expect(page.locator('g[data-component-id="U1"]')).toHaveCount(1, { timeout: 90_000 });
+  await expect(page.getByTestId('status')).not.toContainText('Routing…', { timeout: 90_000 });
+  await page.getByRole('tab', { name: /檢查/ }).click();
+  const card = page.getByTestId('state-task-check');
+  await expect(card).toContainText('從 S0 開始比對了 4 列，麵包板和狀態表全部一致', { timeout: 30_000 });
+  await expect(card).toContainText(/對應：Q1 → D\d+、Q0 → D\d+/);
+});

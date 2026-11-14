@@ -1,5 +1,6 @@
 import { sequenceTable } from '../logic/evaluate';
 import { sopText } from '../logic/minimize';
+import { checkBreadboardAgainstStateTask } from '../logic/stateBreadboardCheck';
 import { compareDiagramToStateTask, comparisonNotes, mismatchText } from '../logic/stateCheck';
 import { createStateTask, designFromStateTask, excitationTask, flipFlopCount, stateBitNames, stateCode, stateTaskColumns, withStateTask, type StateTask } from '../logic/stateTask';
 import { withTask, type TaskValue } from '../logic/task';
@@ -103,8 +104,25 @@ function checkText(d: LabFile['logic'], task: StateTask): string {
   return [summary, ...r.mismatches.map((m) => `- ${mismatchText(m, task)}`), ...notes.map((n) => `（${n}）`)].join('\n');
 }
 
+/** 子專案 62（規格 2026-11-14 breadboard-state-check 第 5 節）：麵包板和狀態表比對的文字。 */
+function breadboardText(f: LabFile, task: StateTask): string {
+  const r = checkBreadboardAgainstStateTask(task, f.circuit);
+  if (r.kind === 'none') return '麵包板上還沒有元件；可以用 logic_to_breadboard 轉換，或自己接';
+  if (r.kind === 'hint') return `還不能比對：把開關、LED 的名稱設成題目上的名稱，狀態位元的 LED 叫 ${stateBitNames(task.states).join('、')}（可以用 set_part 設定）`;
+  if (r.kind === 'incomplete') return `還不能比對：\n${r.issues.map((i) => `- ${i}`).join('\n')}`;
+  const { summary, notes } = comparisonNotes(r, task, '麵包板');
+  return [summary, ...r.mismatches.map((m) => `- ${mismatchText(m, task, '麵包板')}`), ...notes.map((n) => `（${n}）`), `對應：${r.mapping}`].join('\n');
+}
+
 export function stateTaskCheck(f: LabFile): ToolResult {
   const task = f.logic.stateTask;
   if (!task) return fail(NO_TASK);
-  return { text: `和狀態表比對（依名稱：題目的輸入、輸出，狀態位元是輸出端 ${stateBitNames(task.states).join('、')}）：${checkText(f.logic, task)}` };
+  const bits = stateBitNames(task.states).join('、');
+  return {
+    text: [
+      `和狀態表比對（依名稱：題目的輸入、輸出；狀態位元 ${bits} 在邏輯圖是輸出端，在麵包板是 LED）`,
+      `邏輯圖：${checkText(f.logic, task)}`,
+      `麵包板：${breadboardText(f, task)}`,
+    ].join('\n'),
+  };
 }

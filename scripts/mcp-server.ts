@@ -100,7 +100,7 @@ const server = new McpServer(
       '從邏輯圖開始：logic_set → logic_truth_table → logic_to_breadboard（轉換、佈線、比對一次完成）。手接的麵包板用 set_part 標上和邏輯圖一樣的名稱，再用 check_against_diagram 比對。',
       '從真值表題目開始：task_set → task_show → task_to_diagram → logic_to_breadboard → task_check。',
       '時序電路（正反器、計數器）：logic_set 用 CLOCK 節點與 74LS74 / 76 / 90 / 93 / 161 / 193 方塊或單顆正反器 DFF / JKFF → logic_truth_table 看時序表與文字波形 → logic_to_breadboard。',
-      '從狀態表題目開始（時序電路的設計題）：state_task_set → state_task_to_diagram（用 DFF / JKFF 產生電路並列出化簡後的式子）→ logic_truth_table → logic_to_breadboard；自己畫的電路（logic_set，狀態位元接輸出端 Q0、Q1…）用 state_task_check 比對。',
+      '從狀態表題目開始（時序電路的設計題）：state_task_set → state_task_to_diagram（用 DFF / JKFF 產生電路並列出化簡後的式子）→ logic_truth_table → logic_to_breadboard；自己畫的電路（logic_set，狀態位元接輸出端 Q0、Q1…）或接好的麵包板（狀態位元的 LED 叫 Q0、Q1…）用 state_task_check 比對。',
     ].join('\n'),
   },
 );
@@ -446,7 +446,7 @@ server.registerTool(
   'state_task_check',
   {
     title: '和狀態表比對',
-    description: '拿狀態表題目和檔案裡的邏輯圖比對：依名稱對應輸入、輸出，狀態位元要是輸出端 Q0、Q1…（接到正反器的 Q）；從重設（S0）開始，每個走到的狀態、每種輸入先讀輸出再送一個脈衝，列出下一個狀態或輸出不一致的列（X 的格子不比）與走不到的狀態。',
+    description: '拿狀態表題目和檔案裡的邏輯圖、麵包板比對：依名稱對應輸入、輸出，狀態位元在邏輯圖要是輸出端 Q0、Q1…（接到正反器的 Q），在麵包板是名稱 Q0、Q1… 的 LED（輸入是開關或按鈕，要有一個時脈元件；可以用 set_part 設名稱）；從重設（S0）開始，每個走到的狀態、每種輸入先讀輸出再送一個脈衝，列出下一個狀態或輸出不一致的列（X 的格子不比）與走不到的狀態。',
     inputSchema: { file },
   },
   async (args) => withFile(args.file, (lab) => stateTaskTools.stateTaskCheck(lab)),
