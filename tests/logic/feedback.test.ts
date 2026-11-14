@@ -43,15 +43,30 @@ function mux151(): LogicDiagram {
 }
 
 describe('feedback and more inputs (sub-project 59)', () => {
-  it('puts 11 inputs on an 8-bit and a 4-bit switch in name order', () => {
+  // 子專案 61（使用者 2026-11-14 選）：每 4 個一個 4 位元開關（8 位元開關下面線太擠，圖 9-5 接不完）。
+  it('puts 11 inputs on three 4-bit switches in name order', () => {
     const r = toBreadboard(mux151(), { switchTo: 'vcc', board: 'auto' });
     if (!r.ok) throw new Error(r.reason);
-    expect(r.bom.switchList).toEqual(['dipsw-8', 'dipsw-4']);
-    expect(switchText(r.bom)).toBe('8 位元指撥開關 × 1、4 位元指撥開關 × 1');
+    expect(r.bom.switchList).toEqual(['dipsw-4', 'dipsw-4', 'dipsw-4']);
+    expect(switchText(r.bom)).toBe('4 位元指撥開關 × 3');
     const labels = (id: string) => r.circuit.components.find((c) => c.id === id)?.props.labels;
-    expect(labels('SW1')).toEqual(['I0', 'I1', 'I2', 'I3', 'I4', 'I5', 'I6', 'I7']);
-    expect(labels('SW2')).toEqual(['S0', 'S1', 'S2', '']);
+    expect(labels('SW1')).toEqual(['I0', 'I1', 'I2', 'I3']);
+    expect(labels('SW2')).toEqual(['I4', 'I5', 'I6', 'I7']);
+    expect(labels('SW3')).toEqual(['S0', 'S1', 'S2', '']);
+    // 開關 1、IC、開關 2、開關 3（照名稱由左到右；第 2、3 個放在 IC 後面）。
+    const x = (id: string) => r.circuit.components.find((c) => c.id === id)!.anchor.x;
+    expect(x('SW1')).toBeLessThan(x('U1'));
+    expect(x('U1')).toBeLessThan(x('SW2'));
+    expect(x('SW2')).toBeLessThan(x('SW3'));
   });
+
+  it('routes figure 9-5 (11 inputs, pull-downs) on one EIC-1106', () => {
+    const d = mux151();
+    const r = convertAndRoute(d, { switchTo: 'vcc', board: 'EIC1106', pulls: true });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.routed.status).toBe('success');
+    expect(checkAgainstDiagram(d, applyRouting(r.result.circuit, r.routed))).toMatchObject({ kind: 'done', result: { rows: 2048, mismatches: [] } });
+  }, 120_000);
 
   it('converts the gated SR latch and the breadboard matches every row that does not hold', () => {
     const d = gatedSr();

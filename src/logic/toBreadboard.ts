@@ -450,16 +450,17 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   // 子專案 38：拆成兩個 4 位元開關時，每個開關各自挪到有孔的地方，不用平放的電阻。
   // 子專案 47：不加電阻時也試；加上電阻、6 個以上輸入時一定拆（電阻都插在開關那一排，不平放）。
   // 子專案 49：顯示器分到兩塊板時也一定拆（和加上電阻時一樣，量測比較好排）。
-  // 子專案 59：超過 8 個輸入時照名稱順序每 8 個一個開關（最後剩 4 個以內用 4 位元）。
+  // 子專案 59：超過 8 個輸入時照名稱順序分成好幾個開關。子專案 61（使用者 2026-11-14 選）：改成每 4 個一個 4 位元開關：
+  // 下拉電阻直立插在開關那一排時，訊號那一側只剩三排可以水平走線，8 位元開關右邊幾欄底下要擠過 7 條線（圖 9-5 的 74LS151 怎麼排都差 1–4 條）。
   const many = inputs.length > 8;
   const splitSwitches = !grouped && !many && inputs.length > 4 && (variant.splitSwitches === true || (two && variant.displayBoards === true) || (uprightPulls && inputs.length >= 6));
   /** 每個開關接的輸入（依名稱排序）；拆開時依「哪顆 IC 先用到」分組（子專案 45），開關比較靠近用到它的 IC。 */
-  const chunks8 = (list: LogicNode[]) => Array.from({ length: Math.ceil(list.length / 8) }, (_, s) => list.slice(s * 8, s * 8 + 8));
+  const chunks4 = (list: LogicNode[]) => Array.from({ length: Math.ceil(list.length / 4) }, (_, s) => list.slice(s * 4, s * 4 + 4));
   // 子專案 60：分組時每個子電路自己的開關（組內照名稱順序）。
   const switches = grouped
-    ? Array.from({ length: parts.count }, (_, p) => chunks8(inputs.filter((n) => partOf(n.id) === p))).flat()
+    ? Array.from({ length: parts.count }, (_, p) => chunks4(inputs.filter((n) => partOf(n.id) === p))).flat()
     : many
-      ? chunks8(inputs)
+      ? chunks4(inputs)
       : splitSwitches
         ? splitByIc(inputs, icOrderOf(d, plans, chips))
         : [inputs];
@@ -538,7 +539,8 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     });
   }
   // 子專案 38：兩個開關排成一排時，第二個放在第一顆 IC 後面（靠近用到它的 IC）；EIC-1106 分區時兩個都在第 1 區。
-  const laterSwitches = splitSwitches && inOneRow ? switchBlocks.slice(1) : [];
+  // 子專案 61：超過 8 個輸入時也一樣（開關 1、IC、開關 2…，照名稱順序；開關之間不用擠過別的開關底下）。
+  const laterSwitches = (splitSwitches || (many && !grouped)) && inOneRow ? switchBlocks.slice(1) : [];
   blocks[1].push(...switchBlocks.filter((b) => !laterSwitches.includes(b)));
 
   for (const plan of plans) {

@@ -1,7 +1,7 @@
-import { buildLattice, latticeOf } from '../../src/core/breadboard/lattice';
-import { resolveFootprint } from '../../src/core/circuit/footprint';
-import { getComponentDefinition } from '../../src/core/circuit/library';
-import type { Circuit } from '../../src/types/circuit';
+import { buildLattice, latticeOf } from '../breadboard/lattice';
+import { resolveFootprint } from '../circuit/footprint';
+import { getComponentDefinition } from '../circuit/library';
+import type { Circuit } from '../../types/circuit';
 
 /**
  * 子專案 60（指南 3.6）：佔用面積 = 元件（腳與本體）和導線實際佔用的範圍（全域格子的外框）。

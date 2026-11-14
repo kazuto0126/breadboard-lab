@@ -261,6 +261,52 @@ function combinational(order: LogicNode[], driver: Map<string, string>, values: 
   return { nodes, displays, dps, segs, unstable };
 }
 
+/**
+ * 子專案 61（課本圖 10-17 的競跑）：每個閘的延遲一樣時（每一步所有閘同時看上一步的值），從 state 記住的值開始，
+ * 這組輸入會不會一直來回跳。只看閘與組合 IC 方塊（有時序方塊的圖不判斷，回傳 false）。
+ */
+export function racesFrom(d: LogicDiagram, values: Record<string, 0 | 1>, state: SeqState): boolean {
+  if (isSequential(d) || !topoOrder(d).loop) return false;
+  const driver = new Map(d.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)]));
+  let now = new Map<string, Bit>();
+  for (const [key, entry] of Object.entries(state)) if (key.startsWith(LOOP_KEY)) now.set(key.slice(LOOP_KEY.length), entry.out[0]);
+  const seed = now.get(POWER_ON) ?? 0;
+  // 不在迴授上的閘（輸入端到迴授之間）先照新的輸入算好，迴授上的閘再一起一步一步更新。
+  for (const node of topoOrder(d).order) {
+    const read = (pin: number): Bit => {
+      const from = driver.get(`${node.id}#${pin}`);
+      return from === undefined ? 'X' : (now.get(from) ?? seed);
+    };
+    if (node.kind === 'INPUT' || node.kind === 'CLOCK') now.set(node.id, values[node.id] ?? node.value ?? 0);
+    else if (node.kind === 'HIGH') now.set(node.id, 1);
+    else if (node.kind === 'LOW') now.set(node.id, 0);
+    else if (node.kind === 'BLOCK' && node.chip) blockOutputs(node.chip, Array.from({ length: inputCountOf(node) }, (_, i) => read(i))).forEach((v, k) => now.set(signalOf(node.id, k), v));
+    else if (isGate(node.kind)) now.set(node.id, gateValue(node.kind, Array.from({ length: inputCountOf(node) }, (_, i) => read(i))));
+  }
+  const seen = new Set<string>();
+  for (let step = 0; step < MAX_LOOP_PASSES; step++) {
+    const next = new Map<string, Bit>();
+    const inputOf = (node: LogicNode, pin: number): Bit => {
+      const from = driver.get(`${node.id}#${pin}`);
+      return from === undefined ? 'X' : (now.get(from) ?? seed);
+    };
+    for (const node of d.nodes) {
+      if (node.kind === 'INPUT' || node.kind === 'CLOCK') next.set(node.id, values[node.id] ?? node.value ?? 0);
+      else if (node.kind === 'HIGH') next.set(node.id, 1);
+      else if (node.kind === 'LOW') next.set(node.id, 0);
+      else if (node.kind === 'BLOCK' && node.chip) blockOutputs(node.chip, Array.from({ length: inputCountOf(node) }, (_, i) => inputOf(node, i))).forEach((v, k) => next.set(signalOf(node.id, k), v));
+      else if (isGate(node.kind)) next.set(node.id, gateValue(node.kind, Array.from({ length: inputCountOf(node) }, (_, i) => inputOf(node, i))));
+    }
+    const key = [...next].sort(([a], [b]) => (a < b ? -1 : 1)).map(([s, v]) => `${s}=${v}`).join(',');
+    if ([...next].every(([s, v]) => now.get(s) === v)) return false;
+    // 回到看過的狀態：一直在幾個狀態之間轉圈。
+    if (seen.has(key)) return true;
+    seen.add(key);
+    now = next;
+  }
+  return true;
+}
+
 /** 輸出端的燈號亮不亮：一般是 1 時亮；子專案 37 低態致動是 0 時亮；不確定時不亮。 */
 export const lampLit = (node: LogicNode, value: Bit | undefined): boolean => value === (node.activeLow ? 0 : 1);
 
@@ -321,7 +367,8 @@ export function truthTable(d: LogicDiagram): TruthTable {
   const valuesOf = (bits: Array<0 | 1>) => Object.fromEntries(inputs.map((n, i) => [n.id, bits[i]]));
   const read = (v: ReturnType<typeof evaluate>) => outputs.map((o) => (o.kind === 'DISPLAY' ? displayValue(o, v) : (v.nodes.get(o.id) ?? 'X')));
   const head = { ok: true as const, inputs: inputs.map((n) => n.name ?? n.id), outputs: outputs.map((n) => n.name ?? n.id) };
-  if (!topoOrder(d).loop) return { ...head, rows: rowBits.map((bits) => ({ in: bits, out: read(evaluate(d, valuesOf(bits))) })) };
+  const topo = topoOrder(d);
+  if (!topo.loop) return { ...head, rows: rowBits.map((bits) => ({ in: bits, out: read(evaluate(d, valuesOf(bits))) })) };
 
   const starts: SeqState[] = [{}];
   const seen = new Set([memoryKey({})]);
@@ -337,11 +384,20 @@ export function truthTable(d: LogicDiagram): TruthTable {
       }
     });
   }
+  // 子專案 61（課本圖 10-17 的競跑）：從其他列留下的每一種狀態切到這一列，閘的延遲一樣時都會一直來回跳，這一列接在迴授後面的輸出寫「不穩定」。
+  // 上電狀態（對稱的全 0）和這一列自己留下的狀態不算；只有一部分會跳（例如閂鎖從 S = R = 1 放開）時照舊寫「保持」。
+  const afterLoop = new Set(d.nodes.filter((n) => !topo.order.includes(n)).map((n) => n.id));
+  const races = rowBits.map((bits, r) => {
+    const own = memoryKey(evaluate(d, valuesOf(bits)).seq);
+    const others = starts.slice(1).filter((st) => memoryKey(st) !== own);
+    return others.length > 0 && others.every((st) => racesFrom(d, valuesOf(bits), st));
+  });
   const rows = rowBits.map((bits, r) => ({
     in: bits,
-    out: outputs.map((_, k): OutValue => {
+    out: outputs.map((o, k): OutValue => {
       const cells = results[r];
       if (cells.some((c) => c.unstable && c.out[k] === 'X')) return UNSTABLE;
+      if (races[r] && afterLoop.has(o.id)) return UNSTABLE;
       return cells.every((c) => c.out[k] === cells[0].out[k]) ? cells[0].out[k] : HOLD;
     }),
   }));

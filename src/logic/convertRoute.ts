@@ -1,4 +1,6 @@
-import { autoPlaceAndRoute, isBetterRouting } from '../core/icPlacement/autoPlace';
+import { autoPlaceAndRoute } from '../core/icPlacement/autoPlace';
+import { applyRouting } from '../core/routing/apply';
+import { occupiedArea } from '../core/routing/area';
 import type { LayoutId } from '../types/board';
 import type { Circuit } from '../types/circuit';
 import type { DeepPartial, RoutingConfig, RoutingResult } from '../types/routing';
@@ -88,6 +90,20 @@ const POLISHED = 2;
  */
 const CLOSE_NETS = 2;
 
+/**
+ * 子專案 61（指南 1、3.6：先縮小占用面積，再減少線數）：兩種擺法的佈線哪個好：接不完的線少 → 交叉少 → 佔用面積小 → 線少 → 總長短。
+ * 面積是元件和導線實際佔用的範圍（全域格子的外框）。
+ */
+export function isBetterConversion(a: { result: ConvertSuccess; routed: RoutingResult }, b: { result: ConvertSuccess; routed: RoutingResult }): boolean {
+  const area = (e: { result: ConvertSuccess; routed: RoutingResult }) =>
+    occupiedArea(e.routed.status === 'success' ? applyRouting(e.result.circuit, e.routed) : { ...e.result.circuit, wires: e.routed.wires }).cells;
+  const key = (e: { result: ConvertSuccess; routed: RoutingResult }) => [e.routed.failedNets.length, e.routed.metrics.crossings, area(e), e.routed.metrics.wireCount, e.routed.metrics.totalLength];
+  const ka = key(a);
+  const kb = key(b);
+  for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] < kb[i];
+  return false;
+}
+
 /** 一次佈線（可移動 IC）：from 是之前的結果，從它接著搬。 */
 export interface RouteJob {
   circuit: Circuit;
@@ -141,7 +157,7 @@ export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: 
     const quick: RoutingResult[] = yield candidates.map((result) => ({ circuit: result.circuit, config: { timeBudgetMs: quickMs, placement: { ...power, timeBudgetMs: quickMs, maxPasses: 1 } } }));
     const ranked = candidates.map((result, k) => ({ result, routed: quick[k] }));
     // 好的排前面（同分時保持試的順序）。
-    ranked.sort((a, b) => (isBetterRouting(a.routed, b.routed) ? -1 : isBetterRouting(b.routed, a.routed) ? 1 : 0));
+    ranked.sort((a, b) => (isBetterConversion(a, b) ? -1 : isBetterConversion(b, a) ? 1 : 0));
     let best = ranked[0];
     const last = i === boards.length - 1;
     // 不是最後一塊板、試的時候就差很多條排不完：直接換下一塊板，把時間留給它。
@@ -159,8 +175,8 @@ export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: 
         // 從快速試的結果接著搬（不重做快速試已經做過的那一輪）。
         const polished: RoutingResult[] = yield group.map((entry) => ({ circuit: entry.result.circuit, config: { placement: { ...power, timeBudgetMs: polishMs } }, from: entry.routed }));
         for (const [j, entry] of group.entries()) {
-          const routed = isBetterRouting(polished[j], entry.routed) ? polished[j] : entry.routed;
-          if (isBetterRouting(routed, best.routed) || entry === best) best = { result: entry.result, routed };
+          const routed = isBetterConversion({ result: entry.result, routed: polished[j] }, entry) ? polished[j] : entry.routed;
+          if (isBetterConversion({ result: entry.result, routed }, best) || entry === best) best = { result: entry.result, routed };
         }
       }
     }

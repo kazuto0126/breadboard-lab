@@ -250,7 +250,8 @@ test('8 對 3 編碼器（實習七 C）：共用 OR 只用 2 片 74LS32，加�
   await expect(page.locator('g[data-component-id="U3"]')).toHaveCount(0);
   // 加上下拉電阻時開關拆成兩個 4 位元，電阻都直接插進電源軌。
   await expect(page.locator('g[data-component-id="SW2"]')).toHaveCount(1);
-  expect(Number(await page.getByTestId('wire-count').textContent())).toBeLessThanOrEqual(62);
+  // 子專案 61（面積優先）：挑佔用面積小的擺法，線會多幾條（本機 63 條，CI 的機器較慢、試的擺法較少時 68 條）。
+  expect(Number(await page.getByTestId('wire-count').textContent())).toBeLessThanOrEqual(72);
   await page.getByRole('tab', { name: /檢查/ }).click();
   await expect(page.getByTestId('diagram-check')).toContainText('256 種輸入組合，麵包板的模擬結果和真值表全部一致', { timeout: 60_000 });
 });
