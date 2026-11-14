@@ -59,6 +59,8 @@ describe('merge and split', () => {
     t.forEach((r, i) => expect(r).toBe(i.toString(2).padStart(4, '0')));
     const v = evaluate({ ...d, nodes: d.nodes.map((n) => (n.id === 'a' || n.id === 'c' ? { ...n, value: 1 as const } : n)) });
     expect([0, 1, 2, 3].map((k) => v.nodes.get(`m[${k}]`))).toEqual([1, 0, 1, 0]);
+    // 拆開的輸出也有值（畫線的顏色）。
+    expect(['s', 's.1', 's.2', 's.3'].map((k) => v.nodes.get(k))).toEqual([1, 0, 1, 0]);
   });
 
   it('refuses a bus to a one-bit pin and drops wires that no longer fit when the width changes', () => {

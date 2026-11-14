@@ -133,7 +133,11 @@ export function flattenDiagram(d: LogicDiagram): Flat {
     }
   };
   for (const [id, c] of custom) c.outs.forEach((bits, k) => note(id, k, bits.length));
-  for (const [id, b] of buses) if (b.kind === 'MERGE') note(id, 0, b.width ?? 1);
+  for (const [id, b] of buses) {
+    if (b.kind === 'MERGE') note(id, 0, b.width ?? 1);
+    // 拆開的每一個輸出是一位元（畫線的顏色）。
+    else for (let k = 0; k < (b.width ?? 1); k++) note(id, k, 1);
+  }
   const { blocks: _blocks, ...rest } = d;
   return { diagram: { ...rest, nodes, wires: flatWires }, alias };
 }
