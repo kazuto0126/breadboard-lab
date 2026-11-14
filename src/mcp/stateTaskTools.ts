@@ -1,6 +1,7 @@
 import { sequenceTable } from '../logic/evaluate';
 import { sopText } from '../logic/minimize';
 import { checkBreadboardAgainstStateTask } from '../logic/stateBreadboardCheck';
+import { stateDiagramText } from '../logic/stateDiagram';
 import { compareDiagramToStateTask, comparisonNotes, mismatchText } from '../logic/stateCheck';
 import { createStateTask, designFromStateTask, excitationTask, flipFlopCount, stateBitNames, stateCode, stateTaskColumns, withStateTask, type StateTask } from '../logic/stateTask';
 import { withTask, type TaskValue } from '../logic/task';
@@ -35,6 +36,8 @@ function taskText(task: StateTask): string[] {
       const ins = task.inputs.map((_, b) => (i >> (m - 1 - b)) & 1);
       return `${[`S${s}(${stateCode(task.states, s)})`, ...ins].join(' ')} | ${row.next === 'X' ? 'X' : `S${row.next}`}${row.out.length > 0 ? ` ${row.out.join(' ')}` : ''}`;
     }),
+    '',
+    ...stateDiagramText(task),
     '',
     `化簡後的式子（積項和；變數 ${excitationTask(task).inputs.join(' ')}，Q0 是最低位元；沒用到的狀態編碼當成不在乎）：`,
     ...equations(task),

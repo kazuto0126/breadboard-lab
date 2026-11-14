@@ -19,6 +19,8 @@ describe('state_task_set', () => {
     expect(r.text).toContain('S1(01) | S2');
     expect(r.text).toContain("D1 = Q1'Q0 + Q1Q0'");
     expect(r.text).toContain("D0 = Q0'");
+    // 子專案 63：文字版的狀態圖。
+    expect(r.text).toContain('狀態圖（每次脈衝走一個箭頭）：\n- S0 → S1\n- S1 → S2\n- S2 → S3\n- S3 → S0');
   });
 
   it('checks rows and names, and clears the task', () => {
