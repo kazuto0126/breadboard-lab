@@ -97,7 +97,7 @@ const server = new McpServer(
       '電路檔就是網頁「匯出 JSON」的格式；做完用 share_link 給使用者一個連結（點開就在網頁上看到），或請使用者在網頁用「檔案 → 匯入 JSON」打開。',
       '標準接線規則（auto_route 與 logic_to_breadboard 的結果一定遵守，check_circuit 照這個檢查）：每條導線只能水平或垂直的直線，不能斜；要轉彎就分成兩條線（轉角接在同一排相通的五孔排）；兩條線不能重疊，也不能交叉；線不能跨過 IC（上下、左右都不行）或經過元件腳、別條線的端點。auto_route 與 logic_to_breadboard 接出來的線都符合這些規則。add_wire 和使用者在網頁上自己接一樣可以接斜線（只檢查兩端），check_circuit 會提醒，auto_route 會全部改成直線；水平或垂直的線不合規則時 add_wire 會拒絕。',
       '建議流程：new_circuit → list_parts（查元件名稱與腳位）→ place_part（IC 第 1 腳放在 F 列，跨過凹槽）→ add_wire → check_circuit → auto_route → simulate。',
-      '從邏輯圖開始：logic_set → logic_truth_table → logic_to_breadboard（轉換、佈線、比對一次完成）。手接的麵包板用 set_part 標上和邏輯圖一樣的名稱，再用 check_against_diagram 比對。',
+      '從邏輯圖開始：logic_set → logic_truth_table → logic_to_breadboard（轉換、佈線、比對一次完成）；重複用到的一段可以做成自訂方塊（logic_set 的 blocks，或 logic_wrap_block 包起來）。手接的麵包板用 set_part 標上和邏輯圖一樣的名稱，再用 check_against_diagram 比對。',
       '從真值表題目開始：task_set → task_show → task_to_diagram → logic_to_breadboard → task_check。',
       '時序電路（正反器、計數器）：logic_set 用 CLOCK 節點（最多 4 個，各自獨立）與 74LS74 / 76 / 90 / 93 / 161 / 193 方塊或單顆正反器 DFF / JKFF → logic_truth_table 看時序表與文字波形（好幾個時脈時用 clocks 指定送的順序）→ logic_to_breadboard。',
       '從狀態表題目開始（時序電路的設計題）：state_task_set → state_task_to_diagram（用 DFF / JKFF 產生電路並列出化簡後的式子）→ logic_truth_table → logic_to_breadboard；自己畫的電路（logic_set，狀態位元接輸出端 Q0、Q1…）或接好的麵包板（狀態位元的 LED 叫 Q0、Q1…）用 state_task_check 比對。',
@@ -273,16 +273,31 @@ server.registerTool(
       'CLOCK（時脈，name，一張圖最多 4 個，各自接不同的正反器、計數器的 CLK；轉成麵包板時每個時脈一個時脈元件，名稱一樣）。腳的順序用 BLOCK 的腳名（和 74LS 資料表一樣），fromPin 是第幾個輸出。',
       '線：{ id, from, fromPin?（方塊的第幾個輸出）, to: { node, pin } }。節點沒有 x、y 時自動排版。',
       '閘的輸出可以接回前面（迴授，例如 NAND 交叉接成的 SR 閂鎖）。輸入端最多 12 個；名稱英文字母開頭、最多 8 個英數字（Q̄ 寫成 QBAR、清除寫成 CLR）。',
+      '自訂方塊：diagram.blocks 是 [{ id, name, nodes, wires }]，裡面是一張小邏輯圖，輸入端是方塊的輸入腳、輸出端是輸出腳（腳的順序照 y 由上到下，再看 x）；主圖用 { kind: "CUSTOM", block: "<id>" } 放方塊，to.pin / fromPin 是第幾個腳。方塊裡可以放其他方塊（不能用到自己），不能放 CLOCK、DISPLAY。真值表、轉成麵包板都會把方塊展開。也可以用 logic_wrap_block 把現有的元件包起來。',
     ].join(''),
     inputSchema: {
       file,
       diagram: z
-        .object({ nodes: z.array(z.record(z.string(), z.unknown())), wires: z.array(z.record(z.string(), z.unknown())) })
+        .object({ nodes: z.array(z.record(z.string(), z.unknown())), wires: z.array(z.record(z.string(), z.unknown())), blocks: z.array(z.record(z.string(), z.unknown())).optional() })
         .passthrough()
-        .describe('{ nodes: [...], wires: [...] }'),
+        .describe('{ nodes: [...], wires: [...], blocks?: [...] }'),
     },
   },
   async ({ file: f, diagram }) => withFile(f, (lab) => tools.logicSet(lab, { diagram })),
+);
+
+server.registerTool(
+  'logic_wrap_block',
+  {
+    title: '包成自訂方塊',
+    description: '把邏輯圖裡的幾個元件（閘、IC 方塊、5V / GND、其他自訂方塊）包成一個自訂方塊，和網頁的「包成方塊」一樣：從外面接進來的同一個訊號是一個輸入腳（腳名用來源輸入端的名稱，不然是 I1…），接出去的同一個訊號是一個輸出腳（腳名用接到的輸出端名稱，不然是 O1…）。輸入端、輸出端、時脈、7 段顯示器不能包。回覆列出方塊的腳，並確認真值表沒變。',
+    inputSchema: {
+      file,
+      nodes: z.array(z.string()).min(1).describe('要包起來的元件 id'),
+      name: z.string().optional().describe('方塊名稱（英文字母開頭、最多 8 個英數字；預設 B1、B2…）'),
+    },
+  },
+  async ({ file: f, nodes, name }) => withFile(f, (lab) => tools.logicWrapBlock(lab, { nodes, ...(name ? { name } : {}) })),
 );
 
 server.registerTool(

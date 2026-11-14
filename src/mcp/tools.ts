@@ -1,4 +1,6 @@
 import { buildLattice } from '../core/breadboard/lattice';
+import { nextBlockName, wrapAsBlock } from '../logic/customBlocks';
+import { blockPins } from '../logic/flatten';
 import { getBoard } from '../core/breadboard/registry';
 import { parseHoleName } from '../core/breadboard/naming';
 import { resolveFootprint } from '../core/circuit/footprint';
@@ -399,6 +401,8 @@ function layoutMissing(raw: Obj): Obj {
     inputs: typeof n.inputs === 'number' ? n.inputs : n.kind === 'NOT' ? 1 : 2,
     ...(typeof n.chip === 'string' ? { chip: n.chip as LogicNode['chip'] } : {}),
     ...(n.segments === true ? { segments: true as const } : {}),
+    // 子專案 65：自訂方塊的大小看腳數。
+    ...(typeof n.outputs === 'number' ? { outputs: n.outputs } : {}),
   });
   const hasPos = (n: Obj) => Number.isInteger(n.x) && Number.isInteger(n.y);
   const placed: LogicNode[] = nodes.filter(hasPos).map((n) => asNode(n, n.x as number, n.y as number));
@@ -414,18 +418,46 @@ function layoutMissing(raw: Obj): Obj {
   return { ...raw, nodes: out };
 }
 
+/** 子專案 65：自訂方塊的節點先填好腳數（自動排版要知道大小），方塊裡面沒有位置的也自動排版。 */
+function withBlockLayout(raw: Obj): Obj {
+  if (!Array.isArray(raw.blocks)) return raw;
+  const count = (b: unknown, kind: string) => (isObj(b) && Array.isArray(b.nodes) ? b.nodes.filter((n) => isObj(n) && n.kind === kind).length : 0);
+  const pins = new Map(raw.blocks.filter(isObj).map((b) => [String(b.id), { inputs: count(b, 'INPUT'), outputs: count(b, 'OUTPUT') }]));
+  const fill = (nodes: unknown) => (Array.isArray(nodes) ? nodes.map((n) => (isObj(n) && n.kind === 'CUSTOM' && pins.has(String(n.block)) ? { ...n, ...pins.get(String(n.block)) } : n)) : nodes);
+  return {
+    ...raw,
+    nodes: fill(raw.nodes),
+    blocks: raw.blocks.map((b) => (isObj(b) ? layoutMissing({ ...b, nodes: fill(b.nodes) }) : b)),
+  };
+}
+
+/** 子專案 65：檔案裡的自訂方塊與腳（MCP 回覆用）。 */
+export function blocksText(d: LogicDiagram): string[] {
+  if (!d.blocks || d.blocks.length === 0) return [];
+  return [
+    '自訂方塊：',
+    ...d.blocks.map((b) => {
+      const p = blockPins(b);
+      const uses = d.nodes.filter((n) => n.kind === 'CUSTOM' && n.block === b.id).map((n) => n.id);
+      return `- ${b.name}（id ${b.id}）：輸入 ${p.inputs.map((n) => n.name).join('、') || '沒有'} → 輸出 ${p.outputs.map((n) => n.name).join('、') || '沒有'}；裡面 ${b.nodes.length - p.inputs.length - p.outputs.length} 個元件${uses.length > 0 ? `；主圖用到 ${uses.join('、')}` : ''}`;
+    }),
+  ];
+}
+
 export function logicSet(f: LabFile, args: { diagram: unknown }): ToolResult {
   if (!isObj(args.diagram)) return fail('邏輯圖有問題：diagram 要是物件（version、nodes、wires）');
-  const parsed = parseLogicDiagram(layoutMissing({ version: 1, ...args.diagram }));
+  const parsed = parseLogicDiagram(layoutMissing(withBlockLayout({ version: 1, ...args.diagram })));
   if (!parsed.ok) return fail(`邏輯圖有問題：${parsed.error}`);
   // 子專案 24：新的邏輯圖沒有題目時，保留檔案裡原本的真值表題目。
   const kept = !parsed.diagram.task && f.logic.task ? f.logic.task : undefined;
   const d = kept ? { ...parsed.diagram, task: kept } : parsed.diagram;
   const count = (pred: (n: LogicNode) => boolean) => d.nodes.filter(pred).length;
   const blocks = count((n) => n.kind === 'BLOCK');
+  const customs = count((n) => n.kind === 'CUSTOM');
   const sinks = count((n) => n.kind === 'OUTPUT' || n.kind === 'DISPLAY');
   const lines = [
-    `寫入邏輯圖：輸入 ${count((n) => n.kind === 'INPUT')} 個、閘 ${count((n) => isGate(n.kind))} 個${blocks > 0 ? `、IC 方塊 ${blocks} 個` : ''}、輸出 ${sinks} 個、線 ${d.wires.length} 條。`,
+    `寫入邏輯圖：輸入 ${count((n) => n.kind === 'INPUT')} 個、閘 ${count((n) => isGate(n.kind))} 個${blocks > 0 ? `、IC 方塊 ${blocks} 個` : ''}${customs > 0 ? `、自訂方塊 ${customs} 個` : ''}、輸出 ${sinks} 個、線 ${d.wires.length} 條。`,
+    ...blocksText(d),
   ];
   const issues = checkDiagram(d);
   lines.push(issues.length === 0 ? '檢查：沒有發現問題。' : `檢查：\n${issues.map((i) => `- ${i.message}`).join('\n')}`);
@@ -434,6 +466,26 @@ export function logicSet(f: LabFile, args: { diagram: unknown }): ToolResult {
 }
 
 const NO_LOGIC = '檔案裡還沒有邏輯圖；用 logic_set 寫入';
+
+/** 子專案 65（規格 2026-11-14 custom-blocks 第 5 節）：把邏輯圖裡的幾個元件包成一個自訂方塊（和網頁的「包成方塊」一樣）。 */
+export function logicWrapBlock(f: LabFile, args: { nodes: string[]; name?: string }): ToolResult {
+  if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
+  const missing = args.nodes.filter((id) => !f.logic.nodes.some((n) => n.id === id));
+  if (missing.length > 0) return fail(`邏輯圖裡沒有 ${missing.join('、')}`);
+  const before = truthTable(f.logic);
+  const r = wrapAsBlock(f.logic, args.nodes, args.name ?? nextBlockName(f.logic));
+  if (!r.ok) return fail(r.reason);
+  const after = truthTable(r.diagram);
+  const same = before.ok && after.ok ? JSON.stringify(before.rows) === JSON.stringify(after.rows) : null;
+  const def = r.diagram.blocks![r.diagram.blocks!.length - 1];
+  const lines = [
+    `把 ${args.nodes.join('、')} 包成方塊 ${def.name}，放在 ${r.id}。`,
+    ...blocksText(r.diagram),
+    ...(same === null ? [] : [same ? '真值表和包起來之前一樣。' : '注意：真值表和包起來之前不一樣。']),
+    '要再放一個：logic_set 加一個 { kind: "CUSTOM", block: "' + def.id + '" } 的節點；網頁上點兩下方塊可以進去改。',
+  ];
+  return { text: lines.join('\n'), file: { ...f, logic: r.diagram } };
+}
 
 export function logicTruthTable(f: LabFile, args: { pulses?: number; clocks?: string[] } = {}): ToolResult {
   if (f.logic.nodes.length === 0) return fail(NO_LOGIC);
