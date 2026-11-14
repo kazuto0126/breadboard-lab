@@ -75,3 +75,68 @@ describe('MCP custom blocks', () => {
     expect(logicSet(newLabFile('x', 'MB102'), { diagram: { ...diagram, blocks: [] } })).toMatchObject({ error: true, text: expect.stringContaining('不存在的自訂方塊 ha') });
   });
 });
+
+describe('MCP buses (sub-project 66)', () => {
+  it('logic_set takes merge, split and multi-bit block pins without positions', () => {
+    // 2 位元 XOR 方塊（A0、A1、B0、B1 → S0、S1），主圖用合起來 / 拆開接。
+    const xor2 = {
+      id: 'x2',
+      name: 'XOR2',
+      nodes: [
+        { id: 'a0', kind: 'INPUT', name: 'A0' },
+        { id: 'a1', kind: 'INPUT', name: 'A1' },
+        { id: 'b0', kind: 'INPUT', name: 'B0' },
+        { id: 'b1', kind: 'INPUT', name: 'B1' },
+        { id: 'g0', kind: 'XOR', inputs: 2 },
+        { id: 'g1', kind: 'XOR', inputs: 2 },
+        { id: 's0', kind: 'OUTPUT', name: 'S0' },
+        { id: 's1', kind: 'OUTPUT', name: 'S1' },
+      ],
+      wires: [
+        { id: 'w1', from: 'a0', to: { node: 'g0', pin: 0 } },
+        { id: 'w2', from: 'b0', to: { node: 'g0', pin: 1 } },
+        { id: 'w3', from: 'a1', to: { node: 'g1', pin: 0 } },
+        { id: 'w4', from: 'b1', to: { node: 'g1', pin: 1 } },
+        { id: 'w5', from: 'g0', to: { node: 's0', pin: 0 } },
+        { id: 'w6', from: 'g1', to: { node: 's1', pin: 0 } },
+      ],
+    };
+    const diagram = {
+      blocks: [xor2],
+      nodes: [
+        { id: 'p', kind: 'INPUT', name: 'P' },
+        { id: 'q', kind: 'INPUT', name: 'Q' },
+        { id: 'r', kind: 'INPUT', name: 'R' },
+        { id: 't', kind: 'INPUT', name: 'T' },
+        { id: 'ma', kind: 'MERGE', width: 2 },
+        { id: 'mb', kind: 'MERGE', width: 2 },
+        { id: 'blk', kind: 'CUSTOM', block: 'x2' },
+        { id: 'sp', kind: 'SPLIT', width: 2 },
+        { id: 'u', kind: 'OUTPUT', name: 'U' },
+        { id: 'v', kind: 'OUTPUT', name: 'V' },
+      ],
+      wires: [
+        { id: 'w1', from: 'p', to: { node: 'ma', pin: 0 } },
+        { id: 'w2', from: 'q', to: { node: 'ma', pin: 1 } },
+        { id: 'w3', from: 'r', to: { node: 'mb', pin: 0 } },
+        { id: 'w4', from: 't', to: { node: 'mb', pin: 1 } },
+        { id: 'w5', from: 'ma', to: { node: 'blk', pin: 0 } },
+        { id: 'w6', from: 'mb', to: { node: 'blk', pin: 1 } },
+        { id: 'w7', from: 'blk', to: { node: 'sp', pin: 0 } },
+        { id: 'w8', from: 'sp', to: { node: 'u', pin: 0 } },
+        { id: 'w9', from: 'sp', fromPin: 1, to: { node: 'v', pin: 0 } },
+      ],
+    };
+    const r = logicSet(newLabFile('x', 'MB102'), { diagram });
+    const f = okFile(r);
+    expect(r.text).toContain('- XOR2（id x2）：輸入 A[1:0]、B[1:0] → 輸出 S[1:0]');
+    // U = P ⊕ R，V = Q ⊕ T。
+    const t = logicTruthTable(f).text;
+    expect(t).toContain('P Q R T | U V');
+    expect(t).toContain('1 0 0 1 | 1 1');
+    expect(t).toContain('1 1 1 1 | 0 0');
+    // busPins: false：一個一個的腳，匯流排接不上。
+    const off = logicSet(newLabFile('x', 'MB102'), { diagram: { ...diagram, blocks: [{ ...xor2, busPins: false }] } });
+    expect(off).toMatchObject({ error: true });
+  });
+});

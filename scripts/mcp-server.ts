@@ -274,6 +274,7 @@ server.registerTool(
       '線：{ id, from, fromPin?（方塊的第幾個輸出）, to: { node, pin } }。節點沒有 x、y 時自動排版。',
       '閘的輸出可以接回前面（迴授，例如 NAND 交叉接成的 SR 閂鎖）。輸入端最多 12 個；名稱英文字母開頭、最多 8 個英數字（Q̄ 寫成 QBAR、清除寫成 CLR）。',
       '自訂方塊：diagram.blocks 是 [{ id, name, nodes, wires }]，裡面是一張小邏輯圖，輸入端是方塊的輸入腳、輸出端是輸出腳（腳的順序照 y 由上到下，再看 x）；主圖用 { kind: "CUSTOM", block: "<id>" } 放方塊，to.pin / fromPin 是第幾個腳。方塊裡可以放其他方塊（不能用到自己），不能放 CLOCK、DISPLAY。真值表、轉成麵包板都會把方塊展開。也可以用 logic_wrap_block 把現有的元件包起來。',
+      '匯流排：MERGE（合起來，width 2–8：width 個一位元輸入 pin 0…width−1 是第 0 位到最高位 → 一個匯流排輸出）、SPLIT（拆開：一個匯流排輸入 → width 個一位元輸出，fromPin k 是第 k 位）；線的位元數是來源腳的位元數，兩端要一樣。方塊裡的輸入端（輸出端）叫 A0、A1…A(n−1) 時合成一個 n 位元的腳 A[n−1:0]（預設，blocks 裡寫 busPins: false 可以關掉），要用匯流排接。',
     ].join(''),
     inputSchema: {
       file,
@@ -290,7 +291,7 @@ server.registerTool(
   'logic_wrap_block',
   {
     title: '包成自訂方塊',
-    description: '把邏輯圖裡的幾個元件（閘、IC 方塊、5V / GND、其他自訂方塊）包成一個自訂方塊，和網頁的「包成方塊」一樣：從外面接進來的同一個訊號是一個輸入腳（腳名用來源輸入端的名稱，不然是 I1…），接出去的同一個訊號是一個輸出腳（腳名用接到的輸出端名稱，不然是 O1…）。輸入端、輸出端、時脈、7 段顯示器不能包。回覆列出方塊的腳，並確認真值表沒變。',
+    description: '把邏輯圖裡的幾個元件（閘、IC 方塊、5V / GND、其他自訂方塊、合起來、拆開）包成一個自訂方塊，和網頁的「包成方塊」一樣：從外面接進來的同一個訊號是一個輸入腳（腳名用來源輸入端的名稱，不然是 I1…），接出去的同一個訊號是一個輸出腳（腳名用接到的輸出端名稱，不然是 O1…）；A0、A1… 這種腳合成多位元腳，外面自動加 MERGE / SPLIT 接好。輸入端、輸出端、時脈、7 段顯示器不能包。回覆列出方塊的腳，並確認真值表沒變。',
     inputSchema: {
       file,
       nodes: z.array(z.string()).min(1).describe('要包起來的元件 id'),
