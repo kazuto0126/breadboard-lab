@@ -22,9 +22,23 @@ function labelAt(p: { x: number; y: number }, facing: Facing): { x: number; y: n
  * 規格（2026-10-13 logic-blocks）第 6 節：IC 方塊。沒轉時左邊輸入腳、右邊輸出腳，腳旁寫腳名；上方寫 IC 型號。
  * 子專案 26：轉向時腳跟著換邊，字一律正著寫（腳在上下兩邊時，型號寫在方框中間）。
  */
-export function BlockBody({ node, inputs = [], outputs = [], selected = false }: { node: LogicNode; inputs?: Array<Bit | undefined>; outputs?: Array<Bit | undefined>; selected?: boolean }) {
-  if (!node.chip) return null;
-  const pins = BLOCK_PINS[node.chip];
+/** 子專案 65：自訂方塊用 labels（名稱、說明、腳名）；IC 方塊照 IC 型號。 */
+export function BlockBody({
+  node,
+  inputs = [],
+  outputs = [],
+  selected = false,
+  labels,
+}: {
+  node: LogicNode;
+  inputs?: Array<Bit | undefined>;
+  outputs?: Array<Bit | undefined>;
+  selected?: boolean;
+  labels?: { title: string; subtitle: string; inputs: string[]; outputs: string[] };
+}) {
+  const pins = labels ?? (node.chip ? { title: node.chip, subtitle: BLOCK_NAMES[node.chip], ...BLOCK_PINS[node.chip] } : null);
+  if (!pins) return null;
+  const custom = labels !== undefined;
   const local = { ...node, x: 0, y: 0 };
   const ins = inputPins(local);
   const outs = outputPins(local);
@@ -47,12 +61,12 @@ export function BlockBody({ node, inputs = [], outputs = [], selected = false }:
       {outs.map((p, k) => (
         <line key={`o${k}`} {...stub(p, outFacing)} stroke={pinColor(outputs[k])} strokeWidth={2} />
       ))}
-      <rect x={box.x0 * C} y={box.y0 * C} width={(box.x1 - box.x0) * C} height={(box.y1 - box.y0) * C} rx={3} fill="#ffffff" stroke={selected ? '#0284c7' : '#1e293b'} strokeWidth={selected ? 2.4 : 1.6} />
+      <rect x={box.x0 * C} y={box.y0 * C} width={(box.x1 - box.x0) * C} height={(box.y1 - box.y0) * C} rx={3} fill={custom ? '#f0fdf4' : '#ffffff'} stroke={selected ? '#0284c7' : custom ? '#15803d' : '#1e293b'} strokeWidth={selected ? 2.4 : 1.6} />
       <text x={cx} y={sideways ? (box.y0 - 0.45) * C : cy - 0.3 * C} fontSize={0.5 * C} fontWeight={700} fill="#1e293b" textAnchor="middle" dominantBaseline="central">
-        {node.chip}
+        {pins.title}
       </text>
       <text x={cx} y={sideways ? (box.y1 - 0.5) * C : cy + 0.35 * C} fontSize={0.36 * C} fill="#64748b" textAnchor="middle" dominantBaseline="central">
-        {BLOCK_NAMES[node.chip]}
+        {pins.subtitle}
       </text>
       {pins.inputs.map((name, k) => {
         const l = labelAt(ins[k], inFacing);

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { customLabels } from '../../logic/customBlocks';
+import { blockPins } from '../../logic/flatten';
 import { panBy, pinchViewport, screenToWorld, zoomAt, type Viewport } from '../../editor/viewport';
 import { canPlace, connect, moveNodes, nodesInRect } from '../../logic/edit';
 import { evaluate, lampLit, type Bit } from '../../logic/evaluate';
 import { diagramFormulas } from '../../logic/formula';
 import { bodyRect, inputPins, nodeSize, outputPin, outputPins, type GridXY } from '../../logic/shapes';
-import { canRotate, isGate, isSink, signalOf, type LogicNode } from '../../logic/types';
+import { canRotate, isGate, isSink, signalOf, type LogicDiagram, type LogicNode } from '../../logic/types';
 import { BlockBody, ConstantBody } from './BlockBody';
 import { DisplayBody } from './DisplayBody';
 import { LogicNoteLayer } from './LogicNoteLayer';
@@ -66,6 +68,14 @@ function InputTerminal({ node, selected }: { node: LogicNode; selected: boolean 
       <line x1={1.4 * C} y1={0} x2={2 * C} y2={0} stroke={bitColor(v)} strokeWidth={2} />
     </g>
   );
+}
+
+/** 子專案 65：放置中的自訂方塊（半透明的預覽）。 */
+function ghostCustom(d: LogicDiagram, blockId: string | null, at: { x: number; y: number }, turn: { rotation?: LogicNode['rotation']; flip?: true }): LogicNode | null {
+  const b = d.blocks?.find((x) => x.id === blockId);
+  if (!b) return null;
+  const p = blockPins(b);
+  return { id: '__ghost', kind: 'CUSTOM', x: at.x, y: at.y, block: b.id, inputs: p.inputs.length, outputs: p.outputs.length, ...turn };
 }
 
 /** 子專案 46：時脈：名稱與「脈衝」按鈕（點一下送出 0 → 1 → 0）。 */
@@ -133,6 +143,8 @@ export function LogicCanvas() {
   const valueOf = (id: string): Bit | undefined => values.nodes.get(id);
   const driver = useMemo(() => new Map(diagram.wires.map((w) => [`${w.to.node}#${w.to.pin}`, signalOf(w.from, w.fromPin)])), [diagram]);
   const placingChip = useLogic((s) => s.placingChip);
+  const placingBlock = useLogic((s) => s.placingBlock);
+  const lastDown = useRef<{ id: string; t: number } | null>(null);
   const placingTurn = useLogic((s) => s.placingTurn);
   const showFormulas = useLogic((s) => s.showFormulas);
   const formulas = useMemo(() => (showFormulas ? diagramFormulas(diagram).outputs : []), [diagram, showFormulas]);
@@ -205,6 +217,14 @@ export function LogicCanvas() {
   const onNodeDown = (e: ReactPointerEvent, node: LogicNode) => {
     if (e.button !== 0 || placing) return;
     e.stopPropagation();
+    // 子專案 65：點兩下自訂方塊進到裡面（畫布會抓住指標，dblclick 事件到不了方塊，所以自己算兩次按下的間隔）。
+    const now = Date.now();
+    if (node.kind === 'CUSTOM' && lastDown.current?.id === node.id && now - lastDown.current.t < 450) {
+      lastDown.current = null;
+      useLogic.getState().enterBlock(node.id);
+      return;
+    }
+    lastDown.current = { id: node.id, t: now };
     svgRef.current?.setPointerCapture(e.pointerId);
     const g = toGrid(e.clientX, e.clientY);
     // 點到框選中的元件：整組一起拖。
@@ -294,7 +314,11 @@ export function LogicCanvas() {
   };
 
   const ghost: LogicNode | null =
-    placing && hover ? { id: '__ghost', kind: placing, x: hover.x, y: hover.y, inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: isGate(placing) ? undefined : '?', value: 0, ...(placing === 'BLOCK' && placingChip ? { chip: placingChip } : {}), ...(canRotate(placing) ? placingTurn : {}) } : null;
+    placing && hover
+      ? placing === 'CUSTOM'
+        ? ghostCustom(diagram, placingBlock, hover, placingTurn)
+        : { id: '__ghost', kind: placing, x: hover.x, y: hover.y, inputs: isGate(placing) ? (placing === 'NOT' ? 1 : 2) : undefined, name: isGate(placing) ? undefined : '?', value: 0, ...(placing === 'BLOCK' && placingChip ? { chip: placingChip } : {}), ...(canRotate(placing) ? placingTurn : {}) }
+      : null;
   const ghostOk = ghost ? canPlace(diagram, ghost) : true;
   const moveOk = drag?.kind === 'move' ? moveNodes(diagram, drag.ids, drag.dx, drag.dy).ok : true;
   const wireOk = drag?.kind === 'wire' ? drag.to === null || wirePair(drag.from, drag.to) !== null : true;
@@ -360,9 +384,16 @@ export function LogicCanvas() {
             return from === undefined ? undefined : valueOf(from);
           });
           return (
-            <g key={node.id} data-logic-node={node.id} data-rotation={node.rotation ?? 0} data-flip={node.flip ? 'true' : undefined} transform={`translate(${node.x * C} ${node.y * C})`} opacity={moving && !moveOk ? 0.5 : 1}>
+            <g
+              key={node.id}
+              data-logic-node={node.id}
+              data-rotation={node.rotation ?? 0}
+              data-flip={node.flip ? 'true' : undefined}
+              transform={`translate(${node.x * C} ${node.y * C})`}
+              opacity={moving && !moveOk ? 0.5 : 1}
+            >
               {/* 拖曳與選取的範圍（子專案 26：轉向的閘整個轉；轉向的 IC 方塊用本體範圍） */}
-              {node.kind === 'BLOCK' && node.rotation ? (
+              {(node.kind === 'BLOCK' || node.kind === 'CUSTOM') && node.rotation ? (
                 (() => {
                   const r = bodyRect({ ...node, x: 0, y: 0 });
                   return <rect x={r.x0 * C} y={r.y0 * C} width={(r.x1 - r.x0) * C} height={(r.y1 - r.y0) * C} fill="transparent" style={{ cursor: 'move' }} onPointerDown={(e) => onNodeDown(e, node)} />;
@@ -380,8 +411,8 @@ export function LogicCanvas() {
                 />
               )}
               <g pointerEvents="none">
-                {node.kind === 'INPUT' || node.kind === 'CLOCK' ? null : node.kind === 'BLOCK' ? (
-                  <BlockBody node={node} inputs={ins} outputs={outputPins(node).map((_, k) => valueOf(signalOf(node.id, k)))} selected={sel} />
+                {node.kind === 'INPUT' || node.kind === 'CLOCK' ? null : node.kind === 'BLOCK' || node.kind === 'CUSTOM' ? (
+                  <BlockBody node={node} inputs={ins} outputs={outputPins(node).map((_, k) => valueOf(signalOf(node.id, k)))} selected={sel} labels={node.kind === 'CUSTOM' ? customLabels(diagram, node) : undefined} />
                 ) : node.kind === 'HIGH' || node.kind === 'LOW' ? (
                   <g transform={turnTransform(node)}>
                     <ConstantBody node={node} selected={sel} />
@@ -469,8 +500,8 @@ export function LogicCanvas() {
 
         {ghost && (
           <g transform={`translate(${ghost.x * C} ${ghost.y * C})`} opacity={0.55} pointerEvents="none">
-            {ghost.kind === 'BLOCK' ? (
-              <BlockBody node={ghost} />
+            {ghost.kind === 'BLOCK' || ghost.kind === 'CUSTOM' ? (
+              <BlockBody node={ghost} labels={ghost.kind === 'CUSTOM' ? customLabels(diagram, ghost) : undefined} />
             ) : ghost.kind === 'DISPLAY' ? (
               <DisplayBody node={ghost} />
             ) : (

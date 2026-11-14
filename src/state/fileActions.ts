@@ -2,7 +2,7 @@ import { serializeCircuitFile } from '../editor/fileFormat';
 import { linkBase, linkLengthNote, LONG_LINK, makeShareLink, readShareHash } from '../editor/shareLink';
 import { boardFrames, worldBounds } from '../editor/geometry';
 import { buildSvgExport, downloadBlob, downloadText, safeFilename, svgToPng } from '../render/exportImage';
-import { useLogic } from './logic';
+import { logicRoot } from './logic';
 import { useStore } from './store';
 
 /** 需要 DOM 的檔案動作（下載、選檔）；store 本身保持不依賴 DOM 細節。 */
@@ -13,7 +13,7 @@ function baseName(): string {
 
 export function exportJson(): void {
   const s = useStore.getState();
-  downloadText(serializeCircuitFile(s.circuit, s.projectName ?? baseName(), undefined, useLogic.getState().diagram), `${baseName()}.json`);
+  downloadText(serializeCircuitFile(s.circuit, s.projectName ?? baseName(), undefined, logicRoot()), `${baseName()}.json`);
   s.toast('success', '已匯出 JSON');
 }
 
@@ -49,7 +49,7 @@ export async function exportPng(): Promise<void> {
 /** 子專案 43：目前的電路（麵包板＋邏輯圖）做成連結，複製到剪貼簿。 */
 export async function copyShareLink(): Promise<void> {
   const s = useStore.getState();
-  const link = await makeShareLink(linkBase(window.location.href), serializeCircuitFile(s.circuit, s.projectName ?? baseName(), undefined, useLogic.getState().diagram));
+  const link = await makeShareLink(linkBase(window.location.href), serializeCircuitFile(s.circuit, s.projectName ?? baseName(), undefined, logicRoot()));
   try {
     await navigator.clipboard.writeText(link);
   } catch {

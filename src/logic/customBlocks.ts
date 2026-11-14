@@ -41,6 +41,14 @@ function freeSpot(d: LogicDiagram, node: LogicNode): LogicNode | null {
   return null;
 }
 
+/** 畫方塊用的字：名稱與腳名（找不到定義時寫 ?）。 */
+export function customLabels(d: LogicDiagram, node: LogicNode): { title: string; subtitle: string; inputs: string[]; outputs: string[] } {
+  const b = blockOf(d, node.block);
+  if (!b) return { title: '?', subtitle: '找不到方塊', inputs: Array(node.inputs ?? 0).fill('?'), outputs: Array(node.outputs ?? 0).fill('?') };
+  const p = blockPins(b);
+  return { title: b.name, subtitle: '自訂方塊', inputs: p.inputs.map((n) => n.name ?? '?'), outputs: p.outputs.map((n) => n.name ?? '?') };
+}
+
 /** 放一個自訂方塊。 */
 export function addCustomNode(d: LogicDiagram, blockId: string, x: number, y: number, turn: Turn = {}): EditResult {
   const b = blockOf(d, blockId);
@@ -168,6 +176,8 @@ export function applyBlockEdit(parent: LogicDiagram, blockId: string, inner: Log
   const blocks = inner.blocks ?? parent.blocks ?? [];
   const old = blocks.find((b) => b.id === blockId) ?? blockOf(parent, blockId);
   if (!old) return parent;
+  // 沒有改任何東西：上一層原封不動（不算修改）。
+  if (inner.nodes === old.nodes && inner.wires === old.wires && blocks === parent.blocks) return parent;
   const updated: CustomBlock = { ...old, nodes: inner.nodes, wires: inner.wires };
   const oldPins = pinNames(old);
   const newPins = pinNames(updated);

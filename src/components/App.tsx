@@ -6,6 +6,7 @@ import { CompareView } from './Compare/CompareView';
 import { Dialogs, Toasts } from './common/Dialogs';
 import { ComponentLibrary } from './ComponentLibrary/ComponentLibrary';
 import { LogicCanvas } from './Logic/LogicCanvas';
+import { BlockPath } from './Logic/BlockPath';
 import { LogicLibrary } from './Logic/LogicLibrary';
 import { LogicPanel } from './Logic/LogicPanel';
 import { PropertyPanel } from './PropertyPanel/PropertyPanel';
@@ -37,6 +38,7 @@ export function App() {
             <LogicLibrary />
             <main className="relative isolate min-w-0 flex-1">
               <LogicCanvas />
+              <BlockPath />
             </main>
             <LogicPanel />
           </>

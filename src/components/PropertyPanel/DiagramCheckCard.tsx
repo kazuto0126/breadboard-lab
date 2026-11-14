@@ -4,7 +4,7 @@ import { checkBreadboardAgainstStateTask } from '../../logic/stateBreadboardChec
 import { comparisonNotes, mismatchText } from '../../logic/stateCheck';
 import { stateBitNames } from '../../logic/stateTask';
 import { verifyText } from '../../logic/verifyBreadboard';
-import { useLogic } from '../../state/logic';
+import { logicRoot, useLogic } from '../../state/logic';
 import { useStore } from '../../state/store';
 import type { Circuit } from '../../types/circuit';
 
@@ -89,14 +89,15 @@ function CheckCard({ check, text }: { check: DiagramCheck; text: CardText }) {
  * （用目前的電路與邏輯圖即時計算；轉換來的麵包板名稱已經填好）。
  */
 export function DiagramCheckCard({ circuit }: { circuit: Circuit }) {
-  const diagram = useLogic((l) => l.diagram);
+  // 子專案 65：在方塊裡編輯時也和主圖比對。
+  const diagram = useLogic(logicRoot);
   const check = useMemo(() => checkAgainstDiagram(diagram, circuit), [diagram, circuit]);
   return <CheckCard check={check} text={{ testId: 'diagram-check', against: '邏輯圖', title: '和邏輯圖的真值表比對', okText: (c) => verifyText(c.result, c.outputs) }} />;
 }
 
 /** 子專案 24（規格 2026-10-17 truth-table-task 第 4 節）：依名稱把麵包板和真值表題目比對；不在乎的格子不比。 */
 export function TaskCheckCard({ circuit }: { circuit: Circuit }) {
-  const task = useLogic((l) => l.diagram.task);
+  const task = useLogic((l) => logicRoot(l).task);
   const check = useMemo(() => checkAgainstTask(task, circuit), [task, circuit]);
   const dontCares = task?.rows.some((r) => r.includes('X')) ?? false;
   const okText = (c: Done) => `${c.result.rows} 種輸入組合，麵包板的模擬結果和題目全部一致${dontCares ? '（不在乎的格子不比）' : ''}`;
@@ -108,7 +109,7 @@ export function TaskCheckCard({ circuit }: { circuit: Circuit }) {
  * （輸入是開關或按鈕，輸出與狀態位元 Q0、Q1… 是 LED，從上電狀態開始走）。
  */
 export function StateTaskCheckCard({ circuit }: { circuit: Circuit }) {
-  const task = useLogic((l) => l.diagram.stateTask);
+  const task = useLogic((l) => logicRoot(l).stateTask);
   const check = useMemo(() => checkBreadboardAgainstStateTask(task, circuit), [task, circuit]);
   if (!task || check.kind === 'none') return null;
   const bits = stateBitNames(task.states).join('、');

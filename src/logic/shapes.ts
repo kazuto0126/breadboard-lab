@@ -94,7 +94,7 @@ export function inputDir(node: LogicNode): Facing {
 
 export function inputPins(node: LogicNode): GridXY[] {
   const n = inputCountOf(node);
-  if (node.kind === 'BLOCK') return Array.from({ length: n }, (_, k) => place(node, 0, k));
+  if (node.kind === 'BLOCK' || node.kind === 'CUSTOM') return Array.from({ length: n }, (_, k) => place(node, 0, k));
   // 子專案 32：顯示器的 DP 在 B 和 C 中間那一列；每段直接控制時 8 個輸入一列一個。
   if (node.kind === 'DISPLAY') return (node.segments ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1, 3, 4, 2]).map((dy) => place(node, 0, dy));
   return (OFFSETS[n] ?? []).map((dy) => place(node, 0, dy));
@@ -104,7 +104,7 @@ export function inputPins(node: LogicNode): GridXY[] {
 export function outputPins(node: LogicNode): GridXY[] {
   if (isSink(node.kind)) return [];
   const { w, h } = nodeSize(node);
-  if (node.kind === 'BLOCK') return Array.from({ length: outputCountOf(node) }, (_, k) => place(node, w, k));
+  if (node.kind === 'BLOCK' || node.kind === 'CUSTOM') return Array.from({ length: outputCountOf(node) }, (_, k) => place(node, w, k));
   return [place(node, w, isGate(node.kind) ? Math.floor(h / 2) : 0)];
 }
 

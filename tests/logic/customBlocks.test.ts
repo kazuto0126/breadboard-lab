@@ -246,3 +246,31 @@ describe('custom blocks in formulas, checks and conversion', () => {
     expect(checkAgainstDiagram(d, applyRouting(r.result.circuit, r.routed))).toMatchObject({ kind: 'done', result: { mismatches: [] } });
   }, 120_000);
 });
+
+describe('copy and paste custom blocks', () => {
+  it('brings the definition to another diagram and reuses an identical one', async () => {
+    const { copyNodes, pasteNodes } = await import('../../src/logic/edit');
+    const d = ok(wrapAsBlock(halfAdder(), ['g1', 'g2'], 'HA'));
+    const all = copyNodes(d, d.nodes.map((n) => n.id));
+    expect(all.blocks?.map((b) => b.name)).toEqual(['HA']);
+    const other = pasteNodes(emptyDiagram(), all);
+    if (!other.ok) throw new Error(other.reason);
+    expect(other.diagram.blocks?.map((b) => b.name)).toEqual(['HA']);
+    expect(rows(other.diagram)).toEqual(rows(d));
+    // 同一張圖再貼一次：用原本的方塊，不多一個。
+    const again = pasteNodes(d, copyNodes(d, [d.nodes.find((n) => n.kind === 'CUSTOM')!.id]));
+    if (!again.ok) throw new Error(again.reason);
+    expect(again.diagram.blocks).toHaveLength(1);
+    expect(again.diagram.nodes.filter((n) => n.kind === 'CUSTOM')).toHaveLength(2);
+  });
+});
+
+describe('custom block shape', () => {
+  it('has a pin on the left for each input and on the right for each output', async () => {
+    const { inputPins, outputPins, nodeSize } = await import('../../src/logic/shapes');
+    const d = ok(wrapAsBlock(halfAdder(), ['g1', 'g2'], 'HA'));
+    const m = d.nodes.find((n) => n.kind === 'CUSTOM')!;
+    expect(inputPins(m).map((p) => p.x - m.x)).toEqual([0, 0]);
+    expect(outputPins(m).map((p) => p.x - m.x)).toEqual([nodeSize(m).w, nodeSize(m).w]);
+  });
+});
