@@ -199,3 +199,50 @@ describe('editing a block', () => {
     expect(connect(d, m, { node: m, pin: 1 }, 1).ok).toBe(true);
   });
 });
+
+describe('reading custom blocks from files', () => {
+  it('reads blocks, takes pin counts from the definition, and rejects bad ones', async () => {
+    const { parseLogicDiagram } = await import('../../src/logic/file');
+    const d = ok(wrapAsBlock(halfAdder(), ['g1', 'g2'], 'HA'));
+    const json = JSON.parse(JSON.stringify(d));
+    const r = parseLogicDiagram(json);
+    if (!r.ok) throw new Error(r.error);
+    expect(r.diagram.blocks).toHaveLength(1);
+    expect(rows(r.diagram)).toEqual(rows(halfAdder()));
+    // 腳數照定義。
+    json.nodes.find((n: { kind: string }) => n.kind === 'CUSTOM').inputs = 7;
+    const fixed = parseLogicDiagram(json);
+    expect(fixed.ok && fixed.diagram.nodes.find((n) => n.kind === 'CUSTOM')?.inputs).toBe(2);
+    const missing = { ...json, nodes: json.nodes.map((n: { kind: string }) => (n.kind === 'CUSTOM' ? { ...n, block: 'nope' } : n)) };
+    expect(parseLogicDiagram(missing)).toMatchObject({ ok: false, error: expect.stringContaining('不存在的自訂方塊 nope') });
+    const selfUse = JSON.parse(JSON.stringify(json));
+    selfUse.blocks[0].nodes.push({ id: 'me', kind: 'CUSTOM', block: selfUse.blocks[0].id, x: 40, y: 40 });
+    expect(parseLogicDiagram(selfUse)).toMatchObject({ ok: false, error: expect.stringContaining('用到自己') });
+    const clock = JSON.parse(JSON.stringify(json));
+    clock.blocks[0].nodes.push({ id: 'c', kind: 'CLOCK', name: 'CLK', x: 40, y: 40 });
+    expect(parseLogicDiagram(clock)).toMatchObject({ ok: false, error: '方塊 HA：裡面不能放時脈或 7 段顯示器' });
+    const badName = JSON.parse(JSON.stringify(json));
+    badName.blocks[0].name = '半加器';
+    expect(parseLogicDiagram(badName)).toMatchObject({ ok: false, error: expect.stringContaining('名稱') });
+  });
+});
+
+describe('custom blocks in formulas, checks and conversion', () => {
+  it('writes formulas through the block, warns about open block pins, and converts to a matching breadboard', async () => {
+    const { diagramFormulas } = await import('../../src/logic/formula');
+    const { checkDiagram } = await import('../../src/logic/check');
+    const { convertAndRoute } = await import('../../src/logic/convertRoute');
+    const { applyRouting } = await import('../../src/core/routing/apply');
+    const { checkAgainstDiagram } = await import('../../src/logic/diagramCheck');
+    const d = ok(wrapAsBlock(halfAdder(), ['g1', 'g2'], 'HA'));
+    expect(diagramFormulas(d).outputs.map((f) => f.simplified)).toEqual(diagramFormulas(halfAdder()).outputs.map((f) => f.simplified));
+    expect(checkDiagram(d)).toEqual([]);
+    const m = d.nodes.find((n) => n.kind === 'CUSTOM')!.id;
+    const open = { ...d, wires: d.wires.filter((w) => !(w.to.node === m && w.to.pin === 1)) };
+    expect(checkDiagram(open).map((i) => i.message)).toContain(`方塊 HA（${m}）第 2 個輸入沒有接線，值不確定`);
+    const r = convertAndRoute(d, { switchTo: 'vcc', board: 'auto' });
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.result.bom.ics).toEqual({ '74LS86': 1, '74LS08': 1 });
+    expect(checkAgainstDiagram(d, applyRouting(r.result.circuit, r.routed))).toMatchObject({ kind: 'done', result: { mismatches: [] } });
+  }, 120_000);
+});

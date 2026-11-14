@@ -1,4 +1,5 @@
 import { autoPlaceAndRoute } from '../core/icPlacement/autoPlace';
+import { flat } from './flatten';
 import { applyRouting } from '../core/routing/apply';
 import { occupiedArea } from '../core/routing/area';
 import type { LayoutId } from '../types/board';
@@ -116,6 +117,8 @@ export interface RouteJob {
  * 拿到這一批的結果再往下走。parallel：同時能跑幾件（網頁用好幾個 Worker；MCP 一次一件），只影響時間怎麼分，每件分到的時間和一次一件時一樣。
  */
 export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: { totalMs?: number } = {}, parallel = 1): Generator<RouteJob[], ConvertRouted, RoutingResult[]> {
+  // 子專案 65：自訂方塊先展開（比對、選擺法都用展開後的圖）。
+  d = flat(d).diagram;
   const problem = convertProblem(d, options);
   if (problem) return { ok: false, reason: problem };
   let total = budget.totalMs ?? TOTAL_MS;

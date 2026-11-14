@@ -1,4 +1,5 @@
 import { packFlipFlops } from './flipFlops';
+import { flat } from './flatten';
 import { getNode, parseHoleName } from '../core/breadboard/naming';
 import { getBoard, getLayout } from '../core/breadboard/registry';
 import { resolveFootprint } from '../core/circuit/footprint';
@@ -375,7 +376,8 @@ function hasParts(d: LogicDiagram, options: ConvertOptions): boolean {
 /** 規格（2026-10-13 logic-to-breadboard）第 4、5 節。 */
 export function toBreadboard(diagram: LogicDiagram, options: ConvertOptions, variant: LayoutVariant = DEFAULT_LAYOUT): ConvertResult {
   // 子專案 51：單顆正反器兩顆合用一片 74LS74 / 76。
-  const d = packFlipFlops(diagram);
+  // 子專案 65：自訂方塊先展開。
+  const d = packFlipFlops(flat(diagram).diagram);
   // 子專案 60：分組的擺法只給有兩個以上子電路的圖（其他的圖不多花時間試）。
   if (variant.parts && !hasParts(d, options)) return { ok: false, reason: '' };
   // 子專案 49：兩塊板的擺法（自動選板時轉換會用到）不受「要選自動」的限制。

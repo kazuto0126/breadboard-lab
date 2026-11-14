@@ -1,4 +1,5 @@
 import { getComponentDefinition } from '../core/circuit/library';
+import { flat } from './flatten';
 import { checkDiagram } from './check';
 import { sortedIo, MAX_TABLE_INPUTS } from './evaluate';
 import { isGate, signalOf, type LogicDiagram, type LogicNode } from './types';
@@ -46,6 +47,8 @@ export function displayResistorsOf(d: LogicDiagram, chosen?: 'each' | 'shared'):
 
 /** 規格第 6 節：不能轉的原因；可以轉時回傳 null。 */
 export function convertProblem(d: LogicDiagram, options: { displayResistors?: 'each' | 'shared'; board?: 'auto' | 'MB102' | 'EIC1106' } = {}): string | null {
+  // 子專案 65：自訂方塊先展開（方塊裡沒接的腳也算沒接好）。
+  d = flat(d).diagram;
   const issues = checkDiagram(d);
   const { inputs, outputs } = sortedIo(d);
   // 子專案 46：只有時脈、沒有輸入端的計數器也可以轉。
