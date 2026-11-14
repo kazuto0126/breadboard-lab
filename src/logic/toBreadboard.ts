@@ -172,8 +172,6 @@ interface Block {
   place: (x: number, area: number) => void;
   /** 子專案 36：這一欄可以放嗎（例如直立的電阻要插進電源軌的孔）；放不行時往右挪，最多 5 欄。 */
   align?: (x: number) => boolean;
-  /** 子專案 61：最好放在這一欄（往右挪最多 5 欄找得到才挪，找不到就照原本的位置，不會因此放不下）。 */
-  prefer?: (x: number) => boolean;
   /** 子專案 47：IC（兩顆相鄰的 IC 之間至少空 IC_GAP 欄）；子專案 48：值是 IC 的元件 id。 */
   ic?: string;
   /** 子專案 49：兩塊板時至少要放在第幾塊板（0 是第 1 塊）；前面的區塊還沒排到那塊板時直接跳過去。 */
@@ -448,16 +446,6 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     return p !== null && getNode(boardModel, p.x, p.y)?.kind === 'hole';
   };
   const pullDown = options.switchTo === 'vcc';
-  /**
-   * 子專案 61（指南 2、7：IC 電源腳不要放在電源軌缺孔的欄）：IC 第 1 腳放在第 x 欄時，VCC、GND 腳那幾欄的電源軌都有孔，
-   * 電源可以直接垂直接，不用先水平移一格。每條電源軌缺孔的欄都一樣，用哪一條軌判斷都可以。
-   */
-  const powerAligned = (defId: string) => {
-    const def = getComponentDefinition(defId)!;
-    const half = def.pins.length / 2;
-    const cols = def.pins.filter((p) => p.role === 'power' || p.role === 'ground').map((p) => (p.number <= half ? p.number - 1 : def.pins.length - p.number));
-    return (x: number) => cols.every((c) => railHole(eic ? 'P1+' : 'T+', x + c));
-  };
   const uprightPulls = options.pulls === true && options.inputs !== 'button';
   // 子專案 38：拆成兩個 4 位元開關時，每個開關各自挪到有孔的地方，不用平放的電阻。
   // 子專案 47：不加電阻時也試；加上電阻、6 個以上輸入時一定拆（電阻都插在開關那一排，不平放）。
@@ -556,7 +544,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   blocks[1].push(...switchBlocks.filter((b) => !laterSwitches.includes(b)));
 
   for (const plan of plans) {
-    icBlocks.push({ ic: plan.id, width: 7, part: partOf(plan.id), rank: 3, prefer: powerAligned(plan.defId), place: (x, area) => components.push(comp(plan.id, plan.defId, hole(`F${x}`, area), { board: boardNow })) });
+    icBlocks.push({ ic: plan.id, width: 7, part: partOf(plan.id), rank: 3, place: (x, area) => components.push(comp(plan.id, plan.defId, hole(`F${x}`, area), { board: boardNow })) });
     const def = getComponentDefinition(plan.defId)!;
     for (const p of def.pins) {
       if (p.role === 'power') tie(`${plan.id}#${p.number}`, VCC);
@@ -576,7 +564,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     const chip = node.chip!;
     const ic = `U${plans.length + k + 1}`;
     const def = getComponentDefinition(chip)!;
-    icBlocks.push({ ic, width: def.pins.length / 2, part: partOf(ic), rank: 3, prefer: powerAligned(chip), place: (x, area) => components.push(comp(ic, chip, hole(`F${x}`, area), { board: boardNow })) });
+    icBlocks.push({ ic, width: def.pins.length / 2, part: partOf(ic), rank: 3, place: (x, area) => components.push(comp(ic, chip, hole(`F${x}`, area), { board: boardNow })) });
     const numberOf = (name: string) => def.pins.find((p) => p.name === name)!.number;
     for (const p of def.pins) {
       if (p.role === 'power') tie(`${ic}#${p.number}`, VCC);
@@ -605,7 +593,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   const displayBoard = (k: number) => (two && variant.displayBoards && k >= 0 ? Math.floor((k * 2) / displayParts.length) : undefined);
   for (const [k, { node, ic }] of displayParts.entries()) {
     if (!ic) continue;
-    icBlocks.push({ ic, board: displayBoard(k), width: 8, prefer: powerAligned(decoder), place: (x, area) => components.push(comp(ic, decoder, hole(`F${x}`, area), { board: boardNow })) });
+    icBlocks.push({ ic, board: displayBoard(k), width: 8, place: (x, area) => components.push(comp(ic, decoder, hole(`F${x}`, area), { board: boardNow })) });
     ['A', 'B', 'C', 'D'].forEach((name, i) => pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, driver.get(`${node.id}#${i}`)!)));
     for (const name of ['VCC', '/LT', '/BI/RBO', '/RBI']) pinNo(decoder, name).forEach((p) => tie(`${ic}#${p}`, VCC));
     pinNo(decoder, 'GND').forEach((p) => tie(`${ic}#${p}`, GND));
@@ -838,11 +826,6 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
       for (;;) {
         let at = b.ic ? Math.max(x, lastIcEnd + IC_GAP + 1) : x;
         for (let i = 0; i < 6 && b.align && !b.align(at); i++) at++;
-        if (b.prefer && !b.prefer(at)) {
-          let p = at;
-          for (let i = 0; i < 5 && !b.prefer(p); i++) p++;
-          if (b.prefer(p) && p + b.width - 1 <= LAST_COLUMN) at = p;
-        }
         // 子專案 47：IC 之間空出來的欄可能把後面的零件推出板子：放之前先檢查。
         if ((!b.align || b.align(at)) && at + b.width - 1 <= LAST_COLUMN) {
           x = at;
