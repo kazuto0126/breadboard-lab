@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-11-14 — 子專案 62：拿麵包板直接和狀態表題目比對（進行中）
+## 2026-11-14 — 子專案 62：拿麵包板直接和狀態表題目比對（PR #100，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-11-14-breadboard-state-check-design.md`。使用者 2026-11-14 選代辦事項第 2 項「時序電路的其他功能」，
 分三次做（這次是麵包板比對，之後是狀態圖〔只顯示〕、多個時脈〔各自獨立、一次送一個〕）。
