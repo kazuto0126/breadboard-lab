@@ -447,7 +447,7 @@ export function logicTruthTable(f: LabFile, args: { pulses?: number } = {}): Too
   const cell = (v: string | number) => (v === 'X' ? '?' : String(v));
   const lines = [`${t.inputs.join(' ')} | ${t.outputs.join(' ')}`, ...t.rows.map((r) => `${r.in.join(' ')} | ${r.out.map(cell).join(' ')}`)];
   // 子專案 59：有迴授（閂鎖）時說明「保持」「不穩定」。
-  if (t.feedback) lines.push('', '有迴授（閘接回前面）：「保持」是輸出跟之前的狀態有關（維持原來的值），「不穩定」是一直來回跳、停不下來。');
+  if (t.feedback) lines.push('', '有迴授（閘接回前面）：「保持」是輸出跟之前的狀態有關（維持原來的值），「不穩定」是一直來回跳、停不下來（例如 T 閂鎖 T = CP = 1 時的競跑：每個閘的延遲一樣時，從其他狀態切過來都會來回跳）。');
   // 子專案 40：每個輸出照圖寫出來與化簡後的布林式（和網頁真值表分頁一樣）。
   const formulas = diagramFormulas(f.logic).outputs;
   if (formulas.length > 0) {
@@ -504,12 +504,19 @@ function diagramCheckText(d: LogicDiagram, circuit: Circuit): string {
 function retryHints(retry: RetryContext | undefined): string[] {
   if (!retry) return ['可以多給時間（seconds，例如 120）、改用自動選板，或只用一種閘再轉一次。'];
   const limit = retry.seconds ?? Math.round(retry.elapsedMs / 1000);
-  const hints = [`seconds: ${Math.min(300, Math.max(120, limit * 2))}（多給佈線器時間，常常就補得上最後幾條）`];
+  // 子專案 61（指南 3.4：卡住時先診斷，不要加算力）：佈線器還沒用到一半的時間就停下來，表示已經確定排不通，
+  // 差的那幾條是擺法（結構）的問題，多給時間沒有用，不建議 seconds。
+  const allowed = (retry.seconds ?? DEFAULT_SECONDS) * 1000;
+  const early = retry.elapsedMs < allowed / 2;
+  const hints = early ? [] : [`seconds: ${Math.min(300, Math.max(120, limit * 2))}（多給佈線器時間，常常就補得上最後幾條）`];
   if (retry.displays && retry.displayResistors === 'each') hints.push('display_resistors: "shared"（顯示器共用一顆電阻，線比較少）');
   if (retry.board !== 'auto') hints.push('board: "auto"（排不完時可以用兩塊 EIC-1106 左右貼在一起）');
   if (retry.gates === 'direct') hints.push('gates: "nand"（只用 NAND，擺法不同，有時比較好排）');
   hints.push('簡化邏輯圖（少一個閘、少幾條線都有幫助）');
-  return ['可以這樣再轉一次：', ...hints.map((h) => `- ${h}`)];
+  const why = early
+    ? [`佈線器只用了 ${Math.round(retry.elapsedMs / 1000)} 秒就停下來（上限 ${allowed / 1000} 秒）：已經確定照這些擺法排不通，是擺法的問題，多給時間沒有用。`]
+    : [];
+  return [...why, '可以這樣再轉一次：', ...hints.map((h) => `- ${h}`)];
 }
 
 export function checkAgainstDiagram(f: LabFile): ToolResult {
@@ -540,6 +547,8 @@ export interface RetryContext {
   seconds?: number;
 }
 
+/** 子專案 61：沒給 seconds 時的總時間（秒），和 convertRoute 的 TOTAL_MS 一樣。 */
+const DEFAULT_SECONDS = 40;
 const budgetOf = (args: LogicToBreadboardArgs) => (args.seconds ? { totalMs: args.seconds * 1000 } : {});
 const retryOf = (f: LabFile, args: LogicToBreadboardArgs, elapsedMs: number): RetryContext => {
   const displays = f.logic.nodes.filter((n) => n.kind === 'DISPLAY').length;

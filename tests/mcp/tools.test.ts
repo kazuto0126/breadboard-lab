@@ -132,11 +132,17 @@ describe('editing', () => {
     expect(hinted).toContain('gates: "nand"');
     expect(hinted).not.toContain('board: "EIC1106"');
     expect(hinted).not.toContain('display_resistors');
-    const each = convertedReply(lab, { display: 'ca', retry: { board: 'EIC1106', gates: 'nand', displayResistors: 'each', displays: 2, elapsedMs: 90_000, seconds: 200 } }, { ok: true, result: r, routed, tried: 3 }).text;
+    const each = convertedReply(lab, { display: 'ca', retry: { board: 'EIC1106', gates: 'nand', displayResistors: 'each', displays: 2, elapsedMs: 150_000, seconds: 200 } }, { ok: true, result: r, routed, tried: 3 }).text;
     expect(each).toContain('seconds: 300');
     expect(each).toContain('display_resistors: "shared"');
     expect(each).toContain('board: "auto"');
     expect(each).not.toContain('gates: "nand"');
+    // 子專案 61（指南 3.4）：佈線器還沒用到一半的時間就停下來，是擺法的問題，不建議多給時間。
+    const early = convertedReply(lab, { display: 'ca', retry: { board: 'MB102', gates: 'direct', elapsedMs: 12_000, seconds: 120 } }, { ok: true, result: r, routed, tried: 3 }).text;
+    expect(early).toContain('佈線器只用了 12 秒就停下來（上限 120 秒）');
+    expect(early).toContain('多給時間沒有用');
+    expect(early).not.toContain('seconds:');
+    expect(early).toContain('board: "auto"');
   });
 
   it('sets names, values, colours and switch states, and removes things', () => {

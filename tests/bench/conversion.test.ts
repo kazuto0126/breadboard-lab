@@ -8,7 +8,7 @@ import { bcdAdderDiagram, bcdDiagram, majorityDiagram } from '../../src/logic/ex
 import type { ConvertOptions } from '../../src/logic/toBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 import { comparator, decoder, encoder } from '../fixtures/labCircuits';
-import { occupiedArea } from '../fixtures/area';
+import { occupiedArea } from '../../src/core/routing/area';
 
 /** 子專案 44：兩個 7 段顯示器，各自接 4 個開關（BCD）。 */
 function twoDisplays(): LogicDiagram {

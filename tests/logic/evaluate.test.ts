@@ -116,3 +116,28 @@ describe('feedback', () => {
     expect(t.ok && t.rows.map((r) => r.out)).toEqual([['不穩定']]);
   });
 });
+
+// 子專案 61（課本圖 10-17）：T 輸入、CP 閘控的 NAND 電路，T = CP = 1 時兩邊同時打開會一直來回跳（競跑）。
+describe('race-around', () => {
+  const node = (id: string, kind: LogicDiagram['nodes'][number]['kind'], extra: Partial<LogicDiagram['nodes'][number]> = {}) => ({ id, kind, x: 0, y: 0, ...extra });
+  const wire = (id: string, from: string, to: string, pin: number) => ({ id, from, to: { node: to, pin } });
+  const tLatch = (): LogicDiagram => ({
+    version: 1,
+    nodes: [
+      node('t', 'INPUT', { name: 'T' }), node('cp', 'INPUT', { name: 'CP' }),
+      node('g1', 'NAND', { inputs: 3 }), node('g2', 'NAND', { inputs: 3 }), node('g3', 'NAND', { inputs: 2 }), node('g4', 'NAND', { inputs: 2 }),
+      node('qn', 'OUTPUT', { name: 'QN' }), node('qbn', 'OUTPUT', { name: 'QBARN' }),
+    ],
+    wires: [
+      wire('w1', 't', 'g1', 1), wire('w2', 'cp', 'g1', 2), wire('w3', 'g4', 'g1', 0),
+      wire('w4', 't', 'g2', 1), wire('w5', 'cp', 'g2', 0), wire('w6', 'g3', 'g2', 2),
+      wire('w7', 'g1', 'g3', 0), wire('w8', 'g4', 'g3', 1), wire('w9', 'g2', 'g4', 0), wire('w10', 'g3', 'g4', 1),
+      wire('w11', 'g3', 'qn', 0), wire('w12', 'g4', 'qbn', 0),
+    ],
+  });
+
+  it('writes 不穩定 for T = CP = 1 and 保持 elsewhere', () => {
+    const t = truthTable(tLatch());
+    expect(t.ok && t.rows.map((r) => `${r.in.join('')}:${r.out.join(',')}`)).toEqual(['00:保持,保持', '01:保持,保持', '10:保持,保持', '11:不穩定,不穩定']);
+  });
+});

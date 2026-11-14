@@ -579,7 +579,7 @@ function TruthTableTab({ diagram }: { diagram: LogicDiagram }) {
         </tbody>
       </table>
       <p className="mt-2 text-xs text-slate-400">標亮的是目前開關的組合；點一列可以把開關設成那個組合。</p>
-      {table.feedback && <p className="mt-1 text-xs text-slate-400">有迴授（閘接回前面）：「保持」是跟之前的狀態有關（維持原來的值），「不穩定」是一直來回跳、停不下來。</p>}
+      {table.feedback && <p className="mt-1 text-xs text-slate-400">有迴授（閘接回前面）：「保持」是跟之前的狀態有關（維持原來的值），「不穩定」是一直來回跳、停不下來（例如 T 閂鎖 T = CP = 1 時的競跑）。</p>}
       <Formulas diagram={diagram} />
     </div>
   );
