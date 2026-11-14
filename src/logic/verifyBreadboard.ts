@@ -2,7 +2,7 @@ import { getComponentDefinition } from '../core/circuit/library';
 import { whyDark } from '../core/simulation/darkDisplay';
 import { compileSimulation, initialSimState, settle, type SimCircuit, type SimResult } from '../core/simulation/simulate';
 import type { Circuit } from '../types/circuit';
-import { HOLD, segmentToken, sequenceTable, sortedIo, truthTable, UNSTABLE, type OutValue } from './evaluate';
+import { HOLD, segmentToken, sequenceTable, sortedIo, topoOrder, truthTable, UNSTABLE, type OutValue } from './evaluate';
 import { valueOfSegments } from './sevenSeg';
 import type { LogicDiagram } from './types';
 
@@ -167,7 +167,10 @@ export function verifySequence(d: LogicDiagram, circuit: Circuit, bindings: Bind
   const combos = sequenceCombos(inputs.length);
   const mismatches: VerifyResult['mismatches'] = [];
   for (const bits of combos) {
-    const table = sequenceTable(d, pulses, Object.fromEntries(inputs.map((n, i) => [n.id, bits[i]])));
+    const values = Object.fromEntries(inputs.map((n, i) => [n.id, bits[i]]));
+    const table = sequenceTable(d, pulses, values);
+    // 子專案 60：有迴授（閂鎖）時，上電的值不一定：上電是 0 或 1 結果不一樣的格子不比（實體電路剛上電也不一定）。
+    const other = topoOrder(d).loop ? sequenceTable(d, pulses, values, 1) : table;
     if (!table.ok) return { rows: 0, pulses, mismatches: [] };
     const sim = compileSimulation(withSwitches(circuit, bindings.inputs, bits));
     const pressed = pressedFor(bindings.inputs, bits);
@@ -183,9 +186,10 @@ export function verifySequence(d: LogicDiagram, circuit: Circuit, bindings: Bind
         step(1);
         result = step(0);
       }
-      const expected = row.out.map((b) => (b === 'X' ? '?' : String(b)));
+      const twin = other.ok ? other.rows.find((r) => r.pulse === row.pulse) : undefined;
+      const expected = row.out.map((b, k) => (twin && twin.out[k] !== b ? 'X' : b === 'X' ? '?' : String(b)));
       const actual = readOutputs(sim, result, bindings, outputs);
-      if (expected.some((e, k) => e !== actual[k])) {
+      if (expected.some((e, k) => e !== 'X' && e !== actual[k])) {
         mismatches.push({ inputs: `${bits.join('') || '（沒有其他輸入）'} 第 ${row.pulse} 次脈衝`, expected, actual });
         break;
       }

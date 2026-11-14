@@ -8,6 +8,7 @@ import { bcdAdderDiagram, bcdDiagram, majorityDiagram } from '../../src/logic/ex
 import type { ConvertOptions } from '../../src/logic/toBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 import { comparator, decoder, encoder } from '../fixtures/labCircuits';
+import { occupiedArea } from '../fixtures/area';
 
 /** 子專案 44：兩個 7 段顯示器，各自接 4 個開關（BCD）。 */
 function twoDisplays(): LogicDiagram {
@@ -72,7 +73,8 @@ describe('logic-to-breadboard measurements', () => {
       const ms = Math.round(performance.now() - started);
       if (!r.ok) throw new Error(r.reason);
       const { metrics } = r.routed;
-      console.log(`MEASURE ${c.name}: ${r.result.bom.layout} × ${r.result.bom.boards} ${r.routed.status} ${metrics.wireCount} 條線、總長 ${metrics.totalLength}、交叉 ${metrics.crossings}、試了 ${r.tried} 種擺法、${ms} ms`);
+      const area = occupiedArea(applyRouting(r.result.circuit, r.routed));
+      console.log(`MEASURE ${c.name}: ${r.result.bom.layout} × ${r.result.bom.boards} ${r.routed.status} ${metrics.wireCount} 條線、總長 ${metrics.totalLength}、交叉 ${metrics.crossings}、佔用 ${area.columns} 欄 × ${area.rows} 列 = ${area.cells} 格、試了 ${r.tried} 種擺法、${ms} ms`);
       expect(r.routed.status).toBe('success');
       // 子專案 39：不能有交叉。
       expect(metrics.crossings).toBe(0);
