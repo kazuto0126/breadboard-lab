@@ -10,6 +10,7 @@ export interface GridXY {
 export function inputCountOf(node: LogicNode): number {
   if (isSource(node.kind)) return 0;
   if (node.kind === 'BLOCK') return node.chip ? BLOCK_PINS[node.chip].inputs.length : 0;
+  if (node.kind === 'CUSTOM') return node.inputs ?? 0;
   // 子專案 32：BCD 顯示器是 A–D 加上 DP；每段直接控制時是 a–g、dp。
   if (node.kind === 'DISPLAY') return node.segments ? 8 : 5;
   if (node.kind === 'OUTPUT' || node.kind === 'NOT') return 1;
@@ -21,12 +22,13 @@ export function inputCountOf(node: LogicNode): number {
 export function outputCountOf(node: LogicNode): number {
   if (isSink(node.kind)) return 0;
   if (node.kind === 'BLOCK') return node.chip ? BLOCK_PINS[node.chip].outputs.length : 0;
+  if (node.kind === 'CUSTOM') return node.outputs ?? 0;
   return 1;
 }
 
 /** 規格 2.1 的表。 */
 export function nodeSize(node: LogicNode): { w: number; h: number } {
-  if (node.kind === 'BLOCK') return { w: BLOCK_WIDTH, h: Math.max(inputCountOf(node), outputCountOf(node)) + 1 };
+  if (node.kind === 'BLOCK' || node.kind === 'CUSTOM') return { w: BLOCK_WIDTH, h: Math.max(inputCountOf(node), outputCountOf(node), 1) + 1 };
   if (node.kind === 'INPUT' || node.kind === 'OUTPUT' || node.kind === 'HIGH' || node.kind === 'LOW' || node.kind === 'CLOCK') return { w: 2, h: 1 };
   if (node.kind === 'DISPLAY') return { w: 4, h: node.segments ? 8 : 5 };
   if (node.kind === 'NOT') return { w: 3, h: 1 };

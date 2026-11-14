@@ -6,8 +6,8 @@ import { MAX_CLOCKS, canRotate, isGate, isSink, type BlockChip, type GateKind, t
 export type EditResult = { ok: true; diagram: LogicDiagram; id?: string } | { ok: false; diagram: LogicDiagram; reason: string };
 
 const fail = (diagram: LogicDiagram, reason: string): EditResult => ({ ok: false, diagram, reason });
-const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b', CLOCK: 'c' };
-const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
+const PREFIX: Record<'gate' | 'INPUT' | 'OUTPUT' | 'DISPLAY' | 'HIGH' | 'LOW' | 'BLOCK' | 'CLOCK' | 'CUSTOM', string> = { gate: 'g', INPUT: 'i', OUTPUT: 'o', DISPLAY: 'd', HIGH: 'k', LOW: 'k', BLOCK: 'b', CLOCK: 'c', CUSTOM: 'm' };
+export const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
 const OUTPUT_NAMES = ['X', 'Y', 'Z', 'W', 'V', 'U', 'T', 'S', 'R', 'Q', 'P'];
 const INPUT_NAMES = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
@@ -17,7 +17,7 @@ export function nextNodeId(d: LogicDiagram, kind: NodeKind): string {
   for (let i = 1; ; i++) if (!used.has(`${prefix}${i}`)) return `${prefix}${i}`;
 }
 
-function nextWireId(d: LogicDiagram): string {
+export function nextWireId(d: LogicDiagram): string {
   const used = new Set(d.wires.map((w) => w.id));
   for (let i = 1; ; i++) if (!used.has(`w${i}`)) return `w${i}`;
 }
@@ -55,6 +55,8 @@ export interface Turn {
 export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, chip?: BlockChip, turn: Turn = {}): EditResult {
   const id = nextNodeId(d, kind);
   if (kind === 'BLOCK' && !isBlockChip(chip)) return fail(d, '要指定哪一顆 IC');
+  // 子專案 65：自訂方塊用 customBlocks.ts 的 addCustomNode（要知道是哪一個方塊）。
+  if (kind === 'CUSTOM') return fail(d, '要指定哪一個自訂方塊');
   // 子專案 64：一張圖最多 MAX_CLOCKS 個時脈（子專案 46 時只能一個）。
   if (kind === 'CLOCK' && d.nodes.filter((n) => n.kind === 'CLOCK').length >= MAX_CLOCKS) return fail(d, `一張圖最多 ${MAX_CLOCKS} 個時脈`);
   const plain: LogicNode =
@@ -68,7 +70,7 @@ export function addNode(d: LogicDiagram, kind: NodeKind, x: number, y: number, c
       ? { id, kind, x, y, name: defaultName(d, 'INPUT'), value: 0 }
       : kind === 'OUTPUT' || kind === 'DISPLAY'
         ? { id, kind, x, y, name: defaultName(d, kind) }
-        : { id, kind, x, y, inputs: defaultInputs(kind) };
+        : { id, kind, x, y, inputs: defaultInputs(kind as GateKind) };
   const node: LogicNode = canRotate(kind) ? { ...plain, ...(turn.rotation ? { rotation: turn.rotation } : {}), ...(turn.flip ? { flip: true as const } : {}) } : plain;
   if (!canPlace(d, node)) return fail(d, '這裡已經有元件了');
   return { ok: true, diagram: { ...d, nodes: [...d.nodes, node] }, id };
@@ -108,7 +110,8 @@ export function connect(d: LogicDiagram, from: string, to: { node: string; pin: 
   if (target.kind === 'INPUT') return fail(d, '輸入端沒有可以接進來的腳');
   if (target.kind === 'CLOCK') return fail(d, '時脈沒有可以接進來的腳');
   // 子專案 46：正反器、計數器可以把自己的輸出接回自己的輸入（例如 74LS93 的 QA 接 CKB）。
-  if (source.id === target.id && !(target.kind === 'BLOCK' && isSequentialChip(target.chip))) return fail(d, '不能把自己的輸出接回自己的輸入');
+  // 子專案 65：自訂方塊也可以（裡面可能有正反器）。
+  if (source.id === target.id && !(target.kind === 'BLOCK' && isSequentialChip(target.chip)) && target.kind !== 'CUSTOM') return fail(d, '不能把自己的輸出接回自己的輸入');
   if (!Number.isInteger(to.pin) || to.pin < 0 || to.pin >= inputCountOf(target)) return fail(d, '沒有這個輸入腳');
   const kept = d.wires.filter((w) => !(w.to.node === to.node && w.to.pin === to.pin));
   if (kept.length !== d.wires.length && d.wires.some((w) => w.to.node === to.node && w.to.pin === to.pin && w.from === from && (w.fromPin ?? 0) === fromPin)) return { ok: true, diagram: d };
