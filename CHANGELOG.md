@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-11-14 — 子專案 61：圖 9-5、9-6、10-17 與大電路的結構修正（進行中）
+## 2026-11-14 — 子專案 61：圖 9-5、9-6、10-17 與大電路的結構修正（PR #98，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-11-14-structure-fixes-design.md`。使用者 2026-11-14 同意代辦事項，選了 9-5 改用 4 位元開關、10-17 那一列寫「不穩定」。
 
