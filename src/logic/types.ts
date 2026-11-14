@@ -80,6 +80,9 @@ export function emptyDiagram(): LogicDiagram {
 export const isGate = (kind: NodeKind): kind is GateKind => (GATE_KINDS as string[]).includes(kind);
 
 /** 沒有輸入腳、只當線的來源：輸入端、5V、GND、時脈。 */
+/** 子專案 64：一張圖最多幾個時脈。 */
+export const MAX_CLOCKS = 4;
+
 export const isSource = (kind: NodeKind): boolean => kind === 'INPUT' || kind === 'HIGH' || kind === 'LOW' || kind === 'CLOCK';
 
 /** 訊號名稱：方塊第 k 個輸出（k > 0）是 `${id}.${k}`，其他都是節點 id。 */

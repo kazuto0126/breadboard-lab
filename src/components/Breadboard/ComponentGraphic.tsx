@@ -339,7 +339,8 @@ function ClockSource({ instance, def, sim }: { instance: ComponentInstance; def:
       <circle r={0.44 * P} fill={high ? '#8b5cf6' : PART.clock} stroke={PART.clockEdge} strokeWidth={1} />
       <path d={squareWavePath(0.56 * P, 0.26 * P)} fill="none" stroke="#ffffff" strokeWidth={1.4} strokeLinejoin="round" />
       <Upright x={0} y={-0.84 * P} rotation={instance.rotation} fill={PART.clock} fontSize={0.38 * P} fontWeight={800}>
-        {`${instance.id} ${hz}Hz`}
+        {/* 子專案 64：有名稱（邏輯圖時脈的名稱）時寫名稱。 */}
+        {`${instance.props.labels?.[0] || instance.id} ${hz}Hz`}
       </Upright>
     </>
   );

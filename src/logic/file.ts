@@ -3,7 +3,7 @@ import { inputCountOf, outputCountOf, overlaps } from './shapes';
 import { parseLogicNotes } from './notes';
 import { parseStateTask } from './stateTask';
 import { parseTask } from './task';
-import { canRotate, isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
+import { MAX_CLOCKS, canRotate, isGate, isSink, type LogicDiagram, type LogicNode, type LogicWire, type NodeKind, type Rotation } from './types';
 
 const KINDS: NodeKind[] = ['AND', 'OR', 'NOT', 'NAND', 'NOR', 'XOR', 'INPUT', 'OUTPUT', 'DISPLAY', 'HIGH', 'LOW', 'BLOCK', 'CLOCK'];
 const NAME_RULE = /^[A-Za-z][A-Za-z0-9_]{0,7}$/;
@@ -96,7 +96,7 @@ export function parseLogicDiagram(raw: unknown): { ok: true; diagram: LogicDiagr
       }
     }
     nodes.forEach((a, i) => nodes.slice(i + 1).forEach((b) => overlaps(a, b) && fail(`元件 ${a.id} 和 ${b.id} 重疊`)));
-    if (nodes.filter((n) => n.kind === 'CLOCK').length > 1) fail('一張圖只能有一個時脈');
+    if (nodes.filter((n) => n.kind === 'CLOCK').length > MAX_CLOCKS) fail(`一張圖最多 ${MAX_CLOCKS} 個時脈`);
     const wires = (r.wires as unknown[]).map((w, i) => parseWire(w, i, byId));
     const ids = new Set<string>();
     const pins = new Set<string>();

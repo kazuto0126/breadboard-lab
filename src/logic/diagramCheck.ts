@@ -1,7 +1,7 @@
 import { getComponentDefinition } from '../core/circuit/library';
 import { analyzeCircuit } from '../editor/analysis';
 import type { Circuit } from '../types/circuit';
-import { isSequential, sequenceTable, sortedIo, truthTable } from './evaluate';
+import { allClocks, isSequential, sequenceTable, sortedIo, truthTable } from './evaluate';
 import { rowBits, type TruthTask } from './task';
 import type { LogicDiagram } from './types';
 import { verifyExpected, verifyRows, verifySequence, type Bindings, type VerifyResult } from './verifyBreadboard';
@@ -120,6 +120,8 @@ function mappingText(io: NamedIo, b: Bindings): string {
   return [
     ...b.inputs.map((s) => (s.button ? `${name(s.node)} → ${s.switchId}（按下 = ${s.onIs}）` : `${name(s.node)} → ${s.switchId} 第 ${s.index + 1} 個開關（ON = ${s.onIs}）`)),
     ...io.outputs.map((o) => `${o.name} → ${(o.display ? b.displays : b.leds)[o.id]}`),
+    // 子專案 64：好幾個時脈時寫出每個時脈對到哪個時脈元件。
+    ...(Object.keys(b.clocks ?? {}).length > 1 ? Object.entries(b.clocks!).map(([name, id]) => `${name} → ${id}`) : []),
   ].join('、');
 }
 
@@ -147,11 +149,21 @@ function checkSequence(d: LogicDiagram, circuit: Circuit): DiagramCheck {
   const { bindings, issues, matched } = bindByLabels(d, circuit);
   if (matched === 0) return { kind: 'hint' };
   const all = [...issues];
+  // 子專案 64：時脈依名稱對應；邏輯圖只有一個時脈、麵包板也只有一個時脈元件時不看名稱（和子專案 46 一樣）。
   const clocks = circuit.components.filter((c) => getComponentDefinition(c.defId)?.category === 'clock');
+  const names = allClocks(d);
+  const byName: Record<string, string> = {};
   if (clocks.length === 0) all.push('麵包板上沒有時脈元件（邏輯圖的時脈要接到時脈元件）');
-  else if (clocks.length > 1) all.push(`麵包板上有好幾個時脈元件（${clocks.map((c) => c.id).join('、')}），比對時只能有一個`);
+  else if (names.length === 1 && clocks.length === 1) byName[names[0]] = clocks[0].id;
+  else
+    for (const name of names) {
+      const found = clocks.filter((c) => (c.props.labels?.[0] ?? '').trim() === name);
+      if (found.length === 1) byName[name] = found[0].id;
+      else if (found.length === 0) all.push(`時脈 ${name}：找不到名稱是 ${name} 的時脈元件（麵包板上有好幾個時脈元件時，用名稱對應）`);
+      else all.push(`名稱 ${name} 用在好幾個時脈元件：${found.map((c) => c.id).join('、')}`);
+    }
   if (all.length > 0) return { kind: 'incomplete', issues: all };
-  const withClock: Bindings = { ...bindings, clock: clocks[0].id };
+  const withClock: Bindings = { ...bindings, clock: byName[names[0]], clocks: byName };
   const io = ioOfDiagram(d);
   return { kind: 'done', bindings: withClock, result: verifySequence(d, circuit, withClock), inputs: io.inputs.map((n) => n.name), outputs: io.outputs.map((n) => n.name), mapping: mappingText(io, withClock) };
 }

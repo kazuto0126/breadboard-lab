@@ -10,10 +10,10 @@ export interface WaveLane {
 
 type OkTable = Extract<SequenceTable, { ok: true }>;
 
-/** 時序表的每一欄變成一條線：最上面是時脈，再依表格的順序放輸出端與顯示器。 */
+/** 時序表的每一欄變成一條線：最上面是時脈（子專案 64：每個時脈一條，只有送了它的格子有脈衝），再依表格的順序放輸出端與顯示器。 */
 export function waveLanes(t: OkTable): WaveLane[] {
   return [
-    { name: t.clock, kind: 'clock', values: t.rows.map((r) => (r.pulse === 0 ? 0 : 1)) },
+    ...t.clocks.map((name): WaveLane => ({ name, kind: 'clock', values: t.rows.map((r) => (r.pulse > 0 && (r.clock ?? t.clock) === name ? 1 : 0)) })),
     ...t.outputs.map((name, i): WaveLane => ({ name, kind: t.display[i] ? 'value' : 'bit', values: t.rows.map((r) => r.out[i]) })),
   ];
 }

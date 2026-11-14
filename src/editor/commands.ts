@@ -94,7 +94,8 @@ export const LABEL_MAX = 8;
 /** 名稱可以設幾個：指撥開關每個開關一個、LED 一個，其他元件沒有。 */
 export function labelSlots(instance: ComponentInstance): number {
   const def = definitionOf(instance.defId);
-  if (def.category === 'led' || def.category === 'seven-seg') return 1;
+  // 子專案 64：時脈也有名稱（依名稱對應邏輯圖的時脈）；按鈕的名稱（子專案 30）在這裡也要算一格，網頁上才改得了。
+  if (def.category === 'led' || def.category === 'seven-seg' || def.category === 'pushbutton' || def.category === 'clock') return 1;
   if (def.category === 'dip-switch') return (instance.props.switchStates ?? def.defaultProps.switchStates ?? []).length;
   return 0;
 }

@@ -147,18 +147,20 @@ describe('the sequence table', () => {
 });
 
 describe('clock nodes in files and edits', () => {
-  it('reads a clock from a file, keeps it at 0, and allows only one', async () => {
+  it('reads a clock from a file, keeps it at 0, and allows up to four (sub-project 64)', async () => {
     const { parseLogicDiagram } = await import('../../src/logic/file');
     const r = parseLogicDiagram({ version: 1, nodes: [{ id: 'c1', kind: 'CLOCK', x: 0, y: 0, name: 'CLK', value: 1 }], wires: [] });
     if (!r.ok) throw new Error('parse failed');
     expect(r.diagram.nodes[0]).toEqual({ id: 'c1', kind: 'CLOCK', x: 0, y: 0, name: 'CLK', value: 0 });
     const two = parseLogicDiagram({ version: 1, nodes: [{ id: 'c1', kind: 'CLOCK', x: 0, y: 0, name: 'CLK' }, { id: 'c2', kind: 'CLOCK', x: 0, y: 4, name: 'CLK2' }], wires: [] });
-    expect(two).toMatchObject({ ok: false, error: '一張圖只能有一個時脈' });
+    expect(two).toMatchObject({ ok: true });
+    const five = parseLogicDiagram({ version: 1, nodes: [0, 1, 2, 3, 4].map((k) => ({ id: `c${k}`, kind: 'CLOCK', x: 0, y: k * 3, name: `C${k}` })), wires: [] });
+    expect(five).toMatchObject({ ok: false, error: '一張圖最多 4 個時脈' });
     const { addNode } = await import('../../src/logic/edit');
     const one = addNode({ version: 1, nodes: [], wires: [] }, 'CLOCK', 0, 0);
     if (!one.ok) throw new Error(one.reason);
     expect(one.diagram.nodes[0]).toMatchObject({ kind: 'CLOCK', name: 'CLK', value: 0 });
-    expect(addNode(one.diagram, 'CLOCK', 0, 4)).toMatchObject({ ok: false, reason: '一張圖只能有一個時脈' });
+    expect(addNode(one.diagram, 'CLOCK', 0, 4)).toMatchObject({ ok: true });
   });
 
   it('does not compare a sequential circuit with a truth-table task, and formulas say why', async () => {

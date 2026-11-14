@@ -73,7 +73,7 @@ function ClockTerminal({ node, selected }: { node: LogicNode; selected: boolean 
   return (
     <g>
       <rect x={-0.9 * C} y={-0.45 * C} width={2.3 * C} height={0.9 * C} rx={4} fill="#ffffff" stroke={selected ? '#0284c7' : '#7c3aed'} strokeWidth={selected ? 2.4 : 1.6} />
-      <text x={-0.4 * C} y={0} transform={upright(node, -0.4 * C, 0)} fontSize={0.42 * C} fontWeight={700} fill="#4c1d95" textAnchor="middle" dominantBaseline="central">
+      <text x={-0.4 * C} y={0} transform={upright(node, -0.4 * C, 0)} fontSize={(node.name ?? '').length > 3 ? 0.32 * C : 0.42 * C} fontWeight={700} fill="#4c1d95" textAnchor="middle" dominantBaseline="central">
         {node.name}
       </text>
       <g
@@ -82,7 +82,7 @@ function ClockTerminal({ node, selected }: { node: LogicNode; selected: boolean 
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => {
           e.stopPropagation();
-          useLogic.getState().pulse();
+          useLogic.getState().pulse(node.id);
         }}
       >
         <title>送一個脈衝（0 → 1 → 0）</title>
