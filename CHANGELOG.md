@@ -3,7 +3,7 @@
 本檔記錄專案的每一次修改。格式參考 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，
 每一筆都對應 GitHub 上的 commit，詳細設計見 `docs/superpowers/specs/`。
 
-## 2026-11-11 — 子專案 60：照「麵包板接線 AI 工作指南」最佳化轉換的擺法規則（進行中）
+## 2026-11-11 — 子專案 60：照「麵包板接線 AI 工作指南」最佳化轉換的擺法規則（PR #96，已發布到線上版）
 
 設計規格：`docs/superpowers/specs/2026-11-11-guide-layout-rules-design.md`。使用者 2026-11-11 要求依照「給同學的 AI 接線指南」最佳化轉換與佈線的規則。
 
