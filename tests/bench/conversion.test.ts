@@ -47,10 +47,11 @@ const cases: Array<{ name: string; d: () => LogicDiagram; options: Partial<Conve
   // 子專案 37：輸出端設成低態致動（LED 正極接 +5 V）。
   { name: 'B 解碼器（低態致動 LED）', d: () => decoder(true), options: {}, board: 'MB102' },
   // 子專案 38（實習七 C）：共用 2 輸入 OR（2 片 74LS32）、EIC-1106 一排擺法、加上下拉電阻時兩個 4 位元開關。
-  { name: 'C 編碼器', d: encoder, options: {}, maxWires: 62, ics: { '74LS32': 2 } },
-  // 子專案 61（指南：先縮小佔用面積，再減少線數）：挑擺法先比面積，57 條、1260 格 → 63 條、1200 格。
-  { name: 'C 編碼器（下拉電阻）', d: encoder, options: { pulls: true }, maxWires: 64, ics: { '74LS32': 2 } },
+  { name: 'C 編碼器', d: encoder, options: {}, maxWires: 60, ics: { '74LS32': 2 } },
+  // 子專案 61（指南：先縮小佔用面積，再減少線數）：挑擺法先比面積，57 條、1260 格 → 63 條、1200 格。子專案 67：每條線的成本 60 以後 57 條。
+  { name: 'C 編碼器（下拉電阻）', d: encoder, options: { pulls: true }, maxWires: 60, ics: { '74LS32': 2 } },
   { name: 'BCD 範例', d: bcdDiagram, options: {}, maxWires: 60 },
+  // 子專案 67（每條線的成本 6 → 60）：大電路少 20–30 條線（6 輸入 3 輸出 153 → 131、十進制加法器 235 → 204）。
   // 子專案 44：共用一顆電阻（兩個顯示器時的預設）；每段一顆時 10 條排不完。
   { name: '兩個 7 段顯示器（共用電阻）', d: twoDisplays, options: {}, board: 'EIC1106', boards: 1 },
   // 子專案 49：顯示器多到一塊 EIC-1106 放不下時用兩塊（每個顯示器和它的解碼 IC 在同一塊板）。
@@ -58,11 +59,11 @@ const cases: Array<{ name: string; d: () => LogicDiagram; options: Partial<Conve
   // 不加下拉電阻時一次跑一件（MCP、量測）偶爾差 1 條；加上電阻（預設）時都排得完。
   { name: '三個 7 段顯示器（共用電阻、下拉電阻）', d: threeDisplays, options: { pulls: true }, board: 'EIC1106', boards: 2 },
   // 子專案 48：6 顆 IC 的大電路，子專案 47 時一塊 EIC-1106 差 1–8 條；現在 IC 照接線排、一塊排不完時用兩塊 EIC-1106。
-  { name: '大電路 6 輸入 3 輸出（下拉電阻）', d: () => fromExpressions(['X = A B + C D + E F', "Y = A' C E + B D' F", "Z = A C' + B' E + D F'"]), options: { pulls: true }, board: 'EIC1106' },
+  { name: '大電路 6 輸入 3 輸出（下拉電阻）', d: () => fromExpressions(['X = A B + C D + E F', "Y = A' C E + B D' F", "Z = A C' + B' E + D F'"]), options: { pulls: true }, board: 'EIC1106', maxWires: 145 },
   { name: '大電路 6 輸入 4 輸出（下拉電阻）', d: () => fromExpressions(['W = A B C + D E F', "X = A' B + C' D + E' F", 'Y = A D + B E + C F', "Z = A' F' + B' E'"]), options: { pulls: true }, board: 'EIC1106' },
   { name: '大電路 5 輸入 4 輸出（下拉電阻）', d: () => fromExpressions(["W = (A + B)(C + D')", "X = (A' + E)(B + C)", 'Y = A B + D E', "Z = C' E + A D'"]), options: { pulls: true }, board: 'EIC1106' },
   // 子專案 54：課本圖 8-8（兩顆 74LS83、兩顆 74LS47、兩個顯示器）；兩塊板多給 50 秒後排得完。
-  { name: '大電路 十進制加法器（圖 8-8，共用電阻、下拉電阻）', d: bcdAdderDiagram, options: { pulls: true, displayResistors: 'shared' }, board: 'EIC1106', boards: 2 },
+  { name: '大電路 十進制加法器（圖 8-8，共用電阻、下拉電阻）', d: bcdAdderDiagram, options: { pulls: true, displayResistors: 'shared' }, board: 'EIC1106', boards: 2, maxWires: 220 },
 ];
 
 describe('logic-to-breadboard measurements', () => {

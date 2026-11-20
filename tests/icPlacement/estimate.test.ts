@@ -12,12 +12,12 @@ const estimate = (c: Circuit) => estimateNets(indexCircuit(c), buildLattice(c.bo
 describe('estimateNets', () => {
   it('costs one wire for two strips on the same row', () => {
     // 第 10 欄下半與第 20 欄下半：同一列一條線，長 10。
-    expect(estimate(circuit([comp('C1', 'clock', 'J10'), comp('C2', 'clock', 'J20')], [wire('w', 'I10', 'I20')]))).toBe(6 + 10);
+    expect(estimate(circuit([comp('C1', 'clock', 'J10'), comp('C2', 'clock', 'J20')], [wire('w', 'I10', 'I20')]))).toBe(60 + 10);
   });
 
   it('costs two wires and a via when the strips are not aligned', () => {
     // 第 10 欄上半（y 4–8）與第 20 欄下半（y 11–15）：最近是 E10 → F20，橫 10、直 3。
-    expect(estimate(circuit([comp('C1', 'clock', 'A10'), comp('C2', 'clock', 'J20')], [wire('w', 'B10', 'I20')]))).toBe(2 * 6 + 3 + 13);
+    expect(estimate(circuit([comp('C1', 'clock', 'A10'), comp('C2', 'clock', 'J20')], [wire('w', 'B10', 'I20')]))).toBe(2 * 60 + 3 + 13);
   });
 
   it('costs nothing for a net that is already in one strip', () => {
@@ -30,6 +30,6 @@ describe('estimateNets', () => {
       [comp('C1', 'clock', 'J10'), comp('C2', 'clock', 'J20'), comp('C3', 'clock', 'J22')],
       [wire('a', 'I10', 'I20'), wire('b', 'H20', 'H22')],
     );
-    expect(estimate(c)).toBe(6 + 10 + 6 + 2);
+    expect(estimate(c)).toBe(60 + 10 + 60 + 2);
   });
 });
