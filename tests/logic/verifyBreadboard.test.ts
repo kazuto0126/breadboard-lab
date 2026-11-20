@@ -49,7 +49,7 @@ describe('NOR-only conversion (sub-project 27)', () => {
 
 describe('NAND-only conversion and labels', () => {
   it.each(['vcc', 'gnd'] as const)('uses only 74LS00 and still matches the truth table (switches to %s)', (switchTo) => {
-    // MB-102 上只用 NAND 的線排不完（store 會自動改用 EIC-1106），這裡直接用 EIC-1106。
+    // 子專案 67 起只用 NAND 的多數決在 MB-102 也排得完；這裡只看擺法與比對，用 EIC-1106。
     const r = toBreadboard(majorityDiagram(), { switchTo, board: 'EIC1106', gates: 'nand' });
     if (!r.ok) throw new Error(r.reason);
     expect(Object.keys(r.bom.ics)).toEqual(['74LS00']);

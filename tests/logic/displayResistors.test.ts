@@ -6,7 +6,7 @@ import { convertAndRoute } from '../../src/logic/convertRoute';
 import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
 import { addNode, connect } from '../../src/logic/edit';
 import { bcdDiagram } from '../../src/logic/examples';
-import { convertProblem } from '../../src/logic/synth';
+import { MB102_DISPLAY_PROBLEM, convertProblem } from '../../src/logic/synth';
 import { boardText, toBreadboard, type ConvertResult } from '../../src/logic/toBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 
@@ -99,6 +99,13 @@ describe('display resistors', () => {
     expect(['DS1', 'DS2', 'DS3'].map(boardOf)).toEqual(['b1', 'b2', 'b3']);
     // 每塊板一顆解碼 IC（和它的顯示器在同一塊板）。
     expect(three.circuit.components.filter((c) => c.defId === '74LS47').map((c) => c.boardId).sort()).toEqual(['b1', 'b2', 'b3']);
+  });
+
+  it('refuses an MB-102 for displays with a decoder and explains why (sub-project 69)', () => {
+    expect(convertProblem(bcdDiagram(), { board: 'MB102' })).toBe(MB102_DISPLAY_PROBLEM);
+    expect(toBreadboard(bcdDiagram(), { switchTo: 'vcc', board: 'MB102' })).toEqual({ ok: false, reason: MB102_DISPLAY_PROBLEM });
+    expect(convertProblem(bcdDiagram(), { board: 'EIC1106' })).toBeNull();
+    expect(convertProblem(bcdDiagram(), { board: 'auto' })).toBeNull();
   });
 
   it('still allows at most three displays (four do not route even on three or four boards)', () => {
