@@ -50,6 +50,9 @@ export function displaysNeedTwoBoards(count: number, resistors: 'each' | 'shared
   return displayBoardCount(count, resistors) >= 2;
 }
 
+/** 子專案 69：指定 MB-102 又有 7 段顯示器時不能轉的原因。 */
+export const MB102_DISPLAY_PROBLEM = 'MB-102 排不下 7 段顯示器的接線（解碼 IC 的段腳和顯示器的腳順序不同，線又不能交叉），請把麵包板選「EIC-1106」或「自動」';
+
 /** 子專案 44（規格 2026-10-24 display-resistors）：沒指定時 1 個顯示器每段一顆電阻、2 個以上共用一顆。 */
 export function displayResistorsOf(d: LogicDiagram, chosen?: 'each' | 'shared'): 'each' | 'shared' {
   return chosen ?? (d.nodes.filter((n) => n.kind === 'DISPLAY').length >= 2 ? 'shared' : 'each');
@@ -67,6 +70,10 @@ export function convertProblem(d: LogicDiagram, options: { displayResistors?: 'e
   if (displayCount > MAX_DISPLAYS) return `7 段顯示器最多 ${MAX_DISPLAYS} 個（零件太多，佈線接不完）`;
   const resistors = displayResistorsOf(d, options.displayResistors);
   if (displayCount > MAX_DISPLAYS_EACH && resistors === 'each') return `每段一顆電阻時 7 段顯示器最多 ${MAX_DISPLAYS_EACH} 個；${MAX_DISPLAYS} 個請選「共用一顆電阻」`;
+  // 子專案 69（使用者 2026-11-20 選「先說明再擋下」）：74LS47 的段腳和顯示器的腳順序有一段相反，線又不能交叉，
+  // MB-102 只有上下兩區，怎麼擺都差 2–5 條（2026-11-20 量測；不接 LT、BI、RBI 也差 1–4 條），所以不轉。
+  // 每段直接控制的顯示器（不用解碼 IC）沒有量測過，照舊轉。
+  if (options.board === 'MB102' && d.nodes.some((n) => n.kind === 'DISPLAY' && !n.segments)) return MB102_DISPLAY_PROBLEM;
   if (options.board !== undefined && options.board !== 'auto' && displaysNeedTwoBoards(displayCount, resistors))
     return `${displayCount} 個 7 段顯示器${resistors === 'each' ? '（每段一顆電阻）' : ''}要用${displayBoardCount(displayCount, resistors) === 3 ? '三' : '兩'}塊 EIC-1106，請把麵包板選「自動」`;
   if (inputs.length > MAX_TABLE_INPUTS) return `輸入端最多 ${MAX_TABLE_INPUTS} 個（真值表 ${1 << MAX_TABLE_INPUTS} 列）`;

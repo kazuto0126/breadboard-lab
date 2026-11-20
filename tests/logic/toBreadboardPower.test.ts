@@ -20,7 +20,7 @@ describe('power in converted breadboards', () => {
     ['majority on EIC-1106', majorityDiagram(), { board: 'EIC1106' }],
     ['BCD, common anode', bcdDiagram(), {}],
     ['BCD, common cathode', bcdDiagram(), { display: 'cc' }],
-    // 只用 NAND 在 MB-102 排不完（網頁會自動改用 EIC-1106 再轉一次），所以直接用 EIC-1106。
+    // 只用 NAND 的多數決在 MB-102 也排得完（子專案 67 起），這裡檢查 EIC-1106 的電源。
     ['majority, NAND only', majorityDiagram(), { gates: 'nand', board: 'EIC1106' }],
     ['majority with buttons', majorityDiagram(), { inputs: 'button', board: 'MB102' }],
     ['majority with pull resistors, switches to GND', majorityDiagram(), { pulls: true, switchTo: 'gnd', board: 'MB102' }],
