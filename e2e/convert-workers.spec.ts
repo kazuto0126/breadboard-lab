@@ -29,12 +29,12 @@ test('轉成麵包板：同時用好幾個 Worker，按取消後全部停下來�
   const cores = await page.evaluate(() => navigator.hardwareConcurrency || 2);
 
   await page.getByRole('button', { name: '檔案', exact: true }).click();
-  await page.getByRole('menuitem', { name: '多數決電路（圖 2-5）' }).click();
-  await expect(page.locator('[data-logic-node]')).toHaveCount(8);
+  // 子專案 68：改用圖 8-8 的十進制加法器（兩塊 EIC-1106，要算一分半鐘），按取消時一定還在算。
+  // 以前用只用 NAND 的多數決電路，子專案 67 起線變少、轉得比較快，電腦很忙時按取消前就轉完了。
+  await page.getByRole('menuitem', { name: '十進制加法器顯示（圖 8-8）' }).click();
+  await expect(page.locator('[data-logic-node]').first()).toBeVisible();
   await page.getByRole('button', { name: '轉成麵包板…' }).click();
   const dialog = page.getByRole('dialog', { name: '轉成麵包板' });
-  // 只用 NAND：比較慢（MB-102 排不完再換 EIC-1106），按取消時一定還在算。
-  await dialog.getByLabel(/只用 NAND/).check();
   await dialog.getByLabel(/加上 \/ 下拉電阻/).check();
   await dialog.getByRole('button', { name: '轉換' }).click();
 

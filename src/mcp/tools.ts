@@ -597,7 +597,7 @@ export type LogicToBreadboardArgs = {
   display?: 'ca' | 'cc';
   /** 子專案 44：7 段顯示器每段一顆電阻或共用一顆（沒給時 1 個顯示器每段一顆、2 個共用一顆）。 */
   display_resistors?: 'each' | 'shared';
-  /** 子專案 55：總時間上限（秒）；沒給時一般 40 秒、用到兩塊 EIC-1106 時 90 秒。 */
+  /** 子專案 55：總時間上限（秒）；沒給時一般 40 秒、用到兩塊以上 EIC-1106 時 90 秒。 */
   seconds?: number;
 };
 

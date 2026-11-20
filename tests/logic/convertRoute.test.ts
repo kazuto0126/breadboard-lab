@@ -120,6 +120,36 @@ describe('converting with a layout search (sub-project 36)', () => {
     expect(boards.every((n) => n === 2)).toBe(true);
   });
 
+  it('only tries three EIC-1106 for three displays with a resistor per segment, estimating IC moves with cheap wires (sub-project 68)', () => {
+    const nodes: LogicDiagram['nodes'] = [];
+    for (let k = 0; k < 8; k++) nodes.push({ id: `i${k + 1}`, kind: 'INPUT', x: 0, y: k * 2, name: 'ABCDEFGH'[k] });
+    nodes.push({ id: 'd1', kind: 'DISPLAY', x: 10, y: 0 }, { id: 'd2', kind: 'DISPLAY', x: 10, y: 10 }, { id: 'd3', kind: 'DISPLAY', x: 10, y: 20 });
+    const map = [[1, 2, 3, 4], [5, 6, 7, 8], [1, 3, 5, 7]];
+    const wires = map.flatMap((ins, k) => ins.map((i, p) => ({ id: `w${k}${p}`, from: `i${i}`, to: { node: `d${k + 1}`, pin: p } })));
+    const d: LogicDiagram = { ...emptyDiagram(), nodes, wires };
+    const seen: Array<{ boards: number; estimateWire?: number }> = [];
+    const route = (c: Parameters<typeof autoPlaceAndRoute>[0], config: DeepPartial<RoutingConfig> = {}): RoutingResult => {
+      seen.push({ boards: c.boards.length, estimateWire: config.placement?.estimateWire });
+      return { status: 'success', message: '', wires: [], failedNets: [], metrics: { wireCount: 20, totalLength: 80, bends: 0, crossings: 0, overlaps: 0, shortJogs: 0 }, score: 0, stats: { iterations: 0, elapsedMs: 0 }, moves: [] };
+    };
+    const r = convertAndRoute(d, { switchTo: 'vcc', board: 'auto', displayResistors: 'each' }, { totalMs: 10_000 }, route);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.result.bom).toMatchObject({ boards: 3, displays: 3 });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((s) => s.boards === 3 && s.estimateWire === 6)).toBe(true);
+  });
+
+  it('estimates IC moves with the normal wire cost on layouts without display boards (sub-project 68)', () => {
+    const seen: Array<number | undefined> = [];
+    const route = (_c: Parameters<typeof autoPlaceAndRoute>[0], config: DeepPartial<RoutingConfig> = {}): RoutingResult => {
+      seen.push(config.placement?.estimateWire);
+      return { status: 'success', message: '', wires: [], failedNets: [], metrics: { wireCount: 20, totalLength: 80, bends: 0, crossings: 0, overlaps: 0, shortJogs: 0 }, score: 0, stats: { iterations: 0, elapsedMs: 0 }, moves: [] };
+    };
+    convertAndRoute(comparator(), { switchTo: 'vcc', board: 'auto', pulls: true }, { totalMs: 10_000 }, route);
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((w) => w === undefined)).toBe(true);
+  });
+
   // 子專案 48：一塊板排不完時自動選板最後試兩塊 EIC-1106；指定板子時只試那一塊。
   it('moves to two EIC-1106 when one board cannot be routed (sub-project 48)', () => {
     const fake = (c: Parameters<typeof autoPlaceAndRoute>[0]): RoutingResult => {

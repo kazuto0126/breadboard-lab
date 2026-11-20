@@ -16,7 +16,7 @@ import type { GridPoint } from '../types/geometry';
 import { clockNodes, SEGMENT_NAMES, sortedIo } from './evaluate';
 import { toNandUnits, toNorUnits } from './nandOnly';
 import { BLOCK_DEFAULTS, BLOCK_PINS } from './blocks';
-import { assignIcs, convertProblem, displayResistorsOf, displaysNeedTwoBoards, decompose, drivers, gateSlots, type IcPlan, type Unit } from './synth';
+import { assignIcs, convertProblem, displayBoardCount, displayResistorsOf, decompose, drivers, gateSlots, type IcPlan, type Unit } from './synth';
 import { isSink, signalOf, type LogicDiagram, type LogicNode } from './types';
 
 export interface ConvertOptions {
@@ -33,7 +33,7 @@ export interface ConvertOptions {
   display?: 'ca' | 'cc';
   /**
    * 子專案 44：7 段顯示器每段一顆 220 Ω（亮度一致）或共同腳共用一顆 100 Ω（線比較少，亮的段越多越暗）。
-   * 沒指定時 1 個顯示器每段一顆、2 個共用一顆（每段一顆時 2 個排不完）。
+   * 沒指定時 1 個顯示器每段一顆、2 個共用一顆（每段一顆時 2 個要兩塊板、3 個要三塊板）。
    */
   displayResistors?: 'each' | 'shared';
 }
@@ -42,8 +42,8 @@ export interface Bom {
   ics: Record<string, number>;
   /** 指撥開關；輸入用按鈕時是 null。 */
   switch: 'dipsw-4' | 'dipsw-8' | null;
-  /** 子專案 48：用幾塊板（兩塊時是兩塊 EIC-1106 左右貼在一起）。 */
-  boards: 1 | 2;
+  /** 子專案 48：用幾塊板（兩塊以上時是 EIC-1106 左右貼在一起）。子專案 68：每段一顆電阻的 3 個顯示器用三塊。 */
+  boards: 1 | 2 | 3;
   /** 子專案 38：指撥開關的個數（拆成兩個 4 位元時是 2；輸入用按鈕時是 0）。 */
   switches: number;
   /** 子專案 59：超過 8 個輸入時每個開關的種類（依順序，例如 8 位元、4 位元）；其他時候不寫。 */
@@ -68,7 +68,7 @@ export function switchText(bom: Pick<Bom, 'switch' | 'switches' | 'buttons' | 's
 
 /** 子專案 48：零件清單裡板子那一項（「MB-102」「EIC-1106」「EIC-1106 × 2（左右貼在一起）」）。 */
 export function boardText(bom: Pick<Bom, 'layout' | 'boards'>): string {
-  return bom.layout === 'MB102' ? 'MB-102' : bom.boards === 2 ? 'EIC-1106 × 2（左右貼在一起）' : 'EIC-1106';
+  return bom.layout === 'MB102' ? 'MB-102' : bom.boards >= 2 ? `EIC-1106 × ${bom.boards}（左右貼在一起）` : 'EIC-1106';
 }
 
 export type ConvertResult =
@@ -94,8 +94,6 @@ export type ConvertResult =
 const VCC = 'VCC';
 const GND = 'GND';
 const BOARD_ID = 'b1';
-/** 子專案 48：第 2 塊板（右邊）。 */
-const SECOND_ID = 'b2';
 const RESISTOR_SPAN = 3;
 const LAST_COLUMN = 63;
 /**
@@ -127,8 +125,11 @@ export interface LayoutVariant {
    * 子專案 48：只在 EIC-1106（不是一排擺法）：兩塊 EIC-1106 左右貼在一起（第 2 塊在右邊），每一區排滿第 1 塊板再接著排到第 2 塊板。
    * 一塊板接不完的大電路用。
    */
-  boards?: 2;
-  /** 子專案 49：兩塊板時每個 7 段顯示器和它的解碼 IC、電阻放在同一塊板（前一半在第 1 塊、後一半在第 2 塊）。 */
+  boards?: 2 | 3;
+  /**
+   * 子專案 49：兩塊板時每個 7 段顯示器和它的解碼 IC、電阻放在同一塊板（前一半在第 1 塊、後一半在第 2 塊）。
+   * 子專案 68：三塊板時第 k 個顯示器放第 k 塊板（顯示器比板子多時，多的往後面的板放，第 1 塊板還有開關）。
+   */
   displayBoards?: true;
 }
 
@@ -139,9 +140,17 @@ export const TWO_BOARD_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: fa
 /** 子專案 49：顯示器多到要兩塊板時的預設擺法（每個顯示器和它的解碼 IC 在同一塊板）。 */
 export const TWO_BOARD_DISPLAY_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: false, boards: 2, displayBoards: true };
 
-/** 子專案 49：自動選板時，這張圖的顯示器一塊 EIC-1106 放不下、一定要兩塊。 */
+/** 子專案 68：三塊 EIC-1106 的擺法（每段一顆電阻的 3 個顯示器）。 */
+export const THREE_BOARD_DISPLAY_LAYOUT: LayoutVariant = { gap: 6, leds: 'pair', split: false, boards: 3, displayBoards: true };
+
+/** 子專案 68：自動選板時這張圖的顯示器至少要幾塊 EIC-1106（1 是不一定）。 */
+export function boardsNeeded(d: LogicDiagram, options: Pick<ConvertOptions, 'displayResistors'>): 1 | 2 | 3 {
+  return displayBoardCount(d.nodes.filter((n) => n.kind === 'DISPLAY').length, displayResistorsOf(d, options.displayResistors));
+}
+
+/** 子專案 49：自動選板時，這張圖的顯示器一塊 EIC-1106 放不下、一定要兩塊以上。 */
 export function needsTwoBoards(d: LogicDiagram, options: Pick<ConvertOptions, 'displayResistors'>): boolean {
-  return displaysNeedTwoBoards(d.nodes.filter((n) => n.kind === 'DISPLAY').length, displayResistorsOf(d, options.displayResistors));
+  return boardsNeeded(d, options) >= 2;
 }
 
 /** 一個預定的連接點：元件的某隻腳，或接線柱的孔。 */
@@ -381,7 +390,7 @@ export function toBreadboard(diagram: LogicDiagram, options: ConvertOptions, var
   // 子專案 60：分組的擺法只給有兩個以上子電路的圖（其他的圖不多花時間試）。
   if (variant.parts && !hasParts(d, options)) return { ok: false, reason: '' };
   // 子專案 49：兩塊板的擺法（自動選板時轉換會用到）不受「要選自動」的限制。
-  const problem = convertProblem(d, variant.boards === 2 ? { ...options, board: 'auto' } : options);
+  const problem = convertProblem(d, variant.boards ? { ...options, board: 'auto' } : options);
   if (problem) return { ok: false, reason: problem };
   // 有 7 段顯示器時 MB-102 的線排不完（規格 2026-10-13 seven-seg 第 6 節），自動選板直接用 EIC-1106。
   // 子專案 49：顯示器多到一塊 EIC-1106 放不下時直接用兩塊。
@@ -399,20 +408,22 @@ export function toBreadboard(diagram: LogicDiagram, options: ConvertOptions, var
   // 子專案 48：自動選板時一塊 EIC-1106 放不下，改用兩塊左右貼在一起。
   if (options.board === 'auto') {
     try {
-      return build(d, options, 'EIC1106', twoNeeded ? TWO_BOARD_DISPLAY_LAYOUT : TWO_BOARD_LAYOUT);
+      return build(d, options, 'EIC1106', !twoNeeded ? TWO_BOARD_LAYOUT : boardsNeeded(d, options) === 3 ? THREE_BOARD_DISPLAY_LAYOUT : TWO_BOARD_DISPLAY_LAYOUT);
     } catch (err) {
       if (!(err instanceof NoRoom)) throw err;
     }
   }
   const chips = assignIcs(unitsFor(d, options)).length;
-  return { ok: false, reason: options.board === 'auto' || variant.boards === 2 ? `零件太多，兩塊 EIC-1106 也放不下（需要 ${chips} 片 IC）` : `零件太多，一塊 EIC-1106 放不下（需要 ${chips} 片 IC），請改用「自動」選板（可以用兩塊）` };
+  return { ok: false, reason: options.board === 'auto' || variant.boards ? `零件太多，${variant.boards === 3 ? '三' : '兩'}塊 EIC-1106 也放不下（需要 ${chips} 片 IC）` : `零件太多，一塊 EIC-1106 放不下（需要 ${chips} 片 IC），請改用「自動」選板（可以用兩塊）` };
 }
 
 function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, variant: LayoutVariant): ConvertResult {
   const eic = layout === 'EIC1106';
   // 子專案 38：排成一排（MB-102，或 EIC-1106 的一排擺法）時，EIC-1106 上的東西全部放在第 2 區。
   const inOneRow = !eic || variant.oneRow === true;
-  const two = eic && !inOneRow && variant.boards === 2;
+  /** 子專案 48、68：用幾塊 EIC-1106（左右貼在一起）。 */
+  const boardCount = eic && !inOneRow ? (variant.boards ?? 1) : 1;
+  const two = boardCount >= 2;
   /** 子專案 48：正在放哪一塊板（兩塊板時由下面的排列決定）。 */
   let boardNow = BOARD_ID;
   const hole = (name: string, area?: number) => holeOn(boardNow, eic ? `${grouped ? area : inOneRow ? 2 : area}-${name}` : name, layout);
@@ -596,7 +607,12 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   let nextIc = plans.length + chips.length;
   const displayParts: Array<{ node: (typeof displays)[number]; ic: string | null; ds: string }> = displays.map((node, k) => ({ node, ic: node.segments ? null : `U${++nextIc}`, ds: `DS${k + 1}` }));
   /** 子專案 49：第 k 個顯示器放在哪一塊板（只有兩塊板、displayBoards 時）。 */
-  const displayBoard = (k: number) => (two && variant.displayBoards && k >= 0 ? Math.floor((k * 2) / displayParts.length) : undefined);
+  // 子專案 68：三塊板時多出來的顯示器往後面的板放（第 1 塊板還有開關）。
+  const displayBoard = (k: number) => {
+    if (!two || !variant.displayBoards || k < 0) return undefined;
+    const n = displayParts.length;
+    return boardCount === 3 ? boardCount - 1 - Math.floor(((n - 1 - k) * boardCount) / n) : Math.floor((k * boardCount) / n);
+  };
   for (const [k, { node, ic }] of displayParts.entries()) {
     if (!ic) continue;
     icBlocks.push({ ic, board: displayBoard(k), width: 8, place: (x, area) => components.push(comp(ic, decoder, hole(`F${x}`, area), { board: boardNow })) });
@@ -811,7 +827,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
     blocks[3] = [];
   }
   // 子專案 48：兩塊板時每一區排滿第 1 塊板再接著排到第 2 塊板（一個區塊不跨過兩塊板）。
-  const boardIds = two ? [BOARD_ID, SECOND_ID] : [BOARD_ID];
+  const boardIds = Array.from({ length: boardCount }, (_, k) => (k === 0 ? BOARD_ID : `b${k + 1}`));
   for (const area of [1, 2, 3]) {
     const list = blocks[area];
     if (list.length === 0) continue;
@@ -934,7 +950,7 @@ function build(d: LogicDiagram, options: ConvertOptions, layout: LayoutId, varia
   return {
     ok: true,
     circuit,
-    bom: { ics, boards: two ? 2 : 1, switch: useButtons ? null : swDef, switches: useButtons ? 0 : switches.length, ...(listed && !useButtons ? { switchList: switches.map(defOf) } : {}), buttons: useButtons ? inputs.length : 0, resistors: components.filter((c) => c.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
+    bom: { ics, boards: boardCount, switch: useButtons ? null : swDef, switches: useButtons ? 0 : switches.length, ...(listed && !useButtons ? { switchList: switches.map(defOf) } : {}), buttons: useButtons ? inputs.length : 0, resistors: components.filter((c) => c.defId === 'resistor').length, leds: outputs.length, displays: displays.length, layout },
     switchId: useButtons ? null : 'SW1',
     ...(useButtons ? { buttons: buttonIds } : {}),
     inputs: inputs.map((n) => n.id),

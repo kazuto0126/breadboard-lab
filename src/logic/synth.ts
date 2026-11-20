@@ -30,14 +30,24 @@ const ORDER = Object.keys(IC_FOR) as UnitKind[];
 /**
  * 7 段顯示器最多幾個（規格 2026-10-13 seven-seg 第 6 節）。子專案 49：共用一顆電阻時 3 個、每段一顆時 2 個
  * （一塊 EIC-1106 只放得下共用電阻的 2 個或每段一顆的 1 個，更多時要兩塊 EIC-1106，所以要自動選板）。
+ * 子專案 68：每段一顆電阻時可以用三塊 EIC-1106（3 個）。共用電阻 4 個用三塊、四塊板都還差 1–2 條（2026-11-20 量測），上限維持 3 個。
  */
 export const MAX_DISPLAYS = 3;
-/** 子專案 49：每段一顆電阻時最多幾個顯示器（3 個兩塊板也排不完）。 */
-export const MAX_DISPLAYS_EACH = 2;
+/** 子專案 49：每段一顆電阻時最多幾個顯示器。子專案 68：3 個（三塊板）。 */
+export const MAX_DISPLAYS_EACH = 3;
 
-/** 子專案 49：這些顯示器一塊 EIC-1106 放不下、要用兩塊（共用電阻 3 個、每段一顆 2 個）。 */
+/**
+ * 子專案 68：這些顯示器要幾塊 EIC-1106（每塊板放得下共用電阻的 2 個或每段一顆的 1 個；子專案 49 起共用電阻 3 個用兩塊）。
+ * 共用電阻：1–2 個一塊、3 個兩塊；每段一顆：一個顯示器一塊。
+ */
+export function displayBoardCount(count: number, resistors: 'each' | 'shared'): 1 | 2 | 3 {
+  const n = resistors === 'each' ? count : count <= 2 ? 1 : 2;
+  return Math.min(3, Math.max(1, n)) as 1 | 2 | 3;
+}
+
+/** 子專案 49：這些顯示器一塊 EIC-1106 放不下、要用兩塊以上。 */
 export function displaysNeedTwoBoards(count: number, resistors: 'each' | 'shared'): boolean {
-  return resistors === 'each' ? count >= 2 : count >= 3;
+  return displayBoardCount(count, resistors) >= 2;
 }
 
 /** 子專案 44（規格 2026-10-24 display-resistors）：沒指定時 1 個顯示器每段一顆電阻、2 個以上共用一顆。 */
@@ -58,7 +68,7 @@ export function convertProblem(d: LogicDiagram, options: { displayResistors?: 'e
   const resistors = displayResistorsOf(d, options.displayResistors);
   if (displayCount > MAX_DISPLAYS_EACH && resistors === 'each') return `每段一顆電阻時 7 段顯示器最多 ${MAX_DISPLAYS_EACH} 個；${MAX_DISPLAYS} 個請選「共用一顆電阻」`;
   if (options.board !== undefined && options.board !== 'auto' && displaysNeedTwoBoards(displayCount, resistors))
-    return `${displayCount} 個 7 段顯示器${resistors === 'each' ? '（每段一顆電阻）' : ''}要用兩塊 EIC-1106，請把麵包板選「自動」`;
+    return `${displayCount} 個 7 段顯示器${resistors === 'each' ? '（每段一顆電阻）' : ''}要用${displayBoardCount(displayCount, resistors) === 3 ? '三' : '兩'}塊 EIC-1106，請把麵包板選「自動」`;
   if (inputs.length > MAX_TABLE_INPUTS) return `輸入端最多 ${MAX_TABLE_INPUTS} 個（真值表 ${1 << MAX_TABLE_INPUTS} 列）`;
   if (issues.some((i) => i.code === 'LOGIC_INPUT_OPEN' || i.code === 'LOGIC_OUTPUT_OPEN')) return '還有沒接好的腳（到「檢查」分頁看是哪些），請先接好';
   return null;
