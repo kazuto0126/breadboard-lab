@@ -329,7 +329,7 @@ function ToBreadboardDialog() {
             <legend className="mb-1 font-semibold text-slate-100">7 段顯示器的電阻</legend>
             {(
               [
-                ['each', '每段一顆電阻（220 Ω）', '每一段亮度一樣（課本的接法）；最多 2 個顯示器（2 個時用兩塊 EIC-1106）。'],
+                ['each', '每段一顆電阻（220 Ω）', '每一段亮度一樣（課本的接法）；最多 3 個顯示器（2 個時用兩塊、3 個時用三塊 EIC-1106）。'],
                 ['shared', '共用一顆電阻（100 Ω，接在共同腳）', '線比較少，最多 3 個顯示器（3 個時用兩塊 EIC-1106）；亮的段越多每段越暗（例如 1 比 8 亮）。'],
               ] as const
             ).map(([id, label, hint]) => (
@@ -416,8 +416,8 @@ function ToBreadboardDialog() {
               {/* 子專案 36 起自動選板會先試 MB-102 的每一種擺法，排不完才改用 EIC-1106，所以預覽不說一定放在 MB-102。
                   子專案 48：自動選板時一塊 EIC-1106 也排不完，會用兩塊 EIC-1106 左右貼在一起。 */}
               {board === 'auto'
-                ? preview.bom.boards === 2
-                  ? '放在兩塊 EIC-1106（左右貼在一起）'
+                ? preview.bom.boards >= 2
+                  ? `放在${preview.bom.boards === 3 ? '三' : '兩'}塊 EIC-1106（左右貼在一起）`
                   : preview.bom.layout === 'MB102'
                   ? '先試 MB-102，排不完時改用 EIC-1106，還排不完時用兩塊 EIC-1106'
                   : '放在 EIC-1106，排不完時用兩塊 EIC-1106（左右貼在一起）'
@@ -428,7 +428,7 @@ function ToBreadboardDialog() {
           )}
         </div>
         {hasParts && <p className="text-xs text-amber-300">會取代目前的麵包板（可以按復原找回來）。</p>}
-        <p className="text-xs text-slate-400">轉換時會試好幾種擺法，每一種用 AI 佈線（可移動 IC）試過、挑線最少的一種（同時用好幾個核心；大電路要等十幾秒，用到兩塊 EIC-1106 時最多一分半鐘），並用模擬逐列比對真值表。</p>
+        <p className="text-xs text-slate-400">轉換時會試好幾種擺法，每一種用 AI 佈線（可移動 IC）試過、挑線最少的一種（同時用好幾個核心；大電路要等十幾秒，用到兩塊以上 EIC-1106 時最多一分半鐘），並用模擬逐列比對真值表。</p>
       </div>
       <div className="mt-4 flex justify-end gap-2">
         <button type="button" className={`${button} bg-slate-700 hover:bg-slate-600`} onClick={() => store.closeDialog()}>

@@ -6,7 +6,7 @@ import type { LayoutId } from '../types/board';
 import type { Circuit } from '../types/circuit';
 import type { DeepPartial, RoutingConfig, RoutingResult } from '../types/routing';
 import { convertProblem } from './synth';
-import { DEFAULT_LAYOUT, TWO_BOARD_DISPLAY_LAYOUT, TWO_BOARD_LAYOUT, needsTwoBoards, toBreadboard, type ConvertOptions, type ConvertResult, type LayoutVariant } from './toBreadboard';
+import { DEFAULT_LAYOUT, THREE_BOARD_DISPLAY_LAYOUT, TWO_BOARD_DISPLAY_LAYOUT, TWO_BOARD_LAYOUT, boardsNeeded, toBreadboard, type ConvertOptions, type ConvertResult, type LayoutVariant } from './toBreadboard';
 import type { LogicDiagram } from './types';
 
 /**
@@ -75,6 +75,11 @@ export const TWO_BOARD_VARIANTS: LayoutVariant[] = [
   { gap: 3, leds: 'pair', split: false, boards: 2, displayBoards: true },
 ];
 
+/**
+ * 子專案 68：三塊 EIC-1106（3 個每段一顆電阻的 7 段顯示器）時試的擺法；每個顯示器和它的解碼 IC 在同一塊板。
+ */
+export const THREE_BOARD_VARIANTS: LayoutVariant[] = [THREE_BOARD_DISPLAY_LAYOUT, { ...THREE_BOARD_DISPLAY_LAYOUT, gap: 3 }];
+
 /** 總時間預設 40 秒：每塊板先用短時間試每一種擺法（每種最多 4 秒），剩下的時間給最好的兩種。 */
 const TOTAL_MS = 40_000;
 /**
@@ -82,6 +87,10 @@ const TOTAL_MS = 40_000;
  * （兩顆 74LS83、兩顆 74LS47、兩個顯示器）一次跑一件時 40 秒差 1 條、90 秒排完（257 條線）。
  */
 const TWO_BOARD_EXTRA_MS = 50_000;
+/** 子專案 68：三塊板時多給的時間（和兩塊板一樣，總共 90 秒）。 */
+const THREE_BOARD_EXTRA_MS = 50_000;
+/** 子專案 68：顯示器分板放的擺法粗估 IC 位置時每條線的成本（見 PlacementConfig.estimateWire）。 */
+const DISPLAY_ESTIMATE_WIRE = 6;
 const MIN_QUICK_MS = 300;
 const MAX_QUICK_MS = 4_000;
 const POLISHED = 2;
@@ -128,7 +137,10 @@ export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: 
   const single = (layout: LayoutId) => ({ layout, variants: LAYOUT_VARIANTS[layout] });
   // 子專案 49：顯示器多到一塊 EIC-1106 放不下時只試兩塊。
   const two = { layout: 'EIC1106' as const, variants: TWO_BOARD_VARIANTS };
-  const boards = options.board !== 'auto' ? [single(options.board)] : needsTwoBoards(d, options) ? [two] : [...(hasDisplay ? [] : [single('MB102')]), single('EIC1106'), two];
+  // 子專案 68：顯示器多到兩塊板也放不下時只試三塊。
+  const three = { layout: 'EIC1106' as const, variants: THREE_BOARD_VARIANTS };
+  const needed = options.board === 'auto' ? boardsNeeded(d, options) : 1;
+  const boards = options.board !== 'auto' ? [single(options.board)] : needed === 3 ? [three] : needed === 2 ? [two] : [...(hasDisplay ? [] : [single('MB102')]), single('EIC1106'), two];
   const power = { nearestPowerRail: true };
   const lanes = Math.max(1, Math.floor(parallel));
   let tried = 0;
@@ -136,7 +148,10 @@ export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: 
 
   for (const [i, { layout: board, variants }] of boards.entries()) {
     if (variants === TWO_BOARD_VARIANTS && budget.totalMs === undefined) total += TWO_BOARD_EXTRA_MS;
+    if (variants === THREE_BOARD_VARIANTS && budget.totalMs === undefined) total += THREE_BOARD_EXTRA_MS;
     const candidates: ConvertSuccess[] = [];
+    /** 子專案 68：顯示器分板放的擺法（粗估 IC 位置時每條線便宜一點）。 */
+    const displayBoards = new Set<ConvertSuccess>();
     const seen = new Set<string>();
     for (const variant of variants) {
       const r = toBreadboard(d, { ...options, board }, variant);
@@ -149,7 +164,9 @@ export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: 
       if (seen.has(key)) continue;
       seen.add(key);
       candidates.push(r);
+      if (variant.displayBoards) displayBoards.add(r);
     }
+    const placementOf = (r: ConvertSuccess) => (displayBoards.has(r) ? { ...power, estimateWire: DISPLAY_ESTIMATE_WIRE } : power);
     if (candidates.length === 0) continue;
 
     const boardStart = performance.now();
@@ -157,7 +174,7 @@ export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: 
     const quickMs = Math.min(MAX_QUICK_MS, Math.max(MIN_QUICK_MS, (boardMs * 0.4) / candidates.length));
     tried += candidates.length;
     // 子專案 38：佈線器本身也限時（排不完的擺法它會一直重排到自己的上限 5 秒，MB-102 上的大電路每種要 3–5 秒）。
-    const quick: RoutingResult[] = yield candidates.map((result) => ({ circuit: result.circuit, config: { timeBudgetMs: quickMs, placement: { ...power, timeBudgetMs: quickMs, maxPasses: 1 } } }));
+    const quick: RoutingResult[] = yield candidates.map((result) => ({ circuit: result.circuit, config: { timeBudgetMs: quickMs, placement: { ...placementOf(result), timeBudgetMs: quickMs, maxPasses: 1 } } }));
     const ranked = candidates.map((result, k) => ({ result, routed: quick[k] }));
     // 好的排前面（同分時保持試的順序）。
     ranked.sort((a, b) => (isBetterConversion(a, b) ? -1 : isBetterConversion(b, a) ? 1 : 0));
@@ -176,7 +193,7 @@ export function* convertSteps(d: LogicDiagram, options: ConvertOptions, budget: 
         const polishMs = (until - performance.now()) / (top.length - k);
         if (polishMs <= MIN_QUICK_MS) break;
         // 從快速試的結果接著搬（不重做快速試已經做過的那一輪）。
-        const polished: RoutingResult[] = yield group.map((entry) => ({ circuit: entry.result.circuit, config: { placement: { ...power, timeBudgetMs: polishMs } }, from: entry.routed }));
+        const polished: RoutingResult[] = yield group.map((entry) => ({ circuit: entry.result.circuit, config: { placement: { ...placementOf(entry.result), timeBudgetMs: polishMs } }, from: entry.routed }));
         for (const [j, entry] of group.entries()) {
           const routed = isBetterConversion({ result: entry.result, routed: polished[j] }, entry) ? polished[j] : entry.routed;
           if (isBetterConversion({ result: entry.result, routed }, best) || entry === best) best = { result: entry.result, routed };

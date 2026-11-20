@@ -103,7 +103,7 @@ function rankCandidates(layout: Circuit, nets: Net[], id: string, lattice: Latti
     .filter((p) => !samePlacement(p, here))
     .map((p, order) => {
       const components = layout.components.map((c) => (c.id === id ? placeAt(c, p) : c));
-      return { p, order, cost: estimateNets(indexCircuit({ ...layout, components }), lattice, mine, config.weights) };
+      return { p, order, cost: estimateNets(indexCircuit({ ...layout, components }), lattice, mine, { ...config.weights, wire: config.placement.estimateWire ?? config.weights.wire }) };
     })
     .sort((a, b) => a.cost - b.cost || a.order - b.order)
     .map((x) => x.p);

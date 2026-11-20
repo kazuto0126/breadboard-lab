@@ -7,7 +7,7 @@ import { checkAgainstDiagram } from '../../src/logic/diagramCheck';
 import { addNode, connect } from '../../src/logic/edit';
 import { bcdDiagram } from '../../src/logic/examples';
 import { convertProblem } from '../../src/logic/synth';
-import { toBreadboard, type ConvertResult } from '../../src/logic/toBreadboard';
+import { boardText, toBreadboard, type ConvertResult } from '../../src/logic/toBreadboard';
 import { emptyDiagram, type LogicDiagram } from '../../src/logic/types';
 
 /** 子專案 44（規格 2026-10-24 display-resistors）：7 段顯示器每段一顆電阻或共用一顆電阻。 */
@@ -85,7 +85,26 @@ describe('display resistors', () => {
       // 指定板子時不能用兩塊。
       expect(convertProblem(d, { displayResistors, board: 'EIC1106' })).toMatch(/要用兩塊 EIC-1106，請把麵包板選「自動」/);
     }
-    expect(convertProblem(threeDisplays(), { displayResistors: 'each' })).toBe('每段一顆電阻時 7 段顯示器最多 2 個；3 個請選「共用一顆電阻」');
+  });
+
+  it('puts three displays with a resistor per segment on three EIC-1106, one display per board (sub-project 68)', () => {
+    const d = threeDisplays();
+    expect(convertProblem(d, { displayResistors: 'each' })).toBeNull();
+    expect(convertProblem(d, { displayResistors: 'each', board: 'EIC1106' })).toMatch(/要用三塊 EIC-1106，請把麵包板選「自動」/);
+    const three = ok(toBreadboard(d, { switchTo: 'vcc', board: 'auto', displayResistors: 'each' }));
+    expect(three.bom).toMatchObject({ layout: 'EIC1106', boards: 3, displays: 3 });
+    expect(boardText(three.bom)).toBe('EIC-1106 × 3（左右貼在一起）');
+    expect(three.circuit.boards.map((b) => b.id)).toEqual(['b1', 'b2', 'b3']);
+    const boardOf = (id: string) => three.circuit.components.find((c) => c.id === id)!.boardId;
+    expect(['DS1', 'DS2', 'DS3'].map(boardOf)).toEqual(['b1', 'b2', 'b3']);
+    // 每塊板一顆解碼 IC（和它的顯示器在同一塊板）。
+    expect(three.circuit.components.filter((c) => c.defId === '74LS47').map((c) => c.boardId).sort()).toEqual(['b1', 'b2', 'b3']);
+  });
+
+  it('still allows at most three displays (four do not route even on three or four boards)', () => {
+    let d = must(addNode(threeDisplays(), 'DISPLAY', 10, 24));
+    [2, 4, 6, 8].forEach((i, p) => (d = must(connect(d, `i${i}`, { node: 'd4', pin: p }))));
+    expect(convertProblem(d)).toBe('7 段顯示器最多 3 個（零件太多，佈線接不完）');
   });
 
   it('simulates the same as the diagram with a shared resistor, and Check Circuit finds no errors', () => {

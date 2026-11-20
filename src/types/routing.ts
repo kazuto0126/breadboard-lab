@@ -69,6 +69,11 @@ export interface PlacementConfig {
   candidateIterations: number;
   /** 子專案 34：每個候選位置佈線前，電源腳改接最近的同極性軌（只有「轉成麵包板」打開）。 */
   nearestPowerRail: boolean;
+  /**
+   * 子專案 68：粗估 IC 位置時每條線的成本（沒有設定時用 weights.wire）。7 段顯示器分板放的擺法用 6：
+   * 2026-11-20 量測，每段一顆電阻的 3 個顯示器從排不完變成 200 條、共用電阻的 3 個 177 → 129 條；別的大電路用 6 反而排不完。
+   */
+  estimateWire?: number;
 }
 
 export interface RoutingConfig {
