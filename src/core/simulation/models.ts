@@ -48,6 +48,14 @@ export interface LogicModel {
 
 export const not = (v: Logic): Logic => (v === 'X' ? 'X' : v === 1 ? 0 : 1);
 
+/**
+ * 非同步清除 / 預設腳是 X（還不知道有沒有作用）時的結果：沒作用時是 normal，有作用時是 forced 裡的值；
+ * 全部一樣就是那個值，不然是 X。回授計數器上電時 NAND 的輸出還是 X，已經是 0 再清除一次還是 0，不能讓 X 卡在迴圈裡。
+ */
+export function eitherWay<T extends Logic | number | 'X'>(normal: T, forced: T[]): T | 'X' {
+  return forced.every((v) => v === normal) ? normal : 'X';
+}
+
 export function and(values: Logic[]): Logic {
   if (values.includes(0)) return 0;
   return values.includes('X') ? 'X' : 1;
@@ -168,8 +176,10 @@ function dffModel(spec: DffLogic): LogicModel {
         const both = pre === 1 && clr === 1;
         if (both || pre === 1) q = 1;
         else if (clr === 1) q = 0;
-        else if (pre === 'X' || clr === 'X') q = 'X';
-        else if (rising(state.prev[ff.clock], read(ff.clock))) q = load === 1 ? read(ff.d) : load === 0 ? q : 'X';
+        else {
+          if (rising(state.prev[ff.clock], read(ff.clock))) q = load === 1 ? read(ff.d) : load === 0 ? q : 'X';
+          q = eitherWay<Logic>(q, [...(pre === 'X' ? [1 as const] : []), ...(clr === 'X' ? [0 as const] : [])]);
+        }
         if (ff.q) outputs[ff.q] = drive(q);
         if (ff.qn) outputs[ff.qn] = drive(both ? 1 : not(q));
         return q;
@@ -187,22 +197,22 @@ function rippleCounterModel(spec: RippleCounterLogic): LogicModel {
     outputs: spec.stages.flatMap((s) => s.outputs),
     init: () => ({ prev: {}, bits: zeros(widths.reduce((a, b) => a + b, 0)) }),
     evaluate(read, state) {
-      let values = spec.stages.map((_, k) => toNumber(state.bits.slice(offsets[k], offsets[k] + widths[k])));
-      let preset = false;
-      for (const p of spec.presets) {
+      const current = spec.stages.map((_, k) => toNumber(state.bits.slice(offsets[k], offsets[k] + widths[k])));
+      const counted = current.map((v, k) => {
+        const stage = spec.stages[k];
+        if (!falling(state.prev[stage.clock], read(stage.clock))) return v;
+        return v === 'X' ? 'X' : (v + 1) % stage.modulus;
+      });
+      // 依順序看每一組重設（74LS90 的 R9 優先於 R0）；重設腳是 X 時，重設與否結果一樣的那一級照舊。
+      const afterPresets = (from: number): Array<number | 'X'> => {
+        if (from >= spec.presets.length) return counted;
+        const p = spec.presets[from];
         const when = allAsserted(read, p.when);
-        if (when === 0) continue;
-        values = when === 1 ? [...p.values] : values.map(() => 'X' as const);
-        preset = true;
-        break;
-      }
-      if (!preset) {
-        values = values.map((v, k) => {
-          const stage = spec.stages[k];
-          if (!falling(state.prev[stage.clock], read(stage.clock))) return v;
-          return v === 'X' ? 'X' : (v + 1) % stage.modulus;
-        });
-      }
+        if (when === 0) return afterPresets(from + 1);
+        if (when === 1) return [...p.values];
+        return afterPresets(from + 1).map((v, k) => eitherWay(v, [p.values[k]]));
+      };
+      const values = afterPresets(0);
       const outputs: Record<string, Level> = {};
       const bits = spec.stages.flatMap((stage, k) => {
         const stageBits = toBits(values[k], widths[k]);
@@ -223,16 +233,19 @@ function syncCounterModel(spec: SyncCounterLogic): LogicModel {
     evaluate(read, state) {
       let q = toNumber(state.bits);
       const clear = asserted(read, spec.clear);
-      if (spec.clear.mode === 'async' && clear !== 0) {
-        q = clear === 1 ? 0 : 'X';
-      } else if (rising(state.prev[spec.clock], read(spec.clock))) {
-        const load = asserted(read, spec.load);
-        const enabled = allAsserted(read, spec.enable);
-        if (spec.clear.mode === 'sync' && clear !== 0) q = clear === 1 ? 0 : 'X';
-        else if (load === 1) q = toNumber(readAll(read, spec.data));
-        else if (load === 'X') q = 'X';
-        else if (enabled === 1) q = q === 'X' ? 'X' : (q + 1) % (max + 1);
-        else if (enabled === 'X') q = 'X';
+      const edge = rising(state.prev[spec.clock], read(spec.clock));
+      if (clear === 1 && (spec.clear.mode === 'async' || edge)) q = 0;
+      else {
+        if (edge) {
+          const load = asserted(read, spec.load);
+          const enabled = allAsserted(read, spec.enable);
+          if (load === 1) q = toNumber(readAll(read, spec.data));
+          else if (load === 'X') q = 'X';
+          else if (enabled === 1) q = q === 'X' ? 'X' : (q + 1) % (max + 1);
+          else if (enabled === 'X') q = 'X';
+        }
+        // 清除腳是 X：清除與否結果一樣（已經是 0）時照舊。同步清除只在時脈邊緣有作用。
+        if (clear === 'X' && (spec.clear.mode === 'async' || edge)) q = eitherWay(q, [0]);
       }
       const bits = toBits(q, width);
       const outputs: Record<string, Level> = {};
@@ -256,11 +269,14 @@ function upDownCounterModel(spec: UpDownCounterLogic): LogicModel {
       const up = read(spec.up);
       const down = read(spec.down);
       if (clear === 1) q = 0;
-      else if (clear === 'X') q = 'X';
-      else if (load === 1) q = toNumber(readAll(read, spec.data));
-      else if (load === 'X') q = 'X';
-      else if (rising(state.prev[spec.up], up) && down === 1) q = q === 'X' ? 'X' : (q + 1) % modulus;
-      else if (rising(state.prev[spec.down], down) && up === 1) q = q === 'X' ? 'X' : (q + modulus - 1) % modulus;
+      else {
+        if (load === 1) q = toNumber(readAll(read, spec.data));
+        else if (load === 'X') q = 'X';
+        else if (rising(state.prev[spec.up], up) && down === 1) q = q === 'X' ? 'X' : (q + 1) % modulus;
+        else if (rising(state.prev[spec.down], down) && up === 1) q = q === 'X' ? 'X' : (q + modulus - 1) % modulus;
+        // 清除腳是 X：清除與否結果一樣（已經是 0）時照舊。
+        if (clear === 'X') q = eitherWay(q, [0]);
+      }
       const bits = toBits(q, width);
       const outputs: Record<string, Level> = {};
       spec.outputs.forEach((pin, i) => (outputs[pin] = bits[i]));
@@ -332,14 +348,16 @@ function jkffModel(spec: JkffLogic): LogicModel {
         const both = pre === 1 && clr === 1;
         if (both || pre === 1) q = 1;
         else if (clr === 1) q = 0;
-        else if (pre === 'X' || clr === 'X') q = 'X';
-        else if (falling(state.prev[ff.clock], read(ff.clock))) {
-          const j = read(ff.j);
-          const k = read(ff.k);
-          if (j === 'X' || k === 'X') q = 'X';
-          else if (j === 1 && k === 1) q = not(q);
-          else if (j === 1) q = 1;
-          else if (k === 1) q = 0;
+        else {
+          if (falling(state.prev[ff.clock], read(ff.clock))) {
+            const j = read(ff.j);
+            const k = read(ff.k);
+            if (j === 'X' || k === 'X') q = 'X';
+            else if (j === 1 && k === 1) q = not(q);
+            else if (j === 1) q = 1;
+            else if (k === 1) q = 0;
+          }
+          q = eitherWay<Logic>(q, [...(pre === 'X' ? [1 as const] : []), ...(clr === 'X' ? [0 as const] : [])]);
         }
         if (ff.q) outputs[ff.q] = q;
         if (ff.qn) outputs[ff.qn] = both ? 1 : not(q);

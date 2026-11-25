@@ -195,11 +195,20 @@ function evaluateFlat(d: LogicDiagram, values: Record<string, 0 | 1>, state: Seq
   let result = combinational(order, driver, values, seq, feedback.length > 0 ? memory : null);
   for (let round = 0; sequential.length > 0 && round < MAX_SETTLE; round++) {
     let changed = false;
-    for (const node of sequential) {
-      const ev = modelOf(node.chip!)!.evaluate(readOf(node, result.nodes), seq[node.id].state);
-      const out = BLOCK_PINS[node.chip!].outputs.map((name) => bitOf(ev.outputs[modelOutput(node.chip!, name)]));
-      if (out.some((b, k) => b !== seq[node.id].out[k])) changed = true;
-      seq[node.id] = { state: ev.state, out };
+    // 使用者 2026-11-25 回報（十進位計數器）：時序方塊的新輸出先沿著直接接的線送到其他時序方塊（例如 QB 接下一級的時脈），
+    // 閘的輸出晚一步才變（閘有延遲）。NAND 清除時 QB 掉下來的下降緣送到下一級時 /CLR 還壓著，下一級不會翻。
+    for (let wave = 0; wave < MAX_SETTLE; wave++) {
+      const view = new Map(result.nodes);
+      for (const node of sequential) seq[node.id].out.forEach((b, k) => view.set(signalOf(node.id, k), b));
+      let moved = false;
+      for (const node of sequential) {
+        const ev = modelOf(node.chip!)!.evaluate(readOf(node, view), seq[node.id].state);
+        const out = BLOCK_PINS[node.chip!].outputs.map((name) => bitOf(ev.outputs[modelOutput(node.chip!, name)]));
+        if (out.some((b, k) => b !== seq[node.id].out[k])) moved = true;
+        seq[node.id] = { state: ev.state, out };
+      }
+      if (!moved) break;
+      changed = true;
     }
     if (!changed) break;
     result = combinational(order, driver, values, seq, feedback.length > 0 ? memory : null);

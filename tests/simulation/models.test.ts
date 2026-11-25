@@ -321,3 +321,52 @@ describe('74LS245 bus transceiver', () => {
     expect([...A, ...B].every((p) => out[p] === 'Z')).toBe(true);
   });
 });
+
+/**
+ * 回授計數器（例如兩顆 74LS76 + NAND 清除的十進位計數器）上電時 NAND 的輸出還不知道（X），接到非同步清除 / 預設腳：
+ * 清除 / 預設與否結果一樣時（已經是 0 再清除）照舊是確定的值，不能變成 X，否則 X 在回授迴圈裡永遠解不開。
+ */
+describe('unknown (X) on asynchronous clear / preset', () => {
+  it('74LS76 keeps Q = 0 when /CLR is X, keeps Q = 1 when /PRE is X, and is X otherwise', () => {
+    const c = chip('74LS76');
+    expect(c.evaluate({ '1/PRE': 1, '1/CLR': 'X' })).toMatchObject({ '1Q': 0, '1/Q': 1 });
+    c.evaluate({ '1/PRE': 0, '1/CLR': 1 });
+    expect(c.evaluate({ '1/PRE': 'X', '1/CLR': 1 })).toMatchObject({ '1Q': 1, '1/Q': 0 });
+    expect(c.evaluate({ '1/PRE': 1, '1/CLR': 'X' })['1Q']).toBe('X');
+  });
+
+  it('74LS74 keeps Q = 0 when /CLR is X', () => {
+    const c = chip('74LS74');
+    expect(c.evaluate({ '1/PRE': 1, '1/CLR': 'X' })).toMatchObject({ '1Q': 0, '1/Q': 1 });
+    c.evaluate({ '1/PRE': 0, '1/CLR': 1 });
+    expect(c.evaluate({ '1/PRE': 1, '1/CLR': 'X' })['1Q']).toBe('X');
+  });
+
+  it('74LS93 / 90 keep 0 when R0 is X; anything else is X', () => {
+    const c = chip('74LS93');
+    c.evaluate({ 'R0(1)': 'X', 'R0(2)': 1 });
+    expect(c.count(['QA', 'QB', 'QC', 'QD'])).toBe(0);
+    c.edge('CKA', 1, 0, { 'R0(1)': 0 });
+    expect(c.out('QA')).toBe(1);
+    c.evaluate({ 'R0(1)': 'X' });
+    expect(c.out('QA')).toBe('X');
+
+    const d = chip('74LS90');
+    d.evaluate({ 'R0(1)': 'X', 'R0(2)': 1, 'R9(1)': 0, 'R9(2)': 0 });
+    expect(d.count(['QA', 'QB', 'QC', 'QD'])).toBe(0);
+  });
+
+  it('74LS161 keeps 0 when /CLR is X; 74LS193 keeps 0 when CLR is X', () => {
+    const a = chip('74LS161');
+    a.evaluate({ '/CLR': 'X', '/LOAD': 1, ENP: 1, ENT: 1, CLK: 0 });
+    expect(a.count(['QA', 'QB', 'QC', 'QD'])).toBe(0);
+    a.edge('CLK', 0, 1, { '/CLR': 1 });
+    expect(a.count(['QA', 'QB', 'QC', 'QD'])).toBe(1);
+    a.evaluate({ '/CLR': 'X' });
+    expect(a.out('QA')).toBe('X');
+
+    const b = chip('74LS193');
+    b.evaluate({ CLR: 'X', '/LOAD': 1, UP: 1, DOWN: 1 });
+    expect(b.count(['QA', 'QB', 'QC', 'QD'])).toBe(0);
+  });
+});

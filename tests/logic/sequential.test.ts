@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { checkDiagram } from '../../src/logic/check';
 import { evaluate, isSequential, sequenceTable, type SeqState } from '../../src/logic/evaluate';
 import type { BlockChip, LogicDiagram, LogicNode, LogicWire } from '../../src/logic/types';
+import { decadeCounter } from '../fixtures/decadeCounter';
 
 /** 子專案 46（規格 2026-10-24 sequential-logic）：時脈、正反器與計數器方塊的模擬。 */
 let wid = 0;
@@ -201,5 +202,17 @@ describe('the BCD adder example (sub-project 54)', () => {
         const v = evaluate(d, values);
         expect([v.displays.get(id('TENS')), v.displays.get(id('ONES'))], `${a} + ${b}`).toEqual([Math.floor((a + b) / 10), (a + b) % 10]);
       }
+  });
+});
+
+describe('feedback counters in the diagram', () => {
+  // 使用者 2026-11-25 回報的十進位計數器（74LS76 × 2，QB、QD 經過 NAND 清除）：數到 10 時 NAND 清除，
+  // QB 掉下來的下降緣送到下一級時 /CLR 還壓著（閘有延遲），所以下一級不會翻；以前時序表在 9 之後寫 4。
+  it('counts 0–9 and clears back to 0 at ten', () => {
+    const t = sequenceTable(decadeCounter(), 12);
+    if (!t.ok) throw new Error(t.reason);
+    expect(t.outputs).toEqual(['QA', 'QB', 'QC', 'QD']);
+    const count = (out: unknown[]) => out.reduce<number>((n, b, k) => n + (b === 1 ? 1 << k : 0), 0);
+    expect(t.rows.map((r) => count(r.out))).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2]);
   });
 });
